@@ -993,13 +993,19 @@ static int me_clamp(int v, int lo, int hi) {
 
 /* FUN_1000_20e0 and its region handlers 1f8e / 2082 / panel. */
 static void me_mouse(MapEditor* ed, const ColonizeInputState* in) {
-  const bool left = in->mouse_left_down;
-  const bool right = in->mouse_right_down;
-  const bool any = left || right;
-  const bool press = (left && !ed->prev_left) || (right && !ed->prev_right);
-  const bool release = (!left && ed->prev_left) || (!right && ed->prev_right);
-  ed->prev_left = left;
-  ed->prev_right = right;
+  /* FUN_1c21_0042 (#1760): press (DS:0x728) = buttons from none to some,
+   * release (0x730) = all up after being held, right (0x720) latched at the
+   * press as "left not in it", held (0x732) = some button or the release
+   * frame. A second button mid-stroke is not a new press. */
+  const bool any = in->mouse_left_down || in->mouse_right_down;
+  const bool press = any && !ed->mouse_held;
+  const bool release = !any && ed->mouse_held;
+  if (press) {
+    ed->mouse_right = !in->mouse_left_down;
+  }
+  ed->mouse_held = any;
+  const bool right = ed->mouse_right;
+  const bool held = any || release;
   const int region = me_region(in->mouse_x, in->mouse_y);
   if (press) {
     ed->press_region = region;
@@ -1011,16 +1017,16 @@ static void me_mouse(MapEditor* ed, const ColonizeInputState* in) {
     const MeView v = me_view(ed);
     const int tx = in->mouse_x / v.tile - v.off_x + v.left;
     const int ty = (in->mouse_y - ME_MENU_H) / v.tile - v.off_y + v.top;
-    if ((any || release) && me_inset(ed, tx, ty)) {
-      if (any) {
-        ed->cur_x = tx;
-        ed->cur_y = ty;
-      }
+    if (held && me_inset(ed, tx, ty)) {
+      /* FUN_1000_1f8e: the cursor and the Shift brush run on the release
+       * frame too. */
+      ed->cur_x = tx;
+      ed->cur_y = ty;
       if (!in->shift_held) {
         if (release || right) {
           me_center(ed, tx, ty);
         }
-      } else if (any) {
+      } else {
         if (!right || ed->brush_feature) {
           me_brush(ed, tx, ty, right);
         } else {
@@ -1082,7 +1088,7 @@ static void me_palette_input(MapEditor* ed, const ColonizeInputState* in) {
   }
   if (in->mouse_left_released || in->mouse_right_released) {
     ed->palette_open = false;
-    ed->prev_left = ed->prev_right = false;
+    ed->mouse_held = ed->mouse_right = false;
     ed->press_region = -1;
   }
 }
@@ -1412,7 +1418,9 @@ static void me_render_side(const MapEditor* ed, ColonizeFramebuffer8* fb) {
     l2 = me_str(ed, MAPEDIT_DS_PICKUP);
   }
   font_draw_text(f, fb, x, y, line, ink);
-  y += fh + 5;
+  /* 0842 / 08e2 already add fh + 1 for the brush line, then `+= fh + 5`
+   * (mapedit.c 645-668, #1759). */
+  y += (fh + 1) + (fh + 5);
   font_draw_text(f, fb, x, y, l1, ink);
   y += fh + 1;
   font_draw_text(f, fb, x, y, l2, ink);

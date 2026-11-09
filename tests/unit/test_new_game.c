@@ -748,9 +748,10 @@ static int case_wizard_lore_percent_escape(void) {
   }
   ColonizeInputState down = {0};
   down.last_key = COLONIZE_KEY_DOWN;
-  /* Original Americas -> difficulty -> nation Spain (2) -> leader name -> @NATION2A -> 2B. */
+  /* Original Americas -> difficulty -> nation Spain (Down = +2, FUN_733a_0c2a) -> leader
+   * name -> @NATION2A -> 2B. */
   if (!ng_fix_enter(f) || !ng_fix_enter(f) || !new_game_handle_input(&f->ng, &down) ||
-      !new_game_handle_input(&f->ng, &down) || !ng_fix_enter(f) || !ng_fix_enter(f) ||
+      !ng_fix_enter(f) || !ng_fix_enter(f) ||
       !ng_fix_enter(f) || f->ng.phase != NEW_GAME_PHASE_NATION_LORE_B || f->ng.nation != 2) {
     fprintf(stderr, "expected @NATION2B (phase %d nation %d)\n", f->ng.phase, f->ng.nation);
     goto out;
@@ -905,7 +906,67 @@ done:
   return rc;
 }
 
+/* #1757: FUN_733a_0790 steps difficulty +1 (Space/Tab/Right/Down) or +4
+ * (Backspace/Up/Left) mod 5; FUN_733a_0c2a steps the nation +1 / +2 (Up, Down)
+ * / +3 mod 4; a release in the left region confirms. */
+static int case_wizard_picker_keys(void) {
+  NgFix* f = &g_fix;
+  int rc = 1;
+  ColonizeInputState in = {0};
+  if (ng_fix_begin(f, NEW_GAME_PATH_NEW_WORLD) != 0 || f->ng.phase != NEW_GAME_PHASE_DIFFICULTY) {
+    fprintf(stderr, "expected the difficulty screen\n");
+    goto out;
+  }
+  f->ng.selection = 0;
+  in.last_key = COLONIZE_KEY_DOWN;
+  new_game_handle_input(&f->ng, &in);
+  if (ng_expect("difficulty Down", f->ng.selection, 1)) {
+    goto out;
+  }
+  in.last_key = COLONIZE_KEY_UP;
+  new_game_handle_input(&f->ng, &in);
+  new_game_handle_input(&f->ng, &in);
+  if (ng_expect("difficulty Up wraps", f->ng.selection, 4)) {
+    goto out;
+  }
+  in.last_key = COLONIZE_KEY_TAB;
+  new_game_handle_input(&f->ng, &in);
+  if (ng_expect("difficulty Tab wraps", f->ng.selection, 0)) {
+    goto out;
+  }
+  memset(&in, 0, sizeof(in));
+  in.mouse_left_clicked = true;
+  in.mouse_left_down = true;
+  in.mouse_x = 10;
+  in.mouse_y = 10;
+  new_game_handle_input(&f->ng, &in);
+  memset(&in, 0, sizeof(in));
+  in.mouse_left_released = true;
+  in.mouse_x = 10;
+  in.mouse_y = 10;
+  new_game_handle_input(&f->ng, &in);
+  if (f->ng.phase != NEW_GAME_PHASE_NATION) {
+    fprintf(stderr, "release in the left region should confirm (phase %d)\n", f->ng.phase);
+    goto out;
+  }
+  f->ng.selection = 1;
+  memset(&in, 0, sizeof(in));
+  in.last_key = COLONIZE_KEY_RIGHT;
+  new_game_handle_input(&f->ng, &in);
+  in.last_key = COLONIZE_KEY_LEFT;
+  new_game_handle_input(&f->ng, &in);
+  new_game_handle_input(&f->ng, &in);
+  if (ng_expect("nation Right then Left x2", f->ng.selection, 0)) {
+    goto out;
+  }
+  rc = 0;
+out:
+  ng_fix_free(f);
+  return rc;
+}
+
 static const TestCase k_cases[] = {
+    {"wizard_picker_keys", case_wizard_picker_keys},
     {"new_world_village_counts", case_new_world_village_counts},
     {"scenario_start", case_scenario_start},
     {"customize_defaults", case_customize_defaults},

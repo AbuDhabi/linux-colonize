@@ -316,6 +316,61 @@ static int case_expert_pass_seats_master_carpenter(void) {
   return 0;
 }
 
+/* port_bugs.md #1621: the carpenter demotion writes aiStack_12e[slot] = 0x1c
+ * (asm OVL15 0x1dcc) before 0cae, so the build cascade's census (raw 95719,
+ * which reads that cache) counts one Master Carpenter, not two. */
+static int case_expert_demotion_updates_prof_cache(void) {
+  ColonizeColonyPool pool;
+  colonies_init(&pool);
+  colonies_set_occupancy_map(NULL);
+  pool.building_types[0].row_plus1 = COLONY_BUILDING_CARPENTERS_SHOP + 1;
+  pool.building_type_count = 1;
+  ColonizeColony* c = &pool.colonies[0];
+  c->id = 0;
+  c->active = true;
+  c->nation_id = 1;
+  c->population = 2;
+  c->colonist_count = 2;
+  c->building_in_production = -1;
+  c->build_ai_flags = COLONIZE_BUILD_AI_WANTS_CONSTRUCTION;
+  pool.colony_count = 1;
+  pool.next_id = 1;
+  c->has_building[0] = true;
+  for (int s = 0; s < 2; ++s) {
+    c->colonists[s].active = true;
+    c->colonists[s].profession = COLONIZE_PROF_CARPENTER;
+    c->colonists[s].building_type = -1;
+    c->colonists[s].field_job = -1;
+  }
+  ai_euro_s_5952_census_carpenter[0] = 2;
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof ctx);
+  ctx.colonies = &pool;
+  AiEuroColonyTick t;
+  memset(&t, 0, sizeof t);
+  t.ctx = &ctx;
+  t.col = c;
+  ai_euro_colony_tick_unseat_all(&t);
+  ai_euro_5952_indoor_expert_pass(&ctx, c, t.placed, t.n);
+  if (c->colonists[0].profession != COLONIZE_PROF_FREE_COLONIST) {
+    ai_euro_colony_tick_prof_cache_clear();
+    return fail("first Master Carpenter must be demoted (wants construction, 2 carpenters)");
+  }
+  AiEuro5952Cascade cs;
+  memset(&cs, 0, sizeof cs);
+  cs.ctx = &ctx;
+  cs.pool = &pool;
+  cs.col = c;
+  ai_euro_5952_cascade_census(&cs);
+  ai_euro_colony_tick_prof_cache_clear();
+  ai_euro_s_5952_census_carpenter[0] = 0;
+  if (cs.experts != 1) {
+    fprintf(stderr, "experts=%d\n", cs.experts);
+    return fail("census must read the demoted slot's cached 0x1c");
+  }
+  return 0;
+}
+
 /* ---- FUN_15eb_1f72 ledger rows --------------------------------------- */
 
 /* A pool whose slots are the @BUILDING rows, and colony 0 at (4,4). */
@@ -528,6 +583,7 @@ static const TestCase k_cases[] = {
   {"ledger_factory_input_divides_total", case_ledger_factory_input_divides_total},
   {"ledger_food_demand_counts_horse_births", case_ledger_food_demand_counts_horse_births},
   {"expert_pass_tools_supply_nets_unmet_ore", case_expert_pass_tools_supply_nets_unmet_ore},
+  {"expert_demotion_updates_prof_cache", case_expert_demotion_updates_prof_cache},
   {"paine_bonus_reads_tax_unsigned", case_paine_bonus_reads_tax_unsigned},
 };
 

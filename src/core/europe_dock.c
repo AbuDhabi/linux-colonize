@@ -520,13 +520,19 @@ bool europe_dock_caption(const EuropeScreen* eu, int dock_index, char* out, size
   }
   const EuropeDockImmigrant* d = &eu->dock[dock_index];
   const char* adj = reports_nation_adjective_display_name((int)eu->bound_nation);
-  const char* type_name = reports_dock_type_name(d->dos_type);
+  /* #1704: the @UNIT row of the real type byte (+0x3146), not only the six
+   * dock rows: Artillery and the Continental rows name themselves too. */
+  char type_name[32];
+  const char* tn = reports_names_field(
+    "UNIT", d->artillery ? (int)UNITS_KIND_ARTILLERY : d->dos_type, 0
+  );
+  snprintf(type_name, sizeof(type_name), "%s", tn ? tn : "");
   const int prof = d->profession;
   const char* job_name = (prof >= 0 && prof != UNITS_JOB_NONE) ? reports_job_short_name(prof) : NULL;
   if (job_name && job_name[0]) {
-    snprintf(out, cap, "%s %s (%s)", adj ? adj : "", type_name ? type_name : "", job_name);
+    snprintf(out, cap, "%s %s (%s)", adj ? adj : "", type_name, job_name);
   } else {
-    snprintf(out, cap, "%s %s", adj ? adj : "", type_name ? type_name : "");
+    snprintf(out, cap, "%s %s", adj ? adj : "", type_name);
   }
   return true;
 }
@@ -649,7 +655,7 @@ void europe_apply_dock_row_kit(ColonizeUnit* u, const EuropeDockImmigrant* d) {
     return;
   }
   europe_apply_dock_unit_kit(u, d->dos_type);
-  if (d->tools > 0) {
+  if (d->tools > 0 && d->dos_type == EUROPE_DOCK_TYPE_PIONEERS) {
     u->tools = d->tools;
   }
 }
@@ -1053,15 +1059,13 @@ bool europe_apply_dock_menu_row_ex(
   int sound = -1;
 
   switch (row) {
+    /* FUN_38fd_3746 cases 1-3 (ndisasm 0x3402E / 3A / 46) write no status
+     * line (#1705). */
     case EUROPE_ARM_ROW_NO_BOARD:
       d->sentry = false;
-      /* GAME.TXT @ARMOPTIONS row 0 ("Don't get on next ship."). */
-      europe_set_status(eu, assets_msg_line_or(eu->messages, "ARMOPTIONS", 0, ""));
       return true;
     case EUROPE_ARM_ROW_BOARD:
       d->sentry = true;
-      /* GAME.TXT @ARMOPTIONS row 1 ("Board next ship."). */
-      europe_set_status(eu, assets_msg_line_or(eu->messages, "ARMOPTIONS", 1, ""));
       return true;
     case EUROPE_ARM_ROW_TO_FRONT: {
       if (dock_index <= 0) {
@@ -1073,8 +1077,6 @@ bool europe_apply_dock_menu_row_ex(
       }
       eu->dock[0] = moved;
       eu->menu_dock_index = 0;
-      /* GAME.TXT @ARMOPTIONS row 2 ("Move to front of dock."). */
-      europe_set_status(eu, assets_msg_line_or(eu->messages, "ARMOPTIONS", 2, ""));
       return true;
     }
     /* 38fd:3ade — Scouts become Dragoons, anyone else Soldiers. */
@@ -1148,9 +1150,13 @@ bool europe_apply_dock_menu_row_ex(
   const int mirror_id = units ? europe_dock_mirror_unit_of(eu, units, nation_id, dock_index) : -1;
   d->dos_type = to;
   /* Every row that gets here retypes the unit. Equip with Tools sets
-   * +0x3159 = 100 (38fd:3b7e, ndisasm 0x340D7), the new type's kit; the other
-   * rows leave a type with no tools in the port's kit. */
-  d->tools = 0;
+   * +0x3159 = 100 (38fd:3b7e, ndisasm 0x340D7); no other row touches the
+   * byte (Sell Tools 0x340F0-0x3410B writes only +0x3146), so a stale count
+   * stays on the record. europe_apply_dock_row_kit and boarding read it only
+   * for a Pioneers row (#1706). */
+  if (row == EUROPE_ARM_ROW_BUY_TOOLS) {
+    d->tools = 100;
+  }
   if (ledger_cargo >= 0) {
     /*
      * Ledger only — no rise/fall step. The arm rows call the volume routines

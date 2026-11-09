@@ -1451,21 +1451,8 @@ static bool elect_commit(
   /* DOS FUN_4345_0342: after elect, next_founding_father = -1 (re-debate). */
   nat->next_founding_father = -1;
 
-  EuropeScreen* europe = (nation_id == ctx->human_nation) ? ctx->europe : NULL;
-  apply_effect(ctx, col1, nat, europe, nation_id, ctx->human_nation, idx);
-
-  diag_info(
-    "FF nation %d elected #%d %s (count=%u)",
-    nation_id, idx, reports_ff_display_name(idx), (unsigned)nat->founding_father_count
-  );
-  /* TB-58: DOS zeroes the pool (FUN_4345_0a22 raw 73370), discarding the
-   * surplus over the threshold. The declaration-time zero stays in both modes. */
-  if (dos_buggy_behavior()) {
-    founding_fathers_reset_bells_pool(ctx, nation_id);
-  } else {
-    ff_spend_bells_pool(ctx, nation_id, needed);
-  }
-
+  /* FUN_4345_0342 raw 73064-73075: @FREEDOM (then the 0f74 Congress page and
+   * the pedia) is shown before the effects run (port_bugs.md #1702). */
   if (ctx->ai_popups && nation_id == ctx->human_nation) {
     char body[AI_POPUP_BODY_LEN];
     PopupMsgTokens tok;
@@ -1501,6 +1488,21 @@ static bool elect_commit(
       body
     );
   }
+  EuropeScreen* europe = (nation_id == ctx->human_nation) ? ctx->europe : NULL;
+  apply_effect(ctx, col1, nat, europe, nation_id, ctx->human_nation, idx);
+
+  diag_info(
+    "FF nation %d elected #%d %s (count=%u)",
+    nation_id, idx, reports_ff_display_name(idx), (unsigned)nat->founding_father_count
+  );
+  /* TB-58: DOS zeroes the pool (FUN_4345_0a22 raw 73370), discarding the
+   * surplus over the threshold. The declaration-time zero stays in both modes. */
+  if (dos_buggy_behavior()) {
+    founding_fathers_reset_bells_pool(ctx, nation_id);
+  } else {
+    ff_spend_bells_pool(ctx, nation_id, needed);
+  }
+
   return true;
 }
 
@@ -1541,7 +1543,18 @@ bool founding_fathers_try_elect(ColonizeTurnContext* ctx, int nation_id) {
   const int idx = (int)nat->next_founding_father;
   if (idx < 0 || idx >= (int)COLONIZE_COL1_FF_COUNT ||
       !ff_available_to(col1, nation_id, idx)) {
-    return false; /* waiting on debate CHOICE, or no candidates left */
+    /* Waiting on the human's debate CHOICE (DOS asks synchronously). */
+    if (nation_id == ctx->human_nation && ctx->ai_popups && ff_debate_pending(ctx->ai_popups)) {
+      return false;
+    }
+    /* No candidate left: FUN_4345_0a22 (asm 4345:0aad-0aef) still zeroes
+     * +0xc at the threshold (port_bugs.md #1700); TB-58 as in elect_commit. */
+    if (dos_buggy_behavior()) {
+      founding_fathers_reset_bells_pool(ctx, nation_id);
+    } else {
+      ff_spend_bells_pool(ctx, nation_id, needed);
+    }
+    return false;
   }
   return elect_commit(ctx, nation_id, idx);
 }

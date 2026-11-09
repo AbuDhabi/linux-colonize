@@ -233,8 +233,7 @@ int colonies_work_plot_count(const ColonizeColonyPool* pool, const ColonizeColon
  *         layer3 owner nibble), is not water, and carries a fortified unit
  *         that is either armed (type attack > 1) or a Pioneer (DOS type 2)
  *         of a human-controlled nation. DOS also reveals that unit to the
- *         colony's nation here (`FUN_1427_0992`); the port's query is const
- *         and skips that side effect;
+ *         colony's nation here (`FUN_1427_0992`), and so does the port;
  *   0x02  Lost City Rumour tile (`FUN_137f_0598`);
  *   0x04  an Indian village stands on it;
  *   0x20  another colony's centre tile;
@@ -321,7 +320,7 @@ uint8_t colonies_plot_blocked_mask(
       !map_tile_is_water((ColonizeWorldMap*)map, x, y) && w->units) {
     const int pioneer_type = units_kind_type_index(w->units, UNITS_KIND_PIONEER);
     for (int i = 0; i < units_slot_end(w->units); ++i) {
-      const ColonizeUnit* u = &w->units->units[i];
+      ColonizeUnit* u = &w->units->units[i];
       if (!u->active || u->x != x || u->y != y) {
         continue;
       }
@@ -337,6 +336,10 @@ uint8_t colonies_plot_blocked_mask(
       }
       if (blocks) {
         mask |= 0x80u;
+        /* raw 12750: FUN_1427_0992(unit, colony nation) reveals it (#1693). */
+        if (col->nation_id >= 0 && col->nation_id < 4) {
+          u->col1_vis_mask |= (uint8_t)(1u << col->nation_id);
+        }
       }
     }
   }

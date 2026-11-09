@@ -436,7 +436,7 @@ static void colonies_assign_field_land_reaction(
     return;
   }
   if (!snap) {
-    ti = colonies_indian_claim_tribe_from_w(w, nation, cc->x, cc->y, cc->x + dx, cc->y + dy);
+    ti = colonies_indian_claim_tribe_unseated_w(w, nation, cc->x, cc->y, cc->x + dx, cc->y + dy);
   }
   if (ti < 0 || ti >= (int)col1->head.tribe_count) {
     return;
@@ -464,13 +464,17 @@ static void colonies_assign_field_land_reaction(
     const int price = snap ? colonies_indian_land_purchase_gold_stale_claim(col1, map, x, y, nation)
                            : colonies_indian_land_purchase_gold(col1, map, x, y, nation);
     const long gold = (long)europe_nation_gold(w->europe, col1, nation);
-    if (price > 0 && gold - (long)price >= (long)(price >> 1)) {
+    if (price >= 0 && gold - (long)price >= (long)(price >> 1)) {
       /* gold = NULL: the spend goes through europe_nation_gold_add, the one
        * sanctioned writer; land_pay still does lands_bought++ + the purchased
        * stamp (FUN_479b_00ca / FUN_281f_068c). */
       colonies_indian_land_pay(col1, map, x, y, NULL, price);
       europe_nation_gold_add(w->europe, col1, nation, -(long)price);
-      return;
+      /* DOS-LITERAL raw 9876-9889 (port_bugs.md #1694): a price of 0 (Minuit)
+       * still pays, and local_a == 0 then runs the alarm arm below. */
+      if (price != 0) {
+        return;
+      }
     }
   }
   /* DS:0x8db8 — colonies_nearest_tribe_on's own map_dos_dist to the village it
@@ -902,24 +906,6 @@ const char* colonies_eject_role_name(int role) {
   }
 }
 
-int colonies_has_church_or_cathedral(
-  const ColonizeColonyPool* pool,
-  const ColonizeColony* col
-) {
-  if (!pool || !col) {
-    return 0;
-  }
-  const int church = colonies_building_row(pool, COLONY_BUILDING_CHURCH);
-  const int cath = colonies_building_row(pool, COLONY_BUILDING_CATHEDRAL);
-  if (church >= 0 && church < COLONIZE_BUILDING_TYPES_MAX && col->has_building[church]) {
-    return 1;
-  }
-  if (cath >= 0 && cath < COLONIZE_BUILDING_TYPES_MAX && col->has_building[cath]) {
-    return 1;
-  }
-  return 0;
-}
-
 /*
  * Tools handed to a body being equipped as a Pioneer: whole 20-tool steps,
  * capped at 100. DOS-LITERAL, not a port convenience — verified 2026-09-10
@@ -1023,7 +1009,10 @@ bool colonies_eject_row_offered(
     return true;
   }
   if (role == COLONIZE_EJECT_MISSIONARY) {
-    return colonies_has_church_or_cathedral(pool, col) || profession == UNITS_JOB_MISSIONARY;
+    /* DOS-LITERAL FUN_15eb_3454 raw 13567: the exact Church bit (038e(0x25)),
+     * not a Cathedral fold (port_bugs.md #1695). */
+    return colonies_dos_owns_row(pool, col, COLONY_BUILDING_CHURCH) ||
+           profession == UNITS_JOB_MISSIONARY;
   }
   return true;
 }

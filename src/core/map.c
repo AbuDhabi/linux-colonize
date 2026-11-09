@@ -534,7 +534,7 @@ static int map_resource_terrain_class(uint8_t terrain_byte) {
  * Ocean (25) yields fish (type 7); arctic/high seas table entries are -1.
  */
 typedef enum MapResourceGate {
-  MAP_RES_SPRITE, /* FUN_12ab_0380 (MAPEDIT): any settlement hides it */
+  MAP_RES_SPRITE, /* FUN_12ab_0380 (MAPEDIT): native settlements only, no interior test */
   MAP_RES_YIELD,  /* no settlement gate */
   MAP_RES_DOS,    /* FUN_137f_04b0: native settlements only (FUN_137f_0392) */
 } MapResourceGate;
@@ -550,9 +550,14 @@ static int map_resource_type_at_ex(
   }
   const uint8_t terrain_byte = map_get_terrain(map, x, y);
   const uint8_t layer2 = map->layer2 ? map->layer2[y * map->width + x] : 0;
-  /* Layer2 bit1 marks settlement ownership — skip resources for sprites (FUN_12ab_0380). */
+  /* FUN_12ab_0380 (mapedit.c:2794-2810): layer2 bit 1 and owner nibble >= 4 (FUN_12ab_0204
+   * reads 0xf as -1), i.e. a native village; a European colony keeps its special
+   * (port_bugs.md #1829). */
   if (gate == MAP_RES_SPRITE && (layer2 & 2u) != 0) {
-    return -1;
+    const int owner = (int)((map_get_layer3(map, x, y) >> MAP_L3_OWNER_SHIFT) & MAP_L3_OWNER_MASK);
+    if (owner >= 4 && owner != 0x0f) {
+      return -1;
+    }
   }
   /* FUN_137f_0392 raw 6814-6836: interior, layer2 bit 1 and FUN_137f_0200
    * owner >= 4 (nibble 0xf reads -1). A European colony keeps its special. */
@@ -575,7 +580,9 @@ static int map_resource_type_at_ex(
    * caller passes in, not something read from the asm. */
   const int dos_x = x;
   const int dos_y = y;
-  const int terrain_class_bits = (int)(terrain_byte & 0x1fu);
+  /* FUN_12ab_0458 / FUN_137f_04b0 raw 6919: the raw terrain byte & 0x3f, so a hill or
+   * mountain byte (0x20 bit) never takes the forest adjust (port_bugs.md #1829). */
+  const int terrain_class_bits = (int)(terrain_byte & 0x3fu);
   /* Forest range is the full 8-23 (both `local_a<16` and `local_a>=16`
    * forest halves — pedia 16-23 fold to the same 8 forest types via &7
    * elsewhere) — asm checks `(local_a<8||local_a>0xf) && (local_a<0x10||
@@ -654,9 +661,10 @@ static bool map_procedural_rumour_at(const ColonizeWorldMap* map, int x, int y) 
   if (map_is_ocean_index(idx) || idx == 24) {
     return false;
   }
-  const uint8_t layer2 = map->layer2 ? map->layer2[y * map->width + x] : 0;
-  /* FUN_12ab_0204 / 0540: no rumour on settlement tiles. */
-  if ((layer2 & 2u) != 0) {
+  /* FUN_12ab_0540 / FUN_137f_0598: a rumour shows only while the owner nibble is 0xf
+   * (FUN_12ab_0204 / FUN_137f_0200 < 0), not on the settlement bit (port_bugs.md #1832). */
+  const int nib = (int)((map_get_layer3(map, x, y) >> MAP_L3_OWNER_SHIFT) & MAP_L3_OWNER_MASK);
+  if (nib != 0x0f) {
     return false;
   }
   /* No +1, for the same reason map_resource_type_at_ex dropped it (see there,
@@ -1401,10 +1409,28 @@ static int map_edge_walk(
     return 0;
   }
   int self_type = 0;
+  bool coastal = false;
   if (kind == MAP_EDGE_LAND_TRANSITION) {
-    const uint8_t self_byte = map_get_terrain(map, x, y);
+    uint8_t self_byte = map_get_terrain(map, x, y);
     if (map_is_ocean_index(map_decode_terrain_index(self_byte))) {
-      return 0;
+      /* FUN_1a47_0932 / FUN_6ba1_0938: on a coastal ocean tile 01ae / 01b4 makes the self
+       * class the last cardinal land (DS:0x4e84 -> 0x5acc), then 06da(0, 1, 0) draws mask +
+       * fill toward each cardinal LAND neighbour of another class; param_2 = 1 skips the
+       * ocean-neighbour look-through (port_bugs.md #1830). */
+      if (map_phys0_coast_layer_count_internal(map, x, y) <= 0) {
+        return 0;
+      }
+      coastal = true;
+      bool any = false;
+      for (int d = 0; d < 8; d += 2) {
+        if (map_is_land_at(map, x + MAP_DIR8_DX[d], y + MAP_DIR8_DY[d])) {
+          self_byte = map_get_terrain(map, x + MAP_DIR8_DX[d], y + MAP_DIR8_DY[d]);
+          any = true;
+        }
+      }
+      if (!any) {
+        return 0;
+      }
     }
     self_type = map_land_transition_type(self_byte);
   } else {
@@ -1424,6 +1450,9 @@ static int map_edge_walk(
     int fill = -1;
     if (kind == MAP_EDGE_LAND_TRANSITION) {
       if (!map_in_bounds(map, nx, ny)) {
+        continue;
+      }
+      if (coastal && !map_is_land_at(map, nx, ny)) {
         continue;
       }
       const int ntype = map_land_transition_resolve_neighbour(map, nx, ny, &fill);
@@ -2175,8 +2204,9 @@ int map_tile_layer_cmds(
   }
   map_layer_push(out, max, &n, MAP_LAYER_SHEET_TERRAIN, 0, base, 0, 0);
 
-  /* MAPEDIT: land transitions before forest (FUN_1a47_06da). */
-  if (underlayer < 0) {
+  /* MAPEDIT: land transitions before forest (FUN_1a47_06da); a coastal ocean tile takes
+   * them over its underlayer (map_edge_walk). */
+  {
     const int transitions = map_land_transition_count(map, x, y);
     for (int ti = 0; ti < transitions; ++ti) {
       const int mask = map_land_transition_mask_sprite_at(map, x, y, ti);
@@ -2242,22 +2272,10 @@ int map_tile_layer_cmds(
       out[n - 1].offset = 1;
     }
   }
-  /* Hidden Terrain phase 1 peels settlements but leaves resources visible.
-   * The normal overlay query suppresses a resource while layer2 marks the
-   * tile occupied, so ask the yield-side DOS hash for the newly exposed
-   * resource. Phase 2 deliberately peels resources as well. */
-  if (terrain_peel_phase == 1 && map_tile_has_city(map, x, y)) {
-    const int resource = map_resource_type_for_yield(map, x, y);
-    if (resource >= 0) {
-      const int before = n;
-      map_layer_push(
-        out, max, &n, MAP_LAYER_SHEET_PHYS0, 0, PHYS0_RESOURCE_BASE + resource, 0, 0
-      );
-      if (n > before) {
-        out[n - 1].offset = 1;
-      }
-    }
-  }
+  /* Hidden Terrain phase 1 peels settlements only: FUN_6ba1_0938 (raw 109648-109651) draws the
+   * resource whenever FUN_281f_0718 != -1 and DS:0x18a == 0, and 0718 hides it on native
+   * villages only, so a colony tile's special is already in the overlay list above
+   * (port_bugs.md #1829). */
   /* Hidden Terrain phase 2+: roads aren't in the exempt set. */
   const int road_n = (terrain_peel_phase >= 2) ? 0 : map_phys0_road_layer_count(map, x, y);
   for (int ri = 0; ri < road_n; ++ri) {

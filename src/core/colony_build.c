@@ -105,17 +105,19 @@ int colonies_fortification_defense_bonus_percent(
  * skipped. Stops are global colony indices, so any nation's delete counts.
  * Stop removal shifts later stops down and drops dest_count; the old last
  * stop is left stale, as in DOS. The unit cursor (follow_unit_id = route,
- * col1_counter16 = stop) goes max(cursor - 1, 0) for cursor >= removed stop.
- * ponytail: the DOS gate on that cursor walk (unit owner == nation_turn and a
- * cargo-capable type) is not ported -- only trade-route-order units carry a
- * route, and AI units never do; a Europe-lane ship's trade_stop is not
- * adjusted either (col1_bridge clamps it at capture). The route table is
- * walked whole (an empty route has no stops) instead of trade_route_count.
+ * col1_counter16 = stop) goes max(cursor - 1, 0) for cursor >= removed stop,
+ * only for units of `acting_nation` (DS:0x5394, port_bugs.md #1682: an Indian
+ * burn moves no cursor). ponytail: the cargo-type gate (0x5237) is the
+ * trade-route order here -- only trade-route-order units carry a route, and AI
+ * units never do; a Europe-lane ship's trade_stop is not adjusted either
+ * (col1_bridge clamps it at capture). The route table is walked whole (an
+ * empty route has no stops) instead of trade_route_count.
  */
 static void colonies_trade_stops_on_delete(
   ColonizeCol1Save* col1,
   ColonizeUnitPool* units,
-  int rank
+  int rank,
+  int acting_nation
 ) {
   if (!col1 || rank < 0) {
     return;
@@ -131,8 +133,8 @@ static void colonies_trade_stops_on_delete(
         if (units) {
           for (int i = 0; i < units_slot_end(units); ++i) {
             ColonizeUnit* u = &units->units[i];
-            if (u->active && u->orders == UNITS_ORDER_TRADE_ROUTE && u->follow_unit_id == route &&
-                u->col1_counter16 >= j) {
+            if (u->active && u->nation_id == acting_nation && u->orders == UNITS_ORDER_TRADE_ROUTE &&
+                u->follow_unit_id == route && u->col1_counter16 >= j) {
               u->col1_counter16 = u->col1_counter16 > 0 ? u->col1_counter16 - 1 : 0;
             }
           }
@@ -149,6 +151,11 @@ static void colonies_trade_stops_on_delete(
 }
 
 bool colonies_abandon(ColonizeColonyPool* pool, int colony_id) {
+  const ColonizeColony* col = colonies_get(pool, colony_id);
+  return colonies_abandon_by(pool, colony_id, col ? col->nation_id : -1);
+}
+
+bool colonies_abandon_by(ColonizeColonyPool* pool, int colony_id, int acting_nation) {
   ColonizeColony* col = colonies_get_mut(pool, colony_id);
   if (!col || !col->active) {
     return false;
@@ -156,7 +163,7 @@ bool colonies_abandon(ColonizeColonyPool* pool, int colony_id) {
   colonies_mark_settlement_tile(col->x, col->y, false);
   /* Rank before the slot is cleared (DOS index = ordinal among live slots). */
   colonies_trade_stops_on_delete(
-    g_colonies_col1, g_colonies_units, colonies_dos_index(pool, colony_id)
+    g_colonies_col1, g_colonies_units, colonies_dos_index(pool, colony_id), acting_nation
   );
   /* Colony delete, raw 58154-58155: colony_counts[owner]-- (DS:0x9298). */
   if (g_colonies_col1 && col->nation_id >= 0 && col->nation_id < 4) {
@@ -204,10 +211,12 @@ void colonies_set_units_context(ColonizeUnitPool* units) {
  * nation_relation words of both zeroed; WAR bit set between them when not
  * already at war (DOS toggles the single byte; mirrored both ways here).
  * @HOWTOWIN once-latch (0x5386 bit0) is left to ai_king's declare path.
+ * The share, the 0x53c8 resets and the WAR toggle run only when `show`
+ * (1b0e param_4, raw 100970-101030; port_bugs.md #1681).
  */
 static int colonies_capture_col1_effects(
   ColonizeCol1Save* col1, const ColonizeColonyPool* pool, const ColonizeColony* col,
-  int old_nation, int new_nation
+  int old_nation, int new_nation, bool show
 ) {
   if (!col1 || !col1->colony || old_nation < 0 || old_nation > 3 || new_nation < 0 ||
       new_nation > 3) {
@@ -236,7 +245,7 @@ static int colonies_capture_col1_effects(
     captured->rebel_dividend = (uint32_t)(((uint64_t)captured->rebel_dividend * 2u) / 3u);
   }
   int plunder = 0;
-  if (!woi) {
+  if (show && !woi) {
     /* raw 100970-100976 sums the LIVE colony records' +0x1f of the loser
      * (the captured one already flipped at raw 100929); col1->colony[] is
      * the save mirror, stale between saves. */
@@ -259,8 +268,10 @@ static int colonies_capture_col1_effects(
     europe_nation_gold_add(NULL, col1, old_nation, -(long)plunder);
     europe_nation_gold_add(NULL, col1, new_nation, (long)plunder);
   }
-  col1->head.nation_relation[old_nation] = 0;
-  col1->head.nation_relation[new_nation] = 0;
+  if (show) {
+    col1->head.nation_relation[old_nation] = 0;
+    col1->head.nation_relation[new_nation] = 0;
+  }
   /*
    * FUN_465b_0000 raw 75545-75552 runs on the move INTO the tile, ahead of
    * this tail: when either direction still carries 0x40 it announces the war
@@ -273,6 +284,9 @@ static int colonies_capture_col1_effects(
    * Foreign Affairs report (PEACE bit only) keeps printing "at peace".
    */
   ai_diplo_clear_both(col1, old_nation, new_nation, AI_DIPLO_PEACE);
+  if (!show) {
+    return plunder;
+  }
   /* DOS-LITERAL FUN_5fef_1b0e (OVL17 asm 0x2f17-0x2f43, ndisasm file
    * 0x5de88): a one-sided toggle, captor's row tested. WAR set there is
    * CLEARED there; else the loser's row gains WAR (DOSBox BPM, independence
@@ -295,6 +309,12 @@ static int colonies_capture_col1_effects(
 bool colonies_capture_ex(
   ColonizeColonyPool* pool, int colony_id, int new_nation_id, int* plunder_gold
 ) {
+  return colonies_capture_show_ex(pool, colony_id, new_nation_id, plunder_gold, true);
+}
+
+bool colonies_capture_show_ex(
+  ColonizeColonyPool* pool, int colony_id, int new_nation_id, int* plunder_gold, bool show
+) {
   if (plunder_gold) {
     *plunder_gold = 0;
   }
@@ -307,7 +327,7 @@ bool colonies_capture_ex(
   }
   /* Indian capture: abandon (natives don't run Euro colonies T0). */
   if (new_nation_id >= 4) {
-    return colonies_abandon(pool, colony_id);
+    return colonies_abandon_by(pool, colony_id, new_nation_id);
   }
   const int old_nation = col->nation_id;
   col->nation_id = new_nation_id;
@@ -319,7 +339,7 @@ bool colonies_capture_ex(
         g_colonies_col1->player[new_nation_id].control == 0) {
       col->custom_house_bits = COLONIZE_CUSTOM_HOUSE_DEFAULT_MASK;
     }
-    const int plunder = colonies_capture_col1_effects(g_colonies_col1, pool, col, old_nation, new_nation_id);
+    const int plunder = colonies_capture_col1_effects(g_colonies_col1, pool, col, old_nation, new_nation_id, show);
     if (plunder_gold) {
       *plunder_gold = plunder;
     }
@@ -654,9 +674,9 @@ bool colonies_clear_construction(ColonizeColonyPool* pool, int colony_id) {
   /* DOS FUN_5952_02f4 (~93754) clears the build-complete latch here too. */
   col->colony_flags =
     (uint8_t)(col->colony_flags & (uint8_t)~COLONIZE_COLONY_FLAG_BUILD_COMPLETE);
-  /* FUN_5952 ~95710: drop wants_construction with queue clear. */
-  col->build_ai_flags =
-    (uint8_t)(col->build_ai_flags & (uint8_t)~COLONIZE_BUILD_AI_WANTS_CONSTRUCTION);
+  /* The human clear (FUN_2f2b_5a68 raw 52664-52667) leaves +0x1d
+   * WANTS_CONSTRUCTION alone; only the 5952 cascade (raw 95709) drops it
+   * (port_bugs.md #1683). */
   return true;
 }
 
@@ -852,8 +872,15 @@ bool colonies_try_complete_building_ex(
     col->stock[COLONIZE_CARGO_TOOLS] -= bt->tools_cost;
   }
   /* DS:0x34a — colony-screen reveal + 0x54; FUN_364b_0114 raw 56965-56967
-   * skips Warehouse Expansion (0x10) and Capitol Expansion (0x1f). */
-  if (bid_row != COLONY_BUILDING_WAREHOUSE_EXPANSION && bid_row != COLONY_BUILDING_CAPITOL_EXPANSION) {
+   * skips Warehouse Expansion (0x10) and Capitol Expansion (0x1f). DOS resets
+   * 0x34a at the end of the colony tick (LAB_364b_1ae2) and only a human's
+   * zoom opens the colony inside it, so an AI colony never keeps the reveal
+   * for a later (spy) open (port_bugs.md #1733). */
+  const bool ai_owned = col1 && col->nation_id >= 0 &&
+                        col->nation_id < (int)COLONIZE_COL1_NATION_COUNT &&
+                        col1->player[col->nation_id].control != 0;
+  if (!ai_owned && bid_row != COLONY_BUILDING_WAREHOUSE_EXPANSION &&
+      bid_row != COLONY_BUILDING_CAPITOL_EXPANSION) {
     col->pending_build_reveal = bid + 1;
   }
   if (bid >= 0 && bid < COLONIZE_BUILDING_TYPES_MAX) {

@@ -61,95 +61,70 @@ int closing_parse_timeline(
   );
 }
 
-static int closing_start_tick(const ClosingSeries* s) {
-  if (!s) {
-    return 1;
-  }
-  int start = s->frame + s->delay;
-  if (start < 1) {
-    start = 1;
-  }
-  return start;
-}
-
-static void closing_compose(ClosingCinematic* c) {
-  if (!c) {
-    return;
-  }
-  memcpy(c->canvas, c->background, sizeof(c->canvas));
-  ColonizeFramebuffer8 fb = {.width = 320, .height = 200, .pixels = c->canvas};
+/*
+ * One CLOSING.EXE frame: `_anim_loop` (image 0x20c-0x37e) then `_do_anims`
+ * (0x102-0x20b). Each series is the 14-byte record at 0x4b96 (+2 start tick,
+ * +4 repeats, +8 delay, +10 active, +12 1-based counter, 0 before the first
+ * draw). A series activates when its start tick equals the clock (Frame
+ * alone, 0x35a-0x36d); it tests the CLOS-FWK cue on the counter, increments
+ * it, and on passing the sprite count: repeats 0 holds the last sprite
+ * (0x320), otherwise repeats > 0 counts down, the counter goes back to 1 and
+ * the series retires at repeats 0, or with a non-zero Delay goes inactive and
+ * re-arms at clock + Delay (0x2f6-0x31e). The re-armed cycle therefore draws
+ * from counter 2, and the CLOS-HAT cheer (drawn counter 1, 0x19b) fires on
+ * the first cycle only. _do_anims repaints the background (0x92) and draws
+ * the active series only, so the Delay is a hidden gap (#1671).
+ */
+static void closing_tick(ClosingCinematic* c, bool play_sounds) {
   for (int i = 0; i < c->series_count; ++i) {
-    const ClosingSeries* s = &c->series[i];
-    if (s->series < 0 || s->series >= CLOSING_SHEET_COUNT || !c->sheet_ok[s->series]) {
-      continue;
+    ClosingSeries* s = &c->series[i];
+    if (!s->active && s->start == c->clock && s->series >= 0) {
+      s->active = true;
     }
-    const ColonizeSpriteSheet* sheet = &c->sheets[s->series];
-    const int n = sheet->sprite_count;
-    if (n <= 0) {
-      continue;
-    }
-    const int start = closing_start_tick(s);
-    const int elapsed = c->clock - start;
-    if (elapsed < 0) {
-      continue;
-    }
-    if (s->repeats >= 0 && elapsed >= s->repeats * n) {
-      continue;
-    }
-    /* FUN_6f30_002e: anchor_x is a horizontal centre, anchor_y a bottom baseline. */
-    ss_blit_anchored(sheet, elapsed % n, &fb, s->base_x, 0);
-  }
-}
-
-static void closing_play_frame_sounds(const ClosingCinematic* c) {
-  if (!c || !g_closing_play) {
-    return;
-  }
-  for (int i = 0; i < c->series_count; ++i) {
-    const ClosingSeries* s = &c->series[i];
-    if (s->series < 0 || s->series >= CLOSING_SHEET_COUNT || !c->sheet_ok[s->series]) {
+    if (!s->active || s->series < 0 || s->series >= CLOSING_SHEET_COUNT ||
+        !c->sheet_ok[s->series]) {
       continue;
     }
     const int n = c->sheets[s->series].sprite_count;
     if (n <= 0) {
       continue;
     }
-    const int elapsed = c->clock - closing_start_tick(s);
-    if (elapsed < 0) {
-      continue;
-    }
-    const int frame = elapsed % n;
-    /*
-     * CLOSING.EXE keeps a 1-based per-series counter (record +12, table
-     * 0x4b96 stride 14) and both cues are keyed on it, so `frame` — this
-     * port's 0-based sprite index — is the counter minus one:
-     *
-     *   `_anim_loop` (image 0x20c, cue test 0x284-0x2a5) compares the
-     *   counter BEFORE incrementing: series 4 (CLOS-FWK) plays 0x59 at
-     *   counter 1, 27, 37, 42 (`cmp ax,0x2a` then `dec al` / `sub al,0x1a`
-     *   / `sub al,0x0a`). It then increments and tail-calls `_do_anims`
-     *   (0x37b -> 0x102), which draws with the *incremented* counter — so
-     *   the tick that plays 0x59 for counter c is the tick that draws
-     *   c + 1, i.e. port frame c. The two off-by-ones cancel and the test
-     *   below is literally 1/27/37/42. `_do_anims` instead plays 0x5a
-     *   inline while drawing (0x19b-0x1ae: series 0 = CLOS-HAT, counter
-     *   == 1), which is the drawn frame itself, i.e. port frame 0.
-     *
-     * Both cues DO re-fire on every wrap, and that is DOS behaviour, not a
-     * port artefact: with repeats == -1 (the shipped CLOS-FWK/CLOS-HAT
-     * rows) `_anim_loop` at 0x2c4-0x2e5 leaves the negative repeat count
-     * alone, resets the counter to 1 and keeps the series active, so the
-     * counter cycles 1..sprite_count forever with period sprite_count —
-     * exactly what `elapsed % n` reproduces. CLOS-FWK has 66 sprites and
-     * CLOS-HAT 22 (section 1 of each .SS is 1056 / 352 bytes of 16-byte
-     * sprite records), so over the 390-tick run the fireworks cue fires in
-     * ~5.9 cycles and every one of the four counters is reachable.
-     */
-    if (s->series == CLOSING_SHEET_FIREWORKS &&
-        (frame == 1 || frame == 27 || frame == 37 || frame == 42)) {
+    /* 0x284-0x2a5: CLOS-FWK counter 1, 27, 37, 42 before the increment. */
+    if (play_sounds && g_closing_play && s->series == CLOSING_SHEET_FIREWORKS &&
+        (s->counter == 1 || s->counter == 27 || s->counter == 37 || s->counter == 42)) {
       g_closing_play(CLOSING_FIREWORK_SOUND_ID);
     }
-    if (s->series == CLOSING_SHEET_HAT && frame == 0) {
+    if (++s->counter <= n) {
+      continue;
+    }
+    if (s->repeats_left == 0) {
+      s->counter = n;
+      continue;
+    }
+    if (s->repeats_left > 0) {
+      s->repeats_left--;
+    }
+    s->counter = 1;
+    if (s->repeats_left == 0) {
+      s->active = false;
+    } else if (s->delay != 0) {
+      s->active = false;
+      s->start = s->delay + c->clock;
+    }
+  }
+
+  memcpy(c->canvas, c->background, sizeof(c->canvas));
+  ColonizeFramebuffer8 fb = {.width = 320, .height = 200, .pixels = c->canvas};
+  for (int i = 0; i < c->series_count; ++i) {
+    const ClosingSeries* s = &c->series[i];
+    if (!s->active || s->series < 0 || s->series >= CLOSING_SHEET_COUNT ||
+        !c->sheet_ok[s->series] || s->counter <= 0 ||
+        s->counter > c->sheets[s->series].sprite_count) {
+      continue;
+    }
+    /* FUN_6f30_002e: anchor_x is a horizontal centre, anchor_y a bottom baseline. */
+    ss_blit_anchored(&c->sheets[s->series], s->counter - 1, &fb, s->base_x, 0);
+    if (play_sounds && g_closing_play && s->series == CLOSING_SHEET_HAT && s->counter == 1) {
       g_closing_play(CLOSING_CHEER_SOUND_ID);
     }
   }
@@ -162,17 +137,11 @@ static bool closing_step(ClosingCinematic* c, bool play_sounds) {
   c->clock++;
   if (c->end_frame > 0 && c->clock >= c->end_frame) {
     c->clock = c->end_frame;
-    closing_compose(c);
-    if (play_sounds) {
-      closing_play_frame_sounds(c);
-    }
+    closing_tick(c, play_sounds);
     c->finished = true;
     return false;
   }
-  closing_compose(c);
-  if (play_sounds) {
-    closing_play_frame_sounds(c);
-  }
+  closing_tick(c, play_sounds);
   return true;
 }
 
@@ -212,6 +181,10 @@ bool closing_open(ClosingCinematic* c, const char* data_dir) {
     return false;
   }
 
+  for (int i = 0; i < c->series_count; ++i) {
+    c->series[i].start = c->series[i].frame;
+    c->series[i].repeats_left = c->series[i].repeats;
+  }
   memcpy(c->canvas, c->background, sizeof(c->canvas));
   c->clock = 0;
   c->accum = 0;

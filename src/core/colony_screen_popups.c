@@ -1107,14 +1107,15 @@ COLONIZE_INTERNAL bool colony_screen_hit_chrome(ColonyScreenHitCtx* a) {
     return true;
   }
 
-  if (mx >= COLONY_EXIT_X && mx < COLONY_SCREEN_WIDTH &&
-      my >= COLONY_EXIT_Y && my < COLONY_SCREEN_HEIGHT) {
+  /* thunk_FUN_1000_98bc: zone 9 = Exit (0x131,0xb3,0xf,0x15), zone 5 = cargo strip
+   * (0,0xb3,0x131,0x15) (port_bugs.md #1697). */
+  if (mx >= 0x131 && mx < 0x131 + 0xf && my >= 0xb3 && my < 0xb3 + 0x15) {
     a->hit.kind = COLONY_HIT_EXIT;
     return true;
   }
 
   /* Warehouse cargo strip (load into selected transport). */
-  if (my >= COLONY_CARGO_STRIP_Y && my < COLONY_SCREEN_HEIGHT && mx < COLONY_EXIT_X) {
+  if (my >= 0xb3 && my < 0xb3 + 0x15 && mx < 0x131) {
     if (mx >= COLONY_CARGO_SLOT_X0) {
       const int idx = (mx - COLONY_CARGO_SLOT_X0) / COLONY_CARGO_PITCH;
       if (idx >= 0 && idx < COLONIZE_CARGO_COUNT) {
@@ -1145,6 +1146,24 @@ COLONIZE_INTERNAL bool colony_screen_hit_chrome(ColonyScreenHitCtx* a) {
 }
 
 /* Multifunction panel: mode buttons, Units-tab icons, pane / BUY+CHANGE. */
+/* FUN_2f2b_5fc6 raw 52767-52783: sprite-sized boxes at (0xd8, 0x8a) and (0x10e, 0x8a); the
+ * BUY box only while +0x94 >= 0 (no project, e.g. a captured AI colony's 0xFF, has no BUY;
+ * port_bugs.md #548). CHANGE is tested second and wins (port_bugs.md #1698). */
+int colony_screen_multi_button_at(
+  const ColonyScreenView* view, const ColonizeColony* colony, int mx, int my
+) {
+  if (!view || !colony || my < 0x8a || my >= 0x8a + 9) {
+    return -1;
+  }
+  if (mx >= 0x10e && mx < 0x10e + view->change_btn_w) {
+    return 1;
+  }
+  if (colony->building_in_production >= 0 && mx >= 0xd8 && mx < 0xd8 + view->buy_btn_w) {
+    return 0;
+  }
+  return -1;
+}
+
 COLONIZE_INTERNAL bool colony_screen_hit_multifunction(ColonyScreenHitCtx* a) {
   const ColonyScreenView* view = a->view;
   const ColonizeColony* colony = a->colony;
@@ -1193,19 +1212,10 @@ COLONIZE_INTERNAL bool colony_screen_hit_multifunction(ColonyScreenHitCtx* a) {
   /* Multifunction pane / Construction BUY+CHANGE. */
   if (mx >= COLONY_MULTI_X && mx < COLONY_MULTI_BTN_X && my >= COLONY_PANEL_CONTENT_Y &&
       my < COLONY_CARGO_STRIP_Y) {
-    /* Player-reported: BUY moved up 4px to align with CHANGE — hit region
-     * follows (was [10,26), now [6,22)). */
-    if (view->multi_mode == COLONY_MULTI_CONSTRUCTION &&
-        my >= COLONY_PANEL_CONTENT_Y + 6 && my < COLONY_PANEL_CONTENT_Y + 22) {
-      const int mid = COLONY_MULTI_X + COLONY_MULTI_W / 2;
-      if (mx >= mid) {
-        a->hit.kind = COLONY_HIT_MULTI_CHANGE;
-        return true;
-      }
-      /* FUN_2f2b_5fc6: the BUY button only hit-tests when +0x94 >= 0 (no
-       * project, e.g. a captured AI colony's 0xFF, has no BUY; port_bugs.md #548). */
-      if (colony->building_in_production >= 0) {
-        a->hit.kind = COLONY_HIT_MULTI_BUY;
+    if (view->multi_mode == COLONY_MULTI_CONSTRUCTION) {
+      const int btn = colony_screen_multi_button_at(view, colony, mx, my);
+      if (btn >= 0) {
+        a->hit.kind = btn == 0 ? COLONY_HIT_MULTI_BUY : COLONY_HIT_MULTI_CHANGE;
         return true;
       }
     }
@@ -1265,7 +1275,6 @@ COLONIZE_INTERNAL bool colony_screen_hit_fence(ColonyScreenHitCtx* a) {
     colony_screen_fence_rect(
       slot_x, slot_y, &fence_x, &fence_y, &fence_w, &fence_h
     );
-    int icons[COLONY_OUTSIDE_MAX];
     int map_i[COLONY_OUTSIDE_MAX];
     int n = 0;
     for (int i = 0; i < view->outside_unit_count && n < COLONY_OUTSIDE_MAX; ++i) {
@@ -1273,21 +1282,15 @@ COLONIZE_INTERNAL bool colony_screen_hit_fence(ColonyScreenHitCtx* a) {
       if (!colony_screen_unit_on_fence(units, u)) {
         continue;
       }
-      const int sprite = colony_screen_outside_display_sprite(units, u);
-      if (sprite < 0) {
+      if (colony_screen_outside_display_sprite(units, u) < 0) {
         continue;
       }
-      icons[n] = sprite;
       map_i[n] = i;
       n++;
     }
     if (n > 0) {
-      int ref_iw = 12;
-      if (icons[0] >= 0 && icons[0] < view->icons.sprite_count) {
-        ref_iw = view->icons.sprites[icons[0]].width;
-      }
       int xs[COLONY_OUTSIDE_MAX];
-      colony_screen_icon_strip_layout(fence_x, fence_w, n, ref_iw, xs);
+      const int uy = colony_screen_fence_unit_layout(view, slot_x, slot_y, n, xs);
       /* port_bugs.md: walk BACK-to-front — squeezed icons overlap, and the one
        * drawn on top (later index) must win the click, or the units behind
        * the pile were unselectable. */
@@ -1295,7 +1298,6 @@ COLONIZE_INTERNAL bool colony_screen_hit_fence(ColonyScreenHitCtx* a) {
         int iw = 12;
         int ih = 16;
         colony_screen_outside_icon_metrics(view, units, view->outside_unit_ids[map_i[i]], &iw, &ih);
-        const int uy = fence_y + 1 + (fence_h - ih) / 2;
         if (mx >= xs[i] && my >= uy && mx < xs[i] + iw && my < uy + ih) {
           a->hit.kind = COLONY_HIT_OUTSIDE_UNIT;
           a->hit.index = map_i[i];
@@ -1525,10 +1527,8 @@ COLONIZE_INTERNAL bool colony_screen_hit_buildings(ColonyScreenHitCtx* a) {
         if (slot_of_cat[i] != slot) {
           continue;
         }
-        int built = colony_screen_category_built(pool, colony, i);
-        if (built < 0 && i == COLONY_CAT_FORTIFICATION) {
-          built = colonies_building_row(pool, COLONY_BUILDING_STOCKADE); /* DOS's `|| b == 0` */
-        }
+        /* DOS's `|| b == 0` Stockade and the Stable-over-Warehouse slot (#1686). */
+        const int built = colony_screen_slot_row(pool, colony, i);
         if (built < 0) {
           break; /* unbuilt slot: DOS keeps scanning the later slots */
         }

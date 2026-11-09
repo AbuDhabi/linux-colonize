@@ -640,6 +640,52 @@ static void map_panel_draw_tribe_chrome(
   }
 }
 
+/*
+ * One village, DOS FUN_112b_0790 (281f_02b2) at a tile origin: the tech sprite centred,
+ * the tribe tint dots (112b:0815), the capital starburst, then the alarm / mission chrome
+ * (112b:09a1). The map and the sidebar village row (asm 49dd:1123-1146, scale 100) share it.
+ */
+static void map_panel_draw_village(
+  const ColonizeCol1Save* col1,
+  const ColonizeWorldMap* map,
+  const ColonizeUnitPool* units,
+  const ColonizeColonyPool* colonies,
+  const ColonizeSpriteSheet* icons,
+  ColonizeFramebuffer8* framebuffer,
+  int tribe_index,
+  const ColonizeCol1Tribe* t,
+  int tech,
+  int fog_nation,
+  int tile_px,
+  int tile_py,
+  int tile_w,
+  int tile_h,
+  const ColonizePalette* active_palette
+) {
+  const int sprite = MAP_PANEL_TRIBE_ICON_BASE + tech;
+  const ColonizeSprite* sp = &icons->sprites[sprite];
+  const int px = tile_px + (tile_w - sp->width) / 2;
+  const int py = tile_py + (tile_h - sp->height) / 2;
+  ss_blit_sprite(icons, sprite, framebuffer, px, py);
+  /* DOS 112b:0815: tribe tint dots over the shared low-tech sprites,
+   * drawn before the capital starburst. */
+  map_panel_draw_tribe_tint(framebuffer, t, tech, tile_px, tile_py);
+  /* DOS FUN_112b_0790 (asm 112b:09a1): tribe state bit 0x04 (capital)
+   * draws sprite 0x12 1-based = ICONS.SS #17 — the starburst — centred
+   * over the village icon, before the alarm/mission chrome. */
+  if (t->state.capital && 17 < icons->sprite_count) {
+    const ColonizeSprite* cap = &icons->sprites[17];
+    ss_blit_sprite(
+      icons, 17, framebuffer,
+      tile_px + (tile_w - cap->width) / 2,
+      tile_py + (tile_h - cap->height) / 2
+    );
+  }
+  map_panel_draw_tribe_chrome(
+    col1, map, units, colonies, framebuffer, tribe_index, t, fog_nation, tile_px, tile_py,
+    active_palette);
+}
+
 void map_panel_render_tribes_on_map_w(
   const ColonizeWorld* w,
   const ColonizeSpriteSheet* icons,
@@ -686,30 +732,10 @@ void map_panel_render_tribes_on_map_w(
     if (tech >= MAP_PANEL_TRIBE_ICON_COUNT) {
       tech = MAP_PANEL_TRIBE_ICON_COUNT - 1;
     }
-    const int sprite = MAP_PANEL_TRIBE_ICON_BASE + tech;
-    const ColonizeSprite* sp = &icons->sprites[sprite];
-    const int tile_px = origin_x + sx * tile_w;
-    const int tile_py = origin_y + sy * tile_h;
-    const int px = tile_px + (tile_w - sp->width) / 2;
-    const int py = tile_py + (tile_h - sp->height) / 2;
-    ss_blit_sprite(icons, sprite, framebuffer, px, py);
-    /* DOS 112b:0815: tribe tint dots over the shared low-tech sprites,
-     * drawn before the capital starburst. */
-    map_panel_draw_tribe_tint(framebuffer, t, tech, tile_px, tile_py);
-    /* DOS FUN_112b_0790 (asm 112b:09a1): tribe state bit 0x04 (capital)
-     * draws sprite 0x12 1-based = ICONS.SS #17 — the starburst — centred
-     * over the village icon, before the alarm/mission chrome. */
-    if (t->state.capital && 17 < icons->sprite_count) {
-      const ColonizeSprite* cap = &icons->sprites[17];
-      ss_blit_sprite(
-        icons, 17, framebuffer,
-        tile_px + (tile_w - cap->width) / 2,
-        tile_py + (tile_h - cap->height) / 2
-      );
-    }
-    map_panel_draw_tribe_chrome(
-      col1, fog_map, units, colonies, framebuffer, (int)i, t, fog_nation, tile_px, tile_py,
-      active_palette);
+    map_panel_draw_village(
+      col1, fog_map, units, colonies, icons, framebuffer, (int)i, t, tech, fog_nation,
+      origin_x + sx * tile_w, origin_y + sy * tile_h, tile_w, tile_h, active_palette
+    );
   }
 }
 
@@ -974,15 +1000,20 @@ int map_panel_collect_stack(
     out_ids[n++] = u->id;
   }
 
-  /* Stable insertion sort, rank descending. */
+  /* Stable insertion sort, rank descending; within a rank the DOS tile-chain order that
+   * FUN_1427_04d6 keeps and 02e4 walks (raw 7612-7677): newest arrival first
+   * (tile_stack_order descending), lower slot first on a tie, as units_tile_head_id_at /
+   * units_tile_chain_next_id order it (port_bugs.md #1771). */
   for (int i = 1; i < n; ++i) {
     const int id = out_ids[i];
     const ColonizeUnit* u = units_get_const(units, id);
     const int rank = u ? map_panel_stack_rank(units, u) : 0;
+    const uint64_t order = u ? u->tile_stack_order : 0;
     int j = i - 1;
     while (j >= 0) {
       const ColonizeUnit* p = units_get_const(units, out_ids[j]);
-      if ((p ? map_panel_stack_rank(units, p) : 0) >= rank) {
+      const int prank = p ? map_panel_stack_rank(units, p) : 0;
+      if (prank > rank || (prank == rank && (p ? p->tile_stack_order : 0) >= order)) {
         break;
       }
       out_ids[j + 1] = out_ids[j];
@@ -1146,9 +1177,46 @@ static void map_panel_draw_village_trade_intel(
 }
 
 /*
- * Orders line. DOS resolves a destination-bearing order (goto, @ORDERS 3)
- * through FUN_49dd_02d0, which names the colony on the target tile if there is
- * one and falls back to the target's terrain.
+ * DOS-LITERAL FUN_49dd_02d0 (raw 78567-78603, via 291f_0f82) with param_5 = 1: off the
+ * FUN_281f_0302 inset, x = 236 + n ((char)(n - x) == 0x14) names the nation's port
+ * [DS:0x838c + n*2], anything else [DS:0x2e32] "High Seas"; a Sea Lane tile (078c == 0x1a)
+ * names the port too; else the colony on the tile, else "(" x ", " y ")" (011e 0182 01b4
+ * 0182 0128). Never a terrain name (port_bugs.md #1770).
+ */
+static void map_panel_place_name(
+  const ColonizeColonyPool* colonies,
+  const ColonizeWorldMap* map,
+  int x,
+  int y,
+  int nation,
+  char* out,
+  size_t out_size
+) {
+  if (map && !map_coords_inset(map, x, y)) {
+    const bool home = nation >= 0 && (int8_t)(nation - x) == 0x14;
+    snprintf(
+      out, out_size, "%s", home ? reports_home_port_name(nation) : reports_misc_display_word(60, "")
+    );
+    return;
+  }
+  if (map && map_tile_is_high_seas(map, x, y)) {
+    snprintf(out, out_size, "%s", reports_home_port_name(nation));
+    return;
+  }
+  const ColonizeColony* c = colonies ? colonies_find_at_xy(colonies, x, y) : NULL;
+  if (c) {
+    snprintf(out, out_size, "%s", c->name);
+    return;
+  }
+  snprintf(out, out_size, "(%d, %d)", x, y);
+}
+
+/*
+ * Orders text. Selected-unit block (asm 49dd:097e-0a40, raw 78918-78938):
+ * @ORDERS[o] + " " (0178), then for o == 3 the 02d0 destination, for o == 2 the route
+ * number (+0x315b & 0xf, 0182) + 1, "(" destination ")". A tile-stack row (raw 79222-79245)
+ * is the destination alone for o == 3 / 0xb / 0xc / 2, else @ORDERS[o], and o == 2 then
+ * appends " (" number ")". (port_bugs.md #1770)
  */
 static void map_panel_orders_text(
   const ColonizeUnitPool* units,
@@ -1156,29 +1224,33 @@ static void map_panel_orders_text(
   const ColonizeColonyPool* colonies,
   const ColonizeWorldMap* map,
   const ColonizeMsgCatalog* names,
-  const ColonizeMsgCatalog* labels,
+  bool stack_row,
   char* out,
   size_t out_size
 ) {
   (void)units;
-  const char* label = map_panel_order_label(names, u->orders);
-  if (u->orders != UNITS_ORDER_GOTO || u->goto_x == UNITS_GOTO_NONE ||
-      u->goto_y == UNITS_GOTO_NONE) {
-    snprintf(out, out_size, "%s", label);
+  const int o = u->orders;
+  const int route = (u->follow_unit_id & 0xf) + 1;
+  char dest[64];
+  map_panel_place_name(colonies, map, u->goto_x, u->goto_y, u->nation_id, dest, sizeof(dest));
+  if (stack_row) {
+    if (o == UNITS_ORDER_GOTO || o == UNITS_ORDER_AI_SAIL || o == UNITS_ORDER_AI_MOVE) {
+      snprintf(out, out_size, "%s", dest);
+    } else if (o == UNITS_ORDER_TRADE_ROUTE) {
+      snprintf(out, out_size, "%s (%d)", dest, route);
+    } else {
+      snprintf(out, out_size, "%s", map_panel_order_label(names, o));
+    }
     return;
   }
-  const ColonizeColony* dest =
-    colonies ? colonies_get(colonies, colonies_id_at(colonies, u->goto_x, u->goto_y)) : NULL;
-  if (dest && dest->active && dest->name[0]) {
-    snprintf(out, out_size, "%s %s", label, dest->name);
-    return;
+  const char* label = map_panel_order_label(names, o);
+  if (o == UNITS_ORDER_GOTO) {
+    snprintf(out, out_size, "%s %s", label, dest);
+  } else if (o == UNITS_ORDER_TRADE_ROUTE) {
+    snprintf(out, out_size, "%s %d(%s)", label, route, dest);
+  } else {
+    snprintf(out, out_size, "%s ", label);
   }
-  char tname[40];
-  map_panel_terrain_name_at(
-    names, labels, map, u->goto_x, u->goto_y,
-    map_pedia_terrain_index_at(map, u->goto_x, u->goto_y), tname, sizeof(tname)
-  );
-  snprintf(out, out_size, "%s %s", label, tname);
 }
 
 /*
@@ -1345,7 +1417,7 @@ static void map_panel_draw_stack_row(
   if (cheat_index >= 0) {
     pre = (size_t)snprintf(line, sizeof(line), "%d ", cheat_index);
   }
-  map_panel_orders_text(units, u, colonies, map, names, labels, line + pre, sizeof(line) - pre);
+  map_panel_orders_text(units, u, colonies, map, names, true, line + pre, sizeof(line) - pre);
   font_draw_text(font, fb, x, orders_y, line, MAP_PANEL_COL_TEXT);
   *y += MAP_PANEL_ROW_H;
 }
@@ -1557,7 +1629,6 @@ COLONIZE_INTERNAL void map_panel_render_selected_block(MapPanelRenderCtx* c) {
   const ColonizeSpriteSheet* icons = c->icons;
   const ColonizeFont* font = c->font;
   const ColonizeMsgCatalog* names = c->names;
-  const ColonizeMsgCatalog* labels = c->labels;
   const ColonizePalette* active_palette = c->active_palette;
   ColonizeFramebuffer8* framebuffer = c->framebuffer;
   const int text_x = c->text_x;
@@ -1641,7 +1712,7 @@ COLONIZE_INTERNAL void map_panel_render_selected_block(MapPanelRenderCtx* c) {
     );
   }
 
-  map_panel_orders_text(units, selected, colonies, map, names, labels, line, sizeof(line));
+  map_panel_orders_text(units, selected, colonies, map, names, false, line, sizeof(line));
   map_panel_draw_line(font, framebuffer, text_x, &c->text_y, line_h, y_limit, line, MAP_PANEL_COL_TEXT);
 }
 
@@ -1850,7 +1921,15 @@ COLONIZE_INTERNAL void map_panel_render_colony_row(MapPanelRenderCtx* c) {
   if (colonies) {
     const int cid = colonies_id_at(colonies, info_x, info_y);
     const ColonizeColony* col = colonies_get(colonies, cid);
-    if (col && col->active && c->text_y + MAP_PANEL_ROW_H <= y_limit) {
+    /* FUN_49dd_0424 raw 79021-79025: the row needs FUN_291f_0996(colony, DS:0x5396) =
+     * FUN_364b_1b76 too: own colony, Complete Map, or colony[+0xba + viewer] != 0
+     * (port_bugs.md #1772). */
+    const bool known =
+      col && colonies_known_to(
+               col, map_panel_view_nation(c->col1, c->fog_nation),
+               c->col1 && c->col1->head.show_entire_map
+             );
+    if (col && col->active && known && c->text_y + MAP_PANEL_ROW_H <= y_limit) {
       int colony_icon = MAP_PANEL_COLONY_ICON_NONE;
       const int fortress = colonies_building_row(colonies, COLONY_BUILDING_FORTRESS);
       const int fort = colonies_building_row(colonies, COLONY_BUILDING_FORT);
@@ -1977,14 +2056,13 @@ COLONIZE_INTERNAL void map_panel_render_village_row(MapPanelRenderCtx* c) {
       if (tech >= MAP_PANEL_TRIBE_ICON_COUNT) {
         tech = MAP_PANEL_TRIBE_ICON_COUNT - 1;
       }
-      const int tribe_icon = MAP_PANEL_TRIBE_ICON_BASE + tech;
-      if (icons && icons->sprite_count > tribe_icon) {
-        ss_blit_sprite(icons, tribe_icon, framebuffer, text_x, c->text_y);
-        /* DOS 112b:09a1 falls through to the capital starburst on every
-         * scale, the sidebar's 100 included — same x/y as the village. */
-        if (tribe->state.capital && 17 < icons->sprite_count) {
-          ss_blit_sprite(icons, 17, framebuffer, text_x, c->text_y);
-        }
+      /* asm 49dd:1123-1146: FUN_281f_02b2 = FUN_112b_0790 at scale 100, the full map
+       * chrome — tint dots, starburst, alarm marks, mission cross (port_bugs.md #1773). */
+      if (icons && icons->sprite_count >= MAP_PANEL_TRIBE_ICON_BASE + MAP_PANEL_TRIBE_ICON_COUNT) {
+        map_panel_draw_village(
+          col1, c->map, c->units, c->colonies, icons, framebuffer, (int)(tribe - col1->tribe),
+          tribe, tech, c->fog_nation, text_x, c->text_y, 16, 16, c->active_palette
+        );
       }
       /* O4 FUN_49dd_0424 raw 79121-79162 (asm 49dd:1123-12b7): @TRIBES col 1
        * (DS:0x8d14) at (x+0x14, y+4), the @LEVELS col 1 row (DS:0x9634) at

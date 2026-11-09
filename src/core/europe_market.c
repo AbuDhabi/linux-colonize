@@ -405,14 +405,12 @@ int europe_custom_house_autosell_ex_w(
      * nation only (col1_bridge stamps col1 → bid on load and bid → col1 on
      * capture), so it is the human's live record; every other nation's market
      * lives in col1 trade.euro_price[]. Same substitution as the dump-sell
-     * below: the fallback to the one OpenCol market only covers a record byte of
-     * 0, which play no longer produces (europe_seed_campaign_prices_w stamps
-     * every nation, raw 68645-68654; #1011). A zero price still moves
-     * the goods (DOS has no price gate here).
+     * below, minus its invented fallback: a record byte of 0 sells at
+     * max(-1, 0) = 0 as in DOS (#1708; unreachable since #1011). A zero price
+     * still moves the goods (DOS has no price gate here).
      */
     int price = europe_sell_price(eu, c);
-    if (!mirror && nat && c < (int)COLONIZE_COL1_CARGO_TYPES &&
-        nat->trade.euro_price[c] != 0) {
+    if (!mirror && nat && c < (int)COLONIZE_COL1_CARGO_TYPES) {
       const int p = (int)nat->trade.euro_price[c] - 1; /* FUN_38fd_0040 */
       price = p < 0 ? 0 : p;
     }

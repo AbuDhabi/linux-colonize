@@ -717,7 +717,9 @@ int ai_contact_try_first_welcome(ColonizeTurnContext* ctx, int euro_nation, int 
     return 0;
   }
   ColonizeCol1Indian* ind = &ctx->col1->indian[indian_nation - 4];
-  if (ind->euro_diplo[euro_nation]) {
+  /* raw 96615-96617: `0a38(euro, tribe+4) & 0x20`, the Euro-side MET bit
+   * (nation[euro].relation_by_indian[tribe]); nothing else counts. */
+  if (ai_diplo_read(ctx->col1, euro_nation, indian_nation) & COL1_INDIAN_MET_BIT) {
     return 0;
   }
   /* DOS OR bit 0x20 before dialog; accept ORs PEACE 0x40 → euro_diplo 0x60

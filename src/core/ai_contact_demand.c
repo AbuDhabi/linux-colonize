@@ -7,7 +7,7 @@
  *
  * Sections:
  *   Incite pricing/confirmation
- *   Nearest colony & meet economics (raw 2154)
+ *   Meet economics (raw 2154)
  *   Visit mood, demand gating & beg-food flow
  *   Human incite response, missionary convert/flee, WoI defect, prelude & relation tick
  */
@@ -465,54 +465,8 @@ void ai_contact_apply_incite(
   ai_contact_alarm_delta_00f2(ctx, nation_id, target, 100);
   europe_nation_gold_add(ctx->europe, ctx->col1, e, -(long)price); /* audit G3 */
 }
-/* ===================== Nearest colony & meet economics (raw 2154) (ai_contact_nearest_colony .. ai_contact_meet_economics_2154) ===================== */
+/* ===================== Meet economics (raw 2154) (ai_contact_meet_economics_2154) ===================== */
 
-
-/*
- * The one "nearest active colony of `nation`" scan behind the three this file
- * used to hand-roll (audit AC-7). `min_tools` >= 0 also demands that much
- * TOOLS in stock; `continent` >= 0 restricts to that continent; `max_dist` is
- * the exclusive ceiling each caller's old `best_d` seed supplied. Returns the
- * colony-pool index or -1, and writes the winning distance to `*out_dist`
- * when a colony was found.
- */
-int ai_contact_nearest_colony(
-  const ColonizeTurnContext* ctx,
-  int nation,
-  int x,
-  int y,
-  int continent,
-  int min_tools,
-  int max_dist,
-  int* out_dist
-) {
-  if (!ctx || !ctx->colonies) {
-    return -1;
-  }
-  int best = -1;
-  int best_d = max_dist;
-  for (int ci = 0; ci < COLONIZE_COLONIES_MAX; ++ci) {
-    const ColonizeColony* c = &ctx->colonies->colonies[ci];
-    if (!c->active || c->nation_id != nation) {
-      continue;
-    }
-    if (min_tools >= 0 && c->stock[COLONIZE_CARGO_TOOLS] < min_tools) {
-      continue;
-    }
-    if (continent >= 0 && ctx->map && map_continent_id_at(ctx->map, c->x, c->y) != continent) {
-      continue;
-    }
-    const int d = map_chebyshev(c->x, c->y, x, y);
-    if (d < best_d) {
-      best_d = d;
-      best = ci;
-    }
-  }
-  if (best >= 0 && out_dist) {
-    *out_dist = best_d;
-  }
-  return best;
-}
 
 /*
  * FUN_4d56_2154 meet economics: dual 16-word tables ask[] (DS:0x9e58) /
@@ -1625,7 +1579,8 @@ int ai_contact_ai_incite_human(
   if (ai_diplo_indian_alarm(ctx->col1, nation_id, human) >= 0x4b) {
     return 0;
   }
-  if ((ind->euro_diplo[human] & COL1_INDIAN_MET_BIT) == 0) {
+  /* OVL13 0x4677: 8c28(DS:0x5398, tribe+4) & 0x20, the Euro-side byte. */
+  if ((ai_diplo_read(ctx->col1, human, nation_id) & COL1_INDIAN_MET_BIT) == 0) {
     return 0;
   }
   if (!ctx->euro_power_rank_ok || ctx->euro_power_rank[e] >= ctx->euro_power_rank[human]) {
@@ -1778,6 +1733,31 @@ void ai_contact_indian_woi_defect(ColonizeTurnContext* ctx, int nation_id) {
   ind->woi_defect_resolved = 1;
   const int crown = ai_king_crown_nation_col1(ctx->col1_ok ? ctx->col1 : NULL, human);
   /*
+   * @INDIANGRUDGE (0x14f6) — the popup DOS actually shows here, found
+   * 2026-09-16: FUN_4d56_1816 item 2 loads subst slots 0 and 1 with the
+   * tribe's two name forms (281f_09a4 / 281f_0a1a) and flushes the dialog
+   * with BX = 0x14f6 right before the ±100 alarm pair
+   * (viceroy_unpacked.asm 136388; raw 81570-81578), so it shows ahead of
+   * any @INDIANBURN the 00f2 escalation tail raises. The port had only a status line here
+   * because the tag id was unresolved. DOS's own mission-clear popup is
+   * the separate @INDIANBURN inside FUN_4cc6_0000, shown below.
+   */
+  {
+    ai_contact_bind_names(ctx);
+    PopupMsgTokens gtok;
+    memset(&gtok, 0, sizeof(gtok));
+    gtok.string0 = ai_contact_tribe_name(nation_id);
+    gtok.string1 = reports_tribe_display_name(nation_id - 4); /* 4d56_1816: 0a1a(tribe) */
+    char gfb[AI_POPUP_BODY_LEN];
+    gfb[0] = '\0';
+    char gbody[AI_POPUP_BODY_LEN];
+    popup_msg_fill(ctx->messages, "INDIANGRUDGE", &gtok, gfb, gbody, sizeof(gbody));
+    ai_contact_human_chrome(
+      ctx, human, AI_POPUP_TAG_CONTACT_RAID, nation_id, gbody
+    );
+  }
+
+  /*
    * FUN_4cc6_00f2(tribe, declaring, +100) / (tribe, crown, -100) are ALARM
    * deltas: the tribe turns fully hostile to the rebels and content with the
    * Crown (Tory natives). The earlier port had this inverted via the
@@ -1838,30 +1818,6 @@ void ai_contact_indian_woi_defect(ColonizeTurnContext* ctx, int nation_id) {
       t->mission = COL1_TRIBE_MISSION_NONE;
       missions_cleared = 1;
     }
-  }
-
-  /*
-   * @INDIANGRUDGE (0x14f6) — the popup DOS actually shows here, found
-   * 2026-09-16: FUN_4d56_1816 item 2 loads subst slots 0 and 1 with the
-   * tribe's two name forms (281f_09a4 / 281f_0a1a) and flushes the dialog
-   * with BX = 0x14f6 right before the ±100 alarm pair
-   * (viceroy_unpacked.asm 136388). The port had only a status line here
-   * because the tag id was unresolved. DOS's own mission-clear popup is
-   * the separate @INDIANBURN inside FUN_4cc6_0000, shown below.
-   */
-  {
-    ai_contact_bind_names(ctx);
-    PopupMsgTokens gtok;
-    memset(&gtok, 0, sizeof(gtok));
-    gtok.string0 = ai_contact_tribe_name(nation_id);
-    gtok.string1 = reports_tribe_display_name(nation_id - 4); /* 4d56_1816: 0a1a(tribe) */
-    char gfb[AI_POPUP_BODY_LEN];
-    gfb[0] = '\0';
-    char gbody[AI_POPUP_BODY_LEN];
-    popup_msg_fill(ctx->messages, "INDIANGRUDGE", &gtok, gfb, gbody, sizeof(gbody));
-    ai_contact_human_chrome(
-      ctx, human, AI_POPUP_TAG_CONTACT_RAID, nation_id, gbody
-    );
   }
 
   /* FUN_4cc6_0000 raw 80795-80800: @INDIANBURN (0x14c8) when a mission was

@@ -662,8 +662,14 @@ void units_combat_notify_colony_burned(
   if (!human) {
     return;
   }
-  /* FUN_5fef_1b0e 5fef:3040-3063 gates the burn cue on the human victim. */
+  /* FUN_5fef_1b0e raw 101067-101071 (OVL17 0x3036-0x3081), human victim:
+   * 04c0 sound 0x53, 048e tune 0x32, 0524 woodcut 11, then the popup
+   * (port_bugs.md #1797). */
   units_play_event_sound(0x53);
+  units_combat_music_sting();
+  if (col1) {
+    (void)woodcut_fire((ColonizeCol1Save*)col1, WOODCUT_COLONY_BURNING);
+  }
   /*
    * DOS FUN_5fef_1b0e splits the colony-destroyed chrome by attacker class:
    * the both-Euro arm (`uVar16 < 4 && uVar15 < 4`) uses @BURNED / @BURNED2 /
@@ -1156,8 +1162,11 @@ int units_apply_land_loss_outcome(
   }
   const ColonizeUnitType* lt = units_type(pool, lose->type_index);
   const ColonizeUnitType* wt = units_type(pool, win->type_index);
-  const int human =
-    show_popups && units_combat_human_involved(col1, lose->nation_id, win->nation_id);
+  /* FUN_5fef_0352 popups and the Veteran strip sit on param_3 = 1b0e's
+   * param_4 (raw 99393-99482), not on a human side (port_bugs.md #1791). */
+  const int human = show_popups &&
+    (g_units_combat_param4 >= 0 ? g_units_combat_param4
+                                : units_combat_human_involved(col1, lose->nation_id, win->nation_id));
   const int win_euro = win->nation_id >= 0 && win->nation_id <= 3;
   /*
    * Smell audit 2026-09-10 #5. DOS raw 99378-99380 gates the capture on the
@@ -2130,8 +2139,11 @@ int units_apply_naval_loss_outcome(
   }
   const ColonizeUnitType* lt = units_type(pool, lose->type_index);
   const ColonizeUnitType* wt = units_type(pool, win->type_index);
-  const int human =
-    show_popups && units_combat_human_involved(col1, lose->nation_id, win->nation_id);
+  /* @CARGOCAPTURE / @SHIPDAMAGE / @SHIPSUNK sit on 0352's param_3 = 1b0e's
+   * param_4 (port_bugs.md #1791). */
+  const int human = show_popups &&
+    (g_units_combat_param4 >= 0 ? g_units_combat_param4
+                                : units_combat_human_involved(col1, lose->nation_id, win->nation_id));
   /* FUN_5fef_0352 5fef:07db-0803: both combatants are ships and the fight
    * is visible → 0x4d (COLDIG 10 cheering + fireworks) *before* the
    * damage / sink / seizure split — a naval-win beat, not a capture cue. */
@@ -2266,7 +2278,8 @@ int units_raid_damage_ship(
     return 0;
   }
   const ColonizeUnitType* lt = units_type(pool, lose->type_index);
-  const int human = units_combat_human_involved(col1, lose->nation_id, -1);
+  /* 0f14 calls 0352 with param_3 = 1 (asm 5fef:1616 `PUSH 0x1`) and has no
+   * nation filter: every raided hull gets its popups (port_bugs.md #1792). */
   /* The raid arm has no winner unit: local_4 = 0x10, the Privateer row. */
   const int pi = units_kind_type_index(pool, UNITS_KIND_PRIVATEER);
   const ColonizeUnitType* pt = pi >= 0 ? units_type(pool, pi) : NULL;
@@ -2286,25 +2299,34 @@ int units_raid_damage_ship(
     damaged = 0; /* DOS 85139 / raw 99607: no friendly port at all */
   }
   if (!damaged) {
-    if (human && g_units_combat_popups) {
+    {
       /*
        * DOS 0x1b81 = @SHIPSUNK, and raw 99518-99527 fills %STRING0/%STRING1
-       * (loser nation + hull) for every ship loss, this arm included; the
-       * sinker pair %STRING2/%STRING3 comes from the winner unit, which this
-       * call has none of (param_2 < 0). Empty tokens, never typed English
-       * (port_bugs.md #987).
+       * (loser nation + hull) for every ship loss, this arm included. The
+       * LAB_5fef_0d14 tail (raw 99653-99672) fills %STRING3 from
+       * local_4*0xe+0x5230 with local_4 = 0x10, the Privateer name, and
+       * %STRING2 from 09a4 of an uninitialised local_32 (stack junk, left
+       * empty here; port_bugs.md #987 / #1792).
        */
       PopupMsgTokens tok;
       memset(&tok, 0, sizeof(tok));
       tok.string0 = units_combat_nation_label(col1, lose->nation_id);
       tok.string1 = lt ? lt->name : "";
       tok.string2 = "";
-      tok.string3 = "";
+      tok.string3 = pt ? pt->name : "";
       units_combat_enqueue_tok(
         AI_POPUP_TAG_COMBAT_SHIP, "SHIPSUNK", -1, lose->nation_id, 0, &tok, ""
       );
       units_play_event_sound(0x57);
+      /* raw 99662-99666: 04b6(1) for a human loser (the winner test reads
+       * the junk local_32 and is skipped). */
+      if (col1 && lose->nation_id >= 0 && lose->nation_id <= 3 &&
+          col1->player[lose->nation_id].control == 0) {
+        units_set_bgm_pool(1);
+      }
     }
+    /* FUN_5fef_0352 raw 99673-99690: Royal-flagged hull lost → tax cut. */
+    (void)units_royal_loss_tax_cut((ColonizeCol1Save*)col1, pool, lose);
     units_despawn(pool, ship_id);
     return 0;
   }
@@ -2312,7 +2334,7 @@ int units_raid_damage_ship(
   /* DOS bills the repair against the Privateer's defense column (the raider
    * stand-in), doubled: unit −1's type byte (DS:0x312a = 24) is not a hull
    * (FUN_5fef_0352 raw 99622-99626). */
-  units_ship_enter_repair(pool, lose, pt ? pt->defense << 1 : 0, home, col1, human, -1);
+  units_ship_enter_repair(pool, lose, pt ? pt->defense << 1 : 0, home, col1, 1, -1);
   return 1;
 }
 
@@ -2501,6 +2523,7 @@ int units_indian_attack_alarm_vent_amount(
  * its units_resolve_land_combat_ff call runs.
  */
 bool g_units_colony_autodefender = false;
+int g_units_combat_param4 = -1;
 
 /*
  * One-shot latch, cleared at the top of every units_try_move. DOS runs the
@@ -2546,6 +2569,7 @@ void units_combat_outcome_popups(
   const ColonizeCol1Save* col1
 ) {
   (void)ambush;
+  (void)is_naval;
   /* FUN_5fef_1b0e bVar13/bVar14 (raw 100733/100741), read at raw 101088-101095:
    * consume the gear step the loss outcome just fired so it never leaks into
    * a later fight. */
@@ -2556,11 +2580,15 @@ void units_combat_outcome_popups(
   if (!units_combat_human_involved(col1, atk_nation, def_nation)) {
     return;
   }
-  if (!win || !lose) {
+  /* Only the defender side is read below; a fort's 03f6 phantom attacker
+   * (units_fort_vs_ship) has no unit. */
+  if (atk_wins ? !lose : !win) {
     return;
   }
 
-  if (!is_naval) {
+  /* port_bugs.md #1793: the 1b0e tail (raw 100810) has no ship test, so a
+   * naval fight or a fort shot gets @EUROPEWIN / @EUROPELOSE too. */
+  {
     /*
      * Euro attacker vs a human Euro defender: @EUROPEWIN / @EUROPELOSE.
      * Native attacker vs human: @INDIANWIN0/1/2 / @INDIANLOSE below.
@@ -2605,6 +2633,7 @@ void units_combat_outcome_popups(
       } else {
         const ColonizeUnit* def_u = win;
         tok.string4 = units_combat_defeat_verb(0, def_u->type_index);
+        units_set_bgm_pool(4); /* raw 100832 FUN_281f_04ac(4) before 0x1c1d */
         units_combat_enqueue_tok(
           AI_POPUP_TAG_COMBAT_EUROPE,
           "EUROPELOSE",
@@ -2644,6 +2673,7 @@ void units_combat_outcome_popups(
          * DOS raw 101088-101095: tag suffix '1' (bVar13 armed) then '2'
          * (bVar14 mounted, wins); %STRING4 = FUN_281f_09a4(attacker nation). */
         tok.string4 = units_combat_nation_label(col1, atk_nation);
+        units_combat_music_sting(); /* raw 101098 FUN_281f_048e(0x32) */
         units_combat_enqueue_tok(
           AI_POPUP_TAG_COMBAT_AMBUSH,
           gear_mounted ? "INDIANWIN2" : gear_armed ? "INDIANWIN1" : "INDIANWIN0",
@@ -2656,6 +2686,7 @@ void units_combat_outcome_popups(
         /* @INDIANLOSE: {nation unit} {defeat} {tribe} near {place}!
          * LABELS.TXT @MISC rows 73/74 — unit subjects type_index ≥7 use "defeats". */
         tok.string4 = units_combat_defeat_verb(0, def_u->type_index);
+        units_set_bgm_pool(4); /* raw 101120 FUN_281f_04ac(4) */
         units_combat_enqueue_tok(
           AI_POPUP_TAG_COMBAT_AMBUSH,
           "INDIANLOSE",
@@ -2787,9 +2818,12 @@ static int col1_destroy_tribe_index(
       } else {
         const int div = -1 - (int)*vc;
         ColonizeCol1Indian* ind = &col1->indian[idx];
-        ind->horse_herds = (uint8_t)((int)ind->horse_herds + (int)ind->horse_herds / div);
-        ind->horse_breeding =
-          (uint16_t)((int)ind->horse_breeding + (int)ind->horse_breeding / div);
+        /* raw 81344-81346: `*(char *)(rec+8)` and `*(int *)(rec+10)` are read
+         * signed (port_bugs.md #1795). */
+        ind->horse_herds =
+          (uint8_t)((int)(int8_t)ind->horse_herds + (int)(int8_t)ind->horse_herds / div);
+        ind->horse_breeding = (uint16_t)((int)(int16_t)ind->horse_breeding +
+                                         (int)(int16_t)ind->horse_breeding / div);
       }
     }
   }
@@ -3140,11 +3174,10 @@ bool units_try_native_settlement_fallout_w(
     /*
      * col1_save.h ColonizeCol1Nation.villages_burned; reports.c scores
      * villages_penalty = -(difficulty+1)*villages_burned. Increment on
-     * successful tribe destroy only.
+     * successful tribe destroy only. DOS-LITERAL raw 101201-101202: an
+     * unguarded byte INC that wraps (port_bugs.md #1794).
      */
-    if (col1->nation[attacker_nation_id].villages_burned < 255u) {
-      col1->nation[attacker_nation_id].villages_burned++;
-    }
+    col1->nation[attacker_nation_id].villages_burned++;
     /*
      * port_bugs.md #381: treasure is NOT Cortes-gated. FUN_5fef_31ea runs the peel for
      * every conqueror (viceroy_unpacked.c ~101407-101495) — Cortes (local -6) is
@@ -3167,10 +3200,11 @@ bool units_try_native_settlement_fallout_w(
     if (gold > 0) {
       const bool spawned =
         units_spawn_treasure_train(units, tile_x, tile_y, attacker_nation_id, gold) >= 0;
-      units_set_bgm_pool(2); /* raw 101276 FUN_281f_04ac(2), no human gate */
       /* FUN_5fef_31ea raw 101482-101487: a failed FUN_281f_095c spawn zeroes
-       * the amount and skips the @LOOT popup. */
-      if (spawned && units_combat_human_involved(col1, attacker_nation_id, defender_nation_id)) {
+       * the amount and skips 04ac(2) and the @LOOT popup. Neither is gated on
+       * a human side: an AI razer shows @LOOT too (port_bugs.md #1794). */
+      if (spawned) {
+        units_set_bgm_pool(2); /* raw 101276 FUN_281f_04ac(2), no human gate */
         PopupMsgTokens tok;
         memset(&tok, 0, sizeof(tok));
         tok.string0 = units_combat_nation_label(col1, attacker_nation_id);
@@ -3182,8 +3216,8 @@ bool units_try_native_settlement_fallout_w(
           AI_POPUP_TAG_COMBAT_LOOT, "LOOT", attacker_nation_id, defender_nation_id, gold, &tok,
           "");
       }
-    } else if (units_combat_human_involved(col1, attacker_nation_id, defender_nation_id)) {
-      /* Peel came up empty — DOS 0x1cd1 (@LOOT2), not @NOLOOT. */
+    } else {
+      /* Peel came up empty — DOS 0x1cd1 (@LOOT2), not @NOLOOT; no human gate. */
       PopupMsgTokens tok;
       memset(&tok, 0, sizeof(tok));
       tok.string0 = units_combat_nation_label(col1, attacker_nation_id);
@@ -3982,9 +4016,6 @@ bool units_resolve_lcr_rumour_w(
     }
     break;
   case COLONIZE_LCR_CIBOLA: {
-    if (nation == human_nation) {
-      units_play_event_sound(0x3c); /* FUN_65dd_0004 65dd:04b6 case 2: queued tune (281f_048e) */
-    }
     /* Case 2 (103536-103548): Treasure unit with +0x315b = hundreds.
      * port_bugs.md #1403: `local_4 = 1` (asm 0x616c3) -> the 65dd:080a tail
      * redraws 7x7 and fizzles the Treasure IN (FUN_281f_03ea(8)), human only. */
@@ -4004,6 +4035,12 @@ bool units_resolve_lcr_rumour_w(
       break;
     }
     s_lcr_cibola_total++; /* 103546: `*(char *)0x1dc7 += 1` after the spawn. */
+    /* FUN_65dd_0004 65dd:04b6 case 2: queued tune (281f_048e). The spawn sits
+     * in the roll loop (raw 103543), so a failed spawn never reaches the cue
+     * (port_bugs.md #1796). */
+    if (nation == human_nation) {
+      units_play_event_sound(0x3c);
+    }
     tok.has_number1 = true;
     tok.number1 = gold;
     units_lcr_popup(nation, human_nation, "LOSTCITY2", gold, &tok);
@@ -4054,7 +4091,9 @@ bool units_resolve_lcr_rumour_w(
     /* port_bugs.md #1378: raw 103650-103651 (after the popup, past 65dd:04eb)
      * FUN_281f_0d6c(local_32, nation, local_38, 0) — the bare thunk to the
      * whole FUN_4cc6_00f2, escalation tail included, as the SCREWED arm. */
-    if (col1 && tribe >= 0 && nation >= 0 && nation < 4) {
+    /* raw 103650 `if (local_38 != 0 && -1 < local_32)`: a 0 hit skips the
+     * call and its rand(0,10) expel draw (port_bugs.md #1796). */
+    if (col1 && tribe >= 0 && nation >= 0 && nation < 4 && roll.trespass_mag != 0) {
       ai_contact_alarm_delta_00f2_w(w, tribe, nation, roll.trespass_mag);
     }
     break;
@@ -4265,22 +4304,40 @@ void units_play_event_sound(int id) {
 }
 
 /*
- * FUN_5fef_1b0e only animates and plays the fire/win event sounds when its
- * `param_4` "visible" flag is set: FUN_465b_0000 (~75692) passes 1 when the
- * attacker is the viewport nation or either side is human (`0x543f == 0`),
- * while the AI move scorer at 521d:52aa (~88888) passes 0 and resolves the
- * same combat silently. The port played the cannonade for every AI-vs-AI
- * battle resolved during end-of-turn, so cannon fire landed on top of
- * unrelated popups (port_bugs.md: prices-fall / immigration popups).
- * No col1 context (unit tests, standalone smokes) → audible, as before.
+ * FUN_5fef_1b0e only animates, plays the fire/win cues and shows the 0352
+ * loss popups when its `param_4` "visible" flag is set. FUN_465b_0000 (raw
+ * 75660-75692) builds it from: show_entire_map (DS:0x53a2); for an attacker
+ * that is not the viewport nation (DS:0x5396), its vis byte after 07fe ORed
+ * 0826(target) in carries the viewport bit, or 0970(target, viewport) (a
+ * neighbour of the target is the viewport's); the attacker is the viewport;
+ * either side is human (0x543f == 0). port_bugs.md #1791: the port used the
+ * last term alone, so an AI-vs-AI fight next to the human or under Complete
+ * Map was silent. FUN_521d_20e6's 0a14(...,0,0) (raw 88888) is the AI odds
+ * probe, not a resolution. No col1 context (unit tests) → audible.
  */
 bool units_combat_is_visible(const ColonizeUnitPool* pool, int a_id, int b_id) {
   const ColonizeCol1Save* col1 = g_units_ff_col1;
   if (!col1) {
     return true;
   }
+  if (col1->head.show_entire_map) {
+    return true;
+  }
   const ColonizeUnit* a = units_get_const(pool, a_id);
   const ColonizeUnit* b = units_get_const(pool, b_id);
+  const int view = g_units_combat_human_nation;
+  if (a && view >= 0 && a->nation_id == view) {
+    return true;
+  }
+  if (a && b && view >= 0 && view <= 3) {
+    /* 0826 = FUN_1427_0c9a; its 0bfe ring term is 0970(target, viewport). */
+    const uint8_t mask = (uint8_t)(a->col1_vis_mask |
+                                   units_vis_mask_for_tile(units_occupancy_map, b->x, b->y,
+                                                           a->nation_id));
+    if ((mask & (1u << view)) != 0) {
+      return true;
+    }
+  }
   const int sides[2] = {a ? a->nation_id : -1, b ? b->nation_id : -1};
   for (int i = 0; i < 2; ++i) {
     const int n = sides[i];

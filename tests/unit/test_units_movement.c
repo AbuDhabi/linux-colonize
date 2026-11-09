@@ -1712,6 +1712,83 @@ static int unit_ai_undefended_colony_band(void) {
   return rc;
 }
 
+/* port_bugs.md #1837 / #1838 / #1840 on one ocean strip:
+ * - the walk-on board is 465b's plain step, so bVar5 = true (raw 75829);
+ * - a hull step re-sentries every rider (raw 75706-75710, asm 465b:080a);
+ * - arriving on an occupied tile keeps its owner nibble (FUN_1427_02ca
+ *   stamps only an empty tile, raw 7478-7509). */
+static int unit_465b_board_settles_hull_resentries(void) {
+  ColonizeUnitPool pool;
+  memset(&pool, 0, sizeof(pool));
+  pool.type_count = 2;
+  pool.types[0].movement = 4;
+  pool.types[0].domain = COLONIZE_UNIT_DOMAIN_SEA;
+  pool.types[0].cargo = 2;
+  pool.types[1].space = 1;
+  pool.types[1].movement = 1;
+  pool.types[1].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  char err[128];
+  if (!map_alloc(&map, 8, 8, err, sizeof(err))) {
+    fprintf(stderr, "board_settle: map_alloc failed: %s\n", err);
+    return 1;
+  }
+  for (int i = 0; i < 8 * 8; ++i) {
+    map.terrain[i] = (i % 8 == 4) ? 1 : 25; /* land column x=4, ocean elsewhere */
+    if (map.layer3) {
+      map.layer3[i] = 1;
+    }
+  }
+  units_set_occupancy_map(&map);
+  const int own = units_spawn_allow_stack(&pool, 0, 3, 3);
+  const int other = units_spawn_allow_stack(&pool, 0, 1, 3);
+  const int pax = units_spawn_allow_stack(&pool, 1, 4, 3);
+  const ColonizeWorld w = {.units = &pool, .map = &map};
+  int rc = 0;
+  if (!units_get(&pool, own) || !units_get(&pool, other) || !units_get(&pool, pax)) {
+    fprintf(stderr, "board_settle: spawn failed\n");
+    rc = 1;
+  }
+  if (rc == 0) {
+    units_get(&pool, own)->nation_id = 0;
+    units_get(&pool, other)->nation_id = 0;
+    units_get(&pool, pax)->nation_id = 0;
+    units_get(&pool, pax)->moves = UNITS_MP_PER_TILE;
+    g_units_465b_settled = false;
+    if (!units_try_move_w(&w, pax, 3, 3) || units_get(&pool, pax)->aboard_ship_id != own) {
+      fprintf(stderr, "board_settle: walk-on board refused\n");
+      rc = 1;
+    } else if (!g_units_465b_settled) {
+      fprintf(stderr, "board_settle: a board must leave bVar5 set (no 0bd1 tail)\n");
+      rc = 1;
+    }
+  }
+  if (rc == 0) {
+    units_get(&pool, pax)->orders = UNITS_ORDER_NONE; /* woken at sea */
+    units_get(&pool, own)->moves = units_max_mp(&pool, own);
+    map_set_owner_nibble(&map, 1, 3, 2); /* stamp left by an earlier visitor */
+    if (!units_try_move_w(&w, own, 2, 3)) {
+      fprintf(stderr, "board_settle: hull step refused\n");
+      rc = 1;
+    } else if (units_get(&pool, pax)->orders != UNITS_ORDER_SENTRY) {
+      fprintf(stderr, "board_settle: hull step must re-sentry its rider (orders %d)\n",
+              units_get(&pool, pax)->orders);
+      rc = 1;
+    } else if (!units_try_move_w(&w, own, 1, 3)) {
+      fprintf(stderr, "board_settle: second hull step refused\n");
+      rc = 1;
+    } else if (units_tile_owner_nibble(&map, 1, 3) != 2) {
+      fprintf(stderr, "board_settle: arrival on an occupied tile restamped nibble %d\n",
+              units_tile_owner_nibble(&map, 1, 3));
+      rc = 1;
+    }
+  }
+  units_set_occupancy_map(NULL);
+  map_free(&map);
+  return rc;
+}
+
 /* Boarding is FUN_465b_0000's plain step (raw 75711-75723), so its tail runs
  * FUN_5bfb_3180's sentry-wake arm (raw 98628-98646): a foreign sentried ship
  * beside the receiving ship wakes. */
@@ -2092,5 +2169,6 @@ static const TestCase k_cases[] = {
   {"unit_colony_enter_hull_stack_gate_791_792", unit_colony_enter_hull_stack_gate_791_792},
   {"unit_move_stage_seam_1107", unit_move_stage_seam_1107},
   {"unit_board_wakes_foreign_sentry", unit_board_wakes_foreign_sentry},
+  {"unit_465b_board_settles_hull_resentries", unit_465b_board_settles_hull_resentries},
 };
 TEST_MAIN_WRAPPED(k_cases, diag_init(0, NULL), diag_shutdown())

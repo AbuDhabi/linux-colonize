@@ -167,8 +167,13 @@ tab's hammers bar (own block). Production-tab badge ink is white (15), not
   and right drawn first, then 0x39 top and left, the label at (+3, +2) in 0x0f
   with no hotkey ink. 0 differing pixels in both 30x9 button rects of
   `new_amsterdam_construction.png` and `recife_construction.png` (was 90 / 139
-  with the old RGB-matched blues, port_bugs.md #1124). The dead-queue CHANGE blink
-  (white fill, black text) is port-only.
+  with the old RGB-matched blues, port_bugs.md #1124). Pressed (flag 1): 0x39 bottom/right,
+  0x30 top/left, a 0x0f fill inside the bevel and label ink 0 — drawn for the button under
+  the pointer (DS:0x342) while a pane-4 press is held, and for CHANGE in the DS:0x334 == 0
+  blink phase when the colony's BUILD_COMPLETE bit (+0x1c & 0x80) is set on the
+  construction tab (`FUN_2f2b_2d1c` -> `2262`). Hit boxes are the drawn buttons
+  (`FUN_2f2b_5fc6`, `colony_screen_multi_button_at`); DOS acts on the release over the
+  button recorded at the press (port_bugs.md #1698).
 - **BUY (`FUN_2f2b_5e44`, player-corrected twice):** one uniform `@BUYME1`
   Yes/No when affordable, `@BUYME0` info when not — never a
   tools-short-specific popup (`@NEEDTOOLS*` stays turn.c's EOT notice).
@@ -186,7 +191,9 @@ tab's hammers bar (own block). Production-tab badge ink is white (15), not
 
 ### Units tab
 
-"Units Present" title = `LABELS.TXT @CMISC` index 1, centered, idx 57.
+"Units Present" title = `LABELS.TXT @CMISC` index 1, centered, idx 57. In the spy view
+(DS:0xb98) the title is the colony's project instead (`FUN_2f2b_1e46`, port_bugs.md #1713)
+and the three tab buttons are not drawn (`FUN_2f2b_2c3c`, #1712).
 `colony_screen_render` takes a `labels` param (NULL falls back to the
 literal); layout shared between draw and hit-test via
 `colony_screen_multi_units_layout()` so click regions can't drift.
@@ -344,9 +351,14 @@ So the label sits on the hovered building's **top edge** — not the panel's top
 row — and only the two wide size classes (2 and 4) drop it to the middle of
 the box. The caller's `+8` is this port's `COLONY_VIEWPORT_Y` origin.
 
-Ported as `ColonyScreenView.hover_building_row` (set each frame in
-`game_update_colony_screen` from `colony_screen_hit_test`, cleared while any
-sub-dialog or drag is up) plus a tail block in `colony_screen_blit_buildings`.
+`FUN_2f2b_44d4` stops at the FIRST slot box under the pointer, owned or not, and
+the slot's row is `FUN_2f2b_0434`'s last owned row of the category (the Stable
+over the Warehouse, the Stockade even unowned: `colony_screen_slot_row`). An
+unowned slot is labelled `@MISC` 122 ("Trees", centred like the wide classes);
+the class-3 fence corner appends " " + `@MISC` 123 (port_bugs.md #1686, #1687).
+Ported as `colony_screen_update_hover` (`ColonyScreenView.hover_cat_plus1`;
+`hover_building_row`, set from `colony_screen_hit_test`, is the fallback) plus a
+tail block in `colony_screen_blit_buildings`.
 The backdrop is a solid colour-0 fill: `FUN_281f_00ba` -> `FUN_1b9e_000a` with
 x/y/w in AX/DX/BX and stack args colour `PUSH 0`, height 7, then the far
 pointer of the target surface `DS:0x2da8..0x2dae` (where the colour sits, not
@@ -355,8 +367,8 @@ a save-under). Text ink is 15 (`FUN_281f_01f0`).
 Right-click on a built building opens its Colonizopedia article
 (`PEDIA_CAT_BUILDING`; `@BUILDING` row order *is* the pedia building index)
 and returns to the colony screen on exit, matching the area-view tile's
-right-click terrain article. Unbuilt slots are not hoverable or right-clickable
-— the slot scan runs past them (port_bugs.md #430).
+right-click terrain article. Unbuilt slots are not clickable — the click scan
+runs past them (port_bugs.md #430).
 
 ### F1 on the bare screen (DS:0x32e focus)
 
@@ -453,9 +465,11 @@ Per size class (NAMES.TXT `@BUILDING` column 4, 0..4), byte arrays of 5:
 | `DS:0x25a` | 20 | 22 | 30 | 20 | 20 | production-badge width = min_w |
 | `DS:0x260` | 45 | 44 | 43 | 0 | 46 | empty-slot placeholder sprite |
 
-The port's fence-unit rectangle keeps DOS's class-3 horizontal anchor (+5)
-but uses y+3 for the top-left screen rect: raw y+5 would put the bottom row of
-the 18px strip on the settlement's bottom separator.
+The fence units themselves are laid out like a class-3 worker strip
+(`FUN_2f2b_11b2`: `FUN_1097_0004` flags 2, w = min_w = 65, ICONS 0x67 as the
+reference sprite, no count; `colony_screen_fence_unit_layout`, port_bugs.md #1691).
+The port's empty-fence drop rectangle keeps DOS's class-3 horizontal anchor (+5)
+but uses y+3 for the top-left screen rect.
 
 Class 3 (73×18) / class 4 (75×48) match `COLONY_FENCE_W/H` /
 `COLONY_COAST_W/H` exactly — that pins the row order. The building sprite

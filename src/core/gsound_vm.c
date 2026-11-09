@@ -131,14 +131,13 @@ static uint16_t prng(GsoundVm* vm) {
   return ax;
 }
 
-/* FUN_1000_0048: release every slot of the current channel. */
+/* FUN_1000_0048: release the slots of the current channel, stopping at the
+ * first empty one (1000:006b CMP AL,0xff; JZ 00c6). */
 static void notes_off(GsoundVm* vm) {
   const uint8_t ch = vm->cur_channel;
   uint8_t* slots = vm->ds + GS_SLOTS + (uint16_t)ch * 4u;
-  for (int i = 0; i < 4; ++i) {
-    if (slots[i] != 0xff) {
-      emit(vm, (uint8_t)(0x90 | (ch & 0x0f)), slots[i], 0);
-    }
+  for (int i = 0; i < 4 && slots[i] != 0xff; ++i) {
+    emit(vm, (uint8_t)(0x90 | (ch & 0x0f)), slots[i], 0);
     slots[i] = 0xff;
   }
 }
@@ -271,7 +270,9 @@ static void voice_tick(GsoundVm* vm, uint16_t vaddr) {
       case 0xDB: case 0xDC: case 0xDD: case 0xDE: case 0xDF: case 0xE0:
       case 0xE1: case 0xE2: case 0xE3: case 0xE4: case 0xE8: case 0xE9: {
         uint8_t* ra = reg_ptr(vm, b1);
-        const bool imm = (op & 1) == 0 || op == 0xE9;
+        /* Even = immediate for D5..E4; E8 is the register form (1000:07a4
+         * MOV AL,[SI+0x5c]) and E9 the immediate (1000:0783). */
+        const bool imm = op == 0xE9 || ((op & 1) == 0 && op != 0xE8);
         const uint8_t rb = imm ? b2 : *reg_ptr(vm, b2);
         switch (op) {
           case 0xD5: case 0xD6: *ra ^= rb; break;
@@ -574,8 +575,11 @@ static void clear_voices(GsoundVm* vm, bool ch78, bool others) {
       continue;
     }
     uint8_t* v = vm->ds + k_voice_by_channel[ch];
+    /* 0x171f / 0x1786 / 0x17dd: `mov [bx],ax; mov [bx+2],ax` zero +0..+3. */
     v[V_DUR] = 0;
+    v[V_PENV_DELTA] = 0;
     v[V_VENV_DELTA] = 0;
+    v[V_PAN_DELTA] = 0;
   }
   if (others) {
     memset(vm->ds + GS_SLOTS, 0xff, 0x40);

@@ -154,9 +154,45 @@ static bool pick_music_load_section(
   return dlg->open;
 }
 
+/*
+ * The Pick Music body (unnamed, 2b5a:2464-268a; ndisasm 0x23344-0x2356a; the
+ * FUN_2b5a_23ce cite is the Sound Options handler) preselects the playing
+ * tune's 1-based @PICKMUSIC row from DS:0x96 (switch at 0x233d4) before
+ * 291f_016a: 0x20-0x27 -> 1-8, 0x39 9, 0x38 10, 0x3a 11, 0x3b 12, 0x28-0x2d
+ * the Independence row 13, 0x2e-0x31 Military 14, 0x32/0x33/0x35/0x36 Indian
+ * 15, anything else none (#1765).
+ */
+static int pick_music_playing_row(int id) {
+  if (id >= 0x20 && id <= 0x27) {
+    return id - 0x1f;
+  }
+  switch (id) {
+    case 0x39: return 9;
+    case 0x38: return 10;
+    case 0x3a: return 11;
+    case 0x3b: return 12;
+    case 0x32: case 0x33: case 0x35: case 0x36: return 15;
+    default: break;
+  }
+  if (id >= 0x28 && id <= 0x2d) {
+    return 13;
+  }
+  if (id >= 0x2e && id <= 0x31) {
+    return 14;
+  }
+  return 0;
+}
+
 bool pick_music_open(PickMusicDialog* dlg, const ColonizeMsgCatalog* game_txt) {
   pick_music_init(dlg);
-  return pick_music_load_section(dlg, game_txt, "PICKMUSIC", PICK_MUSIC_VIEW_MAIN);
+  if (!pick_music_load_section(dlg, game_txt, "PICKMUSIC", PICK_MUSIC_VIEW_MAIN)) {
+    return false;
+  }
+  const int row = pick_music_playing_row(sound_driver_song_id());
+  if (row > 0 && row <= dlg->option_count) {
+    dlg->selection = row - 1;
+  }
+  return true;
 }
 
 static void pick_music_play_song(const PickMusicOption* opt, char* status, size_t status_size) {
@@ -189,7 +225,11 @@ static bool pick_music_activate(
   const PickMusicOption* opt = &dlg->options[dlg->selection];
   switch (opt->kind) {
     case PICK_MUSIC_KIND_SONG:
+      /* `mov [0x96],ax; call 281f:04c0; leave; retf` (ndisasm 0x23561):
+       * the tune plays on as the current song and the dialog is done. */
       pick_music_play_song(opt, status, status_size);
+      sound_stop_preview();
+      pick_music_close(dlg);
       return true;
     case PICK_MUSIC_KIND_SUB_INDEPENDENCE:
       pick_music_load_section(dlg, game_txt, "PICKINDEPENDENCE", PICK_MUSIC_VIEW_INDEPENDENCE);
@@ -221,16 +261,15 @@ bool pick_music_handle_input(
     return false;
   }
 
+  /* The sublists are their own 281f:03fe modals and a 0 result returns from
+   * the function (ndisasm 0x234ee / 0x23506 / 0x23525), so Esc anywhere ends
+   * Pick Music. */
   if (input->last_key == COLONIZE_KEY_ESCAPE) {
-    if (dlg->view != PICK_MUSIC_VIEW_MAIN) {
-      pick_music_load_section(dlg, game_txt, "PICKMUSIC", PICK_MUSIC_VIEW_MAIN);
-    } else {
-      sound_stop_preview();
-      pick_music_close(dlg);
-    }
+    sound_stop_preview();
+    pick_music_close(dlg);
     return true;
   }
-  /* @PICKMUSIC (FUN_2b5a_23ce) is a FUN_6f74_2580 list: Up / Down wrap. */
+  /* @PICKMUSIC (2b5a:2464 via 291f_016a) is a FUN_6f74_2580 list: Up / Down wrap. */
   if (popup_list_key_step(input->last_key, &dlg->selection, dlg->option_count, 0)) {
     return true;
   }

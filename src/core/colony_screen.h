@@ -340,6 +340,10 @@ typedef struct ColonyScreenView {
    * name (FUN_2f2b_05ee) centred over the building at the top of the
    * settlement panel. Building-type index, or -1 when nothing is hovered. */
   int hover_building_row;
+  /* Category under the pointer + 1 (0 = none, so a zeroed view labels nothing), set by
+   * colony_screen_update_hover (FUN_2f2b_44d4's slot scan, owned or not). The label draws this
+   * slot; hover_building_row is the fallback. */
+  int hover_cat_plus1;
   ColonyMultiMode multi_mode;
   int selected_cargo; /* warehouse cargo highlighted for =/+ load; -1 none */
   /* DS:0x32e: the panel F1 reads (FUN_2f2b_6372 raw 55622-55650), set by the press on
@@ -455,6 +459,13 @@ typedef struct ColonyScreenView {
   /* MOD_POPULATION_FLOOR ABANDON button on the Units tab, bottom-right: the
    * width the renderer last drew it at, 0 = not drawn. */
   int abandon_btn_w;
+  /* BUY / CHANGE button widths as last drawn (FUN_291f_057c: label width + 5; 0 = no BUY),
+   * the FUN_2f2b_5fc6 hit boxes at (0xd8, 0x8a) / (0x10e, 0x8a), 9 tall. */
+  int buy_btn_w;
+  int change_btn_w;
+  /* DS:0x342: the BUY (0) / CHANGE (1) button under the pointer at the last pane-4 event
+   * (FUN_2f2b_5fc6), -1 none; drawn pressed while that press is held. */
+  int multi_btn_342;
 } ColonyScreenView;
 
 #define COLONY_ABANDON_BTN_H 9
@@ -537,6 +548,14 @@ void colony_screen_open_eject(
   int colonist_index
 );
 void colony_screen_close_eject(ColonyScreenView* view);
+/* Hover name label target: the settlement-panel slot whose box is under (mx, my), owned or
+ * not (FUN_2f2b_44d4's hover scan); colony NULL clears it. */
+void colony_screen_update_hover(ColonyScreenView* view, const ColonizeColony* colony, int mx, int my);
+/* FUN_2f2b_5fc6's button boxes: 0 = BUY (only while the colony has a project), 1 = CHANGE,
+ * -1 = neither. Uses the widths colony_screen_draw_multifunction last drew. */
+int colony_screen_multi_button_at(
+  const ColonyScreenView* view, const ColonizeColony* colony, int mx, int my
+);
 /* Leave-as role (COLONIZE_EJECT_*) a fence unit already is, or -1. */
 int colony_screen_unit_eject_role(const ColonizeUnitPool* units, const ColonizeUnit* u);
 

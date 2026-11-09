@@ -120,7 +120,12 @@ static void combat_analysis_blit_row_icon(
     return;
   }
   if (row->icon_kind != COMBAT_ROW_ICON_VILLAGE) {
-    ss_blit_sprite(sheet, row->icon_sprite, fb, x, y);
+    /* 636c:01dd-01fb: the Muskets row icon goes at row top + 2 (`INC AX` x2). */
+    const int dy =
+      (row->icon_kind == COMBAT_ROW_ICON_UNIT && row->icon_sprite == COMBAT_ANALYSIS_MUSKETS_ICON)
+        ? 2
+        : 0;
+    ss_blit_sprite(sheet, row->icon_sprite, fb, x, y + dy);
     return;
   }
   {
@@ -217,8 +222,10 @@ void combat_analysis_render(
   for (int side = 0; side < 2; ++side) {
     const CombatAnalysisSideChrome* chrome = side == 0 ? &dlg->atk_chrome : &dlg->def_chrome;
     const char* name = side == 0 ? dlg->atk_name : dlg->def_name;
-    const int base =
-      side == 0 ? dlg->eng.atk_flags.base_combat : dlg->eng.def_flags.base_combat;
+    const ColonizeCombatSideFlags* sf = side == 0 ? &dlg->eng.atk_flags : &dlg->eng.def_flags;
+    /* 636c:0106-0168: with the 0x200 militia bit local_4 is a literal 1, not
+     * the 0x8d06 strength word (#1675). */
+    const int base = (sf->flags & COMBAT_FLAG_MILITIA) ? 1 : sf->base_combat;
     const int col_x = col_x_of[side];
     combat_analysis_blit_side(framebuffer, font, unit_icons, chrome, col_x, y_hdr, active_palette);
     combat_analysis_text(font, framebuffer, col_x + 0x11, y_hdr + 6, name, text_color);

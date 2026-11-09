@@ -1407,11 +1407,10 @@ static int pedia_article_job(
   if (chain >= 0 && a->buildings && chain < a->buildings->sprite_count) {
     chain_sprite_height = a->buildings->sprites[chain].height;
   }
-  int icon_y_offset = (chain >= 0) ? chain_sprite_height / 2 - 7 : 0;
-  if (icon_y_offset < 0) {
-    icon_y_offset = 0;
-  }
+  /* DOS-LITERAL FUN_6cb2_1820: local_6c = (h >> 1) - 7, unclamped. */
+  const int icon_y_offset = (chain >= 0) ? (chain_sprite_height >> 1) - 7 : 0;
   const int icon_y = top + icon_y_offset;
+  int cargo_y_offset = icon_y_offset;
 
   pedia_blit(a->icons, pedia_job_icon_sprite(job), fb, 10, icon_y);
   char expert[64];
@@ -1432,10 +1431,10 @@ static int pedia_article_job(
     }
     char bname[64];
     pedia_building_name(a->names, chain, bname, sizeof(bname));
-    int ty = y + h / 2 - 7;
-    if (ty < y) {
-      ty = y;
-    }
+    /* 6cb2:19bc recomputes local_6c for every chain building, so the cargo row after the
+     * loop sits off the LAST building's height (raw 110979-110986, port_bugs.md #1766). */
+    cargo_y_offset = (h >> 1) - 7;
+    const int ty = y + cargo_y_offset;
     font_draw_text(a->font, fb, bx + w + 3, ty + 6, bname, PEDIA_COL_LINK_HOVER);
     if (first) {
       prod_x = bx + w + 3 + font_text_width_skip(a->font, bname, FONT_SKIP_NONE) + 24;
@@ -1464,14 +1463,15 @@ static int pedia_article_job(
       cargo_sprite = 62;
       cargo_name_id = 18;
     }
-    pedia_blit(a->icons, cargo_sprite, fb, prod_x, icon_y + 2);
+    const int cargo_y = top + cargo_y_offset;
+    pedia_blit(a->icons, cargo_sprite, fb, prod_x, cargo_y + 2);
     char cname[64];
     if (job == COLONIZE_PROF_FISHERMAN) {
       snprintf(cname, sizeof(cname), "%s", pedia_label(a->labels, 177, ""));
     } else {
       pedia_cargo_display_name(a->names, cargo_name_id, cname, sizeof(cname));
     }
-    font_draw_text(a->font, fb, prod_x + 16, icon_y + 6, cname, PEDIA_COL_LINK_HOVER);
+    font_draw_text(a->font, fb, prod_x + 16, cargo_y + 6, cname, PEDIA_COL_LINK_HOVER);
   }
 
   return had_chain ? y + 4 : top + 20;

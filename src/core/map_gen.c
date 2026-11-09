@@ -223,11 +223,10 @@ static void place_blob(
   int x = dos_rng_range(rng, 1, w - 0x10) + 7;
   int y = dos_rng_range(rng, 1, h - 8) + 3;
   if (param_extra != 0) {
-    int tries = 0;
-    while (tries < 32 && map_dims_in_bounds(x, y, w, h) && mask[idx(x, y, w)]) {
+    /* FUN_684c_02a8 raw 105360-105368: redraw until uncovered, no cap (#1763). */
+    while (map_dims_in_bounds(x, y, w, h) && mask[idx(x, y, w)]) {
       x = dos_rng_range(rng, 1, w - 0x10) + 7;
       y = dos_rng_range(rng, 1, h - 8) + 3;
-      tries++;
     }
   }
 
@@ -286,11 +285,10 @@ static void generate_land_mask(
   }
 
   int land_count = 0;
-  int guard = 0;
-  /* DOS: continue while land < budget (2d22 <= budget && 2d22 != budget). */
-  while (land_count < budget && guard < 500) {
+  /* DOS: continue while land < budget (2d22 <= budget && 2d22 != budget); no
+   * iteration cap (#1763). */
+  while (land_count < budget) {
     place_blob(mask, &land_count, w, h, rng, &m, params, 0);
-    guard++;
   }
 
   /*
@@ -1560,7 +1558,11 @@ static void map_gen_assign_continents(ColonizeWorldMap* map) {
           continue;
         }
 
-        uint16_t cur = 0;
+        /* local_e ([bp-0xc]) is the running label: it starts the north merge
+         * and is not reset at a row start, so at x = w-2 the run carried from
+         * (1, y-1) joins the labels north of (w-2, y) (asm 67bf:00c1-0102,
+         * 01e7-01ef; #1762). */
+        uint16_t cur = in_run ? run_id : 0;
         for (int dx = -1; dx <= 1; ++dx) {
           const uint16_t nb = labels[(y - 1) * w + (x + dx)];
           if (nb == 0) {
@@ -1573,42 +1575,22 @@ static void map_gen_assign_continents(ColonizeWorldMap* map) {
           }
         }
 
-        /*
-         * RTL scan: also merge with the already-labeled eastern neighbour
-         * (x+1). Without this, a NE-diagonal northern label can assign a
-         * different ID than the in-row run to the east (tribe[13] blob).
-         */
-        if (x + 1 < w - 1) {
-          const uint16_t east = labels[y * w + (x + 1)];
-          if (east != 0) {
-            if (cur == 0) {
-              cur = east;
-            } else if (east != cur) {
-              cur = map_gen_label_merge(labels, counts, w, n, y, cur, east);
-            }
-          }
-        }
-
         if (cur == 0) {
-          if (!in_run) {
-            uint16_t nid = 0;
-            /* Polar land rows start ID search at 0x10. */
-            if ((y == 1 || h - y == 2) && want_water == 0) {
-              nid = 0x10;
-            }
-            do {
-              nid++;
-              if (nid > 0x3fff) {
-                nid = 0x3fff;
-                break;
-              }
-            } while (counts[nid] != 0);
-            run_id = nid;
+          uint16_t nid = 0;
+          /* Polar land rows start ID search at 0x10. */
+          if ((y == 1 || h - y == 2) && want_water == 0) {
+            nid = 0x10;
           }
-          cur = run_id;
-        } else {
-          run_id = cur;
+          do {
+            nid++;
+            if (nid > 0x3fff) {
+              nid = 0x3fff;
+              break;
+            }
+          } while (counts[nid] != 0);
+          cur = nid;
         }
+        run_id = cur;
 
         labels[y * w + x] = cur;
         if (cur < 0x4002) {

@@ -17,6 +17,7 @@
 
 #include "core/ai.h"
 #include "core/ai_diplo.h"
+#include "core/ai_goals.h"
 #include "core/sound.h"
 #include "core/woodcut.h"
 #include "core/ai_king.h"
@@ -137,7 +138,9 @@ static const char* ai_contact_difficulty_title(const ColonizeCol1Save* col1) {
   return reports_difficulty_title((int)d);
 }
 
-/* FUN_1000_8804 → FUN_15eb_0142: nearest colony of `e` (continent -1 = any). */
+/* FUN_1000_8804 → FUN_15eb_0142 (raw 9380-9421): nearest colony of `e`
+ * (continent -1 = any), octile 124c_0040 metric, `<=` so the last tie wins.
+ * Returns the colony id (callers look it up with colonies_get), -1 on none. */
 static int ai_contact_nearest_own_colony(
   const ColonizeTurnContext* ctx,
   int e,
@@ -145,7 +148,11 @@ static int ai_contact_nearest_own_colony(
   int y,
   int continent
 ) {
-  return ai_contact_nearest_colony(ctx, e, x, y, continent, -1, 9999, NULL);
+  if (!ctx || !ctx->colonies) {
+    return -1;
+  }
+  const int ci = ai_goals_nearest_colony_15eb_0142(ctx->map, ctx->colonies, x, y, e, continent, NULL);
+  return ci >= 0 ? ctx->colonies->colonies[ci].id : -1;
 }
 
 /*
@@ -537,14 +544,15 @@ void ai_contact_colony_tick_war_5952(ColonizeTurnContext* ctx, int nation_id, in
   const int lim_a = nation_id == 2 ? (total << 2) : (total << 1);
   const int lim_b = nation_id == 2 ? (exposed << 3) : (exposed << 2);
   /* FUN_4cc6_0356(cx, cy, -1, cont): nearest village on the colony's own
-   * continent; DOS's `iVar1 <= local_4` makes a tie pick the later record. */
+   * continent; DOS's `iVar1 <= local_4` makes a tie pick the later record.
+   * Any village whose continent differs, -1 included, is skipped (raw
+   * 80966-80971 `iVar1 != param_4`). */
   int tribe_nation = -1;
   if (col1->tribe) {
     int best = 9999;
     for (uint16_t ti = 0; ti < col1->head.tribe_count; ++ti) {
       const ColonizeCol1Tribe* t = &col1->tribe[ti];
-      const int tc = map_continent_id_at(ctx->map, (int)t->x, (int)t->y);
-      if (tc >= 0 && tc != cont) {
+      if (map_continent_id_at(ctx->map, (int)t->x, (int)t->y) != cont) {
         continue;
       }
       const int dx = abs(cx - (int)t->x);
@@ -716,7 +724,7 @@ static void ai_contact_learnstay_apply(
   village_trade_intel_note_skill(e, t->x, t->y, skill);
   PopupMsgTokens tok;
   memset(&tok, 0, sizeof(tok));
-  tok.string0 = ai_contact_tribe_name(nation_id);
+  tok.string0 = reports_tribe_display_name(nation_id - 4); /* a618 OVL13 0x3830: 8c0a(tribe) plural */
   tok.string1 = ai_contact_job_name(skill);
   char body[AI_POPUP_BODY_LEN];
   popup_msg_fill(ctx->messages, "LEARNDONE", &tok, "", body, sizeof(body));
@@ -794,7 +802,8 @@ static void ai_contact_live_among_natives_body(
   }
   const int alarm = ai_diplo_indian_alarm(ctx->col1, nation_id, e);
   const int band = ai_relation_quartile(alarm);
-  const char* tribe = ai_contact_tribe_name(nation_id);
+  /* a618 OVL13 0x3830-0x383b: %STRING0 = 8c0a(tribe) = 15b3_0198, the plural. */
+  const char* tribe = reports_tribe_display_name(nation_id - 4);
   PopupMsgTokens tok;
   memset(&tok, 0, sizeof(tok));
   tok.string0 = tribe;
@@ -1516,7 +1525,8 @@ static void ai_contact_establish_mission(
   memset(&tok, 0, sizeof(tok));
   /* OVL a5dc (C 77288): %STRING0 = raw NAMES @MISSION[e] ("Church of"). */
   tok.string0 = reports_mission_prefix(e);
-  tok.string1 = c ? c->name : col1_player_country_name(col1, e);
+  /* a5dc: no colony -> %STRING1 = DS:(e*2 - 0x7c74), the @HOMEPORT name. */
+  tok.string1 = c ? c->name : reports_home_port_name(e);
   /* NAMES.TXT @SEASONS rows 0/1; reports_season_name is the shared live
      lookup, same Spring/Autumn literals kept as its fallback. */
   tok.string2 = reports_season_name(ctx->game_autumn && *ctx->game_autumn != 0);
@@ -1652,13 +1662,14 @@ static AiContactPopupStatus ai_contact_apply_popup_result_tags(
   int e, int nation_id
 ) {
   /*
-   * FUN_5bfb_022e @INDIANWELCOME: Yes → FUN_5bfb_0182 peace; No/cancel →
-   * FUN_4cc6_00f2 hostility + @INDIANSHUN. Cite: GAME.TXT; indian_contact.md.
+   * FUN_5bfb_022e @INDIANWELCOME: only `local_c == 2` (No) refuses →
+   * 0d6c hostility + @INDIANSHUN (raw 96658-96664); anything else, Esc's
+   * -1 from FUN_6f74_2580 included, takes peace (2a1f_0650, raw 96667).
    */
   if (popup->result_tag == AI_POPUP_TAG_CONTACT_WELCOME) {
-    if (popup->result_cancelled || popup->result_choice_id == AI_CONTACT_WELCOME_NO) {
+    if (!popup->result_cancelled && popup->result_choice_id == AI_CONTACT_WELCOME_NO) {
       ai_contact_apply_welcome_reject(ctx, ind, nation_id, e);
-    } else if (popup->result_choice_id == AI_CONTACT_WELCOME_YES) {
+    } else {
       ai_contact_apply_welcome_accept(ctx, ind, nation_id, e);
     }
     return AI_CONTACT_POPUP_DONE;

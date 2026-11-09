@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 
 #include "core/ai_contact.h"
 #include "core/ai_diplo.h"
@@ -845,9 +846,18 @@ COLONIZE_INTERNAL bool ai_place_tribes_from_txt(
   if (!p || !p->map || !p->col1 || !p->names) {
     return false;
   }
+  /* FUN_6a09_0006 raw 107782-107791: DS:0x1e95 "TRIBE.TXT", or with a picked
+   * map (DS:0x2174, i.e. not DS:0x2166 "AMER2.MP") that name + DS:0x1e9f
+   * "P" = "<NAME>.MPP"; a missing file falls back to the procedural tribes. */
+  char file[96];
+  if (p->map_stem && p->map_stem[0] && strcasecmp(p->map_stem, "AMER2") != 0) {
+    snprintf(file, sizeof(file), "%s.MPP", p->map_stem);
+  } else {
+    snprintf(file, sizeof(file), "TRIBE.TXT");
+  }
   char path[640];
-  if (!dos_compat_normalize_asset_path(p->data_dir, "TRIBE.TXT", path, sizeof(path))) {
-    snprintf(path, sizeof(path), "%s/TRIBE.TXT", p->data_dir ? p->data_dir : ".");
+  if (!dos_compat_normalize_asset_path(p->data_dir, file, path, sizeof(path))) {
+    snprintf(path, sizeof(path), "%s/%s", p->data_dir ? p->data_dir : ".", file);
   }
   ColonizeMsgCatalog txt;
   assets_msg_init(&txt);

@@ -136,7 +136,7 @@ static bool game_autoplay_tile_on_screen(const ColonizeGameState* game, int x, i
 
 /*
  * FUN_521d_6d8e raw 93258-93311 under DS:0x826, for the view nation (DS:0x5396) or with
- * the whole map shown (DS:0x53a2): before the act the cursor goes to an off-screen unit
+ * the whole map shown (DS:0x53a2): before the act the cursor goes to the unit's tile
  * (FUN_281f_0302) and the map redraws (FUN_281f_055e); after the unit's last act the
  * loop spins 0x1e ticks.
  */
@@ -161,10 +161,16 @@ void game_autoplay_watch(
   }
   if (phase == AI_EURO_WATCH_BEFORE_ACT) {
     const ColonizeUnit* u = units_get_const(&game->units, unit_id);
-    if (u && units_is_on_map(u) && !game_autoplay_tile_on_screen(game, u->x, u->y)) {
+    /* Raw 93262-93267: every act on an interior tile (FUN_281f_0302) moves the
+     * cursor DS:0x8540/0x853e (sidebar, slot-5 stuff x/y) (#1749); 055e(1,0)
+     * scrolls only when it is off-screen. */
+    if (u && units_is_on_map(u)) {
+      const bool off_screen = !game_autoplay_tile_on_screen(game, u->x, u->y);
       game->map_cursor_x = u->x;
       game->map_cursor_y = u->y;
-      game_set_view_center(game, u->x, u->y);
+      if (off_screen) {
+        game_set_view_center(game, u->x, u->y);
+      }
     }
     game_autoplay_present(game);
     return;

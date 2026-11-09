@@ -242,7 +242,10 @@ void europe_board_sentry_dockers(
     }
     ship->cargo_types[ship->cargo_count] = type_tag;
     ship->cargo_professions[ship->cargo_count] = eu->dock[di].profession;
-    ship->cargo_tools[ship->cargo_count] = eu->dock[di].tools;
+    /* The record's +0x3159 can be stale after Sell Tools (#1706); the port's
+     * kit reads tools as Pioneer gear, so only a Pioneers row carries it. */
+    ship->cargo_tools[ship->cargo_count] =
+      eu->dock[di].dos_type == EUROPE_DOCK_TYPE_PIONEERS ? eu->dock[di].tools : 0;
     ship->cargo_count++;
     /* The dock immigrant's (236,236) mirror unit leaves the pool with it. */
     europe_dock_remove_mirror_unit(eu, units, nation_id, di);
@@ -311,6 +314,10 @@ bool europe_set_sail_from_harbor_ex(
    * sentried dock-tile units in DOS, so with budget 0 they stay behind:
    * 0346's 0948 moves the hull alone (raw 77754-77755). */
   if (board_dockers) {
+    /* The manual Sail keeps +0x314c = 0 on confirm (raw 60775-60777
+     * `local_e = 0`), so the hull leaves its trade route (#1707). */
+    ship.trade_route_plus1 = 0;
+    ship.trade_stop = 0;
     europe_board_sentry_dockers(eu, &ship, units, nation_id, europe_ship_cargo_cap(&ship, units));
   } else {
     europe_disembark_passengers_to_dock(eu, &ship, units);

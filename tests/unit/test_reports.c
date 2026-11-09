@@ -736,8 +736,21 @@ static int case_synthetic_independence_score(void) {
     ColonizeWorld w_ = world_make(NULL, NULL, NULL, &c, true, NULL, NULL);
     reports_compute_score_w(&w_, &sc, 0);
   }
-  if (!sc.scoring_complete || sc.total != 0) {
-    fprintf(stderr, "scoring-complete latch should zero the composer\n");
+  /* port_bugs.md #1808: the latch gates only the F10 draw; the compute-only
+   * call (FUN_41f2_14a8 Hall of Fame) still gets the full total. */
+  if (!sc.scoring_complete || sc.total != 99) {
+    fprintf(stderr, "scoring-complete latch must not zero the composer (total=%d)\n", sc.total);
+    return 1;
+  }
+  /* #1808 (2): DOS reads the bells pool signed (41f2:08bb). */
+  c.head.game_options.calendar_latch = 0;
+  c.nation[0].liberty_bells_pool = 40000;
+  {
+    ColonizeWorld w_ = world_make(NULL, NULL, NULL, &c, true, NULL, NULL);
+    reports_compute_score_w(&w_, &sc, 0);
+  }
+  if (sc.bells_pts != 0) {
+    fprintf(stderr, "bells pool > 32767 must read negative (bells_pts=%d)\n", sc.bells_pts);
     return 1;
   }
   return 0;

@@ -131,6 +131,18 @@ static bool declaration_build_run(DeclarationCinematic* d, const char* data_dir)
   int x = DECLARATION_START_X;
   int y = DECLARATION_START_Y;
   d->glyph_count = 0;
+  /* FUN_43f7_160a raw 74586-74614 preloads every letter sheet the name uses
+   * (even past the line end) and then DEC-SQIG; any miss aborts (#1678). */
+  for (const char* p = d->name; *p != '\0'; ++p) {
+    const unsigned char c = (unsigned char)*p;
+    const int sheet = isupper(c) ? c - 'A' : islower(c) ? 26 + (c - 'a') : -1;
+    if (sheet >= 0 && !declaration_load_sheet(d, data_dir, sheet)) {
+      return false;
+    }
+  }
+  if (!declaration_load_sheet(d, data_dir, DECLARATION_SQUIGGLE_SHEET)) {
+    return false;
+  }
   for (const char* p = d->name; *p != '\0'; ++p) {
     const unsigned char c = (unsigned char)*p;
     int sheet = -1;

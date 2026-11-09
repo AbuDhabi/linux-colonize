@@ -18,7 +18,14 @@
 #include "ai_contact.h"
 #include "ai_diplo.h"
 #include "ai_euro.h"
+#include "sound.h"
 #include "turn.h"
+
+/* ai_diplo.c's 153e talk restarts the war tune (281f_04ac); slim targets have
+ * no sound driver. */
+void sound_set_bgm(int track) {
+  (void)track;
+}
 
 /* Slim movement targets omit the turn orchestrator and never run rank setup. */
 void turn_refresh_euro_rank(ColonizeTurnContext* ctx) {

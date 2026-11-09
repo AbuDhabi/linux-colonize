@@ -278,6 +278,7 @@ static int sp_00(void) {
   ind = &col1.indian[0];
   memset(ind, 0, sizeof(*ind));
   ind->euro_diplo[0] = 0;
+  col1.nation[0].relation_by_indian[0] = ind->euro_diplo[0];
   ind->alarm_by_player[0] = 0;
   /* Zero-init founding_father[] == 0 would falsely grant FF to Euro 0. */
   for (int ffi = 0; ffi < (int)COLONIZE_COL1_FF_COUNT; ++ffi) {
@@ -390,6 +391,7 @@ static int sp_02(void) {
   const int food0 = c->stock[COLONIZE_CARGO_FOOD];
   /* War bit clear → FUN_5fef_0f14's alarm tail is not gated out (see below). */
   ind->euro_diplo[0] = (uint8_t)(ind->euro_diplo[0] & ~COL1_INDIAN_WAR_BIT);
+  col1.nation[0].relation_by_indian[0] = ind->euro_diplo[0];
   alarm_pre_raid = (int)ind->alarm_by_player[0];
   run_colony_raid();
   const int kind = ai_contact_last_raid_kind();
@@ -469,6 +471,7 @@ static int sp_03(void) {
     ind->alarm_by_player[0] = 70;
     col1.tribe[0].alarm[0].friction = 70;
     ind->euro_diplo[0] = (uint8_t)(ind->euro_diplo[0] | COL1_INDIAN_WAR_BIT);
+    col1.nation[0].relation_by_indian[0] = ind->euro_diplo[0];
     brave->x = 5;
     brave->y = 5;
     brave->moves = 0;
@@ -478,6 +481,7 @@ static int sp_03(void) {
       return fail("raid alarm tail must be skipped while at war (15b3 bit 1)");
     }
     ind->euro_diplo[0] = (uint8_t)(ind->euro_diplo[0] & ~COL1_INDIAN_WAR_BIT);
+    col1.nation[0].relation_by_indian[0] = ind->euro_diplo[0];
   }
   return 0;
 }
@@ -554,7 +558,9 @@ static int sp_05(void) {
       colonies.colony_count = 2;
     }
     ind->euro_diplo[0] = 1;
+    col1.nation[0].relation_by_indian[0] = ind->euro_diplo[0];
     ind->euro_diplo[2] = 1;
+    col1.nation[2].relation_by_indian[0] = ind->euro_diplo[2];
     ind->alarm_by_player[0] = 30;
     ind->alarm_by_player[2] = 35;
     col1.tribe[0].alarm[0].friction = 30;
@@ -626,6 +632,7 @@ static int sp_06(void) {
     }
     ctx.rng = burn_rng_save;
     ind->euro_diplo[0] = (uint8_t)(ind->euro_diplo[0] & ~COL1_INDIAN_PEACE_BIT);
+    col1.nation[0].relation_by_indian[0] = ind->euro_diplo[0];
     ind->alarm_by_player[0] = 55; /* restore the fixture band for later arms */
     col1.head.difficulty = 2;
     ctx.status = NULL;
@@ -656,6 +663,7 @@ static int sp_06(void) {
     col1.player[0].control = ctl;
     col1.tribe[0].mission = mission;
     ind->euro_diplo[0] = (uint8_t)(ind->euro_diplo[0] & ~COL1_INDIAN_PEACE_BIT);
+    col1.nation[0].relation_by_indian[0] = ind->euro_diplo[0];
     ind->alarm_by_player[0] = 55;
     if (!fired || wpop.queue_count == 0) {
       return fail("00f2_w: world human_nation must drive the @INDIANBURN notice");
@@ -840,6 +848,7 @@ static int sp_08(void) {
 
   /* Relation tick: retired to a no-op — DOS has no per-turn friction drift. */
   ind->euro_diplo[0] = 1;
+  col1.nation[0].relation_by_indian[0] = ind->euro_diplo[0];
   col1.tribe[0].alarm[0].friction = 12;
   ind->alarm_by_player[0] = 12;
   ai_contact_indian_relation_tick(&ctx, 4);
@@ -899,8 +908,10 @@ static int sp_12(void) {
    */
   ind->euro_diplo[0] = 0;
   ind->euro_diplo[0] = (uint8_t)(ind->euro_diplo[0] & ~0x40u);
+  col1.nation[0].relation_by_indian[0] = ind->euro_diplo[0];
   col1.nation[0].gold = 15; /* ≥10 no refuse; <20 no gift drain */
   col1.indian[0].euro_diplo[0] = (uint8_t)(col1.indian[0].euro_diplo[0] & ~COL1_INDIAN_MET_BIT); /* unmet (was relation 0) */
+  col1.nation[0].relation_by_indian[0] = (uint8_t)(col1.nation[0].relation_by_indian[0] & ~COL1_INDIAN_MET_BIT); /* Euro side too (#1618) */
   status[0] = '\0';
   ctx.status = status;
   ctx.status_size = sizeof(status);
@@ -1290,6 +1301,7 @@ static int sp_17(void) {
     col1.tribe[0].alarm[0].friction = 65;
     col1.indian[0].euro_diplo[0] |= COL1_INDIAN_MET_BIT; /* not at-war */
     ind->euro_diplo[0] = (uint8_t)(ind->euro_diplo[0] & (uint8_t)~COL1_INDIAN_PEACE_BIT);
+    col1.nation[0].relation_by_indian[0] = ind->euro_diplo[0];
     c->active = true;
     c->nation_id = 0;
     c->x = 5;
@@ -1458,6 +1470,7 @@ static int sp_21(void) {
     col1.tribe[0].mission = 0xff;
     col1.tribe[0].alarm[0].friction = 0;
     ind->euro_diplo[0] = 1;
+    col1.nation[0].relation_by_indian[0] = ind->euro_diplo[0];
     ind->unknown31_flags = (uint8_t)(ind->unknown31_flags & (uint8_t)~0x20);
     ind->alarm_by_player[0] = 10;
     col1.head.difficulty = 2;
@@ -1889,6 +1902,7 @@ static int sp_23(void) {
     ind->alarm_by_player[1] = 0;
     col1.tribe[0].alarm[1].friction = 0;
     col1.indian[0].euro_diplo[1] = (uint8_t)(col1.indian[0].euro_diplo[1] & ~COL1_INDIAN_MET_BIT); /* unmet (was relation 0) */
+    col1.nation[1].relation_by_indian[0] = (uint8_t)(col1.nation[1].relation_by_indian[0] & ~COL1_INDIAN_MET_BIT); /* Euro side too (#1618) */
   }
 
   /*
@@ -2463,8 +2477,10 @@ static int sp_26(void) {
     euro2->hold_goods_amount[0] = 5;
     goods0 = euro2->hold_goods_amount[0];
     ind->euro_diplo[0] = 0;
+    col1.nation[0].relation_by_indian[0] = ind->euro_diplo[0];
     ind->alarm_by_player[0] = 25; /* Accept should clear */
     ind->euro_diplo[0] = (uint8_t)(ind->euro_diplo[0] & ~0x40u);
+    col1.nation[0].relation_by_indian[0] = ind->euro_diplo[0];
     col1.tribe[0].nation_id = 4;
     col1.tribe[0].x = 5;
     col1.tribe[0].y = 5;
@@ -2472,6 +2488,7 @@ static int sp_26(void) {
     col1.tribe[0].state.learned = 1; /* skip teach side-queue */
     col1.tribe[0].mission = 0xff;
     col1.indian[0].euro_diplo[0] = (uint8_t)(col1.indian[0].euro_diplo[0] & ~COL1_INDIAN_MET_BIT); /* unmet (was relation 0) */
+    col1.nation[0].relation_by_indian[0] = (uint8_t)(col1.nation[0].relation_by_indian[0] & ~COL1_INDIAN_MET_BIT); /* Euro side too (#1618) */
     col1.nation[0].gold = 30;
     ColonizeColony* c_pop = &colonies.colonies[0];
     c_pop->active = true;
@@ -2514,10 +2531,11 @@ static int sp_26(void) {
     if (!ai_popup_try_present_next(&pop)) {
       return fail("present WELCOME CHOICE");
     }
-    /* Accept peace (Yes). */
+    /* Accept peace by Esc: DOS refuses only on answer 2, so the -1 from
+     * FUN_6f74_2580 takes the Yes arm (port_bugs.md #1616, raw 96658-96667). */
     pop.has_result = true;
-    pop.result_cancelled = false;
-    pop.result_choice_id = 1; /* YES */
+    pop.result_cancelled = true;
+    pop.result_choice_id = -1;
     pop.result_tag = AI_POPUP_TAG_CONTACT_WELCOME;
     pop.result_nation_a = 0;
     pop.result_nation_b = 4;
@@ -2577,6 +2595,7 @@ static int sp_27(void) {
       ai_popup_clear(&pop);
       ind->euro_diplo[0] = 0;
       ind->euro_diplo[0] = (uint8_t)(ind->euro_diplo[0] & ~0x40u);
+      col1.nation[0].relation_by_indian[0] = ind->euro_diplo[0];
       units.type_count = 3;
       snprintf(units.types[2].name, sizeof(units.types[2].name), "Caravel");
       units.types[2].domain = COLONIZE_UNIT_DOMAIN_SEA;
@@ -2618,6 +2637,7 @@ static int sp_28(void) {
     /* Synthetic Meet CHOICE Trade still works when player initiates (apply). */
     ai_popup_clear(&pop);
     ind->euro_diplo[0] = 1;
+    col1.nation[0].relation_by_indian[0] = ind->euro_diplo[0];
     /*
      * FUN_4d56_2820 shell zeroes ask[] for the three highest-bid goods; with
      * every bid 0 that hits muskets/tools/trade goods (stable sort), so give
@@ -2632,6 +2652,7 @@ static int sp_28(void) {
     col1.tribe[0].last_sold = 0xffu;
     col1.tribe[0].sticky_trade_good = 0xffu;
     ind->euro_diplo[0] = (uint8_t)(ind->euro_diplo[0] | 0x40);
+    col1.nation[0].relation_by_indian[0] = ind->euro_diplo[0];
     col1.indian[0].alarm_by_player[0] = 0; /* relation 100 */
     col1.indian[0].euro_diplo[0] |= COL1_INDIAN_MET_BIT;
     ind->alarm_by_player[0] = 10;
@@ -3285,13 +3306,16 @@ static int sp_32(void) {
       bb->nation_id = 4;
       e3u->nation_id = 0;
       ind->euro_diplo[0] = 0;
+      col1.nation[0].relation_by_indian[0] = ind->euro_diplo[0];
       ind->alarm_by_player[0] = 0;
       ind->euro_diplo[0] = (uint8_t)(ind->euro_diplo[0] & ~0x40u);
+      col1.nation[0].relation_by_indian[0] = ind->euro_diplo[0];
       col1.tribe[0].nation_id = 4;
       col1.tribe[0].alarm[0].friction = 0;
       col1.tribe[0].state.learned = 1;
       col1.tribe[0].mission = 0xff;
       col1.indian[0].euro_diplo[0] = (uint8_t)(col1.indian[0].euro_diplo[0] & ~COL1_INDIAN_MET_BIT); /* unmet (was relation 0) */
+      col1.nation[0].relation_by_indian[0] = (uint8_t)(col1.nation[0].relation_by_indian[0] & ~COL1_INDIAN_MET_BIT); /* Euro side too (#1618) */
       st_pop[0] = '\0';
       /* One welcome per Brave: the second finds the MET bit already set. */
       (void)ai_contact_try_first_welcome(&ctx, 0, 4);
@@ -3319,6 +3343,7 @@ static int sp_32(void) {
       ai_popup_clear(&pop);
       ind->euro_diplo[0] = 0;
       ind->euro_diplo[0] = (uint8_t)(ind->euro_diplo[0] & ~0x40u);
+      col1.nation[0].relation_by_indian[0] = ind->euro_diplo[0];
       ind->alarm_by_player[0] = 0;
       col1.tribe[0].alarm[0].attacks = 0;
       col1.tribe[0].alarm[0].friction = 7;
@@ -3381,6 +3406,7 @@ static int sp_32(void) {
       ai_popup_clear(&pop);
       ind->euro_diplo[0] = 1;
       ind->euro_diplo[0] = (uint8_t)(ind->euro_diplo[0] | 0x40); /* peace */
+      col1.nation[0].relation_by_indian[0] = ind->euro_diplo[0];
       ind->alarm_by_player[0] = 10;
       col1.indian[0].euro_diplo[0] |= COL1_INDIAN_MET_BIT; /* met (was relation 100; alarm pinned above) */
       for (int ui = 0; ui < COLONIZE_UNITS_MAX; ++ui) {
@@ -3447,6 +3473,7 @@ static int sp_33(void) {
       }
       ctx.rng = burn_rng2_save;
       ind->euro_diplo[0] = (uint8_t)(ind->euro_diplo[0] & ~COL1_INDIAN_PEACE_BIT);
+      col1.nation[0].relation_by_indian[0] = ind->euro_diplo[0];
       ind->alarm_by_player[0] = 10;
     }
   return 0;
@@ -3478,6 +3505,7 @@ static int sp_34(void) {
       braveg->nation_id = 4;
       eurog->nation_id = 0;
       ind->euro_diplo[0] = 1;
+      col1.nation[0].relation_by_indian[0] = ind->euro_diplo[0];
       ind->alarm_by_player[0] = 10;
       col1.tribe[0].alarm[0].friction = 10;
       col1.tribe[0].state.learned = 1;
@@ -3816,6 +3844,7 @@ static int sp_36(void) {
       eurod->nation_id = 0;
       eurod->tools = 5;
       ind->euro_diplo[0] = 1;
+      col1.nation[0].relation_by_indian[0] = ind->euro_diplo[0];
       /* port_bugs.md #1005: the band is the nation alarm scalar. */
       ind->alarm_by_player[0] = 45;
       col1.tribe[0].alarm[0].friction = 45;
@@ -3871,6 +3900,7 @@ static int sp_36(void) {
       eurod->nation_id = 0;
       eurod->tools = 25;
       ind->euro_diplo[0] = 1;
+      col1.nation[0].relation_by_indian[0] = ind->euro_diplo[0];
       ind->alarm_by_player[0] = 60;
       col1.tribe[0].nation_id = 4;
       col1.tribe[0].x = 5;
@@ -3941,6 +3971,7 @@ static int sp_37(void) {
       eurot->nation_id = 0;
       eurot->profession = UNITS_JOB_NONE;
       ind->euro_diplo[0] = 1;
+      col1.nation[0].relation_by_indian[0] = ind->euro_diplo[0];
       ind->alarm_by_player[0] = 10;
       col1.tribe[0].nation_id = 4;
       col1.tribe[0].x = 5;
@@ -3966,6 +3997,7 @@ static int sp_37(void) {
         return fail("Teach with no acting unit must enqueue nothing");
       }
       ind->euro_diplo[0] = 1;
+      col1.nation[0].relation_by_indian[0] = ind->euro_diplo[0];
       ind->alarm_by_player[0] = 10;
     }
   return 0;
@@ -4004,6 +4036,7 @@ static int sp_38(void) {
       col1.tribe[0].mission = 0; /* our mission, plain */
       col1.tribe[0].state.learned = 1;
       ind->euro_diplo[0] = 1;
+      col1.nation[0].relation_by_indian[0] = ind->euro_diplo[0];
       ind->alarm_by_player[0] = 10;
       ind->tech = 3;
       ind->contact_state[0] = 0; /* earlier WELCOME-No arm latched hostile 1 */
@@ -4134,6 +4167,7 @@ static int sp_39(void) {
       ai_popup_clear(&pop);
       ind->euro_diplo[0] = 1;
       ind->euro_diplo[0] = (uint8_t)(ind->euro_diplo[0] | 0x40);
+      col1.nation[0].relation_by_indian[0] = ind->euro_diplo[0];
       col1.indian[0].alarm_by_player[0] = 0; /* relation 100 */
       col1.indian[0].euro_diplo[0] |= COL1_INDIAN_MET_BIT;
       ind->alarm_by_player[0] = 10;
@@ -4174,12 +4208,14 @@ static int sp_39(void) {
       /* Unmet must not use village meet (WELCOME path). */
       ai_popup_clear(&pop);
       ind->euro_diplo[0] = 0;
+      col1.nation[0].relation_by_indian[0] = ind->euro_diplo[0];
       if (ai_contact_try_village_meet(&ctx, 0, 4, 0, 0)) {
         return fail("unmet village must not enqueue Meet CHOICE");
       }
       /* Restore met for leftover arms. */
       ind->euro_diplo[0] = 1;
       ind->euro_diplo[0] = (uint8_t)(ind->euro_diplo[0] | 0x40);
+      col1.nation[0].relation_by_indian[0] = ind->euro_diplo[0];
     }
 
     ctx.ai_popups = NULL;
@@ -4200,6 +4236,7 @@ static int sp_40(void) {
     col1.tribe[0].alarm[0].attacks = 5;
     col1.tribe[0].nation_id = 4;
     ind->euro_diplo[0] = (uint8_t)(ind->euro_diplo[0] & ~0x40u);
+    col1.nation[0].relation_by_indian[0] = ind->euro_diplo[0];
 /* alarm pinned above (was relation write) */
     col1.indian[0].euro_diplo[0] |= COL1_INDIAN_MET_BIT;
     ai_diplo_indian_capital_surrender(&col1, 4, 0);
@@ -4249,6 +4286,7 @@ static int sp_41(void) {
     ctx.ai_popups = &pop;
     col1.player[0].control = 0;
     ind->euro_diplo[0] = (uint8_t)(COL1_INDIAN_MET_BIT | COL1_INDIAN_PEACE_BIT);
+    col1.nation[0].relation_by_indian[0] = ind->euro_diplo[0];
     col1.nation[0].relation_by_indian[0] = (uint8_t)(COL1_INDIAN_MET_BIT | COL1_INDIAN_PEACE_BIT);
     ind->alarm_by_player[0] = 10;
     col1.tribe[0].alarm[0].friction = 10;
@@ -4271,6 +4309,7 @@ static int sp_41(void) {
       return fail("Attack choice must not floor tribe friction (port_bugs.md #1233)");
     }
     ind->euro_diplo[0] = (uint8_t)(ind->euro_diplo[0] & ~COL1_INDIAN_ATTACK_CONFIRMED_BIT);
+    col1.nation[0].relation_by_indian[0] = ind->euro_diplo[0];
     col1.nation[0].relation_by_indian[0] =
       (uint8_t)(col1.nation[0].relation_by_indian[0] & ~COL1_INDIAN_ATTACK_CONFIRMED_BIT);
     fprintf(stderr, "unit_ai_contact: village 4528 raid warn ok\n");
@@ -4305,6 +4344,7 @@ static int sp_42(void) {
     col1.tribe[0].nation_id = 4;
     col1.tribe[0].alarm[0].friction = 10;
     ind->euro_diplo[0] = (uint8_t)(COL1_INDIAN_MET_BIT | 0x01u | 0x40u);
+    col1.nation[0].relation_by_indian[0] = ind->euro_diplo[0];
     col1.indian[0].alarm_by_player[0] = 40; /* mid band (single store) */
     col1.indian[0].euro_diplo[0] |= COL1_INDIAN_MET_BIT;
     st_ship[0] = '\0';
@@ -5482,6 +5522,7 @@ static int sp_48(void) {
     col1.player[0].control = 0;
     ind->alarm_by_player[0] = 20;
     ind->euro_diplo[0] = (uint8_t)(ind->euro_diplo[0] & ~COL1_INDIAN_ATTACK_CONFIRMED_BIT);
+    col1.nation[0].relation_by_indian[0] = ind->euro_diplo[0];
     if (!ai_contact_try_whack_confirm(&wctx, 0, 4, 7, 5, 6) || wp.queue_count != 1 ||
         wp.queue[0].tag != AI_POPUP_TAG_CONTACT_WHACK || wp.queue[0].nation_a != 7 ||
         wp.queue[0].payload != (5 | (6 << 8))) {
@@ -6173,6 +6214,7 @@ static int sp_53(void) {
     col1.tribe[0].alarm[0].attacks = 0;
     col1.indian[0].tech = 0;
     ind->euro_diplo[0] = (uint8_t)(COL1_INDIAN_MET_BIT | COL1_INDIAN_PEACE_BIT);
+    col1.nation[0].relation_by_indian[0] = ind->euro_diplo[0];
     /* The @ACTIONS peace gate reads the Euro-side byte (FUN_1000_8c28(e, tribe+4)). */
     col1.nation[0].relation_by_indian[0] = (uint8_t)(COL1_INDIAN_MET_BIT | COL1_INDIAN_PEACE_BIT);
     ind->alarm_by_player[0] = 10;
@@ -6555,6 +6597,7 @@ static int sp_54(void) {
         const uint8_t saved_diplo = ind->euro_diplo[0];
         const uint8_t saved_rel = col1.nation[0].relation_by_indian[0];
         ind->euro_diplo[0] = 0;
+        col1.nation[0].relation_by_indian[0] = ind->euro_diplo[0];
         col1.nation[0].relation_by_indian[0] = 0;
         ai_popup_clear(&pop_menu);
         if (!ai_contact_try_village_meet_unit(&ctx, 0, 4, 0, 0, sold_id)) {
@@ -6566,6 +6609,7 @@ static int sp_54(void) {
           return fail("menu: unmet soldier rows should be Attack / Cancel");
         }
         ind->euro_diplo[0] = saved_diplo;
+        col1.nation[0].relation_by_indian[0] = ind->euro_diplo[0];
         col1.nation[0].relation_by_indian[0] = saved_rel;
       }
       /*
@@ -6580,6 +6624,7 @@ static int sp_54(void) {
         const uint8_t saved_rel = col1.nation[0].relation_by_indian[0];
         const uint8_t saved_mission = col1.tribe[0].mission;
         ind->euro_diplo[0] = (uint8_t)(COL1_INDIAN_MET_BIT | COL1_INDIAN_PEACE_BIT);
+        col1.nation[0].relation_by_indian[0] = ind->euro_diplo[0];
         col1.nation[0].relation_by_indian[0] = (uint8_t)COL1_INDIAN_MET_BIT;
         col1.tribe[0].mission = 0xff;
         ai_popup_clear(&pop_menu);
@@ -6657,6 +6702,7 @@ static int sp_54(void) {
         units_despawn(&units, f_cid);
         ai_popup_clear(&pop_menu);
         ind->euro_diplo[0] = saved_diplo;
+        col1.nation[0].relation_by_indian[0] = ind->euro_diplo[0];
         col1.nation[0].relation_by_indian[0] = saved_rel;
         col1.tribe[0].mission = saved_mission;
       }

@@ -462,9 +462,20 @@ static int demo_watch_hook(void) {
   game_autoplay_watch(game, 1, uid, AI_EURO_WATCH_BEFORE_ACT, false);
   CHECK(game->map_cursor_x == u->x && game->map_cursor_y == u->y);
   CHECK(g_plat.presents == presents0 + 1);
+  /* #1749: an on-screen unit still takes the cursor (raw 93262-93267); the view stays. */
+  {
+    const int vx = game->map_view_x;
+    const int vy = game->map_view_y;
+    game->map_cursor_x = 0;
+    game->map_cursor_y = 0;
+    game_autoplay_watch(game, 1, uid, AI_EURO_WATCH_BEFORE_ACT, false);
+    CHECK(game->map_cursor_x == u->x && game->map_cursor_y == u->y);
+    CHECK(game->map_view_x == vx && game->map_view_y == vy);
+  }
   /* An unwatched nation does nothing. */
+  const int presents1 = g_plat.presents;
   game_autoplay_watch(game, 2, uid, AI_EURO_WATCH_BEFORE_ACT, false);
-  CHECK(g_plat.presents == presents0 + 1);
+  CHECK(g_plat.presents == presents1);
   /* After the unit's last act: the 0x1e-tick pause, presented frame by frame; a key in
    * it waits for the next pass. */
   g_plat.key = COLONIZE_KEY_A;
@@ -472,6 +483,39 @@ static int demo_watch_hook(void) {
   game_autoplay_watch(game, 1, uid, AI_EURO_WATCH_AFTER_ACT, true);
   CHECK(g_plat.presents > presents0 + 10);
   CHECK(game->demo_pending_key == 'J');
+out:
+  demo_cleanup(game);
+  return rc;
+}
+
+/* #1750: FUN_479b_0bd0 runs the @ROUTELOOP check after the Europe arrival arm too, and a
+ * ship whose next stop is Europe again is not sailed (raw 77231-77233, 77317-77334). */
+static int europe_routeloop(void) {
+  ColonizeGameState* game = demo_loaded(false);
+  if (!game) {
+    return TR_SKIP;
+  }
+  int rc = 0;
+  EuropeScreen* eu = &game->europe;
+  CHECK(game->europe_ok && game->col1_ok);
+  ColonizeCol1TradeRoute* r = &game->col1.trade_route[0];
+  memset(r, 0, sizeof(*r));
+  snprintf(r->name, sizeof(r->name), "Loop");
+  r->sea = 1;
+  r->dest_count = 1;
+  r->stop[0].colony_index = 999;
+  if (eu->harbor_ships == 0) {
+    memset(&eu->harbor[0], 0, sizeof(eu->harbor[0]));
+    eu->harbor_ships = 1;
+  }
+  const int ships = eu->harbor_ships;
+  eu->harbor[0].trade_route_plus1 = 1;
+  eu->harbor[0].trade_stop = 0;
+  const int popups = game->ai_popups.queue_count + (game->ai_popups.open ? 1 : 0);
+  game_europe_service_trade_harbor(game);
+  CHECK(game->ai_popups.queue_count + (game->ai_popups.open ? 1 : 0) == popups + 1);
+  CHECK(eu->harbor_ships == ships && eu->harbor[0].trade_route_plus1 == 1);
+  CHECK(eu->harbor[0].trade_stop == 0);
 out:
   demo_cleanup(game);
   return rc;
@@ -546,6 +590,9 @@ static int demo_watch_hook_forked(void) {
 static int demo_after_new_campaign_forked(void) {
   return run_forked(demo_after_new_campaign);
 }
+static int europe_routeloop_forked(void) {
+  return run_forked(europe_routeloop);
+}
 
 static const TestCase k_cases[] = {
   {"demo_filter_passthrough", demo_filter_passthrough_forked},
@@ -557,6 +604,7 @@ static const TestCase k_cases[] = {
   {"demo_year_tail_views", demo_year_tail_views_forked},
   {"demo_watch_hook", demo_watch_hook_forked},
   {"demo_after_new_campaign", demo_after_new_campaign_forked},
+  {"europe_routeloop", europe_routeloop_forked},
 };
 
 TEST_MAIN(k_cases)

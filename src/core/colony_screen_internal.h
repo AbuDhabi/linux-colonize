@@ -138,6 +138,12 @@ int colony_screen_building_worker_ref_iw(
 void colony_screen_building_worker_layout(
   int size_class, int n, int ref_iw, int slot_x, int slot_y, int* xs, int* out_y
 );
+int colony_screen_fence_unit_layout(
+  const ColonyScreenView* view, const int* slot_x, const int* slot_y, int n, int* xs
+);
+int colony_screen_slot_row(
+  const ColonizeColonyPool* pool, const ColonizeColony* colony, int cat
+);
 int colony_screen_category_built(
   const ColonizeColonyPool* pool, const ColonizeColony* colony, int cat
 );

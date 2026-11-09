@@ -792,99 +792,36 @@ static bool new_game_point_in_finished(const NewGameWizard* ng, int mx, int my) 
     my < ng->finished_y + ng->finished_h;
 }
 
-/* Keyboard navigation on DIFFICUL 3×2 (empty TL):
- *   . 0 1
- *   2 3 4
+/*
+ * Picker keys (#1757). Difficulty FUN_733a_0790 (raw 118431): Space / Tab /
+ * Right / Down = +1, Backspace / Up / Left = +4, all % 5. Nation
+ * FUN_733a_0c2a (raw 118642): Space / Tab / Right +1, Up / Down +2,
+ * Left / Backspace +3, all % 4 (the hidden 5th hot-seat cell is mouse only).
+ * Returns false for any other key.
  */
-static void new_game_difficul_nav(NewGameWizard* ng, ColonizeKey key) {
-  int s = ng->selection;
-  if (s < 0 || s > 4) {
-    s = 0;
+static bool new_game_pick_key(NewGameWizard* ng, ColonizeKey k, bool nation) {
+  int step = 0;
+  if (k == COLONIZE_KEY_SPACE || k == COLONIZE_KEY_TAB || colonize_key_right(k)) {
+    step = 1;
+  } else if (colonize_key_down(k)) {
+    step = nation ? 2 : 1;
+  } else if (colonize_key_up(k)) {
+    step = nation ? 2 : 4;
+  } else if (colonize_key_left(k) || k == COLONIZE_KEY_BACKSPACE) {
+    step = nation ? 3 : 4;
+  } else {
+    return false;
   }
-  switch (key) {
-    case COLONIZE_KEY_LEFT:
-    case COLONIZE_KEY_KP4:
-      if (s == 1) {
-        s = 0;
-      } else if (s == 3) {
-        s = 2;
-      } else if (s == 4) {
-        s = 3;
-      }
-      break;
-    case COLONIZE_KEY_RIGHT:
-    case COLONIZE_KEY_KP6:
-      if (s == 0) {
-        s = 1;
-      } else if (s == 2) {
-        s = 3;
-      } else if (s == 3) {
-        s = 4;
-      }
-      break;
-    case COLONIZE_KEY_UP:
-    case COLONIZE_KEY_KP8:
-      if (s == 2) {
-        s = 0;
-      } else if (s == 3) {
-        s = 0;
-      } else if (s == 4) {
-        s = 1;
-      }
-      break;
-    case COLONIZE_KEY_DOWN:
-    case COLONIZE_KEY_KP2:
-      if (s == 0) {
-        s = 3;
-      } else if (s == 1) {
-        s = 4;
-      }
-      break;
-    default:
-      break;
-  }
-  ng->selection = s;
+  const int s = ng->selection < 0 ? 0 : ng->selection;
+  ng->selection = (s + step) % (nation ? 4 : 5);
+  return true;
 }
 
-/* NATIONS 2×2:
- *   0 1
- *   2 3
- */
-static void new_game_nation_nav(NewGameWizard* ng, ColonizeKey key) {
-  int s = ng->selection;
-  if (s < 0 || s > 3) {
-    s = 0;
-  }
-  switch (key) {
-    case COLONIZE_KEY_LEFT:
-    case COLONIZE_KEY_KP4:
-      if (s == 1 || s == 3) {
-        s--;
-      }
-      break;
-    case COLONIZE_KEY_RIGHT:
-    case COLONIZE_KEY_KP6:
-      if (s == 0 || s == 2) {
-        s++;
-      }
-      break;
-    case COLONIZE_KEY_UP:
-    case COLONIZE_KEY_KP8:
-      if (s >= 2) {
-        s -= 2;
-      }
-      break;
-    case COLONIZE_KEY_DOWN:
-    case COLONIZE_KEY_KP2:
-      if (s < 2) {
-        s += 2;
-      }
-      break;
-    default:
-      break;
-  }
-  ng->selection = s;
-}
+/* The phase the current left press started in: the 733a pickers act on the
+ * held button and its release (DS:0x7f6 / 0x7f4), and a release left over
+ * from the press that closed the previous page must not count here. */
+static int s_press_phase = -1;
+static bool s_press_on_selected;
 
 /*
  * LABELS.TXT @MISC, addressed relative to the "Land Mass" anchor the
@@ -1002,7 +939,8 @@ bool new_game_handle_input(NewGameWizard* ng, const ColonizeInputState* input) {
       ng->customize_focus = (ng->customize_focus + 3) % 4;
       return true;
     }
-    if (colonize_key_right(input->last_key)) {
+    /* FUN_733a_0270 raw 118173: Tab moves the focus like Right (#1758). */
+    if (colonize_key_right(input->last_key) || input->last_key == COLONIZE_KEY_TAB) {
       ng->customize_focus = (ng->customize_focus + 1) % 4;
       return true;
     }
@@ -1021,18 +959,25 @@ bool new_game_handle_input(NewGameWizard* ng, const ColonizeInputState* input) {
       return true;
     }
     if (input->mouse_left_clicked) {
+      s_press_phase = ng->phase;
+    }
+    if (s_press_phase == (int)ng->phase &&
+        (input->mouse_left_clicked || input->mouse_left_down || input->mouse_left_released)) {
+      /* FUN_733a_0270: while held, a cell moves the focus only when it changes
+       * that column's value (#1758). */
       int col = 0, row = 0;
-      if (new_game_point_in_customiz(input->mouse_x, input->mouse_y, &col, &row)) {
+      if (new_game_point_in_customiz(input->mouse_x, input->mouse_y, &col, &row) &&
+          new_game_gen_param_value(&ng->gen_params, col) != row) {
         ng->customize_focus = col;
         new_game_set_gen_param_value(&ng->gen_params, col, row);
-        return true;
       }
-      /* DOS: finished = full-width strip y > 184. */
-      if (input->mouse_y > 184 || new_game_point_in_finished(ng, input->mouse_x, input->mouse_y)) {
-        new_game_enter_difficulty(ng);
-        return true;
+      /* The release below y 0xb8 (full width) finishes. */
+      if (input->mouse_left_released) {
+        s_press_phase = -1;
+        if (input->mouse_y > 184 || new_game_point_in_finished(ng, input->mouse_x, input->mouse_y)) {
+          new_game_enter_difficulty(ng);
+        }
       }
-      return true;
     }
     return true;
   }
@@ -1043,36 +988,40 @@ bool new_game_handle_input(NewGameWizard* ng, const ColonizeInputState* input) {
       (ng->phase == NEW_GAME_PHASE_DIFFICULTY) ? k_difficul_rects : k_nation_rects;
     const int count = (ng->phase == NEW_GAME_PHASE_DIFFICULTY) ? 5 : (s_multi_enabled ? 5 : 4);
 
-    if (colonize_key_left(input->last_key) || colonize_key_right(input->last_key) ||
-        colonize_key_up(input->last_key) || colonize_key_down(input->last_key)) {
-      if (ng->phase == NEW_GAME_PHASE_DIFFICULTY) {
-        new_game_difficul_nav(ng, input->last_key);
-      } else {
-        new_game_nation_nav(ng, input->last_key);
-      }
+    const bool nation = ng->phase == NEW_GAME_PHASE_NATION;
+    if (new_game_pick_key(ng, input->last_key, nation)) {
       return true;
     }
     if (input->last_key == COLONIZE_KEY_ENTER) {
       new_game_activate_list(ng);
       return true;
     }
+    const int hit = new_game_point_in_rects(rects, count, input->mouse_x, input->mouse_y);
     if (input->mouse_left_clicked) {
-      const int hit = new_game_point_in_rects(rects, count, input->mouse_x, input->mouse_y);
-      if (hit >= 0) {
-        /* port_bugs.md #283: clicking the already-selected entry confirms like
-         * Enter; a click elsewhere still only moves the selection. */
-        if (hit == ng->selection) {
-          new_game_activate_list(ng);
-        } else {
-          ng->selection = hit;
-        }
-        return true;
-      }
-      if (new_game_point_in_finished(ng, input->mouse_x, input->mouse_y)) {
-        new_game_activate_list(ng);
-        return true;
-      }
+      s_press_phase = ng->phase;
+      /* port_bugs.md #285 (user request): a click that starts on the selected
+       * entry confirms like Enter on its release. */
+      s_press_on_selected = hit >= 0 && hit == ng->selection;
+    }
+    if (s_press_phase != (int)ng->phase) {
       return true;
+    }
+    /* DOS selects whatever cell the held button (or the release) is over. */
+    if ((input->mouse_left_clicked || input->mouse_left_down || input->mouse_left_released) &&
+        hit >= 0) {
+      ng->selection = hit;
+    }
+    if (input->mouse_left_released) {
+      /* A release anywhere in the left region confirms: x < 0x80, y < 0x67
+       * for difficulty (281f_00e2 rect), x < 0x70 full height for nation. */
+      const bool region = nation ? input->mouse_x < 0x70
+                                 : (input->mouse_x < 0x80 && input->mouse_y < 0x67);
+      const bool again = s_press_on_selected && hit >= 0 && hit == ng->selection;
+      s_press_phase = -1;
+      s_press_on_selected = false;
+      if (region || again) {
+        new_game_activate_list(ng);
+      }
     }
     return true;
   }
@@ -1925,8 +1874,8 @@ static void new_game_render_sail(
   const char* port = new_game_nation_port(ng->nation);
   const char* ruler = new_game_nation_ruler_title(ng->game_txt, ng->nation);
 
-  /* BUILD caption string mapping (DOS order):
-   * 2: %STRING0=leader %STRING1=title-ish (Governor / explorer label) — use nation demonym role
+  /* BUILD caption string mapping (FUN_1262_0152 raw 3008-3027):
+   * 2: %STRING0=DS:0x8394[difficulty] title, %STRING1=leader (nation*0x34+0x540e)
    * 3: %STRING0=port
    * 4: %STRING1=King/Stadtholder %STRING0=country
    * 7: %STRING0=country
@@ -1935,8 +1884,8 @@ static void new_game_render_sail(
   const char* s1 = "";
   switch (frame + 1) {
     case 2:
-      s0 = leader;
-      s1 = "Navigator";
+      s0 = reports_difficulty_title(ng->difficulty);
+      s1 = leader;
       break;
     case 3:
       s0 = port;

@@ -672,6 +672,30 @@ static int case_tory_uprising_reads_live_colony(void) {
   return rc;
 }
 
+/* #1663: FUN_43f7_06a6 raw 73887-73889 spawns round-robin over the DS:0xb4 /
+ * 0xbe walk starting N, so the 17th Tory lands on N (2,9) (three units) and
+ * NW (1,9) gets two. */
+static int case_tory_uprising_starts_north(void) {
+  static TbInvFx f;
+  static ColonizeCol1Save col1;
+  static ColonizeCol1Colony mirror;
+  const int spawned = tory_fx_run(&f, &col1, &mirror);
+  int n = 0, nw = 0;
+  for (int i = 0; i < units_slot_end(&f.units); ++i) {
+    const ColonizeUnit* u = &f.units.units[i];
+    if (u->active && u->nation_id == 1) {
+      n += u->x == 2 && u->y == 9;
+      nw += u->x == 1 && u->y == 9;
+    }
+  }
+  map_free(&f.map);
+  if (spawned != 17 || n != 3 || nw != 2) {
+    fprintf(stderr, "tory: spawned %d N %d NW %d (want 17/3/2)\n", spawned, n, nw);
+    return fail("tory uprising must walk the DS:0xb4 order from N");
+  }
+  return 0;
+}
+
 /* FUN_43f7_06a6 creates each unit through FUN_281f_095c -> FUN_1427_06b4,
  * which zeroes +0x3149 (moves spent), and calls no 0934 after, so every
  * uprising unit has the full MP of its final type. */
@@ -849,7 +873,7 @@ static int case_hard_king_area_garrison(void) {
  * (one Regular) against a live coastal port at (2,10) while the col1 save
  * mirror still holds a stale port at (2,20). Returns the Regular's y, or -1
  * when nothing landed. */
-static int intervention_10f0_landing_y(bool coastal) {
+static int intervention_10f0_landing_y(bool coastal, int* ship_y) {
   TbInvFx f;
   if (!tb_inv_fx_init(&f)) {
     return -2;
@@ -886,12 +910,24 @@ static int intervention_10f0_landing_y(bool coastal) {
   f.ctx.col1 = &col1;
   f.ctx.col1_ok = true;
   const int merc[4] = {1, 0, 0, 0};
-  ai_king_10f0_land(&f.ctx, 0, 1, merc);
+  if (ship_y) {
+    /* Free drain (the paid hull is despawned after the drop): announce
+     * latch, one Man-O-War in the pool, ally in rival slot 1. */
+    col1.head.rival_nation_slot_1 = 2;
+    col1.head.backup_force[2] = 1;
+    ai_king_latch_set(&col1, AI_KING_INTERVENE_ANNOUNCED_BYTE, 1);
+    ai_king_10f0_land(&f.ctx, 0, 0, NULL);
+  } else {
+    ai_king_10f0_land(&f.ctx, 0, 1, merc);
+  }
   int y = -1;
   for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
     const ColonizeUnit* u = &f.units.units[i];
     if (u->active && u->nation_id == 0 && u->type_index == 0) {
       y = u->y;
+    }
+    if (ship_y && u->active && u->nation_id == 0 && u->type_index == 1) {
+      *ship_y = u->y;
     }
   }
   map_free(&f.map);
@@ -946,11 +982,24 @@ static int case_0982_new_colony_reads_zero_sol(void) {
 }
 
 static int case_intervention_10f0_reads_live_colonies(void) {
-  const int live = intervention_10f0_landing_y(true);
-  const int inland = intervention_10f0_landing_y(false);
+  const int live = intervention_10f0_landing_y(true, NULL);
+  const int inland = intervention_10f0_landing_y(false, NULL);
   if (live != 10 || inland != -1) {
     fprintf(stderr, "10f0: landed y coastal=%d (want 10) inland=%d (want -1)\n", live, inland);
     return fail("10f0 must pick from the live colony pool and land nothing without a coastal port");
+  }
+  return 0;
+}
+
+/* #1662: FUN_43f7_10f0 raw 74339-74371 walks DS:0xb4 / 0xbe (N, NE, E, SE,
+ * S, SW, W, NW) keeping the first best. The three sea tiles west of the port
+ * at (2,10) all score 6, so the hull spawns SW at (1,11), not NW (1,9). */
+static int case_10f0_spawn_tie_takes_first_dos_direction(void) {
+  int ship_y = -1;
+  (void)intervention_10f0_landing_y(true, &ship_y);
+  if (ship_y != 11) {
+    fprintf(stderr, "10f0: hull y=%d (want 11, the SW tile)\n", ship_y);
+    return fail("10f0 spawn ties must follow the DS:0xb4 walk order");
   }
   return 0;
 }
@@ -1274,6 +1323,8 @@ static int case_succession_reruns_census(void) {
 static const TestCase k_cases[] = {
     {"case_tory_uprising_reads_live_colony", case_tory_uprising_reads_live_colony},
     {"case_tory_uprising_full_moves", case_tory_uprising_full_moves},
+    {"case_tory_uprising_starts_north", case_tory_uprising_starts_north},
+    {"case_10f0_spawn_tie_takes_first_dos_direction", case_10f0_spawn_tie_takes_first_dos_direction},
     {"case_succession_reruns_census", case_succession_reruns_census},
     {"case_succession_moves_missions", case_succession_moves_missions},
     {"case_succession_rewrites_owner_map", case_succession_rewrites_owner_map},

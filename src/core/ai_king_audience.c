@@ -572,6 +572,9 @@ void ai_king_tax_hike_apply(
       (void)dos_rng_next(ctx->rng);
     }
     ai_king_tax_commit(ctx, human, delta);
+    /* raw 64256-64257 (asm 38fd:4010-4020): FUN_281f_04b6(2) before the cut
+     * message (port_bugs.md #1659). */
+    sound_request_bgm(2);
     if (ai_king_human_popups(ctx)) {
       /* @KINGVICTORY: "To celebrate our recent victory over %STRING2, we have
        * magnanimously decided to LOWER your tax rate by {%NUMBER0%%}. The tax
@@ -850,6 +853,9 @@ void ai_king_succession(ColonizeTurnContext* ctx) {
       }
       if (map_coords_inset(ctx->map, u->x, u->y)) {
         units_set_nation(u, heir);
+        /* raw 73683: DOS writes the whole +0x3147 byte = heir, so the
+         * visibility nibble is 0 (port_bugs.md #1666). */
+        u->col1_vis_mask = 0;
         map_set_owner_nibble(ctx->map, u->x, u->y, heir); /* raw 73684 FUN_281f_0704 */
       } else {
         (void)units_despawn(ctx->units, u->id);
@@ -924,6 +930,9 @@ void ai_king_do_declare(ColonizeTurnContext* ctx, int human) {
    * SoL>49 trigger never fired, so the King borrows an EMPTY slot instead of
    * inheriting a live nation's colonies and ships (port_bugs.md follow-up). */
   ai_king_succession(ctx);
+  /* raw 74722: FUN_281f_04ac(3) right after the succession check, taken on
+   * every declaration (port_bugs.md #1659). */
+  sound_set_bgm(3);
   ai_king_set_independence(ctx->col1, 1); /* WoI: market_demand_pool_raw[0] if not already */
   ai_king_write_rival_nation_slots(ctx->col1, human);
   /* FUN_43f7_2564 raw 75238-75240 writes nothing here: its @DECLARE (0x1397)
@@ -1137,12 +1146,19 @@ void ai_king_do_declare(ColonizeTurnContext* ctx, int human) {
   /*
    * FUN_43f7_1a26 tail (43f7:1c07..1c1b): every human unit's MP is spent via
    * FUN_281f_0934 (unit_exhaust_mp) — "This will end our turn" (@DECLARE).
+   * Raw 74836-74840 walks every human unit, passengers included: 0934 sets
+   * +0x3149 = max, so a passenger's carried allotment is spent too
+   * (aboard_moves 0 + mp_spent_turn, docs/units.md; port_bugs.md #1664).
    */
   if (ctx->units) {
     for (int i = 0; i < units_slot_end(ctx->units); ++i) {
       ColonizeUnit* u = &ctx->units->units[i];
       if (u->active && u->nation_id == human) {
         u->moves = 0;
+        u->mp_spent_turn = 1;
+        if (u->aboard_ship_id >= 0) {
+          u->aboard_moves = 0;
+        }
       }
     }
   }

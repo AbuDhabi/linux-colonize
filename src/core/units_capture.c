@@ -25,7 +25,6 @@
 #include "core/strutil.h"
 #include "core/unit_chrome.h"
 #include "core/village_trade_intel.h"
-#include "core/woodcut.h"
 #include "platform/diagnostics.h"
 #include "core/units_internal.h"
 
@@ -213,19 +212,12 @@ void units_try_capture_foreign_colony_at(
     }
     (void)colonies_abandon(colonies, cid);
     /*
-     * DOS native colony arm: the human victim also gets woodcut 11 (COLONY
-     * BURNING) via FUN_281f_0524(0xb) before the @INDIANBURNCOLONY dialog;
+     * DOS native colony arm: the human victim gets sound 0x53, tune 0x32 and
+     * woodcut 11 before @INDIANBURNCOLONY (units_combat_notify_colony_burned);
      * a human bystander instead gets @INDIANBURNCOLONY2 ("Spies report…").
      */
     {
       const char* burner = units_combat_nation_label(col1, u->nation_id);
-      const int victim_human =
-        (col1 && snap.nation_id >= 0 && snap.nation_id <= 3 &&
-         col1->player[snap.nation_id].control == 0) ||
-        (g_units_combat_human_nation >= 0 && snap.nation_id == g_units_combat_human_nation);
-      if (victim_human && col1) {
-        (void)woodcut_fire(col1, WOODCUT_COLONY_BURNING);
-      }
       units_combat_notify_colony_burned(col1, snap.name, snap.nation_id, burner);
       units_combat_notify_colony_burned_foreign(
         col1, snap.name, snap.nation_id, burner
@@ -258,7 +250,14 @@ void units_try_capture_foreign_colony_at(
     for (ColonizeUnit* s = units_next_on_tile(pool, cx, cy, &tile_cursor); s != NULL;
          s = units_next_on_tile(pool, cx, cy, &tile_cursor)) {
       if (s->id != unit_id && s->nation_id == loser_nat && units_is_sea(pool, s->id)) {
+        /* 0352's popups ride 1b0e's param_4 (port_bugs.md #1791); outside a
+         * resolver window, take the capturer's 465b visibility. */
+        const int saved_p4 = g_units_combat_param4;
+        if (saved_p4 < 0) {
+          g_units_combat_param4 = units_combat_is_visible(pool, unit_id, s->id) ? 1 : 0;
+        }
         (void)units_apply_naval_loss_outcome(pool, s->id, unit_id, 0, 0, 1, col1, NULL);
+        g_units_combat_param4 = saved_p4;
       }
     }
   }
@@ -274,6 +273,22 @@ void units_try_capture_foreign_colony_at(
    * a warehouse sum — the sum stays only as the no-save fallback. */
   if (col1) {
     plunder = share;
+  }
+  /* DOS 5fef capture tail (raw 100913-100920): @HOWTOWIN "glorious victory
+   * on the road to freedom" fires ONCE, on the first colony the human
+   * recaptures after declaring — gate is `0x5382 & 1` (woi) only, not
+   * ref_present (port_bugs.md #662) — latch DS:0x5386 bit0 (tut2.howtowin).
+   * port_bugs.md #236: it does NOT fire at the declaration. The captor test
+   * is `== DS:0x5398` (1b0e raw 100916), the fixed human. It precedes the
+   * owner flip (asm 5fef:2cbb-2cf2), so it queues ahead of @CAPTURED
+   * (port_bugs.md #1779). */
+  if (col1 && col1->head.game_options.woi &&
+      u->nation_id == col1_fixed_human(col1, g_units_combat_human_nation) &&
+      !col1->head.tut2.howtowin) {
+    col1->head.tut2.howtowin = 1;
+    units_combat_enqueue_tok(
+      AI_POPUP_TAG_INFO, "HOWTOWIN", u->nation_id, -1, 0, NULL,
+      "");
   }
   units_combat_notify_colony_captured(col1, &snap, u->nation_id, plunder);
   /* Raw 100937-100948: the prize claims the ring around it for its new owner. */
@@ -307,20 +322,6 @@ void units_try_capture_foreign_colony_at(
         }
       }
     }
-  }
-  /* DOS 5fef capture tail (raw 100913-100920): @HOWTOWIN "glorious victory
-   * on the road to freedom" fires ONCE, on the first colony the human
-   * recaptures after declaring — gate is `0x5382 & 1` (woi) only, not
-   * ref_present (port_bugs.md #662) — latch DS:0x5386 bit0 (tut2.howtowin).
-   * port_bugs.md #236: it does NOT fire at the declaration. The captor test
-   * is `== DS:0x5398` (1b0e raw 100916), the fixed human. */
-  if (col1 && col1->head.game_options.woi &&
-      u->nation_id == col1_fixed_human(col1, g_units_combat_human_nation) &&
-      !col1->head.tut2.howtowin) {
-    col1->head.tut2.howtowin = 1;
-    units_combat_enqueue_tok(
-      AI_POPUP_TAG_INFO, "HOWTOWIN", u->nation_id, -1, 0, NULL,
-      "");
   }
   /*
    * Raw 101032-101034, the last thing 1b0e's capture arm does: DOS drops a
@@ -1185,7 +1186,12 @@ bool units_revere_defend_colony_tile(
   combat_set_auto_defender(false);
   g_units_colony_autodefender = false;
   if (won && units_combat_is_visible(pool, attacker_id, def_id)) {
-    units_play_event_sound(UNITS_SFX_COMBAT_WON);
+    /* FUN_5fef_1b0e bVar28 colony limb (asm 0x5D5B7-0x5D5C7): 0x4b when
+     * [bp-0xd8] (temporary defender, colony, Euro attacker), else 0x4a
+     * (port_bugs.md #1814). */
+    const ColonizeUnit* a = units_get_const(pool, attacker_id);
+    units_play_event_sound(a && a->nation_id >= 0 && a->nation_id < 4 ? 0x4b
+                                                                      : UNITS_SFX_COMBAT_WON);
   }
   /* FUN_291f_0a06 / FUN_478c_00d0: the phantom always vanishes after the
    * roll, win or lose (it may have been demoted or flipped by the shared

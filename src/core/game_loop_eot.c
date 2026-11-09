@@ -1152,10 +1152,14 @@ static int game_trade_stop_coords(
     return 0;
   }
   if (colony_index == 999) {
-    if (units_is_sea(&game->units, u->id)) {
+    if (units_is_sea(&game->units, u->id) && game->world_map_ok) {
       int sx = 0;
       int sy = 0;
-      if (units_find_eastern_high_seas_tile(&game->units, &game->world_map, u->y, &sx, &sy)) {
+      /* FUN_479b_0bd0 raw 77228-77230 -> FUN_291f_02ea = FUN_48d3_015e: the ring
+       * hunt around the unit's own tile (#1746; was an eastern-rim stand-in). */
+      if (units_015e_hs_course(
+            &game->units, &game->world_map, u->x, u->y, u->nation_id, &sx, &sy
+          )) {
         *ox = sx;
         *oy = sy;
         return 1;
@@ -1219,6 +1223,11 @@ int game_trade_route_aim_stop(ColonizeGameState* game, ColonizeUnit* u, int stop
   }
   u->goto_x = tx;
   u->goto_y = ty;
+  if (r->stop[si].colony_index == 999) {
+    /* FUN_48d3_015e raw 77712-77727: +0x314b = 0x45 ('E', which the port's
+     * DS:0x9456 tally reads); the order stays, as +0x314c == 2 (trade route). */
+    u->col1_ai_plan = 0x45;
+  }
   u->col1_counter16 = si;
   return 1;
 }
@@ -1330,6 +1339,24 @@ bool game_trade_route_lane_sail(ColonizeGameState* game, ColonizeUnit* u) {
   return false;
 }
 
+/* FUN_479b_0bd0 raw 77319-77334, after the stop advance on EVERY arrival
+ * (colony and Europe): all stops the same -> @ROUTELOOP {%STRING0}. The caller
+ * ends the unit's move (FUN_281f_0934). */
+static bool game_trade_route_loop_warn(ColonizeGameState* game, const ColonizeCol1TradeRoute* r) {
+  for (int i = 1; i < (int)r->dest_count; ++i) {
+    if (r->stop[i].colony_index != r->stop[0].colony_index) {
+      return false;
+    }
+  }
+  PopupMsgTokens tok;
+  memset(&tok, 0, sizeof(tok));
+  tok.string0 = r->name[0] ? r->name : "";
+  char body[AI_POPUP_BODY_LEN];
+  popup_msg_fill(&game->messages, "ROUTELOOP", &tok, "", body, sizeof(body));
+  ai_popup_enqueue_ok(&game->ai_popups, AI_POPUP_TAG_INFO, NULL, body);
+  return true;
+}
+
 /* If TRADE_ROUTE unit is at current stop (or has no goto), service then advance. */
 void game_trade_route_retarget(ColonizeGameState* game, ColonizeUnit* u) {
   if (game_trade_route_lane_sail(game, u)) {
@@ -1382,20 +1409,7 @@ void game_trade_route_retarget(ColonizeGameState* game, ColonizeUnit* u) {
    */
   const int next = (u->col1_counter16 + 1) % (int)r->dest_count;
   (void)game_trade_route_aim_stop(game, u, next);
-  bool all_same = true;
-  for (int i = 1; i < (int)r->dest_count; ++i) {
-    if (r->stop[i].colony_index != r->stop[0].colony_index) {
-      all_same = false;
-      break;
-    }
-  }
-  if (all_same) {
-    PopupMsgTokens tok;
-    memset(&tok, 0, sizeof(tok));
-    tok.string0 = r->name[0] ? r->name : "";
-    char body[AI_POPUP_BODY_LEN];
-    popup_msg_fill(&game->messages, "ROUTELOOP", &tok, "", body, sizeof(body));
-    ai_popup_enqueue_ok(&game->ai_popups, AI_POPUP_TAG_INFO, NULL, body);
+  if (game_trade_route_loop_warn(game, r)) {
     u->moves = 0;
   }
 }
@@ -1457,6 +1471,15 @@ void game_europe_service_trade_harbor(ColonizeGameState* game) {
     }
     game_europe_drain_price_events(game); /* sells/buys now stamp the record themselves (G3) */
     const int next = (si + 1) % (int)r->dest_count;
+    (void)game_trade_route_loop_warn(game, r); /* #1750: the Europe arm too */
+    if (r->stop[next].colony_index == 999) {
+      /* DOS sails only from the not-arrived arm (raw 77231-77233: still in
+       * Europe, FUN_291f_0ec2); with a Europe stop next, the next 0bd0 call
+       * takes the arrived arm again, so the ship stays docked. */
+      ship->trade_stop = next;
+      ++i;
+      continue;
+    }
     /* FUN_479b_0bd0 raw 77226-77236: a route ship leaving Europe for a colony
      * stop gets that colony's tile as its own +0x314d/e before FUN_291f_0ec2
      * sails it, so the voyage roll and the FUN_48d3_048e landing aim at the
@@ -1596,6 +1619,8 @@ void game_apply_goto_port(ColonizeGameState* game, int id) {
           &game->units, &game->world_map, ship->x, ship->y, ship->nation_id, &dest_x, &dest_y)) {
       return;
     }
+    /* 015e's hit stamps +0x314b = 0x45 ('E', the port's DS:0x9456 tally) (raw 77712-77727). */
+    units_get(&game->units, uid)->col1_ai_plan = 0x45;
   } else {
     const ColonizeColony* target = colonies_get(&game->colonies, id);
     if (!target) {

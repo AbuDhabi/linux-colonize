@@ -62,6 +62,7 @@ static int fixture_init(Fixture* f, int nation) {
    * do NOT touch ai_goals.c's statics; ai_goals_reset() is the one call
    * that does. */
   ai_goals_reset();
+  ai_euro_reset(); /* DS:0x9456 census snapshot (ai_euro_s_9456) among others */
   if (!fx_map_alloc(&f->map, 16, 16, 2, true)) {
     return fail("alloc map");
   }
@@ -969,22 +970,13 @@ static int unit_europe_dock_demand_sails_home(void) {
     return fail("48d3_015e must stamp +0x314b = 0x45 on the Europe course");
   }
   /*
-   * The hull now counts itself in the lane tally, which is what stops DOS
-   * sending a second one for the same queue. Asserted as a delta rather than an
-   * absolute: the 5d04 hire ladder legitimately buys its own hull into the park
-   * during this same dispatcher turn and boards the waiting colonists onto it,
-   * so the nation's lane total is not this hull's alone.
+   * 015e bumped DS:0x9456 when it stamped the course (the census found no
+   * lane hull), which is what stops DOS sending a second one for the same
+   * queue. At least 1: other stamps this turn bump it too.
    */
-  if (hs_goto) {
-    const int lane_with = ai_euro_europe_lane_ships(&f.units, nation);
-    ship->col1_ai_plan = 0;
-    const int lane_without = ai_euro_europe_lane_ships(&f.units, nation);
-    ship->col1_ai_plan = AI_EURO_PLAN_EUROPE_BOUND;
-    if (lane_with != lane_without + 1) {
-      fprintf(stderr, "lane with=%d without=%d\n", lane_with, lane_without);
-      fixture_free(&f);
-      return fail("DS:0x9456 must count a hull that carries the Europe course");
-    }
+  if (hs_goto && ai_euro_europe_lane_ships(&f.units, nation) < 1) {
+    fixture_free(&f);
+    return fail("DS:0x9456 must take 015e's bump for the Europe course");
   }
   fixture_free(&f);
   return 0;
@@ -1127,6 +1119,37 @@ static int unit_europe_dock_demand_throttled_by_lane(void) {
     return fail("post-census dock purchase must not raise DS:0x945a");
   }
   fixture_free(&f);
+  return 0;
+}
+
+/* port_bugs.md #1626: DS:0x9456 is the 4962_0018 lane census plus 015e's
+ * bump; a hull stamped 'E' on an earlier turn and still in the New World is
+ * not in the next census. */
+static int unit_9456_census_skips_stamped_new_world_hull(void) {
+  const int nation = 1;
+  Fixture f;
+  if (fixture_init(&f, nation) != 0) {
+    return 1;
+  }
+  const int sid = units_spawn(&f.units, 2, 13, 4);
+  const int lid = units_spawn(&f.units, 2, 244 + nation, 244 + nation);
+  ColonizeUnit* stamped = units_get(&f.units, sid);
+  ColonizeUnit* lane = units_get(&f.units, lid);
+  if (!stamped || !lane) {
+    fixture_free(&f);
+    return fail("spawn hulls");
+  }
+  stamped->nation_id = nation;
+  stamped->col1_ai_plan = AI_EURO_PLAN_EUROPE_BOUND;
+  lane->nation_id = nation;
+  ai_euro_9456_census(&f.units, nation);
+  const int census = ai_euro_europe_lane_ships(&f.units, nation);
+  ai_euro_reset();
+  fixture_free(&f);
+  if (census != 1) {
+    fprintf(stderr, "census=%d\n", census);
+    return fail("census counts the lane hull only");
+  }
   return 0;
 }
 
@@ -2638,6 +2661,39 @@ static int unit_treasure_outside_colony_not_cashed(void) {
     return fail("expected LAB_4701 bind + goto the nearest own colony (4,4)");
   }
   fixture_free(&f);
+  return 0;
+}
+
+/* port_bugs.md #1651: arm 2 always rewrites plan '5', orders 0x0b and the goal
+ * through 27f5 -> 20c6 (raw 90016-90017), even for a Treasure already
+ * following a goto to that colony. */
+static int unit_treasure_dead_end_always_rewrites(void) {
+  const int nation = 1;
+  Fixture f;
+  if (fixture_init(&f, nation) != 0) {
+    return 1;
+  }
+  const int ti = treasure_add_type(&f);
+  treasure_add_colony(&f, 0, nation, 4, 4);
+  const int tid = units_spawn(&f.units, ti, 9, 9);
+  ColonizeUnit* t = units_get(&f.units, tid);
+  if (!t) {
+    fixture_free(&f);
+    return fail("spawn treasure");
+  }
+  t->nation_id = nation;
+  t->orders = 0x0c;
+  t->goto_x = 4;
+  t->goto_y = 4;
+  t->col1_ai_plan = 0x21;
+  const int r = ai_euro_20e6_47b9_dead_end(&f.ctx, t, nation);
+  const int orders = t->orders;
+  const int plan = t->col1_ai_plan;
+  fixture_free(&f);
+  if (r != 1 || orders != AI_EURO_ACT_GOAL || plan != 0x35) {
+    fprintf(stderr, "r=%d orders=%d plan=%d\n", r, orders, plan);
+    return fail("dead end must rewrite plan '5' / orders 0x0b");
+  }
   return 0;
 }
 
@@ -4660,6 +4716,7 @@ static const TestCase k_cases[] = {
     {"unit_treasure_in_colony_cash_in", unit_treasure_in_colony_cash_in},
     {"unit_treasure_cash_in_silent_under_woi", unit_treasure_cash_in_silent_under_woi},
     {"unit_treasure_outside_colony_not_cashed", unit_treasure_outside_colony_not_cashed},
+    {"unit_treasure_dead_end_always_rewrites", unit_treasure_dead_end_always_rewrites},
     {"unit_wander_step_is_adjacent", unit_wander_step_is_adjacent},
     {"unit_patrol_returns_to_colony", unit_patrol_returns_to_colony},
     {"unit_stale_goto_rescored_at_full_mp", unit_stale_goto_rescored_at_full_mp},
@@ -4676,6 +4733,7 @@ static const TestCase k_cases[] = {
      unit_europe_dock_demand_uses_tile_stack_snapshot},
     {"unit_europe_dock_demand_throttled_by_lane", unit_europe_dock_demand_throttled_by_lane},
     {"unit_europe_lane_crossing_ticks", unit_europe_lane_crossing_ticks},
+    {"unit_9456_census_skips_stamped_new_world_hull", unit_9456_census_skips_stamped_new_world_hull},
     {"unit_europe_lane_shared_arrival_transfers_passenger", unit_europe_lane_shared_arrival_transfers_passenger},
     {"unit_berth_puts_unmarked_riders_ashore", unit_berth_puts_unmarked_riders_ashore},
     {"unit_berth_cower_leaves_riders_ashore", unit_berth_cower_leaves_riders_ashore},

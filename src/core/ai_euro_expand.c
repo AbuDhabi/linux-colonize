@@ -722,33 +722,18 @@ void ai_euro_colony_inventory(ColonizeTurnContext* ctx, int nation_id) {
     nation_id, ctx->colonies ? ctx->colonies->colony_count : 0
   );
 
-  if (!ctx->colonies) {
-    return;
-  }
-  for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
-    ColonizeColony* c = &ctx->colonies->colonies[i];
-    if (!c->active || c->nation_id != nation_id) {
-      continue;
-    }
-    /* 5cf6-shaped shortage tallies. */
-    if (c->stock[COLONIZE_CARGO_TOOLS] < 20) {
-      inv->tools_short += 20 - c->stock[COLONIZE_CARGO_TOOLS];
-    }
-    if (c->stock[COLONIZE_CARGO_MUSKETS] < 10) {
-      inv->muskets_short += 10 - c->stock[COLONIZE_CARGO_MUSKETS];
-    }
-    if (c->stock[COLONIZE_CARGO_FOOD] < c->population * 2) {
-      inv->food_short += (c->population * 2) - c->stock[COLONIZE_CARGO_FOOD];
-    }
-    /*
-     * The 11-cargo "surplus haul ladder" that used to refresh +0x8d here was
-     * a port invention (its own comment read "FUN_5952_0306 thin"), and it
-     * ran in the wrong body besides. DOS's only +0x8d writers in the AI turn
-     * are FUN_5952_035e's five FUN_5952_0306 calls, now ported literally as
-     * ai_euro_5952_build_pref_0306 and hosted at DOS's position inside the
-     * colony tick (2026-09-18).
-     */
-  }
+  /*
+   * The invented "5cf6-shaped" per-colony tools / muskets / food shortage
+   * tallies (inv->*_short) were deleted 2026-11-09 (port_bugs.md #1648):
+   * nothing read them, and DOS has no such tally.
+   *
+   * The 11-cargo "surplus haul ladder" that used to refresh +0x8d here was
+   * a port invention (its own comment read "FUN_5952_0306 thin"), and it
+   * ran in the wrong body besides. DOS's only +0x8d writers in the AI turn
+   * are FUN_5952_035e's five FUN_5952_0306 calls, now ported literally as
+   * ai_euro_5952_build_pref_0306 and hosted at DOS's position inside the
+   * colony tick (2026-09-18).
+   */
 }
 
 /*
@@ -760,8 +745,7 @@ void ai_euro_colony_inventory(ColonizeTurnContext* ctx, int nation_id) {
  * and that arm is already ported faithfully in `ai_euro_5d04_cb_colony_needs`
  * (the 0xa0da/0xa0db writer the 5d04 hire matrix actually reads). Deleted
  * 2026-09-09 (smell audit #35): nothing here is unported, so no replacement
- * step is needed and `inv->muskets_short` now means exactly what
- * `ai_euro_colony_inventory` tallies.
+ * step is needed (`inv->*_short` itself was deleted, #1648).
  */
 
 /* --- 5d04 planning / hire ---------------------------------------------- */

@@ -129,7 +129,7 @@ static const SweepSave k_sweep[] = {
   }},
   /* Declared after loading 000001 (WoI headers, Foreign Affairs gate); 000021 = 20 turns into the war. */
   {"original_saves/independence-seed-100/000002.SAV", false, {
-    0xaca36fc6, 0x5f57f80c, 0xf1cab39d, 0x44638ca1, 0xad3b6e6d,
+    0xaca36fc6, 0x9e804817, 0xf1cab39d, 0x44638ca1, 0xad3b6e6d,
     0x713107ea, 0x38c165c5, 0xe27a5040, 0x77f18b87,
   }},
   {"original_saves/independence-seed-100/000021.SAV", false, {

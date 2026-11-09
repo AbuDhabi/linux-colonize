@@ -81,6 +81,9 @@ void popup_msg_apply_tokens(
   const PopupMsgTokens* tok
 );
 
+/* DS:0x538a mirror for the %YEAR token (FUN_6f74_309c); set by the game loop. */
+void popup_msg_set_year(int year);
+
 /* Remove {} emphasis markup in place (status line / window-title sinks). */
 void popup_msg_strip_markup(char* s);
 

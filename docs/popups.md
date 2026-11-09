@@ -467,7 +467,7 @@ fragment. Related sections are listed in the first column.
 | `@ABANDON` / `@ABANDON2` | Last colonist leave | Done | Yes/No confirm from GAME.TXT |
 | `@KEEPSTOCKADE` | Stockade min pop | Done | OK from `@KEEPSTOCKADE` |
 | `@MORETHANTHREE` | Assign 4th colonist to a full building | Done | `colonies_assign_workplace` caps at `COLONIZE_BUILDING_MAX_WORKERS` (3); `colonies_emit_more_than_three_chrome` OK. Was previously misdocumented as a `@KEEPSTOCKADE` alias — the two sections are unrelated |
-| `@COLONY` / `@RENAMECOLONY` | Found / rename | Done | Name entry after found (`@COLONY` wears the MSS5 nun, `479b:0823`); rename (bare, DOS latches nothing) = click colony title bar (DOS zone 10) or **R** (port extra) |
+| `@COLONY` / `@RENAMECOLONY` | Found / rename | Done | Name entry after found (`@COLONY` wears the MSS5 nun, `479b:0823`); rename (bare, DOS latches nothing) = click colony title bar (DOS zone 10; no key, #1737) |
 | `@LANDHO` | Human move with land in the destination 3x3, `named_new_world` clear (`FUN_4720_049e` tail) | Done | Name New World (`colony_region`); the field opens on the live `player[turn].country_name` (DOS passes that buffer, so `@default=America` is dead; a new game stores NAMES `@COLONYNAME` there). Text-entry layout: `popup_field_frame` (port_bugs.md #1181); MSS0 admiral (`2b5a:0028`, #1183) |
 | `@HOWMUCH1`… | Cargo amount | Done | [`howmuch_dialog.c`](../src/core/howmuch_dialog.c) (`=` colony / Europe **L**) |
 | `@WAREHOUSEFULL` | Warehouse overflow | Done | Unload past capacity → 2-row CHOICE (MSS 5); spoilage is `@SPOIL*` |

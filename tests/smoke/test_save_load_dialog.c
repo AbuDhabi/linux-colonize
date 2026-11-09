@@ -181,7 +181,7 @@ static int case_load_rejects_empty_slot(void) {
   if (!seed_slot0()) {
     return 1;
   }
-  /* Empty slot must not confirm in Load mode. */
+  /* Empty slot must not load in Load mode; FUN_7562_04e8 closes the box (port_bugs.md #1809). */
   SaveLoadDialog dlg;
   if (!save_load_open(&dlg, SAVE_LOAD_MODE_LOAD, k_dir, "COLONIZE", NULL, NULL)) {
     fprintf(stderr, "load reopen failed\n");
@@ -193,8 +193,8 @@ static int case_load_rejects_empty_slot(void) {
   input.last_key = COLONIZE_KEY_ENTER;
   save_load_handle_input(&dlg, &input);
   int rc = 0;
-  if (dlg.has_result || !dlg.open) {
-    fprintf(stderr, "load should not confirm empty slot\n");
+  if (dlg.has_result || dlg.open) {
+    fprintf(stderr, "load on an empty slot should close the dialog without a result\n");
     rc = 1;
   }
   save_load_close(&dlg);

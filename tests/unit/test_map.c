@@ -127,6 +127,12 @@ static int ensure_map(void) {
     g_map_ready = -1;
     return 1;
   }
+  /* A .MP carries owner nibble 0 everywhere; a game built on it marks every tile unowned
+   * (0xf, FUN_6ba1_10be) before play, and FUN_12ab_0540 / FUN_137f_0598 show a rumour only on
+   * nibble 0xf (port_bugs.md #1832). Pin the in-game lattice. */
+  for (size_t i = 0; i < g_map.tile_count; ++i) {
+    g_map.layer3[i] = (uint8_t)((g_map.layer3[i] & 0x0fu) | 0xf0u);
+  }
   g_map_ready = 1;
   atexit(free_g_map);
   return 0;
@@ -394,8 +400,10 @@ static int case_resources_rumours(void) {
    * points moved onto terrain 0540 skips (ocean / high seas / arctic).
    * Rumours 38 -> 37 (2026-11-07, #1466): FUN_19b7_0032 / FUN_13e4_003a return
    * class 0x19 off the FUN_137f_000a inset, so a border tile never holds one. */
-  if (resources != 425 || rumours != 37) {
-    fprintf(stderr, "resource/rumour count expected 425/37 got %d/%d\n", resources, rumours);
+  /* Resources 425 -> 421 (port_bugs.md #1829): FUN_12ab_0458's forest adjust reads the raw
+   * terrain byte & 0x3f, so AMER2's forested hills / mountains (0x20 bit) take adjust 0. */
+  if (resources != 421 || rumours != 37) {
+    fprintf(stderr, "resource/rumour count expected 421/37 got %d/%d\n", resources, rumours);
     return 1;
   }
   /* 267, not 275 — same 2026-08-18 coordinate-hash fixes as the
@@ -898,8 +906,10 @@ static int case_hidden_terrain_settlement_resource(void) {
   map.layer2[ti] = MAP_OCCUPANCY_HAS_CITY;
   map.layer3[ti] = 0x22; /* Spanish owner, continent 2. */
 
-  if (map_resource_type_for_yield(&map, x, y) != 6 || map_resource_type_at(&map, x, y) >= 0) {
-    fprintf(stderr, "hidden terrain resource: Havana fixture is not hidden Minerals\n");
+  /* port_bugs.md #1829: FUN_12ab_0380 / FUN_137f_0392 hide a special on native villages
+   * only, so the Spanish colony tile keeps its Minerals in every view but phase 2. */
+  if (map_resource_type_for_yield(&map, x, y) != 6 || map_resource_type_at(&map, x, y) != 6) {
+    fprintf(stderr, "hidden terrain resource: Havana fixture is not Minerals\n");
     map_free(&map);
     return 1;
   }
@@ -914,7 +924,7 @@ static int case_hidden_terrain_settlement_resource(void) {
         ++resource_count;
       }
     }
-    const int expected = phase == 1 ? 1 : 0;
+    const int expected = phase < 2 ? 1 : 0;
     if (resource_count != expected) {
       fprintf(
         stderr,
@@ -934,7 +944,8 @@ static int case_hidden_terrain_settlement_resource(void) {
 
 /* FUN_137f_04b0 hides a resource only when FUN_137f_0392 >= 0 (raw
  * 6814-6836: settlement bit and owner nibble 4..14). A Spanish colony tile
- * keeps its special for the sim; a village tile does not. */
+ * keeps its special; a village tile does not. MAPEDIT FUN_12ab_0380 gates the
+ * sprite the same way (port_bugs.md #1829). */
 static int case_dos_resource_settlement_gate(void) {
   ColonizeWorldMap map;
   char err[256];
@@ -951,8 +962,9 @@ static int case_dos_resource_settlement_gate(void) {
   const int sprite = map_resource_type_at(&map, 42, 30);
   map.layer3[ti] = 0x52; /* village of tribe 5 */
   const int village = map_dos_resource_at(&map, 42, 30);
+  const int village_sprite = map_resource_type_at(&map, 42, 30);
   map_free(&map);
-  if (euro != 6 || sprite != -1 || village != -1) {
+  if (euro != 6 || sprite != 6 || village != -1 || village_sprite != -1) {
     fprintf(stderr, "dos resource: euro=%d sprite=%d village=%d\n", euro, sprite, village);
     return 1;
   }
@@ -964,7 +976,7 @@ static int case_dos_resource_settlement_gate(void) {
  * same layer order as map_phys0_overlay_sprite_at (coast, hill/mountain, river,
  * MAPEDIT FUN_12ab_0458 resource, FUN_12ab_0540 rumour, estuary). Pinned on
  * AMER2: RESOURCE/RUMOUR layers are exactly the 89..102 / 103 sprites that
- * case_resources_rumours counts (425 / 37); layers past the count are WATER;
+ * case_resources_rumours counts (421 / 37); layers past the count are WATER;
  * the mountain/hill/river/water layer totals are pinned as of 2026-11-06.
  */
 static int case_overlay_kind_matches_sprites(void) {
@@ -995,7 +1007,7 @@ static int case_overlay_kind_matches_sprites(void) {
       }
     }
   }
-  if (mismatch != 0 || kinds[MAP_OVERLAY_KIND_RESOURCE] != 425 ||
+  if (mismatch != 0 || kinds[MAP_OVERLAY_KIND_RESOURCE] != 421 ||
       kinds[MAP_OVERLAY_KIND_RUMOUR] != 37 || kinds[MAP_OVERLAY_KIND_MOUNTAIN] != 170 ||
       kinds[MAP_OVERLAY_KIND_HILL] != 57 || kinds[MAP_OVERLAY_KIND_RIVER] != 196 ||
       kinds[MAP_OVERLAY_KIND_WATER] != 1807) {
@@ -1007,7 +1019,33 @@ static int case_overlay_kind_matches_sprites(void) {
   return 0;
 }
 
+/* port_bugs.md #1830: FUN_1a47_0932 / FUN_6ba1_0938 run 01ae on a coastal ocean tile (self
+ * class = last cardinal land, here prairie W) and then 06da(0, 1, 0): one grassland edge toward N. */
+static int case_coastal_ocean_transitions(void) {
+  ColonizeWorldMap map;
+  char err[256];
+  memset(&map, 0, sizeof(map));
+  if (!map_alloc(&map, 16, 16, err, sizeof(err))) {
+    return 1;
+  }
+  memset(map.terrain, 0x19, map.tile_count); /* ocean */
+  map.terrain[7 * map.width + 8] = 4;         /* grassland N of (8,8) */
+  map.terrain[8 * map.width + 7] = 3;         /* prairie W of (8,8) */
+  const int n = map_land_transition_count(&map, 8, 8);
+  const int mask = map_land_transition_mask_sprite_at(&map, 8, 8, 0);
+  const int fill = map_land_transition_fill_terrain_at(&map, 8, 8, 0);
+  const int want_fill = map_terrain_sprite_at(&map, 8, 7);
+  map_free(&map);
+  if (n != 1 || mask != 104 || fill != want_fill) {
+    fprintf(stderr, "coastal transitions: n=%d mask=%d fill=%d (want 1/104/%d)\n", n, mask, fill,
+            want_fill);
+    return 1;
+  }
+  return 0;
+}
+
 static const TestCase k_cases[] = {
+  {"coastal_ocean_transitions", case_coastal_ocean_transitions},
   {"overlay_kind_matches_sprites", case_overlay_kind_matches_sprites},
   {"dos_resource_settlement_gate", case_dos_resource_settlement_gate},
   {"map_load_and_ocean", case_map_load_and_ocean},

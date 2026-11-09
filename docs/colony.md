@@ -94,7 +94,9 @@ as index+1 so a zeroed colony means "nothing to reveal". FUN_2f2b_6cd4
 clear bit, redraw, set bit, redraw — and only then pushes event 0x54
 (COLDIG 13 hammering + cheering), when DS:0x34a >= 0. Set by
 colonies_try_complete_building (never for Warehouse Expansion or Capitol
-Expansion, FUN_364b_0114 raw 56965-56967), consumed on colony-screen open.
+Expansion, FUN_364b_0114 raw 56965-56967) for human/no-save colonies only
+(DOS resets 0x34a at the end of the colony tick, so an AI colony never keeps it,
+port_bugs.md #1733), consumed on colony-screen open.
 
 ## ColonizeColony.food_shortfall_latch
 
@@ -282,7 +284,10 @@ Same test as the colony screen actually runs it (port_bugs.md #366): DOS hoists 
 continent lookup out of the 5x5 loop and reads it at the COLONY tile
 (origin_x, origin_y), and clears every Ocean / Sea Lane cell outright.
 Also answers the plain "what claims this tile" question with origin ==
-the queried tile.
+the queried tile. A plot the colony at the origin already works (`06a6`,
+raw 12851-12854) is not claimed (port_bugs.md #1680); the seat reaction uses
+`colonies_indian_claim_tribe_unseated_w` (colony_internal.h), because DOS reads
+the table built before the seat while the port has already written `tiles[]`.
 
 ## colonies_assign_field_w
 
@@ -295,7 +300,8 @@ this writer and not from the colony screen:
 - a **non-human** colony first tries to buy the plot outright at
   `colonies_indian_land_purchase_gold`, and pays only when it holds 1.5x the
   price (`gold - price >= price/2`, raw 8785-8798) — a successful buy raises no
-  alarm at all;
+  alarm at all, except at price 0 (Minuit), where DOS pays and then still runs
+  the alarm arm (port_bugs.md #1694);
 - otherwise alarm rises by `base = (human ? difficulty : 0) + 5`, doubled when
   the nearest village (DS:0x8db8, the distance `FUN_4cc6_0356` wrote) is within
   3, plus `base` again within 2, and doubled once more when the tile holds a
@@ -445,7 +451,10 @@ off. NULL unbinds.
 
 Col1 context for colonies_capture_ex's DOS side effects (FUN_5fef_1b0e capture
 tail): rebel dividend ×2/3, per-nation colony/pop tallies, treasury share
-plunder (peacetime), war-relation reset, crown-capture REF-threshold bit.
+plunder (peacetime), war-relation reset, crown-capture REF-threshold bit. The
+share, the 0x53c8 reset and the WAR toggle run only when 1b0e's param_4 is set
+(`colonies_capture_show_ex(..., show)`; `colonies_capture_ex` passes true,
+port_bugs.md #1681).
 NULL = plain owner swap (tests without a save). The game loop re-binds it every
 frame (`game_update`, next to the occupancy map), so founding, join/leave
 (rebel divisor +-100), abandon and the `colony_counts[]` tallies see it from the

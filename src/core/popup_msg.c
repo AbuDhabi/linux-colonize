@@ -1,5 +1,7 @@
 #include "core/popup_msg.h"
 
+#include <ctype.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -10,6 +12,37 @@
 
 bool popup_msg_is_directive(const char* line) {
   return line && line[0] == '@';
+}
+
+/*
+ * DOS-LITERAL FUN_6f74_32a4 (raw 117285-117390) parser state for stored line i: every blank
+ * line before it adds 1 (blank_before carries the run; the loader keeps one per run), then an
+ * '@' line (strupr'd) sets it: OPTIONS / PROMPT -> 2, TEXT -> 1, SMALLFONT, Y*, X*, WIDTH*,
+ * LENGTH*, CHECKBOX*, DEFAULT* leave it, anything else -> 3. 1 = body, 2 = choice rows,
+ * >= 3 = the parser has stopped (port_bugs.md #1769).
+ */
+static int popup_msg_dos_state(const ColonizeMsgSection* section, int i, int state) {
+  if (section->blank_before) {
+    state += section->blank_before[i];
+  }
+  const char* line = section->lines[i];
+  if (state >= 3 || !popup_msg_is_directive(line)) {
+    return state;
+  }
+  const char* d = line + 1;
+  if (strcasecmp(d, "OPTIONS") == 0 || strcasecmp(d, "PROMPT") == 0) {
+    return 2;
+  }
+  if (strcasecmp(d, "TEXT") == 0) {
+    return 1;
+  }
+  if (strcasecmp(d, "SMALLFONT") == 0 || toupper((unsigned char)d[0]) == 'Y' ||
+      toupper((unsigned char)d[0]) == 'X' || strncasecmp(d, "WIDTH", 5) == 0 ||
+      strncasecmp(d, "LENGTH", 6) == 0 || strncasecmp(d, "CHECKBOX", 7) == 0 ||
+      strncasecmp(d, "DEFAULT", 7) == 0) {
+    return state;
+  }
+  return 3;
 }
 
 /*
@@ -91,29 +124,26 @@ size_t popup_msg_section_body(
     return 0;
   }
   size_t used = 0;
-  int saw_prose = 0;
-  int boundary = 0; /* blank-line boundary carried across skipped lines */
+  int state = 1;
   for (int i = 0; i < section->line_count; ++i) {
     const char* line = section->lines[i];
-    /* Only blanks after the first prose line count — a blank between the
-     * @directives and the body must not end an empty body. */
-    if (saw_prose && section->blank_before && section->blank_before[i]) {
-      boundary = 1;
+    state = popup_msg_dos_state(section, i, state);
+    /* DOS FUN_6f74_32a4: only state-1 lines are body; a blank line (or @options /
+     * @prompt) moves the parser on to choice rows, never body. blank_before is always
+     * populated by the real loader, so this is the sole mechanism (no keyword backstop). */
+    if (stop_before_choices && state >= 3) {
+      break;
     }
     if (!line || line[0] == '\0' || popup_msg_is_directive(line)) {
+      continue;
+    }
+    if (stop_before_choices && state != 1) {
       continue;
     }
     /* Skip a trailing field-caption row ("Name:" / "Amount:" / "Colony:")
      * for body — structural rule, see popup_msg_is_trailing_caption(). */
     if (popup_msg_is_trailing_caption(section, i)) {
       continue;
-    }
-    /* DOS FUN_6f74_32a4: a blank line after body prose switches the parser
-     * to choice state — everything past it is choice rows, never body.
-     * blank_before is always populated by the real loader, so this is the
-     * sole mechanism (no keyword backstop). */
-    if (stop_before_choices && saw_prose && boundary) {
-      break;
     }
     /*
      * GAME.TXT '^' line prefix (DOS FUN_6f74_0c32 + the 1198 wrap loop): a
@@ -157,7 +187,6 @@ size_t popup_msg_section_body(
       out[used++] = '\n'; /* the next line starts fresh, never joins this one */
     }
     out[used] = '\0';
-    saw_prose = 1;
   }
   return used;
 }
@@ -185,6 +214,13 @@ static void popup_msg_append(char* dst, size_t dst_size, size_t* used, const cha
     dst[(*used)++] = *add++;
   }
   dst[*used] = '\0';
+}
+
+/* DS:0x538a (current year) for %YEAR; the game loop keeps it current. */
+static int g_popup_msg_year;
+
+void popup_msg_set_year(int year) {
+  g_popup_msg_year = year;
 }
 
 void popup_msg_apply_tokens(
@@ -231,6 +267,32 @@ void popup_msg_apply_tokens(
         snprintf(num, sizeof(num), "%d", has[k] ? nums[k] : 0);
         popup_msg_append(dst, dst_size, &used, num);
         i += 8;
+        continue;
+      }
+      /* FUN_6f74_309c raw 117200-117213 (DS:0x1fb2 "HEX"): ltoa(number[d], 16), left-padded
+       * with "0" (DS:0x1fb6) to four digits; 5 chars consumed. */
+      if (strncmp(src + i, "%HEX", 4) == 0 && src[i + 4] >= '0' && src[i + 4] <= '3') {
+        const bool has[] = {tok->has_number0, tok->has_number1, tok->has_number2, tok->has_number3};
+        const int nums[] = {tok->number0, tok->number1, tok->number2, tok->number3};
+        const int k = src[i + 4] - '0';
+        char num[16];
+        snprintf(num, sizeof(num), "%04lx", (unsigned long)(uint32_t)(has[k] ? nums[k] : 0));
+        popup_msg_append(dst, dst_size, &used, num);
+        i += 5;
+        continue;
+      }
+      /* Raw 117222, 117231-117232 (DS:0x1fc0 "YEAR"): itoa(DS:0x538a, 10); 5 chars consumed. */
+      if (strncmp(src + i, "%YEAR", 5) == 0) {
+        char num[16];
+        snprintf(num, sizeof(num), "%d", g_popup_msg_year);
+        popup_msg_append(dst, dst_size, &used, num);
+        i += 5;
+        continue;
+      }
+      /* Raw 117223-117229: a '%' that starts no token and no "%%" is dropped
+       * (param_1 = local_2e, port_bugs.md #1768). */
+      if (src[i + 1] != '%') {
+        ++i;
         continue;
       }
     }
@@ -560,19 +622,17 @@ int popup_msg_choices(
   }
   int count = 0;
   int saw_prose = 0;
-  /* Primary: DOS FUN_6f74_32a4 blank-line state machine — body until the
-   * first blank line after prose, then every line is a choice row until the
-   * next blank (state 3 = ignored trailer). This is the sole mechanism for
-   * a real catalog (blank_before is always populated by the loader). */
+  /* Primary: DOS FUN_6f74_32a4 state machine (popup_msg_dos_state) — body
+   * until a blank line or @options / @prompt, then every line is a choice row
+   * until the next blank (state 3 = ignored trailer). This is the sole
+   * mechanism for a real catalog (blank_before is always populated by the loader). */
   if (section->blank_before) {
-    int state = 1; /* 1 body, 2 choices, 3 done */
+    int state = 1; /* 1 body, 2 choices, >= 3 done (popup_msg_dos_state) */
     for (int i = 0; i < section->line_count; ++i) {
       const char* line = section->lines[i];
-      if (saw_prose && section->blank_before[i]) {
-        state++;
-        if (state > 2) {
-          break;
-        }
+      state = popup_msg_dos_state(section, i, state);
+      if (state >= 3) {
+        break;
       }
       if (!line || line[0] == '\0' || popup_msg_is_directive(line)) {
         continue;

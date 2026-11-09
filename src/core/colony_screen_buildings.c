@@ -294,6 +294,67 @@ int colony_screen_category_built(
 }
 
 /*
+ * The building a category's slot stands for in the hover / click scans: FUN_2f2b_0434's
+ * DS:-0x717e writer (raw 47318-47326) walks @BUILDING rows ascending and keeps the LAST
+ * owned row of each category, with row 0 (Stockade) registered even unowned. So the
+ * warehouse slot is the Stable whenever it is owned, alone or over the Warehouse
+ * (port_bugs.md #1686); DOS never sets the Expansion's own bit. -1 = no owned row.
+ */
+int colony_screen_slot_row(
+  const ColonizeColonyPool* pool, const ColonizeColony* colony, int cat
+) {
+  if (cat == COLONY_CAT_WAREHOUSE) {
+    const int stable = colony_screen_find_built_row(pool, colony, COLONY_BUILDING_STABLE);
+    return stable >= 0 ? stable
+                       : colony_screen_find_built_row(pool, colony, COLONY_BUILDING_WAREHOUSE);
+  }
+  const int built = colony_screen_category_built(pool, colony, cat);
+  return built < 0 && cat == COLONY_CAT_FORTIFICATION
+           ? colonies_building_row(pool, COLONY_BUILDING_STOCKADE)
+           : built;
+}
+
+/*
+ * FUN_2f2b_44d4's hover scan (raw 51163-51185, DS:0x7f6 == 0): inside the settlement panel
+ * it walks the DS:0x266 slot positions 0..14 and stops at the FIRST size-class box under the
+ * pointer, owned or not (an unowned slot labels "Trees", port_bugs.md #1687). Returns that
+ * slot's category, or -1.
+ */
+static int colony_screen_hover_category(
+  const ColonyScreenView* view, const ColonizeColony* colony, int mx, int my
+) {
+  if (!view || !view->buildings_ok || !colony || mx < COLONY_VIEWPORT_X ||
+      mx >= COLONY_VIEWPORT_X + COLONY_VIEWPORT_W || my < COLONY_VIEWPORT_Y ||
+      my >= COLONY_BOTTOM_SEPARATOR_Y) {
+    return -1;
+  }
+  int xs[32], ys[32], slot_of_cat[32];
+  colony_screen_assign_slot_positions_ex(colony, xs, ys, slot_of_cat, colony_screen_layout_seed(view));
+  for (int slot = 0; slot < COLONY_DOS_SLOT_COUNT; ++slot) {
+    for (int cat = 0; cat < colony_screen_building_slot_count; ++cat) {
+      if (slot_of_cat[cat] != slot) {
+        continue;
+      }
+      const int cls = colony_screen_building_slots[cat].size_class;
+      const int bx = COLONY_VIEWPORT_X + xs[cat];
+      const int by = COLONY_VIEWPORT_Y + ys[cat];
+      if (mx >= bx && mx < bx + colony_screen_class_box[cls][0] && my >= by &&
+          my < by + colony_screen_class_box[cls][1]) {
+        return cat;
+      }
+      break;
+    }
+  }
+  return -1;
+}
+
+void colony_screen_update_hover(ColonyScreenView* view, const ColonizeColony* colony, int mx, int my) {
+  if (view) {
+    view->hover_cat_plus1 = colony_screen_hover_category(view, colony, mx, my) + 1;
+  }
+}
+
+/*
  * BUILDING.SS sprite for a category's slot, or -1 to draw nothing.
  * Port of FUN_2f2b_14d4's `local_5a` (DOS ids are 1-based, this port's are
  * 0-based, hence every DOS constant here appears minus one):
@@ -762,6 +823,27 @@ void colony_screen_building_worker_layout(
   }
 }
 
+/*
+ * Fence-unit x's and row: FUN_2f2b_11b2 (asm 26AB2-26AE4, port_bugs.md #1691) runs the same
+ * FUN_1097_0004 geometry as a class-3 worker strip (flags 2, w = min_w = DS:0x24b = 65,
+ * origin slot + DS:0x23c/0x242[3]) with ICONS 0x67 (port index 0x66) as the reference
+ * sprite, and draws no count. xs gets the n icon x's; returns the icon row.
+ */
+int colony_screen_fence_unit_layout(
+  const ColonyScreenView* view, const int* slot_x, const int* slot_y, int n, int* xs
+) {
+  const int ref = 0x66;
+  const int ref_iw =
+    view && ref < view->icons.sprite_count ? view->icons.sprites[ref].width : 12;
+  int y = 0;
+  colony_screen_building_worker_layout(
+    colony_screen_building_slots[COLONY_CAT_FORTIFICATION].size_class, n, ref_iw,
+    COLONY_VIEWPORT_X + slot_x[COLONY_CAT_FORTIFICATION],
+    COLONY_VIEWPORT_Y + slot_y[COLONY_CAT_FORTIFICATION], xs, &y
+  );
+  return y;
+}
+
 void colony_screen_blit_buildings(
   ColonyScreenView* view,
   const ColonizeColonyPool* pool,
@@ -866,19 +948,6 @@ void colony_screen_blit_buildings(
     );
     const int bx = slot_ox + slot_x[i];
     const int by = slot_oy + slot_y[i];
-    if (workers > 0) {
-      const int ref_iw = colony_screen_building_worker_ref_iw(view, pool, built, worker_icons[0]);
-      int xs[COLONIZE_COLONY_POP_MAX];
-      int wy = 0;
-      colony_screen_building_worker_layout(slot->size_class, workers, ref_iw, bx, by, xs, &wy);
-      for (int wi = 0; wi < workers; ++wi) {
-        const ColonizeSprite* ws = &view->icons.sprites[worker_icons[wi]];
-        colony_screen_draw_icon_strip(
-          view, NULL, framebuffer, xs[wi], wy, ws->width, ws->height, &worker_icons[wi], 1,
-          view->selected_colonist == worker_ci[wi] ? 0 : -1, 15, false, 0x5f
-        );
-      }
-    }
     /*
      * Production strip: worker output + Town Hall / Church / Cathedral free
      * bells/crosses (still shown when the building is empty).
@@ -942,19 +1011,25 @@ void colony_screen_blit_buildings(
         }
       }
     }
+    /* FUN_2f2b_14d4 (asm 26E4E-26EFC): sprite, production bar (FUN_281f_0236), then the
+     * workers (thunk_FUN_291f_06e4), so the workers sit over the bar (port_bugs.md #1688). */
+    if (workers > 0) {
+      const int ref_iw = colony_screen_building_worker_ref_iw(view, pool, built, worker_icons[0]);
+      int xs[COLONIZE_COLONY_POP_MAX];
+      int wy = 0;
+      colony_screen_building_worker_layout(slot->size_class, workers, ref_iw, bx, by, xs, &wy);
+      for (int wi = 0; wi < workers; ++wi) {
+        const ColonizeSprite* ws = &view->icons.sprites[worker_icons[wi]];
+        colony_screen_draw_icon_strip(
+          view, NULL, framebuffer, xs[wi], wy, ws->width, ws->height, &worker_icons[wi], 1,
+          view->selected_colonist == worker_ci[wi] ? 0 : -1, 15, false, 0x5f
+        );
+      }
+    }
   }
 
-  /*
-   * The fortification and the docks are ordinary DOS categories now (0 and
-   * 2), drawn by the loop above at slots 13 and 14 — no separate corner
-   * blit. The outside-unit strip still needs that fence rectangle.
-   */
-  int fence_x = 0, fence_y = 0, fence_w = COLONY_FENCE_W, fence_h = COLONY_FENCE_H;
-  colony_screen_fence_rect(
-    slot_x, slot_y, &fence_x, &fence_y, &fence_w, &fence_h
-  );
-
-  /* Outside units: Note 1 strip centered on the fortification. */
+  /* Outside units on the fortification (categories 0 and 2 are drawn by the loop above at
+   * slots 13 and 14). */
   if (units && view->outside_unit_count > 0 && view->icons_ok) {
     int icons[COLONY_OUTSIDE_MAX];
     int n = 0;
@@ -973,21 +1048,16 @@ void colony_screen_blit_buildings(
       }
       icons[n++] = sprite;
     }
-    if (n > 0) {
+    int xs[COLONY_OUTSIDE_MAX];
+    const int fy = colony_screen_fence_unit_layout(view, slot_x, slot_y, n, xs);
+    for (int k = 0; k < n; ++k) {
+      if (icons[k] >= view->icons.sprite_count) {
+        continue;
+      }
+      const ColonizeSprite* us = &view->icons.sprites[icons[k]];
       colony_screen_draw_icon_strip(
-        view,
-        NULL,
-        framebuffer,
-        fence_x,
-        fence_y + 1, /* golden: the DOS strip draws 1px below the class anchor */
-        fence_w,
-        fence_h,
-        icons,
-        n,
-        selected,
-        15,
-        false,
-        0x5f
+        view, NULL, framebuffer, xs[k], fy, us->width, us->height, &icons[k], 1,
+        selected == k ? 0 : -1, 15, false, 0x5f
       );
     }
   }
@@ -1005,45 +1075,63 @@ void colony_screen_blit_buildings(
    *   fill(lx, ly, w1, 7); text(lx + 1, ly + 1, name, ink 15);
    *
    * The caller's +8 is this port's COLONY_VIEWPORT_Y origin, so `ly` starts at
-   * the building's top edge; only the two wide classes push it to the middle
-   * of the box.
+   * the building's top edge; only the two wide classes and an unowned slot push it to
+   * the middle of the box.
    */
-  if (font && view->hover_building_row >= 0) {
-    for (int i = 0; i < colony_screen_building_slot_count; ++i) {
-      if (colony_screen_category_built(pool, colony, i) != view->hover_building_row) {
-        continue;
-      }
-      /* MOD_TOWN_HALL_TIERS: name the Town Hall tier actually drawn. */
-      const int name_index =
-        (i == COLONY_CAT_TOWN_HALL && mods_on(MOD_TOWN_HALL_TIERS))
-          ? colonies_building_row(pool, (ColonizeBuildingRow)colony_screen_town_hall_tier_row(pool, colony))
-          : view->hover_building_row;
-      const char* name = colonies_building_name(pool, name_index);
-      if (!name[0]) {
-        break;
-      }
-      const int cls = colony_screen_building_slots[i].size_class;
-      const int w1 = font_text_width(font, name) + 1;
-      const int h = 7;
-      int lx = slot_x[i] + colony_screen_class_box[cls][0] / 2 - w1 / 2;
-      int ly = slot_oy + slot_y[i];
-      if (cls == 2 || cls == 4) {
-        ly += colony_screen_class_box[cls][1] / 2 - h / 2;
-      }
-      if (lx > 0xc7 - w1) {
-        lx = 0xc7 - w1;
-      }
-      if (lx < 0) {
-        lx = 0;
-      }
-      lx += slot_ox;
-      /* FUN_2f2b_05ee (asm after LAB_2f2b_06ba): FUN_281f_00ba -> FUN_1b9e_000a
-       * (x AX, y DX, w BX; stack: colour = PUSH 0, height = 7, then the
-       * DS:0x2da8..0x2dae target surface far ptr). Colour is literal 0. */
-      fb_fill_rect(framebuffer, lx, ly, w1, h, 0);
-      font_draw_text(font, framebuffer, lx + 1, ly + 1, name, 15);
-      break;
+  /* Bridge until the game loop calls colony_screen_update_hover: the slot whose row the
+   * building hit-test reported. */
+  int hover_cat = view->hover_cat_plus1 - 1;
+  const int hb = view->hover_building_row;
+  for (int i = 0; hover_cat < 0 && hb >= 0 && hb < COLONIZE_BUILDING_TYPES_MAX &&
+                  colony->has_building[hb] && i < colony_screen_building_slot_count;
+       ++i) {
+    if (colony_screen_slot_row(pool, colony, i) == hb) {
+      hover_cat = i;
     }
+  }
+  if (font && hover_cat >= 0 && hover_cat < colony_screen_building_slot_count) {
+    /* FUN_2f2b_05ee raw 47370-47386: an owned row's name, plus " " + @MISC 123 in the
+     * class-3 fence corner; an unowned slot is @MISC 122 (port_bugs.md #1687). */
+    const int i = hover_cat;
+    const int row = colony_screen_slot_row(pool, colony, i);
+    const int cls = colony_screen_building_slots[i].size_class;
+    char name[128];
+    name[0] = '\0';
+    if (row < 0) {
+      snprintf(name, sizeof(name), "%s", reports_misc_display_word(122, ""));
+    } else {
+      if (row < COLONIZE_BUILDING_TYPES_MAX && colony->has_building[row]) {
+        /* MOD_TOWN_HALL_TIERS: name the Town Hall tier actually drawn. */
+        const int name_index =
+          (i == COLONY_CAT_TOWN_HALL && mods_on(MOD_TOWN_HALL_TIERS))
+            ? colonies_building_row(pool, (ColonizeBuildingRow)colony_screen_town_hall_tier_row(pool, colony))
+            : row;
+        snprintf(name, sizeof(name), "%s", colonies_building_name(pool, name_index));
+      }
+      if (cls == 3) {
+        const size_t n = strlen(name);
+        snprintf(name + n, sizeof(name) - n, " %s", reports_misc_display_word(123, ""));
+      }
+    }
+    const int w1 = font_text_width(font, name) + 1;
+    const int h = 7;
+    int lx = slot_x[i] + colony_screen_class_box[cls][0] / 2 - w1 / 2;
+    int ly = slot_oy + slot_y[i];
+    if (cls == 2 || cls == 4 || row < 0) {
+      ly += colony_screen_class_box[cls][1] / 2 - h / 2;
+    }
+    if (lx > 0xc7 - w1) {
+      lx = 0xc7 - w1;
+    }
+    if (lx < 0) {
+      lx = 0;
+    }
+    lx += slot_ox;
+    /* FUN_2f2b_05ee (asm after LAB_2f2b_06ba): FUN_281f_00ba -> FUN_1b9e_000a
+     * (x AX, y DX, w BX; stack: colour = PUSH 0, height = 7, then the
+     * DS:0x2da8..0x2dae target surface far ptr). Colour is literal 0. */
+    fb_fill_rect(framebuffer, lx, ly, w1, h, 0);
+    font_draw_text(font, framebuffer, lx + 1, ly + 1, name, 15);
   }
 }
 
@@ -1104,14 +1192,17 @@ void colony_screen_draw_cargo_strip(
       const bool exported =
         colonies_has_building_row(pool, colony, COLONY_BUILDING_CUSTOM_HOUSE) &&
         europe_custom_house_cargo_enabled(colony->custom_house_bits, i);
-      const uint8_t base_col = over ? 12 : (exported ? 10 : 61);
+      /* FUN_2f2b_28d6 asm 282EE-28339: hundreds 0x94, the rest 0x3d (0x0a exported); over
+       * capacity the hundreds turn 0x0c and the rest 0x04 (port_bugs.md #1690). */
+      const uint8_t hundreds_col = over ? 0x0c : kHundredsColor;
+      const uint8_t base_col = over ? 0x04 : (exported ? 10 : 61);
       const size_t len = strlen(amount);
       if (len > 2) {
         char hundreds[16];
         const size_t hlen = len - 2;
         memcpy(hundreds, amount, hlen);
         hundreds[hlen] = '\0';
-        font_draw_text(font, framebuffer, tx, num_y, hundreds, kHundredsColor);
+        font_draw_text(font, framebuffer, tx, num_y, hundreds, hundreds_col);
         const int hw = font_text_width_skip(font, hundreds, FONT_SKIP_NONE);
         font_draw_text(font, framebuffer, tx + hw, num_y, amount + hlen, base_col);
       } else {

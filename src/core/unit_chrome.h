@@ -117,8 +117,17 @@ UnitChromeCorner unit_chrome_corner_for_type(int dos_unit_type_id, bool damaged)
 #define UNIT_CHROME_REPAIR_X_SPRITE 0x37
 /* FUN_112b_01ba raw 2122-2129: a foreign Privateer's badge is 'X'. */
 #define UNIT_CHROME_ORDERS_PRIVATEER_X 0x200
-/* Same routine: a foreign hull's goods-hold count digit (ordinary ink). */
+/* Same routine: a foreign hull's goods-hold count digit. The ink still follows
+ * the real orders byte (raw 2281-2289), so the index carries both:
+ * HOLDS_BASE + (holds << 4) + (orders & 15). */
 #define UNIT_CHROME_ORDERS_HOLDS_BASE 0x300
+/* FUN_112b_01ba raw 2124-2129 compares the hull's owner with DS:0x5396 (the
+ * viewpoint nation) and gates only the Privateer 'X' on DS:0x53a2 == 0 (Complete
+ * Map off). The game loop sets both every frame; until it does (view_nation < 0)
+ * units_render_viewer_badge falls back to its fog_nation argument. */
+void unit_chrome_set_viewer(int view_nation, bool complete_map);
+int unit_chrome_viewer_nation(void);
+bool unit_chrome_viewer_complete_map(void);
 /*
  * port_bugs.md #1177a. FUN_112b_01ba (viceroy_unpacked_2.c ~2134, asm
  * 0x3959-0x3986): for an AI / withdrawn Euro nation (`nation < 4 &&

@@ -195,6 +195,23 @@ static int colony_prod_carpenter_preacher_shape(
   return v > 0 ? v : 0;
 }
 
+int colony_prod_craft_tier_row(
+  const ColonizeColonyPool* pool, const ColonizeColony* colony, int building_row
+) {
+  const int* rows = colonies_building_chain_rows(colonies_building_row_chain(building_row));
+  if (!pool || !colony || !rows) {
+    return building_row;
+  }
+  /* DOS-LITERAL FUN_15eb_1d4c asm 15eb:1ee7-1f0d: tier = 039e([bp-2] = 0aec(job)). */
+  int owned = 0;
+  for (int t = 0; t < 4 && rows[t] >= 0; ++t) {
+    if (colonies_dos_owns_row(pool, colony, rows[t])) {
+      owned++;
+    }
+  }
+  return rows[owned > 0 ? owned - 1 : 0];
+}
+
 int colony_prod_manufacturing_output_row(
   int building_row,
   int profession,
@@ -934,7 +951,8 @@ static int colony_prod_worker_building_output_ctx(
    * "must stay in lockstep with k_recipes" comment admitting it. */
   const ColonizeCraftRecipe* rec = colony_craft_recipe_for_building_row(row);
   if (rec) {
-    return colony_prod_manufacturing_output_row(row, profession, rec->craft_profession, sol_bonus);
+    return colony_prod_manufacturing_output_row(
+      colony_prod_craft_tier_row(pool, colony, row), profession, rec->craft_profession, sol_bonus);
   }
   return 0;
 }

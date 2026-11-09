@@ -220,7 +220,7 @@ static struct {
   int nation_id;
   int unit_id;  /* the mover whose 3180 scan stopped */
   int next_dir; /* 3180 local_30 to scan next */
-  int done[4];  /* 3180 aiStack_20[0..3] */
+  int done[12]; /* 3180 aiStack_20[0..11] */
   int brave_index;
 } s_pulse_resume;
 static int s_pulse_may_suspend; /* only the 1816 act loop stops; direct scans never do */
@@ -239,7 +239,7 @@ void ai_native_pulse_abandon(void) {
  * never stops this scan. Needs the shared ctx->rng: the resume must continue
  * the same stream. */
 static int ai_native_scan_suspend(
-  const ColonizeUnit* u, int nation_id, int e, int d, const int done[4]
+  const ColonizeUnit* u, int nation_id, int e, int d, const int done[12]
 ) {
   const AiPopupState* p = s_ai_native_ctx ? s_ai_native_ctx->ai_popups : NULL;
   if (!s_pulse_may_suspend || !p || !s_ai_native_ctx->rng ||
@@ -261,7 +261,7 @@ static int ai_native_scan_suspend(
  * Returns 1 when any 022e resolved; stops early when a scan suspended. */
 static int ai_native_3180_scan(
   ColonizeUnitPool* units, const ColonizeWorldMap* map, ColonizeCol1Save* col1,
-  ColonizeUnit* u, int nation_id, int d0, int done[4]
+  ColonizeUnit* u, int nation_id, int d0, int done[12]
 ) {
   ColonizeCol1Indian* ind = &col1->indian[nation_id - 4];
   int resolved = 0;
@@ -286,7 +286,40 @@ static int ai_native_3180_scan(
         e = c->nation_id;
       }
     }
-    if (e < 0 || done[e]) {
+    if (e < 0) {
+      /*
+       * DOS-LITERAL FUN_5bfb_3180 native-on-native limb (raw 98648-98689):
+       * a land neighbour held by another tribe (its stack head, else its
+       * village) not yet met this scan gets the head's facing stamp, then
+       * both tribes' horse_herds (+8, DS:0x5ade) take the signed-char max
+       * and aiStack_20[tribe] closes. No 022e, so the mover keeps its MP.
+       */
+      int other = (o && o->active) ? o->nation_id : -1;
+      if (!o && col1->tribe) {
+        for (uint16_t ti = 0; ti < col1->head.tribe_count; ++ti) {
+          if ((int)col1->tribe[ti].x == nx && (int)col1->tribe[ti].y == ny) {
+            other = (int)col1->tribe[ti].nation_id;
+            break;
+          }
+        }
+      }
+      if (other >= 4 && other <= 11 && other != nation_id && !done[other] &&
+          !map_tile_is_water(map, u->x, u->y) && !map_tile_is_water(map, nx, ny)) {
+        if (o) {
+          o->last_dir = (int8_t)d;
+        }
+        ColonizeCol1Indian* oi = &col1->indian[other - 4];
+        int8_t herds = (int8_t)ind->horse_herds;
+        if (herds < (int8_t)oi->horse_herds) {
+          herds = (int8_t)oi->horse_herds;
+        }
+        ind->horse_herds = (uint8_t)herds;
+        oi->horse_herds = (uint8_t)herds;
+        done[other] = 1;
+      }
+      continue;
+    }
+    if (done[e]) {
       continue;
     }
     /* 3180: aiStack_20[e] = 022e's return, so only a RESOLVED encounter
@@ -298,7 +331,9 @@ static int ai_native_3180_scan(
     if (o) {
       o->last_dir = (int8_t)d;
     }
-    if (ind->euro_diplo[e] == 0) {
+    /* 022e raw 96615-96617: first contact = no MET bit in the Euro-side
+     * byte 0a38(euro, tribe+4). */
+    if ((ai_diplo_read(col1, e, nation_id) & COL1_INDIAN_MET_BIT) == 0) {
       (void)ai_contact_try_first_welcome(s_ai_native_ctx, e, nation_id);
       resolved = 1;
       done[e] = 1;
@@ -424,7 +459,7 @@ int ai_native_step_first_contact(
   if (!s_ai_native_ctx || !col1 || nation_id < 4 || nation_id > 11) {
     return 0;
   }
-  int done[4] = {0, 0, 0, 0};
+  int done[12] = {0};
   const int resolved = ai_native_3180_scan(units, map, col1, u, nation_id, 0, done);
   /* LAB_5bfb_1005 (raw 97094-97095): every resolved 022e (local_1a != 0)
    * exhausts the Indian mover (FUN_281f_0934), first contact or visit
@@ -928,7 +963,7 @@ static void ai_native_nation_pulse_resume(
 ) {
   const int nation_id = s_pulse_resume.nation_id;
   const int brave_index = s_pulse_resume.brave_index;
-  int done[4];
+  int done[12];
   memcpy(done, s_pulse_resume.done, sizeof(done));
   s_pulse_resume.active = 0;
   ColonizeUnit* u = units_get(units, s_pulse_resume.unit_id);

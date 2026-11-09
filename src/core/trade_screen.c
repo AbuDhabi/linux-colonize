@@ -13,9 +13,12 @@
 #define TRADE_ROW_Y0 61      /* 0x3d */
 #define TRADE_ROW_H 20       /* 0x14 */
 #define TRADE_ROW_COUNT 4
-#define TRADE_NAME_Y0 22     /* rename band top (~0x19) */
-#define TRADE_NAME_Y1 45     /* rename band bottom (0x1d + 2 lines) */
-#define TRADE_EXIT_Y 169     /* 0xa9 — clicks below leave the editor */
+/* FUN_647e_10d2 (raw 103074-103082): rename for 0x19 <= y < FONTTINY.h*2 + 0x1d, close for
+ * y > 0xa9. FONTTINY's height (*(byte*)*(DS:0x89e)) is cached by the last render. */
+#define TRADE_NAME_Y0 0x19
+#define TRADE_NAME_Y1_BASE 0x1d
+#define TRADE_EXIT_Y 0xaa
+static int s_trade_font_h;
 #define TRADE_COL_DEST_X1 114   /* 0x72 */
 /* DOS column order (port_bugs.md #1206): FUN_647e_1064 sends 0x72 < mx <= 0xc5 to
  * FUN_647e_0f2c(0) = the unload list (stop slots 0..5, @CARGOUNLOAD DS:0x1d47, strip from 0x7d)
@@ -167,7 +170,7 @@ bool trade_screen_handle_input(
   const int my = input->mouse_y;
 
   /* Title band → rename (DOS FUN_647e_10d2 middle branch). */
-  if (my >= TRADE_NAME_Y0 && my < TRADE_NAME_Y1) {
+  if (my >= TRADE_NAME_Y0 && my < s_trade_font_h * 2 + TRADE_NAME_Y1_BASE) {
     ts->request = TRADE_SCREEN_REQ_RENAME;
     return true;
   }
@@ -270,6 +273,7 @@ void trade_screen_render(
     return;
   }
   const int h = font->max_height; /* *(byte*)*(DS:0x89e), FONTTINY's first byte */
+  s_trade_font_h = h;
   char line[96];
 
   /* 647e:0a46: @ROUTE 0 + " " + route number, centred over x 0, w 0x140, y 5. */

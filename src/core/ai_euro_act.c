@@ -187,11 +187,8 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_land_roles(struct ai_euro_act_ctx*
    * at orders 6); the old fortified-unit gate (since deleted) skipped it
    * for good after its first park.
    */
-  int wagon_hauled = 0;
   if (!treasure_routed && ai_euro_is_wagon_kind(ukind)) {
-    if (ai_euro_try_wagon_haul(ctx, nation_id, u)) {
-      wagon_hauled = 1;
-    }
+    (void)ai_euro_try_wagon_haul(ctx, nation_id, u);
     /* (The wagon Europe-export feeder — a thin OpenCol-only arm — was retired
      * 2026-09-07b: DOS's 457e origin walk owns every off-errand wagon beat,
      * so wagons never fed the coastal export leg in DOS. Surplus reaches
@@ -201,23 +198,15 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_land_roles(struct ai_euro_act_ctx*
     if (!u->active) {
       return AI_EURO_ACT_RETURN;
     }
-    /* Same as the treasure/missionary band: a course 20e6 bound this act is
-     * walked by FUN_479b_0972 (5b66 cases 0x0b/0x0c), not by the land
-     * scorer below (DOSBox independence-seed-100 3->4: Bahia's captured
-     * wagon follows the roads round to its village goal). */
-    if (wagon_hauled && (u->orders == AI_EURO_ACT_GOAL || u->orders == AI_EURO_ACT_STEP)) {
-      ai_euro_goal_walk_479b(ctx, u);
-      return AI_EURO_ACT_RETURN;
-    }
-    /* FUN_521d_5b66 raw 90580-90584: once 20e6 has returned, an act_state
-     * outside 7..12 is FUN_281f_0934 (MP exhausted) and the act ends, so a
-     * wagon the band parked (589e: orders 5/6) is not drained again this
-     * turn; next turn's fresh MP re-runs the band (DOSBox independence
-     * 12 -> 13 vs 13 -> 14: Bahia's wagon draws its matrix once a turn). */
-    if (wagon_hauled && u->active && (u->orders < 7 || u->orders > 12)) {
-      units_mp_exhaust_unit(ctx->units, u->id);
-      return AI_EURO_ACT_RETURN;
-    }
+    /* Every wagon band exit is 20e6's LAB_5a78 (OVL14 0x5a98-0x5b57: the
+     * 0/10 -> 5 demotion, the peace 5 -> 0 drop, the goal-is-own-tile
+     * exhaust) and then FUN_521d_5b66's dispatch: a 0x0b / 0x0c course is
+     * walked by FUN_479b_0972 (DOSBox independence-seed-100 3->4: Bahia's
+     * captured wagon follows the roads to its village goal), any state
+     * outside 7..12 is exhausted (raw 90580-90584: a parked wagon draws its
+     * matrix once a turn). The caller runs both, so the band just returns
+     * CONTINUE; it used to walk / exhaust here and skip the tail
+     * (port_bugs.md #1629). */
   }
 
   a->treasure_routed = treasure_routed;
@@ -300,6 +289,22 @@ AiEuroActStatus ai_euro_act_land(struct ai_euro_act_ctx* a) {
   a->ukind = ukind;
   a->is_treasure = ai_euro_is_treasure_kind(ukind);
   a->treasure_routed = 0;
+
+  /* 20e6's two entry bails run before the Treasure / Missionary / Wagon
+   * bands (port_bugs.md #1628): raw 88404-88406, a course other than
+   * 0/5/6/>=10 goes straight to LAB_5a78; raw 88410-88414, an off-inset tile
+   * (FUN_281f_0302) stamps '@' and goes there. CONTINUE = the caller's 5a78
+   * tail, as for ai_euro_move_scoring_gate's same bail. */
+  {
+    ColonizeUnit* u = a->u;
+    if (u->orders != 0 && u->orders != 5 && u->orders != 6 && u->orders < 10) {
+      return AI_EURO_ACT_CONTINUE;
+    }
+    if (!map_coords_inset(ctx->map, u->x, u->y)) {
+      u->col1_ai_plan = 0x40; /* '@' */
+      return AI_EURO_ACT_CONTINUE;
+    }
+  }
 
   /* No LCR stage here: DOS resolves a rumour only inside the mover,
    * FUN_465b_0000 raw 75788-75791 (units_move.c); the act-level LCR roll
@@ -807,6 +812,13 @@ void ai_euro_goal_walk_479b(ColonizeTurnContext* ctx, ColonizeUnit* u) {
     }
   }
   ai_euro_sync_aboard_cargo_xy(ctx->units, u);
+  /* raw 77089: `if (iVar3 != DS:0x539c) goto LAB_479b_0b1d` — a step that
+   * changed the unit count (an LCR spawn on the goal tile, a unit lost)
+   * skips the whole arrival block, the +0x314c clear included
+   * (port_bugs.md #1627). */
+  if (units_active_count(ctx->units) != units_before) {
+    return;
+  }
   if (u->x != u->goto_x || u->y != u->goto_y) {
     return;
   }
@@ -851,6 +863,10 @@ void ai_euro_act_ship_dos(ColonizeTurnContext* ctx, ColonizeUnit* u, int nation_
     Ai20e6Unit s;
     ai_euro_20e6_prologue(ctx, u, nation_id, &s);
     run_20e6 = (s.flags & 1) && ai_euro_20e6_adjacent_foreign_09dc(ctx, u->x, u->y, nation_id); /* FUN_1000_8b74 */
+    if (run_20e6 && u->col1_ai_plan == AI_EURO_PLAN_EUROPE_BOUND && nation_id >= 0 &&
+        nation_id < 4) {
+      ai_euro_s_9456[nation_id]--; /* OVL14 0x5b6d-0x5bc8, raw 90573-90576 (#1626) */
+    }
   }
   if (run_20e6 && ai_euro_20e6_ship_dos(ctx, u, nation_id)) {
     return;

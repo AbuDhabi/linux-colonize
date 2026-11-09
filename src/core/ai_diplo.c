@@ -31,6 +31,7 @@
 #include "core/popup_msg.h"
 #include "core/reports.h"
 #include "core/reports_names.h"
+#include "core/sound.h"
 #include "core/strutil.h"
 #include "core/units.h"
 #include "core/units_internal.h"
@@ -1307,10 +1308,9 @@ static int ai_talk_franklin(ColonizeTurnContext* ctx, int n) {
 static int ai_talk_peace(ColonizeTurnContext* ctx, int a, int b) {
   return (ai_diplo_read(ctx->col1, a, b) & AI_DIPLO_PEACE) != 0;
 }
+/* 0a38(a, b) & 0x20 for Euro and tribe peers alike (raw 97726, 98266-98274,
+ * 98302): a tribe peer reads nation[a].relation_by_indian[b - 4]. */
 static int ai_talk_met(ColonizeTurnContext* ctx, int a, int b) {
-  if (b >= 4 && b <= 11) {
-    return (ctx->col1->indian[b - 4].euro_diplo[a] & COL1_INDIAN_MET_BIT) != 0;
-  }
   return (ai_diplo_read(ctx->col1, a, b) & AI_DIPLO_MET) != 0;
 }
 static int ai_talk_rng(ColonizeTurnContext* ctx, int lo, int hi) {
@@ -1801,6 +1801,7 @@ static AiTalkStepStatus ai_talk_stage_worthy(
        * 0x1940 "WARMANLY" here — no MEEK variant and no +USA suffix,
        * unlike the WAR+tone site in the @GIVECASH tail.
        */
+      sound_set_bgm(4); /* asm 164668: PUSH 4; CALLF 281f_04ac (war music) */
       ai_talk_ok(ctx, "WARMANLY", &tr);
       ai_diplo_clear_both(col1, h, t, AI_DIPLO_PEACE);
     } else {
@@ -1862,6 +1863,7 @@ static AiTalkStepStatus ai_talk_stage_givecash(
     PopupMsgTokens tw = *tok;
     tw.string0 = wl2 ? wl2 : ai_talk_name(ctx, t);
     tw.string1 = (t >= 0 && t < 4 && ctx->col1) ? col1_player_country_name(ctx->col1, t) : ai_talk_name(ctx, t);
+    sound_set_bgm(4); /* asm 164865: PUSH 4; CALLF 281f_04ac (war music) */
     ai_talk_ok(ctx, k->manly ? "WARMANLY" : "WARMEEK", &tw);
   }
   return AI_TALK_STEP_CONTINUE;
@@ -1922,11 +1924,10 @@ static AiTalkStepStatus ai_talk_stage_ally_pick(
     }
     if (p >= 4 && p <= 11 &&
         /* DOS hands 0a42 the unshifted id here: dos_bugs_ai.md DB-67. */
-        (col1->tribe == NULL || col1->indian[p - 4].extinct || /* 5bfb:2da9 test [0x8d4e+3],0x80 */
-         (col1->indian[p - 4].euro_diplo[h] & COL1_INDIAN_MET_BIT) == 0)) {
+        (col1->tribe == NULL || col1->indian[p - 4].extinct)) { /* 5bfb:2da9 test [0x8d4e+3],0x80 */
       continue;
     }
-    if (p < 4 && !ai_talk_met(ctx, h, p)) {
+    if (!ai_talk_met(ctx, h, p)) { /* raw 98266-98274: 0a38(h, p) & 0x20 */
       continue;
     }
     labels[n] = ai_talk_plural(ctx, p);
@@ -1934,6 +1935,9 @@ static AiTalkStepStatus ai_talk_stage_ally_pick(
     n++;
   }
   if (n == 0) {
+    /* asm 5bfb:2e1c-2e2f (raw 98285-98288): an empty list jumps to
+     * LAB_5bfb_30de, past the 30ca latch write. */
+    k->latch = 0;
     return AI_TALK_STEP_CONTINUE;
   }
   char body[AI_POPUP_BODY_LEN];
@@ -1962,8 +1966,7 @@ static AiTalkStepStatus ai_talk_stage_ally_pay(
     ai_talk_ok(ctx, "NOCONTACT", &tp);
     return AI_TALK_STEP_CONTINUE;
   }
-  const int t_peace_p = (p < 4) ? ai_talk_peace(ctx, t, p)
-                                : (col1->indian[p - 4].euro_diplo[t] & COL1_INDIAN_PEACE_BIT) != 0;
+  const int t_peace_p = ai_talk_peace(ctx, t, p); /* raw 98310: 0a38(t, p) & 0x40 */
   if (!t_peace_p) {
     ai_talk_ok(ctx, "ALREADYSMITE", &tp);
     return AI_TALK_STEP_CONTINUE;
@@ -2051,9 +2054,13 @@ static void ai_talk_advance(ColonizeTurnContext* ctx) {
 static void ai_talk_say_war(ColonizeTurnContext* ctx, const PopupMsgTokens* tok, int t, int manly) {
   const char* gl2 = ai_talk_great_line(ctx, "GREATLEADER2", t);
   PopupMsgTokens tw = *tok;
-  tw.string0 = gl2 ? gl2 : ai_talk_name(ctx, t);
+  /* FUN_5bfb_102a (raw 97105-97125) has no fallback: a missing section
+   * leaves the tag buffer; the port's catalog-miss rule makes that "". */
+  tw.string0 = gl2 ? gl2 : "";
   tw.string1 = (t >= 0 && t < 4 && ctx->col1) ? col1_player_country_name(ctx->col1, t)
                                               : ai_talk_name(ctx, t);
+  /* asm 164865 / 165150: PUSH 4; CALLF 281f_04ac (war music) before the box. */
+  sound_set_bgm(4);
   ai_talk_ok(ctx, manly ? "WARMANLY" : "WARMEEK", &tw);
 }
 
@@ -2258,6 +2265,7 @@ static void ai_talk_resume(ColonizeTurnContext* ctx, int stage, int choice) {
           if (!k->worthy_end) {
             ai_talk_ok(ctx, "THREATS", &tok);
           } else {
+            sound_set_bgm(4); /* asm 165306 (LAB_5bfb_2d18): war music */
             ai_talk_ok(ctx, "PROVOKE", &tok);
             ai_diplo_clear_both(col1, h, t, AI_DIPLO_PEACE);
           }
@@ -2342,6 +2350,7 @@ static void ai_talk_resume(ColonizeTurnContext* ctx, int stage, int choice) {
           PopupMsgTokens tm = tok;
           tm.string0 = ai_talk_plural(ctx, t);
           tm.string1 = ai_talk_plural(ctx, p);
+          sound_set_bgm(4); /* asm 165630: war music before @MERCENARY */
           ai_talk_ok(ctx, "MERCENARY", &tm);
           ai_talk_gold(ctx, h, t, k->ally_cost);
         }
@@ -2503,7 +2512,7 @@ static int ai_diplo_153e_encounter_gated(
        * 9380-9421): max + min/2, `<=` so the last colony wins a tie. */
       const ColonizeColony* near =
         units_nearest_colony_dos(ctx->colonies, eu->x, eu->y, target, NULL);
-      const int dst = near ? (int)(near - ctx->colonies->colonies) : -1;
+      const int dst = near ? near->id : -1; /* an id: colonies_get looks up by id */
       /* raw 97598-97601: source = FUN_281f_07be at unit + DS:0xb4/0xbe
        * [param_5], the 3180 direction; no colony there = no demand. */
       const int src = (dir >= 0 && dir < 8)
@@ -2549,7 +2558,7 @@ static int ai_diplo_153e_encounter_gated(
      * bit (FUN_1000_8c28(self, tribe+4) & 2 — the earlier `target` read here
      * was a decompile-arg misread, fixed 2026-09-06 against the raw pushes). */
     const int hostile_to_t = ind->alarm_by_player[target] > 0x4a ||
-                             (ind->euro_diplo[human] & COL1_INDIAN_WAR_BIT) != 0;
+                             (ai_diplo_read(col1, human, tr + 4) & COL1_INDIAN_WAR_BIT) != 0;
     if (!hostile_to_t) {
       continue;
     }
@@ -2557,7 +2566,8 @@ static int ai_diplo_153e_encounter_gated(
       ba++; /* -0x6e7c per-tribe Brave combat sum */
     }
     ba++;
-    if (ind->alarm_by_player[human] < 0x4b && (ind->euro_diplo[human] & COL1_INDIAN_WAR_BIT) == 0) {
+    /* raw 97642: 0a38(self, tribe+4), the Euro-side byte again. */
+    if (ind->alarm_by_player[human] < 0x4b && (ai_diplo_read(col1, human, tr + 4) & COL1_INDIAN_WAR_BIT) == 0) {
       k->third = tr + 4;
     }
   }

@@ -165,7 +165,7 @@ static int unit_stack_row_at(const UnitStackPopup* dlg, int mx, int my) {
  * port_bugs.md (two-step, final form): a pick on a row with standing orders only
  * cancels them (units_wake — overnight-park refund rules apply; the row's
  * orders chrome updates in place) and keeps the dialog open. A pick on an
- * order-less row activates that unit — if it has moves — and closes. Opening
+ * order-less row activates that unit (spent or not) and closes. Opening
  * the popup itself never touches anyone's orders.
  */
 static void unit_stack_activate_row(UnitStackPopup* dlg, ColonizeUnitPool* pool, int idx, int* out_select_id) {
@@ -189,12 +189,9 @@ static void unit_stack_activate_row(UnitStackPopup* dlg, ColonizeUnitPool* pool,
     (void)units_wake(pool, uid);
     return;
   }
-  /* Spent-aware: moves holds REMAINING for Euro units but the DOS SPENT
-   * byte for natives, so a raw `<= 0` reads a fresh Brave as exhausted
-   * (smell audit 2026-09-09 #6). */
-  if (units_remaining_mp(pool, uid) <= 0) {
-    return; /* canceled but spent — nothing to activate this turn */
-  }
+  /* FUN_2b5a_1b5a raw 42775-42783: the picked unit goes active through FUN_281f_086c whatever
+   * its moves, then 0f9c(0) hands off; game_click_activate_unit does both (#1301), so a spent
+   * pick closes the list and passes on to the next waiting unit (port_bugs.md #1787). */
   *out_select_id = uid;
   unit_stack_close(dlg);
 }

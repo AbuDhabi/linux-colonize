@@ -119,7 +119,9 @@ static void unit_chrome_draw_impl(
   int letter_override,
   const ColonizeSpriteSheet* sheet,
   int sprite_index,
-  int sprite_x
+  int sprite_x,
+  int shadow_x,
+  int shadow_color
 ) {
   if (!fb || !fb->pixels) {
     return;
@@ -153,6 +155,15 @@ static void unit_chrome_draw_impl(
   }
 
   const UnitChromeCorner corner = unit_chrome_corner_for_type(display_type_index, damaged);
+  /* FUN_112b_01ba 112b:0602-0614 / 06bb-06cd: the black silhouette (FUN_112b_015c(1)) goes
+   * before the boxes when local_14 != 0 after the arm pick (top-left, top-centre arms), and
+   * after both boxes, just before the colour sprite, for the top-right ship arm and the
+   * default bottom-right corner (port_bugs.md #1785). */
+  const bool shadow_after_boxes =
+    corner == UNIT_CHROME_CORNER_TOP_RIGHT || corner == UNIT_CHROME_CORNER_BOTTOM_RIGHT;
+  if (sheet && !shadow_after_boxes) {
+    ss_blit_sprite_color(sheet, sprite_index, fb, shadow_x, icon_y, (uint8_t)shadow_color);
+  }
   int box_x = right_x;
   int box_y = icon_y;
   int stack_x = right_x - 2;
@@ -208,6 +219,9 @@ static void unit_chrome_draw_impl(
 
   /* DOS 112b:0602..: boxes, then the colour sprite (FUN_112b_015c(2)), then the letter on top. */
   if (sheet) {
+    if (shadow_after_boxes) {
+      ss_blit_sprite_color(sheet, sprite_index, fb, shadow_x, icon_y, (uint8_t)shadow_color);
+    }
     ss_blit_sprite(sheet, sprite_index, fb, sprite_x, icon_y);
   }
 
@@ -269,7 +283,6 @@ static void unit_chrome_blit_unit_colored_shadow(
   const int shadow_x =
     x + unit_chrome_shadow_dx(font, display_type_index, damaged, nation_id, orders_index, iw);
   const int sx = shadow_x + UNIT_CHROME_SPRITE_DX;
-  ss_blit_sprite_color(sheet, sprite_index, fb, shadow_x, y, (uint8_t)shadow_color);
   unit_chrome_draw_impl(
     fb,
     font,
@@ -286,7 +299,9 @@ static void unit_chrome_blit_unit_colored_shadow(
     letter_override,
     sheet,
     sprite_index,
-    sx
+    sx,
+    shadow_x,
+    shadow_color
   );
   /* FUN_112b_01ba 112b:075d-0785 (the decompile drops the args): with the
    * repair digit up (local_1a) at full scale, ICONS 0x38 — the red X — at

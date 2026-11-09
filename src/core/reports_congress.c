@@ -50,9 +50,9 @@ void reports_render_religious(
   const ColonizeCol1Nation* nat = &col1->nation[human];
   const unsigned needed = nat->needed_crosses;
   const unsigned current = nat->current_crosses;
-  if (needed == 0) {
-    return;
-  }
+  /* No `needed == 0` return: FUN_3f41_0618 (raw 69635) bails only inside the
+   * bar routine (FUN_1097_0004) and still draws the cheat line (port_bugs.md
+   * #1801). */
   /* `3f41:0670`: BX = nation+0x2e (current), DX = nation+0x30 (needed),
    * sprite 0x39 (= ICONS.SS #56), pushed args x=10, y=25, w=0x12c, min_w=0,
    * split=0, flags=1. Same routine as the Congress bells bar. */
@@ -138,13 +138,8 @@ static const ColonizeSpriteSheet* reports_ff_portrait_sheet(const char* data_dir
 
 #define REPORTS_CONGRESS_TEXT2_Y 59 /* "Rebel Sentiment: XX%  Tory Sentiment: YY%" */
 
-#define REPORTS_CONGRESS_TEXT3_Y 92 /* "<Nation> Expeditionary Force:" */
-#define REPORTS_CONGRESS_FORCE_Y 102
-#define REPORTS_CONGRESS_FORCE_H 13
-/* Natural (unstretched) tally width per unit, px ×10 — measured avg ~2.2px/unit. */
-#define REPORTS_CONGRESS_FORCE_STEP_X10 22
+#define REPORTS_CONGRESS_TEXT3_Y 92 /* first force block; the rest chain from it (#1799) */
 
-#define REPORTS_CONGRESS_FF_HEADER_Y 125 /* "Founding Fathers:" */
 #define REPORTS_CONGRESS_FF_COL_X0 4
 #define REPORTS_CONGRESS_FF_COL_STEP 78 /* FUN_3f41_0ae6: unaff_BP-0x68 += 0x4e */
 
@@ -412,28 +407,46 @@ void reports_render_congress_page1(
     );
   }
 
-  snprintf(
-    line,
-    line_sz,
-    "%s %s:",
-    reports_nation_adjective_display_name(human),
-    reports_misc_word(85, "", w1, sizeof(w1))
-  );
-  reports_draw_line(font, fb, 4, REPORTS_CONGRESS_TEXT3_Y, line, 146);
-
-  {
-    /* Storage order is [regulars, dragoons, man-o-wars, artillery]; the
-     * golden displays regulars, cavalry, artillery, man-o-war. */
-    static const int kForceIndex[4] = {0, 1, 3, 2};
+  /*
+   * DOS-LITERAL FUN_3f41_06d0 asm 3f41:0a3e-0c38 (port_bugs.md #1799): a running
+   * y. Each force block is a header at (4, y) in 0x92, y += FONTTINY[0] + 2, a
+   * FUN_281f_0218 / 0222 / 022c lineup at (4, y, 0x12c, gap 4) with DS:0x70 = 1
+   * (numbers on), then y += sprite height + 0xe — the same advance the
+   * sentiment row takes, hence TEXT3_Y - TEXT2_Y. The REF block draws only
+   * when the four pools DS:0x53da..0x53e0 sum nonzero (`CMP local_5a,0; JNZ
+   * 0a6f`), the intervention block only when DS:0x53e2..0x53e8 do (0b47);
+   * the Founding Fathers header follows at the running y.
+   */
+  const int block_h = REPORTS_CONGRESS_TEXT3_Y - REPORTS_CONGRESS_TEXT2_Y;
+  int y = REPORTS_CONGRESS_TEXT3_Y;
+  int ref_sum = 0;
+  int pool_sum = 0;
+  for (int i = 0; i < 4; ++i) {
+    ref_sum += (int16_t)col1->head.expeditionary_force[i];
+    pool_sum += (int16_t)col1->head.backup_force[i];
+  }
+  /* Storage order is [regulars, dragoons, man-o-wars, artillery]; both
+   * lineups queue 0x53da/e2, dc/e4, e0/e8, de/e6 (asm 3f41:0ad1-0b19 /
+   * 0bb4-0bfa). */
+  static const int kForceIndex[4] = {0, 1, 3, 2};
+  if (ref_sum != 0) {
+    snprintf(
+      line,
+      line_sz,
+      "%s %s:",
+      reports_nation_adjective_display_name(human),
+      reports_misc_word(85, "", w1, sizeof(w1))
+    );
+    reports_draw_line(font, fb, 4, y, line, 146);
+    y += step;
+    /* Sprites DS:0x5286 / 0x52a2 / 0x52cc / 0x532e: Regulars, Cavalry,
+     * Artillery, Man-O-War. */
     static const int kForceIcon[4] = {
       REPORTS_CONGRESS_ICON_REGULARS,
       REPORTS_CONGRESS_ICON_CAVALRY,
       REPORTS_CONGRESS_ICON_ARTILLERY,
       REPORTS_CONGRESS_ICON_MANOWAR
     };
-    /* FUN_3f41_06d0 3f41:0a1a-0a46: one FUN_281f_0222 slot per non-zero count, then
-     * FUN_281f_022c at x 4, y = text y + FONTTINY[0] + 2, w 0x12c, gap 4, with DS:0x70 = 1
-     * (numbers always on). */
     ReportsCongressSlot slots[4];
     int ns = 0;
     for (int i = 0; i < 4; ++i) {
@@ -442,90 +455,44 @@ void reports_render_congress_page1(
         slots[ns++] = (ReportsCongressSlot){kForceIcon[i], amount};
       }
     }
-    reports_congress_draw_slots(icons, font, fb, 4, REPORTS_CONGRESS_TEXT3_Y + step, 0x12c, 4, slots, ns, true);
+    reports_congress_draw_slots(icons, font, fb, 4, y, 0x12c, 4, slots, ns, true);
+    y += block_h - step;
   }
-
-  /*
-   * port_bugs.md / DOS 3f41 (viceroy_unpacked.c ~69774): when the foreign-
-   * intervention pool (DS:0x53e2.. = head.backup_force, seeded on declaring
-   * independence and drained by bell spending) is non-zero, a second force
-   * row appears under the REF lines: "<Ally nationality> Intervention Force"
-   * (@MISC 111, DS string 0x2e98) with the pool's four counts. The port's
-   * fixed layout has 10px here, so the counts are drawn as one text line.
-   */
-  /*
-   * port_bugs.md #230 / DOS 3f41 (~69774): when the foreign-intervention pool
-   * (DS:0x53e2 = head.backup_force) is non-zero, a second force row appears
-   * under the REF lines in the SAME format — icon lineup of regulars,
-   * cavalry, artillery, man-o-wars (port_bugs.md #264: it gets a full-height band
-   * and pushes the Founding Fathers block down).
-   */
-  int pool_sum = 0;
-  for (int i = 0; i < 4; ++i) {
-    pool_sum += (int)col1->head.backup_force[i];
-  }
-  /* port_bugs.md #264: the intervention row needs its own full band — when it is
-   * present, the Founding Fathers header (and list) move down below it
-   * instead of sharing the fixed 10px gap and overlapping both neighbors. */
-  const int interv_row_y = REPORTS_CONGRESS_FORCE_Y + REPORTS_CONGRESS_FORCE_H + 2;
-  /* port_bugs.md: the "<Ally> Intervention Force:" header gets its own row, the
-   * way the REF's "<Nation> Expeditionary Force:" header does (text at
-   * TEXT3_Y, lineup at FORCE_Y) — the lineup then owns the full row width
-   * below it instead of starting after the header at x=110. */
-  const int interv_icons_y = interv_row_y + step;
-  const int ff_header_y = pool_sum > 0
-    ? interv_icons_y + REPORTS_CONGRESS_FORCE_H + 2
-    : REPORTS_CONGRESS_FF_HEADER_Y;
-  {
-    if (pool_sum > 0) {
-      /* port_bugs.md #251: the intervention lineup is Continental Army /
-       * Continental Cavalry (@UNIT icons 129/130), not Regulars/Cavalry,
-       * and it carries its own "<Ally> Intervention Force:" header. */
-      static const int kForceIndex2[4] = {0, 1, 3, 2};
-      static const int kForceIcon2[4] = {
-        128 /* Cont. Army icon 129 */,
-        129 /* Cont. Cav. icon 130 */,
-        REPORTS_CONGRESS_ICON_ARTILLERY,
-        REPORTS_CONGRESS_ICON_MANOWAR
-      };
-      /* Same four cells as the REF lineup above, now that the header has
-       * moved off this row. */
-      static const int kForceX2[4] = {4, 128, 193, 260};
-      const int row_y = interv_icons_y;
-      const int row_h = REPORTS_CONGRESS_FORCE_H;
-      snprintf(
-        line, line_sz, "%s %s:",
-        reports_nation_adjective_display_name(ally), /* DOS: FUN_281f_09a4(DS:0x53d4), raw */
-        reports_misc_word(111, "", w1, sizeof(w1))
-      );
-      reports_draw_line(font, fb, 8, interv_row_y, line, 15);
-      for (int i = 0; i < 4; ++i) {
-        const int amount = (int)col1->head.backup_force[kForceIndex2[i]];
-        if (amount <= 0) {
-          continue;
-        }
-        const int avail = ((i < 3) ? kForceX2[i + 1] : 316) - kForceX2[i];
-        int iw = 16;
-        if (icons && kForceIcon2[i] >= 0 && kForceIcon2[i] < icons->sprite_count) {
-          iw = icons->sprites[kForceIcon2[i]].width;
-        }
-        int w = amount * iw;
-        if (w > avail) {
-          w = avail;
-        }
-        reports_draw_icon_bar(
-          icons, font, fb, kForceIcon2[i], kForceX2[i], row_y, w,
-          row_h > 6 ? row_h : 6, amount, true, 0
-        );
+  if (pool_sum != 0) {
+    /* Header: FUN_281f_09a4(DS:0x53d4) + " " + DS:0x2e98 (@MISC 111) + ": ". */
+    snprintf(
+      line, line_sz, "%s %s:",
+      reports_nation_adjective_display_name(ally),
+      reports_misc_word(111, "", w1, sizeof(w1))
+    );
+    reports_draw_line(font, fb, 4, y, line, 146);
+    y += step;
+    /* Sprites DS:0x52b0 / 0x5294 / 0x52cc / 0x532e: Continental Army,
+     * Continental Cavalry, Artillery, Man-O-War (port_bugs.md #251). */
+    static const int kForceIcon2[4] = {
+      128 /* Cont. Army icon 129 */,
+      129 /* Cont. Cav. icon 130 */,
+      REPORTS_CONGRESS_ICON_ARTILLERY,
+      REPORTS_CONGRESS_ICON_MANOWAR
+    };
+    ReportsCongressSlot slots[4];
+    int ns = 0;
+    for (int i = 0; i < 4; ++i) {
+      const int amount = (int)col1->head.backup_force[kForceIndex[i]];
+      if (amount > 0) {
+        slots[ns++] = (ReportsCongressSlot){kForceIcon2[i], amount};
       }
     }
+    reports_congress_draw_slots(icons, font, fb, 4, y, 0x12c, 4, slots, ns, true);
+    y += block_h - step;
   }
+  const int ff_header_y = y;
 
   snprintf(line, line_sz, "%s:", reports_misc_word(89, "", w1, sizeof(w1)));
   reports_draw_line(font, fb, 4, ff_header_y, line, 146);
   {
     int shown = 0;
-    int y = ff_header_y + step;
+    const int list_y = ff_header_y + step;
     for (int i = 0; i < (int)COLONIZE_COL1_FF_COUNT; ++i) {
       if (!founding_fathers_nation_has(col1, human, i)) {
         continue;
@@ -536,7 +503,7 @@ void reports_render_congress_page1(
         font,
         fb,
         REPORTS_CONGRESS_FF_COL_X0 + col * REPORTS_CONGRESS_FF_COL_STEP,
-        y + row * step,
+        list_y + row * step,
         reports_ff_display_name(i),
         97
       );
@@ -666,6 +633,11 @@ static int reports_labor_normalize_job(int job) {
   return job;
 }
 
+/* Raw profession byte, clamped to the counts[64] table (no 28 -> 19 fold). */
+static int reports_labor_raw_job(int job) {
+  return job < 0 ? 0 : (job >= 64 ? 63 : job);
+}
+
 /* port_bugs.md #575: DOS's labor-report unit filter (`FUN_3f41_10d8` ->
  * `FUN_281f_0b28` -> FUN_15eb_0902) is the DS:0x30e[type] >= 0 predicate —
  * "this @UNIT type carries a profession slot" — not a type cut-off. That
@@ -677,10 +649,13 @@ static bool reports_labor_unit_is_person(const ColonizeCol1Unit* u) {
   return units_type_has_profession_slot((int)u->type);
 }
 
+/* fold_none: the grid (FUN_3f41_10d8) folds raw 28 into Free Colonists; the
+ * detail breakdown (FUN_3f41_0d3e) passes false and matches raw bytes. */
 static void reports_labor_job_counts(
   const ColonizeCol1Save* col1,
   int human,
   const ColonizeColonyPool* colonies,
+  bool fold_none,
   int* colony_counts,
   int* mapboard_counts,
   int* europe_counts,
@@ -700,7 +675,8 @@ static void reports_labor_job_counts(
       const int pop = c->population > COLONIZE_COL1_COLONY_POP_MAX ? COLONIZE_COL1_COLONY_POP_MAX
                                                                    : (int)c->population;
       for (int p = 0; p < pop; ++p) {
-        const int job = reports_labor_normalize_job(c->profession[p]);
+        const int job = fold_none ? reports_labor_normalize_job(c->profession[p])
+                                  : reports_labor_raw_job(c->profession[p]);
         colony_counts[job]++;
         total++;
       }
@@ -730,7 +706,7 @@ static void reports_labor_job_counts(
        * still counts — as its base type, Free Colonists — same as a plain
        * Colonists-type unit. reports_labor_normalize_job folds UNITS_JOB_
        * NONE into that regardless of @UNIT type. */
-      job = reports_labor_normalize_job(job);
+      job = fold_none ? reports_labor_normalize_job(job) : reports_labor_raw_job(job);
       if (units_coords_in_europe_park(u->x, u->y)) {
         europe_counts[job]++;
       } else if (reports_xy_is_own_colony(col1, human, u->x, u->y)) {
@@ -809,7 +785,9 @@ void reports_render_labor_grid(
   font = (view && view->title_font_ok) ? &view->title_font : body_font;
 
   int colony_counts[64], mapboard_counts[64], europe_counts[64], total;
-  reports_labor_job_counts(col1, human, colonies, colony_counts, mapboard_counts, europe_counts, &total);
+  reports_labor_job_counts(
+    col1, human, colonies, true, colony_counts, mapboard_counts, europe_counts, &total
+  );
   /* Centered, matching every other report's centered-title convention. */
   if (font) {
     char hint[48];
@@ -870,12 +848,22 @@ void reports_render_labor_detail(
   }
 
   int colony_counts[64], mapboard_counts[64], europe_counts[64], total;
-  reports_labor_job_counts(col1, human, colonies, colony_counts, mapboard_counts, europe_counts, &total);
+  reports_labor_job_counts(
+    col1, human, colonies, true, colony_counts, mapboard_counts, europe_counts, &total
+  );
+  /* Header: the grid count (raw 19 + raw 28 for Free Colonists). */
+  const int sum = colony_counts[job] + mapboard_counts[job] + europe_counts[job];
+  /* DOS-LITERAL FUN_3f41_0d3e raw 69946: the breakdown and the per-colony
+   * list match the RAW profession byte, with job 0x13 matched as 0x1c only
+   * (`if (param_2 == 0x13) local_5c = 0x1c`), port_bugs.md #1802. */
+  const int match = job == UNITS_JOB_COLONIST ? UNITS_JOB_NONE : job;
+  reports_labor_job_counts(
+    col1, human, colonies, false, colony_counts, mapboard_counts, europe_counts, &total
+  );
   (void)total;
-  const int europe_n = europe_counts[job];
-  const int mapboard_n = mapboard_counts[job];
-  const int colony_n = colony_counts[job];
-  const int sum = europe_n + mapboard_n + colony_n;
+  const int europe_n = europe_counts[match];
+  const int mapboard_n = mapboard_counts[match];
+  const int colony_n = colony_counts[match];
 
   /* FUN_3f41_0d3e: breakdown label x 0xa0, value x 0xa0 + 0x5f, rows from y 0x19 stepping
    * FONTTINY[0] + 1 (7); header line "<job>: <n>" at golden (14, 30); all ink 0x92. */
@@ -922,7 +910,7 @@ void reports_render_labor_detail(
                                                                  : (int)c->population;
     int n = 0;
     for (int p = 0; p < pop; ++p) {
-      if (reports_labor_normalize_job(c->profession[p]) == job) {
+      if (reports_labor_raw_job(c->profession[p]) == match) {
         n++;
       }
     }
@@ -943,7 +931,7 @@ void reports_render_labor_detail(
       if (uj != UNITS_JOB_NONE && (uj < 0 || uj >= k_job_count)) {
         continue;
       }
-      if (reports_labor_normalize_job(uj) == job) {
+      if (reports_labor_raw_job(uj) == match) {
         n++;
       }
     }

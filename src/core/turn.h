@@ -72,6 +72,9 @@ typedef struct ColonizeTurnContext {
   /* Shared DOS stack word: 20e6's uninitialized local_ea aliases the
    * previous 6662_00f2 call's saved SI. Not serialized. */
   int ai_euro_wander_stack_word;
+  /* DS:0x826 autoplay or DS:0x828 demo: FUN_130d_0290 raw 6459 skips the
+   * year-end FUN_3844_0442 while either is set (#1820). */
+  bool autoplay;
   /*
    * FUN_4962_0606 profession histogram per Euro nation (SETUP). Indices are
    * @JOB / profession ids 0..31; counts saturate at 255.
@@ -149,7 +152,9 @@ typedef enum ColonizeTurnProcStep {
   TURN_PROC_FINISH_COLONY,
   /* The human colony loop resumes here after each colony whose messages it
    * queued: DOS FUN_364b_0688 shows them (and opens an elected "Zoom to
-   * colony.") as blocking calls before the next colony's coastal fort fires. */
+   * colony.") as blocking calls before the next colony's coastal fort fires.
+   * FINISH_COLONY also yields here, before any colony, when
+   * result.request_europe_open is set: DOS opens Europe at raw 58378-58380. */
   TURN_PROC_FINISH_COLONY_LOOP,
   /*
    * port_bugs.md #394/404/407: king (REF) + year-end + market + human refresh moved

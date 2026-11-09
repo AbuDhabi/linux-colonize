@@ -289,15 +289,25 @@ void reports_render_economic_cargo(
     const int text_y = row_top + 2;
     reports_draw_line(font, fb, REPORTS_ECON2_LABEL_X, text_y, c->name, REPORTS_ECON_LABEL_COLOR);
     for (int cg = 0; cg < REPORTS_ECON2_COLS; ++cg) {
-      const int col_left = REPORTS_ECON2_DIVIDER_X + cg * REPORTS_ECON2_COL_STEP;
-      const unsigned stock = c->stock[cg];
-      /* Golden: 0 is black (de-emphasized), 1-99 is the usual pale cream,
-       * >=100 (near/at the 100-per-good warehouse cap) switches to the
-       * bright yellow used for labels — a "getting full" warning. */
-      const uint8_t color = stock == 0 ? 0 : (stock >= 100 ? REPORTS_ECON_LABEL_COLOR : REPORTS_ECON_VALUE_COLOR);
-      snprintf(line, line_sz, "%u", stock);
-      const int w = font ? font_text_width(font, line) : 0;
-      reports_draw_line(font, fb, col_left + REPORTS_ECON2_COL_STEP - w, text_y, line, color);
+      /* DOS-LITERAL FUN_3f41_1550 asm 3f41:15b4-1673 (port_bugs.md #1800): the
+       * stock is read signed; colour 0 / 0x61 (nonzero) / 0x92 (>= 100);
+       * x = 0x55 + 14*cg, +4 each for < 1000, < 100, < 10. At >= 1000 the
+       * text is itoa(v/1000) + DS:0x50 " " + DS:0x2e2c (@MISC 57 "K") in
+       * colour 0x0e, x + 4. */
+      const int stock = (int16_t)c->stock[cg];
+      int x = REPORTS_ECON2_DIVIDER_X - 2 + cg * REPORTS_ECON2_COL_STEP;
+      uint8_t color = stock == 0 ? 0 : (stock >= 100 ? REPORTS_ECON_LABEL_COLOR : REPORTS_ECON_VALUE_COLOR);
+      x += (stock < 1000 ? 4 : 0) + (stock < 100 ? 4 : 0) + (stock < 10 ? 4 : 0);
+      if (stock >= 1000) {
+        char k_word[16];
+        reports_misc_word(57, "", k_word, sizeof(k_word));
+        snprintf(line, line_sz, "%d %s", stock / 1000, k_word);
+        color = 0x0e;
+        x += 4;
+      } else {
+        snprintf(line, line_sz, "%d", stock);
+      }
+      reports_draw_line(font, fb, x, text_y, line, color);
     }
     shown++;
   }

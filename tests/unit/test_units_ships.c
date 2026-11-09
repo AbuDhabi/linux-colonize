@@ -1123,6 +1123,41 @@ static int unit_repair_port_needs_drydock_bit(void) {
   return 0;
 }
 
+/* port_bugs.md #1815: FUN_48d3_007a relinks a hull onto the Europe lane and
+ * deletes nothing, so DS:0x8cfc keeps it; a real delete (0824) still counts. */
+static int unit_europe_sail_keeps_census(void) {
+  static ColonizeUnitPool pool;
+  static ColonizeCol1Save col1;
+  memset(&pool, 0, sizeof(pool));
+  memset(&col1, 0, sizeof(col1));
+  pool.type_count = 1;
+  pool.types[0].movement = 4;
+  pool.types[0].domain = COLONIZE_UNIT_DOMAIN_SEA;
+  pool.types[0].cargo = 2;
+  units_set_native_fallout_context(&col1, NULL);
+  const int sail = units_spawn_allow_stack(&pool, 0, 5, 5);
+  const int sunk = units_spawn_allow_stack(&pool, 0, 6, 5);
+  int rc = 0;
+  if (!units_get(&pool, sail) || !units_get(&pool, sunk)) {
+    rc = 1;
+  } else {
+    col1.stuff.all_unit_counts[0] = 5;
+    units_despawn_to_europe(&pool, sail);
+    if (col1.stuff.all_unit_counts[0] != 5) {
+      fprintf(stderr, "#1815: sailing to Europe dropped the census to %d\n",
+              col1.stuff.all_unit_counts[0]);
+      rc = 1;
+    }
+    units_despawn(&pool, sunk);
+    if (rc == 0 && col1.stuff.all_unit_counts[0] != 4) {
+      fprintf(stderr, "#1815: a delete must still count (%d)\n", col1.stuff.all_unit_counts[0]);
+      rc = 1;
+    }
+  }
+  units_set_native_fallout_context(NULL, NULL);
+  return rc;
+}
+
 static const TestCase k_cases[] = {
   {"unit_europe_transfer_at_dos_cap", unit_europe_transfer_at_dos_cap},
   {"unit_king_galleon_offer", unit_king_galleon_offer},
@@ -1138,5 +1173,6 @@ static const TestCase k_cases[] = {
   {"unit_hs_eastern_rim_pick", unit_hs_eastern_rim_pick},
   {"unit_tb2_departure_own_riders_only", unit_tb2_departure_own_riders_only},
   {"unit_repair_port_needs_drydock_bit", unit_repair_port_needs_drydock_bit},
+  {"unit_europe_sail_keeps_census", unit_europe_sail_keeps_census},
 };
 TEST_MAIN_WRAPPED(k_cases, diag_init(0, NULL), diag_shutdown())

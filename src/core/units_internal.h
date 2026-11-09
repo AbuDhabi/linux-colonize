@@ -116,6 +116,9 @@ int units_tile_is_ocean_or_hs(const ColonizeCol1Save* col1, int x, int y);
 /* --- owned by units_combat.c --- */
 extern bool g_units_colony_autodefender;
 extern bool g_units_indian_combat_vent_done;
+/* 1b0e's param_4 for the fight being resolved (port_bugs.md #1791): -1 = no
+ * 1b0e context, the loss outcomes then fall back to the human-side test. */
+extern int g_units_combat_param4;
 int units_apply_land_loss_outcome( ColonizeUnitPool* pool, int loser_id, int winner_id, const ColonizeCol1Save* col1, int show_popups, ColonizeDosRng* rng );
 int units_apply_naval_loss_outcome( ColonizeUnitPool* pool, int loser_id, int winner_id, int loser_str, int winner_str, int show_popups, const ColonizeCol1Save* col1, ColonizeDosRng* rng );
 void units_combat_enqueue_tok( AiPopupTag tag, const char* section, int nation_a, int nation_b, int payload, const PopupMsgTokens* tok, const char* fallback );

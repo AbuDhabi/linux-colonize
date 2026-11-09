@@ -486,6 +486,20 @@ static void ai_contact_raid_wreak_bulletin(
   }
 }
 
+/* Kind 3's victim hull (ai_contact_raid_port_ship) named into the @RAIDSHIP
+ * %STRING2 scratch (raw 99989: 0438(2, type name)). Returns the ship id or -1. */
+static int ai_contact_raid_name_ship(ColonizeTurnContext* ctx, const ColonizeColony* c) {
+  ai_contact_s_last_ship_type[0] = '\0';
+  const int ship_id = ai_contact_raid_port_ship(ctx, c);
+  const ColonizeUnit* u = ship_id >= 0 ? units_get_const(ctx->units, ship_id) : NULL;
+  if (u) {
+    snprintf(
+      ai_contact_s_last_ship_type, sizeof(ai_contact_s_last_ship_type), "%s", units_display_name(ctx->units, u)
+    );
+  }
+  return ship_id;
+}
+
 void ai_contact_apply_raid_loot(
   ColonizeTurnContext* ctx,
   ColonizeColony* c,
@@ -653,14 +667,8 @@ void ai_contact_apply_raid_loot(
      * and dump one cargo ton for a ship anywhere within 2 tiles — nearly no
      * damage for 0f14's largest (−16) alarm vent.
      */
-    const int ship_id = ai_contact_raid_port_ship(ctx, c);
+    const int ship_id = ai_contact_raid_name_ship(ctx, c);
     if (ship_id >= 0) {
-      ColonizeUnit* u = units_get(ctx->units, ship_id);
-      if (u) {
-        snprintf(
-          ai_contact_s_last_ship_type, sizeof(ai_contact_s_last_ship_type), "%s", units_display_name(ctx->units, u)
-        );
-      }
       (void)units_raid_damage_ship(
         ctx->units, ship_id, ctx->col1_ok ? ctx->col1 : NULL, ctx->rng
       );
@@ -835,9 +843,22 @@ int ai_contact_colony_raid_repelled_w(
    * Deleted with the rest of the cross-village coupling (port_bugs.md #1003). */
   const AiRaidKind kind =
     ai_contact_pick_raid_kind(&ctx, c, indian_nation, euro_nation, rng, forced);
-  ai_contact_apply_raid_loot(&ctx, c, indian_nation, euro_nation, kind);
-  ai_contact_raid_wreak_bulletin(&ctx, c, indian_nation, euro_nation, kind);
-  ai_contact_raid_human_chrome(&ctx, c, indian_nation, euro_nation, kind);
+  /*
+   * raw 99895-100006: @RAIDWREAK and the 0x32 cue come first; kinds 1/2/4
+   * change state and then show their @RAID* box, but kind 3 shows @RAIDSHIP
+   * (its hull named by 0438(2) at raw 99989) before 2a1f_06e0 damages the
+   * ship, so @SHIPDAMAGE / @SHIPSUNK follow it.
+   */
+  if (kind == AI_RAID_SHIP) {
+    ai_contact_raid_wreak_bulletin(&ctx, c, indian_nation, euro_nation, kind);
+    ai_contact_raid_name_ship(&ctx, c);
+    ai_contact_raid_human_chrome(&ctx, c, indian_nation, euro_nation, kind);
+    ai_contact_apply_raid_loot(&ctx, c, indian_nation, euro_nation, kind);
+  } else {
+    ai_contact_apply_raid_loot(&ctx, c, indian_nation, euro_nation, kind);
+    ai_contact_raid_wreak_bulletin(&ctx, c, indian_nation, euro_nation, kind);
+    ai_contact_raid_human_chrome(&ctx, c, indian_nation, euro_nation, kind);
+  }
 
   /*
    * FUN_5fef_0f14's alarm tail (raw 100033), wired 2026-09-08 — negative

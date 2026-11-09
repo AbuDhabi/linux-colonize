@@ -105,15 +105,34 @@ static void test_open_and_skip(void) {
   check(!c.finished, "not done after one tick");
   check(memcmp(c.canvas, skip.canvas, sizeof(c.canvas)) != 0, "sprites appear on tick 1");
 
-  /* Hat start = Frame 1 + Delay 16 = 17. At clock 1 the hat has not entered. */
+  /* Every series enters on its Frame (1); Delay is the gap between cycles. */
+  check(c.series[3].series == CLOSING_SHEET_HAT && c.series[3].active &&
+          c.series[3].counter == 1, "hat enters on Frame 1");
   uint8_t after_first[320 * 200];
   memcpy(after_first, c.canvas, sizeof(after_first));
   closing_update(&c, CLOSING_FRAME_MS * 15); /* clock 16 */
-  check(c.clock == 16, "clock 16, hat still waiting");
-  check(memcmp(c.canvas, after_first, sizeof(after_first)) != 0, "other series keep cycling");
+  check(c.clock == 16, "clock 16");
+  check(memcmp(c.canvas, after_first, sizeof(after_first)) != 0, "series keep cycling");
 
-  closing_update(&c, CLOSING_FRAME_MS); /* clock 17, hat sprite 0 */
-  check(c.clock == 17, "hat start tick");
+  closing_update(&c, CLOSING_FRAME_MS); /* clock 17 */
+  check(c.clock == 17, "clock 17");
+  {
+    /* The hat hides after its last sprite and re-arms Delay ticks later on
+     * sprite 2 (counter 1 -> 2 on the re-arm tick). */
+    const ClosingSeries* hat = &c.series[3];
+    const int n = c.sheets[CLOSING_SHEET_HAT].sprite_count;
+    ClosingCinematic h;
+    memset(&h, 0, sizeof(h));
+    if (closing_open(&h, "COLONIZE")) {
+      closing_update(&h, CLOSING_FRAME_MS * (uint32_t)n); /* clock n: counter n */
+      check(h.series[3].active && h.series[3].counter == n, "hat draws its last sprite");
+      closing_update(&h, CLOSING_FRAME_MS); /* clock n+1: wrap, hidden */
+      check(!h.series[3].active && h.series[3].start == n + 1 + hat->delay, "hat hides for Delay");
+      closing_update(&h, CLOSING_FRAME_MS * (uint32_t)hat->delay);
+      check(h.series[3].active && h.series[3].counter == 2, "re-armed hat draws sprite 2");
+      closing_close(&h);
+    }
+  }
 
   /* Sound hooks are still NULL here, so running `skip` out is silent. */
   /* 390 frames x 6 ticks of the 60.877 Hz clock = 38.44 s (CLOSING.EXE
@@ -158,17 +177,17 @@ static void test_sounds(void) {
   closing_update(&c, CLOSING_FRAME_MS);
   check(c.clock == 1, "clock 1");
   check(count_play(CLOSING_FIREWORK_SOUND_ID) == 0, "no 0x59 on first fireworks tick");
-  check(count_play(CLOSING_CHEER_SOUND_ID) == 0, "no 0x5a before hats");
+  check(last_play() == CLOSING_CHEER_SOUND_ID, "0x5a on the hat's first sprite");
 
   closing_update(&c, CLOSING_FRAME_MS);
   check(c.clock == 2, "clock 2");
   check(last_play() == CLOSING_FIREWORK_SOUND_ID, "0x59 when fireworks frame is 1");
   check(count_play(CLOSING_FIREWORK_SOUND_ID) == 1, "one firework sting");
 
-  closing_update(&c, CLOSING_FRAME_MS * 15); /* clock 17 */
-  check(c.clock == 17, "hat start");
-  check(last_play() == CLOSING_CHEER_SOUND_ID, "0x5a on first hat sprite");
-  check(count_play(CLOSING_CHEER_SOUND_ID) == 1, "one cheer so far");
+  closing_update(&c, CLOSING_FRAME_MS * 388); /* clock 390, the end marker */
+  check(c.finished, "run ends");
+  check(count_play(CLOSING_CHEER_SOUND_ID) == 1, "delayed hat cheers once (counter 1 never redrawn)");
+  check(count_play(CLOSING_FIREWORK_SOUND_ID) > 1, "undelayed fireworks re-fire per cycle");
 
   ClosingCinematic second;
   memset(&second, 0, sizeof(second));

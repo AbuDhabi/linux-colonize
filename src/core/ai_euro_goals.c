@@ -2035,7 +2035,9 @@ static void ai_euro_colony_threat_seed_5952(
       if (tx < 0 || ty < 0 || tx >= mw || ty >= mh) {
         continue; /* FUN_281f_0302 map_tile_in_bounds */
       }
-      const int head = units_id_at(ctx->units, tx, ty);
+      /* raw 94929-94931: FUN_281f_07e0, the tile-chain head (latest
+       * arrival), not the first pool slot (port_bugs.md #1647). */
+      const int head = units_tile_head_id_at(ctx->units, tx, ty);
       if (head < 0) {
         continue;
       }

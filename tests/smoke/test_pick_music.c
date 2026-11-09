@@ -123,18 +123,26 @@ int main(void) {
     return 1;
   }
 
-  /* Esc returns to main. */
+  /* Esc in a sublist ends Pick Music: the sublist is its own modal and a 0
+   * result returns from the DOS body (port_bugs.md #1765). */
   enter.last_key = COLONIZE_KEY_ESCAPE;
   pick_music_handle_input(&dlg, &game_txt, &enter, NULL, status, sizeof(status));
-  if (dlg.view != PICK_MUSIC_VIEW_MAIN || !dlg.open) {
-    return fail("Esc should return to main Pick Music list");
+  if (dlg.open) {
+    return fail("Esc in a sublist should close Pick Music");
   }
 
-  /* Selecting a song uses preview path (audible when audio device is open). */
+  /* Selecting a song uses preview path (audible when audio device is open)
+   * and closes the dialog. */
   sound_init("COLONIZE", false);
+  if (!pick_music_open(&dlg, &game_txt)) {
+    return fail("reopen Pick Music");
+  }
   dlg.selection = 0;
   enter.last_key = COLONIZE_KEY_ENTER;
   pick_music_handle_input(&dlg, &game_txt, &enter, NULL, status, sizeof(status));
+  if (dlg.open) {
+    return fail("a song row should close Pick Music");
+  }
 
   /* Preview decode should produce non-silent audio even while autoplay is parked. */
   enum { FRAMES = 44100 / 4 };
@@ -164,6 +172,9 @@ int main(void) {
   sound_stop_preview();
   sound_shutdown();
 
+  if (!pick_music_open(&dlg, &game_txt)) {
+    return fail("reopen Pick Music for render");
+  }
   /* Render draws popup chrome (outer black). */
   uint8_t pixels[320 * 200];
   memset(pixels, 0xAA, sizeof(pixels));

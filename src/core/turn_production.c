@@ -1019,7 +1019,7 @@ COLONIZE_INTERNAL void turn_produce_custom_house(TurnProduceCtx* pc) {
       ch_tools_held = colony->stock[COLONIZE_CARGO_TOOLS];
     }
     colony->stock[COLONIZE_CARGO_TOOLS] -= ch_tools_held;
-    const int ch_total = europe_custom_house_autosell_ex_w(&cw, colony, human_nation, ch_sales, COLONIZE_CARGO_COUNT, &ch_sale_count, ch_ore_denied);
+    (void)europe_custom_house_autosell_ex_w(&cw, colony, human_nation, ch_sales, COLONIZE_CARGO_COUNT, &ch_sale_count, ch_ore_denied);
     colony->stock[COLONIZE_CARGO_TOOLS] += ch_tools_held;
     for (int si = 0; si < ch_sale_count; ++si) {
       if (ch_sales[si].cargo >= 0 && ch_sales[si].cargo < COLONIZE_CARGO_COUNT) {
@@ -1037,8 +1037,10 @@ COLONIZE_INTERNAL void turn_produce_custom_house(TurnProduceCtx* pc) {
      * tax rate, @CMESSAGE 0x11 "% Tax:", tax paid, @CMESSAGE 0x12 ". Net:",
      * net. The 0088 calls between fields just trim the trailing space every
      * append leaves, so the punctuation closes up.
+     * raw 57303-57326: the line is built for every sale of a human colony,
+     * proceeds untested, so a 0-gold sale still shows "... for 0." (#1777).
      */
-    if (ch_total > 0 && colony->nation_id == human_nation && ai_popups) {
+    if (colony->nation_id == human_nation && ai_popups) {
       for (int si = 0; si < ch_sale_count; ++si) {
         const EuropeCustomHouseSale* sale = &ch_sales[si];
         const char* cargo_name =

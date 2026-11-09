@@ -1084,7 +1084,7 @@ int colonies_indian_land_owner_tribe(
  *    claim a cell of this colony's ring.
  * `origin_x`/`origin_y` are that colony tile.
  */
-int colonies_indian_claim_tribe_from_w(
+int colonies_indian_claim_tribe_unseated_w(
   const ColonizeWorld* w,
   int viewer_nation,
   int origin_x,
@@ -1123,6 +1123,26 @@ int colonies_indian_claim_tribe_from_w(
     return -1;
   }
   return ti;
+}
+
+/* FUN_15eb_26e4 raw 12851-12854 (port_bugs.md #1680): a plot the colony at
+ * the origin already works (06a6 = colony+0x70 tiles[] >= 0) is not claimed.
+ * The seat reaction calls the _unseated form: DOS reads the table built
+ * before the seat, while the port has already written tiles[]. */
+int colonies_indian_claim_tribe_from_w(
+  const ColonizeWorld* w,
+  int viewer_nation,
+  int origin_x,
+  int origin_y,
+  int x,
+  int y
+) {
+  const ColonizeColony* col = w->colonies ? colonies_get(w->colonies, colonies_id_at(w->colonies, origin_x, origin_y)) : NULL;
+  const int plot = colonies_field_tile_index(x - origin_x, y - origin_y);
+  if (col && plot >= 0 && col->tiles[plot] >= 0) {
+    return -1;
+  }
+  return colonies_indian_claim_tribe_unseated_w(w, viewer_nation, origin_x, origin_y, x, y);
 }
 
 
@@ -1236,10 +1256,8 @@ void colonies_indian_land_pay(
   if (colonies_tile_indian_homeland(col1, map, x, y, &tribe_i, NULL) && tribe_i >= 0) {
     const int indian_idx = (int)col1->tribe[tribe_i].nation_id - 4;
     if (indian_idx >= 0 && indian_idx < (int)COLONIZE_COL1_INDIAN_COUNT) {
-      uint8_t* bought = &col1->indian[indian_idx].lands_bought;
-      if (*bought < 0xffu) {
-        (*bought)++;
-      }
+      /* DOS-LITERAL raw 76687: a byte INC, wraps at 256 (port_bugs.md #1684). */
+      col1->indian[indian_idx].lands_bought++;
     }
   }
   colonies_stamp_worked_plot(col1, map, x, y);

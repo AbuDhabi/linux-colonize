@@ -106,7 +106,8 @@ static void colony_craft_pair_totals(
     /* MOD_BUILDING_UPKEEP: half per worker on an unpaid upkeep turn (no-op otherwise). */
     total_out += colonies_upkeep_halve(
       colony,
-      colony_prod_manufacturing_output_row(row, c->profession, rec->craft_profession, sol_bonus)
+      colony_prod_manufacturing_output_row(
+        colony_prod_craft_tier_row(pool, colony, row), c->profession, rec->craft_profession, sol_bonus)
     );
     /* The raw-good requirement is NOT summed per worker: DOS FUN_15eb_0bd4
      * raw 10168-10172 floor-divides the colony's summed gross for the

@@ -17,13 +17,13 @@
  * draw / FUN_647e_1064 + FUN_647e_10d2 mouse dispatch).
  *
  * Layout (320×200, DOS pixel geometry):
- *   y 25..44   "Route Name: <name>" — click renames (@TRADENAME)
+ *   y 25..(2*FONTTINY.h + 0x1c) "Route Name: <name>" — click renames (@TRADENAME)
  *   y ~35      "Route Type: Sea|Land"
  *   y ~50      column headers (LABELS.TXT @ROUTE): Destination /
  *              Unload Cargo (x 125) / Load Cargo (x 208)
  *   y 61+20i   stop rows 0..3: "N. <stop>" + unload icon strip (x 125) +
  *              load icon strip (x 208); ICONS.SS #22+cargo
- *   y ≥ 169    click exits (Enter / Esc too); "OK" bottom right
+ *   y ≥ 170    click exits (Enter / Esc too); "OK" bottom right
  *
  * Clicking a stop row: destination column opens the colony picker
  * (999 = Europe, 1000 = "(Delete Destination)"); a cargo column click on an

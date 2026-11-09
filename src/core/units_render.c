@@ -22,11 +22,18 @@ int units_render_viewer_badge(
   const ColonizeUnitPool* pool, const ColonizeUnit* u, int fog_nation, bool* privateer_mask
 ) {
   *privateer_mask = false;
-  if (fog_nation >= 0 && fog_nation <= 3 && u->nation_id != fog_nation &&
-      units_is_sea(pool, u->id)) {
-    *privateer_mask = units_type_is_privateer(units_type(pool, u->type_index));
-    return *privateer_mask ? UNIT_CHROME_ORDERS_PRIVATEER_X
-                           : UNIT_CHROME_ORDERS_HOLDS_BASE + units_holds_used(pool, u->id);
+  /* DOS-LITERAL FUN_112b_01ba raw 2124-2129: a hull not owned by DS:0x5396 shows its holds
+   * digit whatever Complete Map says; only the Privateer 'X' needs DS:0x53a2 == 0. The digit's
+   * ink follows the real orders byte (port_bugs.md #1806). */
+  const int viewer = unit_chrome_viewer_nation() >= 0 ? unit_chrome_viewer_nation() : fog_nation;
+  const bool complete_map =
+    unit_chrome_viewer_nation() >= 0 ? unit_chrome_viewer_complete_map() : fog_nation < 0;
+  if (viewer >= 0 && u->nation_id != viewer && units_is_sea(pool, u->id)) {
+    if (!complete_map && units_type_is_privateer(units_type(pool, u->type_index))) {
+      *privateer_mask = true;
+      return UNIT_CHROME_ORDERS_PRIVATEER_X;
+    }
+    return UNIT_CHROME_ORDERS_HOLDS_BASE + (units_holds_used(pool, u->id) << 4) + (u->orders & 15);
   }
   return u->orders;
 }

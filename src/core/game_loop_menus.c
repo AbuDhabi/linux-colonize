@@ -200,9 +200,10 @@ void game_open_cheat_kill_indians(ColonizeGameState* game) {
  * 10-13 (ids 9-12) are the four Indian brave types before the declaration and
  * Cont. Army (9) / Cont. Cav. (7) owned by the human (DS:0x5398) then
  * Regulars (6) / Cavalry (8) owned by the crown slot (DS:0x53d2) after it.
- * @CREATE row 14 "Foreign Unit" only picks the OWNER nation (@FOREIGN, DS
- * `[bp-0x16]`) and loops back to the main list; @CREATE2 has no such row
- * (its @FOREIGN2 arm is unreachable). port_bugs.md #666.
+ * Row 14 "Foreign Unit" (both lists; jump-table entry 13 = 0x23B3E) only picks
+ * the OWNER (DS `[bp-0x16]`) and loops back to the main list (0x23BB6): before
+ * the declaration @FOREIGN (Esc = DS:0x5394), after it @FOREIGN2 (Loyal = the
+ * crown DS:0x53d2, Rebel or Esc = DS:0x5398). port_bugs.md #666, #1752.
  */
 static const int k_cheat_create_main_kinds[14] = {
   UNITS_KIND_COLONIST, UNITS_KIND_PIONEER, UNITS_KIND_SOLDIER, UNITS_KIND_MISSIONARY,
@@ -210,17 +211,18 @@ static const int k_cheat_create_main_kinds[14] = {
   UNITS_KIND_BRAVE, UNITS_KIND_ARMED_BRAVE, UNITS_KIND_MTD_BRAVE, UNITS_KIND_MTD_WARRIOR,
   -1 /* Foreign */
 };
-static const int k_cheat_create_woi_kinds[13] = {
+static const int k_cheat_create_woi_kinds[14] = {
   UNITS_KIND_COLONIST, UNITS_KIND_PIONEER, UNITS_KIND_SOLDIER, UNITS_KIND_MISSIONARY,
   UNITS_KIND_SCOUT, UNITS_KIND_ARTILLERY, UNITS_KIND_WAGON, -1 /* Treasure */, -1 /* Ship */,
-  UNITS_KIND_CONT_ARMY, UNITS_KIND_CONT_CAV, UNITS_KIND_REGULAR, UNITS_KIND_CAVALRY
+  UNITS_KIND_CONT_ARMY, UNITS_KIND_CONT_CAV, UNITS_KIND_REGULAR, UNITS_KIND_CAVALRY,
+  -1 /* Foreign */
 };
 static bool game_cheat_create_woi(const ColonizeGameState* game) {
   return game->col1_ok && ai_king_independence_declared(&game->col1) != 0;
 }
 static int game_cheat_create_kind(const ColonizeGameState* game, int id) {
   if (game_cheat_create_woi(game)) {
-    return (id >= 0 && id < 13) ? k_cheat_create_woi_kinds[id] : -1;
+    return (id >= 0 && id < 14) ? k_cheat_create_woi_kinds[id] : -1;
   }
   return (id >= 0 && id < 14) ? k_cheat_create_main_kinds[id] : -1;
 }
@@ -242,7 +244,7 @@ static void game_open_cheat_create_unit_ex(ColonizeGameState* game, bool keep_na
     return;
   }
   const bool woi = game_cheat_create_woi(game);
-  const int rows = woi ? 13 : 14;
+  const int rows = 14;
   const char* tag = woi ? "CREATE2" : "CREATE";
   static int ids[14];
   for (int i = 0; i < 14; ++i) {
@@ -252,7 +254,7 @@ static void game_open_cheat_create_unit_ex(ColonizeGameState* game, bool keep_na
   if (!keep_nation) {
     game->cheat_create_pending_nation = -1;
   }
-  /* DEBUG.TXT @CREATE/@CREATE2 row 0 (prompt) + rows 1-14/1-13 (option
+  /* DEBUG.TXT @CREATE/@CREATE2 row 0 (prompt) + rows 1-14 (option
    * labels); @UNIT names are the per-row fallback. */
   char prompt_buf[1][CHEAT_LIST_LABEL_LEN];
   const char* k_prompt_fallback[1] = {""};
@@ -349,18 +351,27 @@ static void game_apply_cheat_create_unit(ColonizeGameState* game, int id) {
   }
   if (game->cheat_create_stage == 2) {
     /* @FOREIGN result: id = owner nation 0..3; DOS stores it in `[bp-0x16]`
-     * and jumps back to the main list (ndisasm 0x23b3e-0x23b68). */
+     * and jumps back to the main list (ndisasm 0x23b3e-0x23b68). Esc (id < 0)
+     * stores DS:0x5394 (0x23B62) and also loops back. */
     game->cheat_create_stage = 0;
-    if (id >= 0 && id <= 3) {
-      game->cheat_create_pending_nation = id;
-    }
+    game->cheat_create_pending_nation =
+      id >= 0 && id <= 3 ? id : game->col1_ok ? game->col1.head.nation_turn : game->human_nation;
+    game_open_cheat_create_unit_ex(game, true);
+    return;
+  }
+  if (game->cheat_create_stage == 3) {
+    /* @FOREIGN2 result (ndisasm 0x23B6A-0x23B89): row 2 Loyal = the crown
+     * DS:0x53d2; Rebel or Esc = DS:0x5398; then back to the list (0x23BB6). */
+    game->cheat_create_stage = 0;
+    game->cheat_create_pending_nation =
+      id == 1 ? ai_king_crown_nation_col1(&game->col1, game->human_nation) : game->human_nation;
     game_open_cheat_create_unit_ex(game, true);
     return;
   }
 
   /* Stage 0: main @CREATE / @CREATE2 list. */
   const bool woi = game_cheat_create_woi(game);
-  if (id < 0 || id >= (woi ? 13 : 14)) {
+  if (id < 0 || id >= 14) {
     return;
   }
   const int owner = game->cheat_create_pending_nation >= 0
@@ -399,7 +410,27 @@ static void game_apply_cheat_create_unit(ColonizeGameState* game, int id) {
     }
     return;
   }
-  if (id == 13 && !woi) {
+  if (id == 13 && woi) {
+    /* Foreign Unit after the declaration: @FOREIGN2 Rebel / Loyal. */
+    game->cheat_create_stage = 3;
+    static int ids_fw[2] = {0, 1};
+    const char* k_fw_fallback[2] = {"", ""};
+    char fw_prompt[1][CHEAT_LIST_LABEL_LEN];
+    char fw_buf[2][CHEAT_LIST_LABEL_LEN];
+    const ColonizeMsgCatalog* dbg = game->debug_txt_ok ? &game->debug_txt : NULL;
+    cheat_list_catalog_rows(dbg, "FOREIGN2", 0, k_fw_fallback, fw_prompt, 1);
+    cheat_list_catalog_rows(dbg, "FOREIGN2", 1, k_fw_fallback, fw_buf, 2);
+    const char* fw_labels[2] = {fw_buf[0], fw_buf[1]};
+    /* `MOV word [0x1f5e],2` (ndisasm 0x23b3e) covers both nationality boxes. */
+    if (!cheat_list_open_create_unit(
+          &game->cheat_list, fw_prompt[0], fw_labels, ids_fw, 2, 2
+        )) {
+      game->cheat_create_stage = 0;
+      set_status_menu_row(game, "CUP", 1, "unavailable");
+    }
+    return;
+  }
+  if (id == 13) {
     /* Foreign Unit: follow up with @FOREIGN (owner nation pick). */
     game->cheat_create_stage = 2;
     static int ids4[4] = {0, 1, 2, 3};
@@ -651,8 +682,8 @@ void game_open_cheat_sound_test(ColonizeGameState* game) {
   }
   /* FUN_2b5a_2866 asm 0x23D86-0x23DA0: FUN_291f_0436(DEBUG, SOUND, dx 1) — the
    * @SOUND prose as the prompt, the field seeded with 1 (6f74_3848 itoa's DX,
-   * so @default=0 is dead) — then FUN_281f_04c0(DS:0x9cc8). The 255 cap is
-   * the port's (DOS takes any 5-digit number). */
+   * so @default=0 is dead) — then FUN_281f_04c0(DS:0x9cc8). FUN_6f74_3848
+   * atoi's a 5-character field with no cap, so the limit is 99999 (#1754). */
   char prompt[AI_POPUP_BODY_LEN];
   popup_msg_fill(
     game->debug_txt_ok ? &game->debug_txt : NULL, "SOUND", NULL, "", prompt, sizeof(prompt)
@@ -662,7 +693,7 @@ void game_open_cheat_sound_test(ColonizeGameState* game) {
     HOWMUCH_KIND_SOUND_TEST,
     prompt,
     howmuch_amount_label(&game->debug_txt, "SOUND", ""),
-    255,
+    99999,
     1,
     0,
     0
@@ -912,7 +943,7 @@ void game_trade_open_cargo_picker(ColonizeGameState* game, int stop_i, bool is_l
 /*
  * Begin Trade Route starting-stop picker (DOS FUN_647e_090a). Title is
  * @SAILPORT for a sea route, @TRAVELPLACE for a land route (asm 647e:0925-
- * 093a tests the route's +0x20 sea byte); rows list stops "1. <stop>" and
+ * 093a tests the route's +0x20 sea byte); rows list the bare stop names and
  * `preselect` (the unit's current stop, or 0 for a fresh assignment) is the
  * initial highlighted row.
  */
@@ -927,8 +958,10 @@ void game_trade_open_stop_picker(ColonizeGameState* game, int route, int presele
   char bufs[CHEAT_LIST_MAX_OPTIONS][CHEAT_LIST_LABEL_LEN];
   int count = 0;
   for (int i = 0; i < (int)r->dest_count && i < 4 && count < CHEAT_LIST_MAX_OPTIONS; ++i) {
+    /* 647e:0964-0982: push stop+1 (the row id), push stop, call 0040 (add sp,2),
+     * push dx:ax, list, call 291f_0176 — the row text is the bare stop name (#1753). */
     snprintf(
-      bufs[count], sizeof(bufs[count]), "%d. %s", i + 1,
+      bufs[count], sizeof(bufs[count]), "%s",
       trade_screen_stop_label(
         &game->colonies, r->stop[i].colony_index, game_trade_europe_label(game)
       )

@@ -389,6 +389,10 @@ void ai_euro_spy_prime_target(ColonizeTurnContext* ctx, int nation, int cid, int
  * course setter — bodies carry the prose (ai_euro_land.c). */
 int ai_euro_europe_dock_land_units(const ColonizeUnitPool* units, int nation_id);
 int ai_euro_europe_lane_ships(const ColonizeUnitPool* units, int nation_id);
+/* DS:0x9456[n] byte (census at dispatcher start, 015e ++, 5b66 'E' wake --). */
+extern uint8_t ai_euro_s_9456[4];
+extern uint8_t ai_euro_s_9456_valid[4];
+void ai_euro_9456_census(const ColonizeUnitPool* units, int nation_id);
 int ai_euro_20e6_3fa6_sail_home(ColonizeTurnContext* ctx, ColonizeUnit* u, int nation_id);
 int ai_euro_20e6_missionary_arm(ColonizeTurnContext* ctx, ColonizeUnit* u, int nation_id);
 int ai_euro_20e6_europe_dock_demand(

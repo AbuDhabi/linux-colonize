@@ -1271,6 +1271,27 @@ static int ai_euro_5952_tools_supply(
   return tools - unmet;
 }
 
+/* aiStack_12e: FUN_5952_035e caches every pop slot's profession once, at the
+ * unseat-all loop (raw 94552-94555 `aiStack_12e[local_ac] = FUN_281f_0c54()`),
+ * and the cascade census reads that cache for pop slots (raw 95719-95720
+ * `local_1a._2_2_ = aiStack_12e[local_ac]`), so promotions made in between
+ * (the carpenter arm's FUN_281f_0cae, raw 94723-94730) are not seen. The
+ * indoor-expert pass's two demotions DO write it (asm OVL15 0x1d80 / 0x1dcc,
+ * `MOV [BP+SI-0x12c],AX` with AX = 0x1c before the 0cae call). NULL
+ * colony = no tick in progress (standalone cascade calls read live). */
+static const ColonizeColony* s_5952_prof_cache_col;
+static int s_5952_prof_cache_n;
+static int s_5952_prof_cache[COLONIZE_COLONY_POP_MAX];
+
+/* The indoor-expert pass's demotion to Free Colonist: 0cae(slot, 0x1c) after
+ * `aiStack_12e[slot] = 0x1c` (port_bugs.md #1621). */
+static void ai_euro_5952_expert_demote(const ColonizeColony* col, ColonizeColonist* c, int s) {
+  c->profession = COLONIZE_PROF_FREE_COLONIST;
+  if (s_5952_prof_cache_col == col && s < s_5952_prof_cache_n) {
+    s_5952_prof_cache[s] = COLONIZE_PROF_FREE_COLONIST;
+  }
+}
+
 /*
  * DOS-LITERAL FUN_5952_035e indoor-expert pass, asm OVL15 0x1cb2-0x1e65 (the
  * decompile at raw 94766-94780 is a broken jump table). It runs between the
@@ -1340,7 +1361,7 @@ COLONIZE_INTERNAL void ai_euro_5952_indoor_expert_pass(
     bool ok = false;
     if (prof == COLONIZE_PROF_CARPENTER) {
       if ((col->build_ai_flags & COLONIZE_BUILD_AI_WANTS_CONSTRUCTION) != 0 && carpenters > 1) {
-        c->profession = COLONIZE_PROF_FREE_COLONIST; /* 8e9e(slot, 0x1c) */
+        ai_euro_5952_expert_demote(col, c, s); /* 8e9e(slot, 0x1c) */
         --carpenters;
         continue;
       }
@@ -1349,7 +1370,7 @@ COLONIZE_INTERNAL void ai_euro_5952_indoor_expert_pass(
       ok = unmet <= 0 && col->stock[lc] + gross[lc] != 0;
     } else if (prof == COLONIZE_PROF_PREACHER) {
       if (woi) {
-        c->profession = COLONIZE_PROF_FREE_COLONIST;
+        ai_euro_5952_expert_demote(col, c, s);
         if (cid_ok) {
           --ai_euro_s_5952_census_preacher[col->id]; /* OVL15 `DEC word ptr [BP-0x46]` */
         }
@@ -2074,16 +2095,6 @@ COLONIZE_INTERNAL int ai_euro_5952_docks_started(int colony_id) {
            ? ai_euro_s_5952_docks_started[colony_id]
            : 0;
 }
-
-/* aiStack_12e: FUN_5952_035e caches every pop slot's profession once, at the
- * unseat-all loop (raw 94552-94555 `aiStack_12e[local_ac] = FUN_281f_0c54()`),
- * and the cascade census reads that cache for pop slots (raw 95719-95720
- * `local_1a._2_2_ = aiStack_12e[local_ac]`), so promotions made in between
- * (the carpenter arm's FUN_281f_0cae, raw 94723-94730) are not seen. NULL
- * colony = no tick in progress (standalone cascade calls read live). */
-static const ColonizeColony* s_5952_prof_cache_col;
-static int s_5952_prof_cache_n;
-static int s_5952_prof_cache[COLONIZE_COLONY_POP_MAX];
 
 COLONIZE_INTERNAL void ai_euro_colony_tick_prof_cache_clear(void) {
   s_5952_prof_cache_col = NULL;
@@ -3720,13 +3731,9 @@ COLONIZE_INTERNAL void ai_euro_colony_tick_specialist_restore(AiEuroColonyTick* 
    * lumber use, exactly as ai_euro_5952_ledgers fills demand[LUMBER]. America
    * seed-100 pair 189: Montreal's hammers 16 vs lumber stock 14 restores the
    * Expert Lumberjack in DOS; the old `lumber_use (12) > stock + prod` did not. */
-  int gross[AI_EURO_5952_LEDGER_SLOTS];
-  int demand[AI_EURO_5952_LEDGER_SLOTS];
-  ai_euro_5952_ledgers(&world, ctx->colonies, col, ctx->col1_ok ? ctx->col1 : NULL, gross, demand);
-  const int lumber_unmet =
-    demand[COLONIZE_CARGO_LUMBER] - gross[COLONIZE_CARGO_LUMBER] - col->stock[COLONIZE_CARGO_LUMBER] > 0
-      ? 1
-      : 0;
+  /* Read per slot (asm 5952:1c5a-1caa): FUN_281f_0c04 re-runs the 15eb_1f72
+   * ledgers after every seat, so a seated Lumberjack's output counts for the
+   * next one (port_bugs.md #1622). */
   int lumber_seen =
     (col->build_ai_flags & COLONIZE_BUILD_AI_WANTS_CONSTRUCTION) != 0 ? 0 : 1;
   for (int s = 0; s < n; ++s) {
@@ -3746,9 +3753,16 @@ COLONIZE_INTERNAL void ai_euro_colony_tick_specialist_restore(AiEuroColonyTick* 
     if (prof == COLONIZE_JOB_LUMBERJACK) {
       if (lumber_seen == 0) {
         lumber_seen = 1;
-      } else if ((col->ai_flags & COLONIZE_COLONY_AI_WANTS_PIONEER_CLEAR) == 0 &&
-                 lumber_unmet == 0) {
-        continue;
+      } else if ((col->ai_flags & COLONIZE_COLONY_AI_WANTS_PIONEER_CLEAR) == 0) {
+        int gross[AI_EURO_5952_LEDGER_SLOTS];
+        int demand[AI_EURO_5952_LEDGER_SLOTS];
+        ai_euro_5952_ledgers(
+          &world, ctx->colonies, col, ctx->col1_ok ? ctx->col1 : NULL, gross, demand
+        );
+        const int lc = COLONIZE_CARGO_LUMBER;
+        if (demand[lc] - gross[lc] - col->stock[lc] <= 0) {
+          continue; /* DS:0x8e64 == 0 */
+        }
       }
     }
     if (col->stock[prof] > wh_cap) {

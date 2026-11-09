@@ -72,6 +72,7 @@ void text_edit_reset(TextEditState* st, const char* buf, bool select_all) {
   const int n = buf_len(buf);
   st->cursor = n;
   st->anchor = (select_all && n > 0) ? 0 : n;
+  st->max_len = 0;
 }
 
 /* Re-clamp caret/anchor after the owner rewrote buf behind our back. */
@@ -206,6 +207,7 @@ TextEditAction text_edit_handle_input(
   if (!st || !buf || cap < 2 || !input) {
     return TEXT_EDIT_ACTION_NONE;
   }
+  st->max_len = (int)cap - 1;
   text_edit_clamp(st, buf);
   const int n = buf_len(buf);
   const bool shift = input->shift_held;
@@ -418,7 +420,10 @@ void text_edit_render(
   const int caret = st ? clamp_int(st->cursor, 0, n) : n;
   const int cx = x + text_edit_prefix_width(font, buf, caret);
   if (caret >= n) {
-    font_draw_text_shaded(font, fb, cx, y, "_", shades);
+    /* FUN_6f74_1e14 (raw 116336-116338): DS:0x1f9b "_" only while strlen < field max (+6). */
+    if (!st || st->max_len <= 0 || n < st->max_len) {
+      font_draw_text_shaded(font, fb, cx, y, "_", shades);
+    }
   } else {
     fb_fill_rect(fb, cx, y, 1, line_h - 1, colors->text);
   }

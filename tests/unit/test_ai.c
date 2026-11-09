@@ -1249,7 +1249,9 @@ static int run_village_threat_alarm(void) {
   tribes[1].y = 28; /* far from everything */
   col1.indian[0].tech = 1;
   col1.indian[0].euro_diplo[0] = COL1_INDIAN_MET_BIT;
+  col1.nation[0].relation_by_indian[0] = col1.indian[0].euro_diplo[0];
   col1.indian[0].euro_diplo[1] = COL1_INDIAN_MET_BIT;
+  col1.nation[1].relation_by_indian[0] = col1.indian[0].euro_diplo[1];
 
   const int cid = colonies_found(&colonies, &map, 12, 10, 0, 0, 0, 0, 0, 0);
   if (cid < 0) {
@@ -1490,6 +1492,7 @@ static int run_152e_alarm_escalation(void) {
   f.col1.head.difficulty = 4;
   f.tribes[0].mission = 0; /* English mission, the thing the tail burns */
   f.col1.indian[0].euro_diplo[0] = (uint8_t)(COL1_INDIAN_MET_BIT | COL1_INDIAN_PEACE_BIT);
+  f.col1.nation[0].relation_by_indian[0] = f.col1.indian[0].euro_diplo[0];
   f.col1.indian[0].alarm_by_player[0] = 99;
   f.col1.player[0].control = 0; /* human ⇒ tail cap = difficulty */
 
@@ -1730,6 +1733,7 @@ static int run_visit_empty_colony(void) {
     }
     f.col1.nation[e].trade.euro_price[3] = 11;
     f.col1.indian[0].euro_diplo[e] = (uint8_t)COL1_INDIAN_MET_BIT;
+    f.col1.nation[e].relation_by_indian[0] = f.col1.indian[0].euro_diplo[e];
     f.col1.indian[0].alarm_by_player[e] = 20;
     f.col1.indian[0].contact_state[e] = 1; /* local_10: never generous */
     col1_tribe_attitude_set(&f.tribes[0], e, 5);
@@ -1805,6 +1809,7 @@ static int run_reparations_scan_past_empty_colony(void) {
     snprintf(col->name, sizeof(col->name), "Town%d", e);
     f.col1.nation[e].trade.euro_price[3] = 11;
     f.col1.indian[0].euro_diplo[e] = (uint8_t)COL1_INDIAN_MET_BIT;
+    f.col1.nation[e].relation_by_indian[0] = f.col1.indian[0].euro_diplo[e];
     f.col1.indian[0].alarm_by_player[e] = 20;
     f.col1.indian[0].contact_state[e] = 1;
     col1_tribe_attitude_set(&f.tribes[0], e, 5);
@@ -1853,6 +1858,7 @@ static int two_colony_beg_fixture(Ai152eFixture* f, const char* label, int e, in
   brave->home_tribe_index = 0;
   f->col1.nation[e].trade.euro_price[3] = 11;
   f->col1.indian[0].euro_diplo[e] = (uint8_t)COL1_INDIAN_MET_BIT;
+  f->col1.nation[e].relation_by_indian[0] = f->col1.indian[0].euro_diplo[e];
   f->col1.indian[0].alarm_by_player[e] = 20;
   col1_tribe_attitude_set(&f->tribes[0], e, 5);
   ai_contact_visit_mood_publish(&f->ctx, 4, e, *bid, 0);
@@ -1985,6 +1991,7 @@ static int wagon_visit_fixture(Ai152eFixture* f, const char* label, int e, Colon
   (*wag)->hold_goods_amount[0] = 100;
   f->col1.nation[e].trade.euro_price[3] = 11;
   f->col1.indian[0].euro_diplo[e] = (uint8_t)COL1_INDIAN_MET_BIT;
+  f->col1.nation[e].relation_by_indian[0] = f->col1.indian[0].euro_diplo[e];
   f->col1.indian[0].alarm_by_player[e] = 20;
   col1_tribe_attitude_set(&f->tribes[0], e, 5);
   return 0;
@@ -2078,6 +2085,7 @@ static int run_wagon_reparations_open_field(void) {
     wag->hold_goods_amount[0] = 100;
     f.col1.nation[1].trade.euro_price[3] = 11; /* price byte 10 */
     f.col1.indian[0].euro_diplo[1] = (uint8_t)COL1_INDIAN_MET_BIT;
+    f.col1.nation[1].relation_by_indian[0] = f.col1.indian[0].euro_diplo[1];
     f.col1.indian[0].alarm_by_player[1] = 20;
     f.col1.indian[0].contact_state[1] = half == 0 ? 1 : 0; /* 1: demand; 0 + word 0: generous */
     col1_tribe_attitude_set(&f.tribes[0], 1, half == 0 ? 5 : 0);
@@ -2110,6 +2118,46 @@ static int run_wagon_reparations_open_field(void) {
     }
   }
   return 0;
+}
+
+/*
+ * port_bugs.md #1644: FUN_5bfb_3180's native-on-native limb (raw
+ * 98648-98689). A Brave beside another tribe's Brave stamps that stack
+ * head's facing and evens both tribes' horse_herds up to the larger; no 022e
+ * runs, so nothing resolves and the mover keeps its MP.
+ */
+static int run_native_neighbour_horse_spread(void) {
+  if (!test_names_txt()) {
+    return TR_SKIP;
+  }
+  Ai152eFixture f;
+  if (ai_152e_fixture_init(&f, "horse-spread", 1u) != 0) {
+    return 1;
+  }
+  const int brave_ti = units_find_type(&f.units, "Brave");
+  const int bid = units_spawn_allow_stack(&f.units, brave_ti, 5, 5);
+  const int oid = units_spawn_allow_stack(&f.units, brave_ti, 6, 5); /* dir 2 (E) */
+  ColonizeUnit* brave = units_get(&f.units, bid);
+  ColonizeUnit* other = units_get(&f.units, oid);
+  int rc = 1;
+  if (brave && other) {
+    brave->nation_id = 4;
+    brave->moves = 3;
+    other->nation_id = 5;
+    other->last_dir = -1;
+    f.col1.indian[0].horse_herds = 3;
+    f.col1.indian[1].horse_herds = 9;
+    ai_native_bind_step_ctx(&f.ctx);
+    const int resolved = ai_native_step_first_contact(&f.units, &f.map, &f.col1, brave, 4);
+    ai_native_bind_step_ctx(NULL);
+    fprintf(stderr, "horse-spread: resolved %d herds %u/%u facing %d moves %d\n", resolved,
+            f.col1.indian[0].horse_herds, f.col1.indian[1].horse_herds, other->last_dir,
+            brave->moves);
+    rc = !(resolved == 0 && f.col1.indian[0].horse_herds == 9 &&
+           f.col1.indian[1].horse_herds == 9 && other->last_dir >= 0 && brave->moves == 3);
+  }
+  ai_152e_fixture_free(&f);
+  return rc;
 }
 
 /*
@@ -2332,6 +2380,7 @@ static ColonizeColony* two_demand_scene(
   f->col1.nation[0].trade.euro_price[3] = 11;
   f->col1.nation[0].trade.euro_price[4] = 11;
   f->col1.indian[0].euro_diplo[0] = (uint8_t)COL1_INDIAN_MET_BIT;
+  f->col1.nation[0].relation_by_indian[0] = f->col1.indian[0].euro_diplo[0];
   f->col1.indian[0].alarm_by_player[0] = 20;
   f->col1.indian[0].contact_state[0] = 1; /* local_10: never generous */
   col1_tribe_attitude_set(&f->tribes[0], 0, 5);
@@ -2447,6 +2496,12 @@ static int run_two_demands_turn_processor(void) {
   if (!col) {
     goto done;
   }
+  /* The day top wipes contact_state (1b3a), so both visits hang on the
+   * 022e mood roll (< word 5 of 1..0x148) off the nation-start reseed. The
+   * Euro-side MET byte (port_bugs.md #1618 fixture) adds 152e's friction
+   * draws ahead of it; turn seed 106 is one whose stream still demands twice. */
+  f.ctx.rng_seed = 106u;
+  f.ctx.rng_seed_set = true;
   ColonizeTurnProcessor proc;
   turn_processor_start(&proc);
   proc.step = TURN_PROC_INDIAN; /* SETUP and the calendar slice already ran */
@@ -2634,6 +2689,7 @@ static int run_resume_keeps_scan_latch(void) {
   human->last_dir = -1;
   ai->last_dir = -1;
   f.col1.indian[0].euro_diplo[1] = (uint8_t)COL1_INDIAN_MET_BIT;
+  f.col1.nation[1].relation_by_indian[0] = f.col1.indian[0].euro_diplo[1];
   ai_indian_nation_turn(&f.ctx, 4);
   if (!ai_native_pulse_suspended() || ai_contact_s_reparations[0].brave_id != bid[0]) {
     fprintf(stderr, "resume-latch: first demand suspended %d brave %d\n",
@@ -2788,6 +2844,7 @@ static int run_conceded_beg_gifts_above_0x31(void) {
   brave->nation_id = 4;
   brave->home_tribe_index = 0;
   f.col1.indian[0].euro_diplo[1] = (uint8_t)COL1_INDIAN_MET_BIT;
+  f.col1.nation[1].relation_by_indian[0] = f.col1.indian[0].euro_diplo[1];
   f.col1.indian[0].alarm_by_player[1] = 0x3c;
   ai_contact_visit_mood_publish(&f.ctx, 4, 1, bid, 0);
 
@@ -2843,6 +2900,7 @@ static int run_zero_qty_demand_presented(void) {
     brave->col1_flags15 = 0;
     f.col1.nation[1].trade.euro_price[3] = 11;
     f.col1.indian[0].euro_diplo[1] = (uint8_t)COL1_INDIAN_MET_BIT;
+    f.col1.nation[1].relation_by_indian[0] = f.col1.indian[0].euro_diplo[1];
     f.col1.indian[0].alarm_by_player[1] = 20;
     f.col1.indian[0].contact_state[1] = 1; /* local_10: never generous */
     col1_tribe_attitude_set(&f.tribes[0], 1, 5);
@@ -2899,6 +2957,7 @@ static int run_convert_spawn_failure_unresolved(void) {
   f.tribes[0].mission = 1;          /* mission owned by nation 1 */
   f.col1.indian[0].tech = 14;       /* tech + 2 = 16 > any rng(0, 0xf) */
   f.col1.indian[0].euro_diplo[1] = (uint8_t)COL1_INDIAN_MET_BIT;
+  f.col1.nation[1].relation_by_indian[0] = f.col1.indian[0].euro_diplo[1];
   f.col1.indian[0].alarm_by_player[1] = 0; /* generous: 0 <= rng(1, 0x148) */
   f.col1.player[1].control = 1;
   f.col1.stuff.all_unit_counts[1] = 0xc9;
@@ -2961,6 +3020,7 @@ static int run_visit_after_first_contact(void) {
   sol->nation_id = 0; /* human, not met yet */
   f.col1.nation[1].trade.euro_price[3] = 11;
   f.col1.indian[0].euro_diplo[1] = (uint8_t)COL1_INDIAN_MET_BIT;
+  f.col1.nation[1].relation_by_indian[0] = f.col1.indian[0].euro_diplo[1];
   f.col1.indian[0].alarm_by_player[1] = 20;
   f.col1.indian[0].contact_state[1] = 1; /* local_10: never generous */
   col1_tribe_attitude_set(&f.tribes[0], 1, 5);
@@ -3021,6 +3081,7 @@ static int run_unresolved_visit_keeps_nation_open(void) {
   soldier->nation_id = e;
   soldier->last_dir = -1;
   f.col1.indian[0].euro_diplo[e] = (uint8_t)COL1_INDIAN_MET_BIT;
+  f.col1.nation[e].relation_by_indian[0] = f.col1.indian[0].euro_diplo[e];
   f.col1.indian[0].alarm_by_player[e] = 20;
   f.col1.indian[0].contact_state[e] = 1;
   col1_tribe_attitude_set(&f.tribes[0], e, 5);
@@ -3432,6 +3493,26 @@ static int case_tribe_txt_third_spacing_tier(void) {
   return rc;
 }
 
+/* port_bugs.md #1645: a picked map (stem != AMER2) reads "<NAME>.MPP", not
+ * TRIBE.TXT (FUN_6a09_0006 raw 107782-107791); a missing .MPP fails the file
+ * test, so the caller falls back to the procedural tribes. */
+static int case_tribe_txt_picked_map_reads_mpp(void) {
+  if (!tribe_txt_data()) {
+    return TR_SKIP;
+  }
+  TribeTxtFx fx;
+  if (tribe_txt_fx_open(&fx)) {
+    tribe_txt_fx_close(&fx);
+    return 1;
+  }
+  fx.p.map_stem = "NOSUCHMAP";
+  int rc = tribe_txt_place(&fx, 100) == 0 || fx.count != 0;
+  fx.p.map_stem = "amer2"; /* the default map keeps TRIBE.TXT */
+  rc |= tribe_txt_place(&fx, 100) != 0 || fx.count == 0;
+  tribe_txt_fx_close(&fx);
+  return rc;
+}
+
 /* The VR_SOUND.EXE run pins every 04ca reseed at 100, so seed 100 + 32 draws
  * on AMER2 must give 000001.SAV's village rows (branch alone). */
 static int case_tribe_txt_seed100_matches_dos(void) {
@@ -3646,6 +3727,7 @@ static const TestCase k_cases[] = {
     {"tribe_txt_jitter_rules", case_tribe_txt_jitter_rules},
     {"tribe_txt_impossible_spot_dropped", case_tribe_txt_impossible_spot_dropped},
     {"tribe_txt_third_spacing_tier", case_tribe_txt_third_spacing_tier},
+    {"tribe_txt_picked_map_reads_mpp", case_tribe_txt_picked_map_reads_mpp},
     {"tribe_txt_seed100_matches_dos", case_tribe_txt_seed100_matches_dos},
     {"tribe_txt_init_new_game_matches_dos", case_tribe_txt_init_new_game_matches_dos},
     {"021a_stayed_facing_fixed", case_021a_stayed_facing_fixed},
@@ -3674,6 +3756,7 @@ static const TestCase k_cases[] = {
     {"run_wagon_demand_closes_nation", run_wagon_demand_closes_nation},
     {"run_two_demands_one_pulse", run_two_demands_one_pulse},
     {"run_two_demands_turn_processor", run_two_demands_turn_processor},
+    {"run_native_neighbour_horse_spread", run_native_neighbour_horse_spread},
     {"run_beg_food_stops_pulse", run_beg_food_stops_pulse},
     {"run_resume_keeps_scan_latch", run_resume_keeps_scan_latch},
     {"run_resume_exhausts_step_mover", run_resume_exhausts_step_mover},

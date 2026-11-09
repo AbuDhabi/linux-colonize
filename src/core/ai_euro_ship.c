@@ -1644,7 +1644,7 @@ int ai_euro_ship_enter_europe(ColonizeTurnContext* ctx, ColonizeUnit* ship) {
     }
   }
   /* 007a leaves +0x314b alone: the hull keeps its 'E' on the lane (seed-100
-   * autosaves); ai_euro_europe_lane_ships counts lane OR stamp, once.
+   * autosaves); DS:0x9456 already took it at 015e's bump.
    * No MP write either: the hull keeps its spent byte on the lane (DOSBox
    * independence 10->11: the crown Man-O-War saves spent 9 at x=244). The
    * dispatcher never acts a unit at x >= 128. */
@@ -1700,8 +1700,10 @@ void ai_euro_ship_leave_europe(ColonizeTurnContext* ctx, ColonizeUnit* ship) {
  * FUN_48d3_048e (raw 77810-77901): ring-place a hull arriving from Europe on
  * High Seas around its own saved tile +0x314d/e, set xy (0948), reveal
  * (07a0). Goto, orders and MP are untouched; the hull then acts as an
- * ordinary on-map ship. No ring tile at all is FUN_281f_083a's business
- * (raw 77880-77884); the hull just stays in the lane.
+ * ordinary on-map ship. With no ring tile at all, raw 77880-77884 destroys
+ * the unit chain on the landfall tile (07e0 -> 083a = FUN_1427_0f30) and
+ * places the hull there (port_bugs.md #1669; needs a map with no free High
+ * Seas tile, so practically unreachable).
  */
 static void ai_euro_europe_place_arrival(ColonizeTurnContext* ctx, ColonizeUnit* u) {
   /* raw 77832-77833: the ring centre is the hull's own +0x314d/e, no fallback. */
@@ -1710,7 +1712,17 @@ static void ai_euro_europe_place_arrival(ColonizeTurnContext* ctx, ColonizeUnit*
   int hx = lx;
   int hy = ly;
   if (!units_spiral_place_hs_near(ctx->units, ctx->map, lx, ly, u->nation_id, &hx, &hy)) {
-    return;
+    hx = lx;
+    hy = ly;
+    int doomed[COLONIZE_UNITS_MAX];
+    int nd = 0;
+    for (int id = units_tile_head_id_at(ctx->units, lx, ly); id >= 0 && nd < COLONIZE_UNITS_MAX;
+         id = units_tile_chain_next_id(ctx->units, id)) {
+      doomed[nd++] = id;
+    }
+    for (int k = 0; k < nd; ++k) {
+      (void)units_despawn(ctx->units, doomed[k]);
+    }
   }
   const int ox = u->x;
   const int oy = u->y;
@@ -1788,9 +1800,8 @@ void ai_euro_europe_lane_tick(ColonizeTurnContext* ctx, int nation_id) {
     if (pick < 0) {
       break;
     }
-    /* DOS 048e always moves the hull off the lane (raw 77884-77890); the
-     * port's no-ring-tile case leaves it there, so it is marked tried to
-     * end the restart loop. */
+    /* DOS 048e always moves the hull off the lane (raw 77884-77890);
+     * `tried` just bounds the restart loop. */
     tried[pick] = true;
     ai_euro_europe_place_arrival(ctx, units_get(ctx->units, pick));
   }
@@ -2362,7 +2373,8 @@ int ai_euro_20e6_unload_mask_snapshot(
  * pick — dir arg mask&0x40 = founder mode, plus an is-Artillery flag).
  * Repeats until a
  * pass unloads nothing (DOS rescans the stack whenever a unit left the
- * tile). Returns the number of units put ashore.
+ * tile). Returns local_78: 1 when any matching passenger got a direction
+ * (the caller then exhausts the hull), even if its step failed.
  */
 /*
  * DOS-LITERAL raw 89566-89609 unload loop:
@@ -2372,6 +2384,7 @@ int ai_euro_20e6_unload_mask_snapshot(
  *       if (unit is a hull) continue;
  *       dir = 04ac(nation, x, y, mask & 0x40, type == 0x0b);     // 06ae
  *       if ((DS:0x523d[type] & mask) && dir != 8) {
+ *         local_78 = 1;
  *         +0x3149 = 0; 2a1f_0150(unit, dir); 0934(unit);         // step, exhaust
  *         if (unit left the tile) moved = 1;
  *       }
@@ -2385,7 +2398,7 @@ int ai_euro_20e6_unload_mask_snapshot(
 int ai_euro_20e6_unload_by_mask(
   ColonizeTurnContext* ctx, ColonizeUnit* ship, int nation, int mask
 ) {
-  int total = 0;
+  int matched = 0; /* local_78 */
   int moved;
   do {
     moved = 0;
@@ -2435,17 +2448,21 @@ int ai_euro_20e6_unload_by_mask(
       if ((ai_euro_20e6_type_flags(t) & mask & 0xff) == 0) {
         continue;
       }
-      if (ai_euro_unload_pax_at(ctx, ship, p, lx, ly, UNITS_ORDER_SENTRY, p->goto_x, p->goto_y)) {
-        p = units_get(ctx->units, pid);
-        if (p) {
-          p->moves = 0; /* FUN_281f_0934 */
-        }
-        total++;
+      /* local_78 = 1 and the passenger's 0934 exhaust happen on the match,
+       * whether or not the step lands it (port_bugs.md #1668). */
+      matched = 1;
+      const int landed =
+        ai_euro_unload_pax_at(ctx, ship, p, lx, ly, UNITS_ORDER_SENTRY, p->goto_x, p->goto_y);
+      p = units_get(ctx->units, pid);
+      if (p) {
+        p->moves = 0; /* FUN_281f_0934 */
+      }
+      if (landed) {
         moved = 1;
       }
     }
   } while (moved);
-  return total;
+  return matched;
 }
 
 /*

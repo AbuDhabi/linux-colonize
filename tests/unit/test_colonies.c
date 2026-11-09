@@ -1086,6 +1086,101 @@ static int unit_tb32_capture_keeps_war(void) {
   return failures != failures_before ? 1 : 0;
 }
 
+/* port_bugs.md #1681: FUN_5fef_1b0e runs the treasury share, the 0x53c8
+ * resets and the WAR toggle only under param_4 (shown); the flip and the
+ * tallies run regardless. */
+static int unit_capture_unseen_skips_effects(void) {
+  const int failures_before = failures;
+  ColonizeColonyPool pool;
+  colonies_init(&pool);
+  colonies_set_occupancy_map(NULL);
+  ColonizeColony* a = &pool.colonies[0];
+  a->active = true;
+  a->id = 0;
+  a->x = 10;
+  a->y = 10;
+  a->nation_id = 0;
+  a->colonist_count = 2;
+  pool.colony_count = 1;
+  static ColonizeCol1Save col1;
+  ColonizeCol1Colony recs[1];
+  memset(&col1, 0, sizeof(col1));
+  memset(recs, 0, sizeof(recs));
+  col1.colony = recs;
+  col1.head.colony_count = 1;
+  recs[0].x = 10;
+  recs[0].y = 10;
+  recs[0].population = 2;
+  col1.nation[0].gold = 1000;
+  col1.stuff.colony_counts[0] = 1;
+  col1.head.nation_relation[0] = 7;
+  col1.head.nation_relation[1] = 7;
+  colonies_set_col1_context(&col1);
+  int plunder = -1;
+  CHECK(colonies_capture_show_ex(&pool, 0, 1, &plunder, false), "unseen capture ok");
+  colonies_set_col1_context(NULL);
+  CHECK(a->nation_id == 1 && recs[0].nation_id == 1, "unseen capture still flips the owner");
+  CHECK(col1.stuff.colony_counts[1] == 1, "unseen capture still moves the tallies");
+  CHECK(plunder == 0 && col1.nation[0].gold == 1000, "unseen capture: no treasury share");
+  CHECK(col1.head.nation_relation[0] == 7 && col1.head.nation_relation[1] == 7,
+        "unseen capture: 0x53c8 untouched");
+  CHECK((ai_diplo_read(&col1, 0, 1) & AI_DIPLO_WAR) == 0 &&
+          (ai_diplo_read(&col1, 1, 0) & AI_DIPLO_WAR) == 0,
+        "unseen capture: no WAR toggle");
+  return failures != failures_before ? 1 : 0;
+}
+
+/* port_bugs.md #1680: FUN_15eb_26e4 raw 12851-12854 leaves a plot the colony
+ * already works (06a6 >= 0) out of the claim table. */
+static int unit_claim_skips_worked_plot(void) {
+  const int failures_before = failures;
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  char err[128];
+  if (!map_alloc(&map, 24, 24, err, sizeof(err))) {
+    return 1;
+  }
+  for (size_t i = 0; i < 24u * 24u; ++i) {
+    map.terrain[i] = 2;
+    map.layer3[i] = 0xf1u;
+  }
+  map.prime_resource_seed = 0;
+  map_reveal_all(&map, 0);
+  static ColonizeCol1Save col1;
+  memset(&col1, 0, sizeof(col1));
+  ColonizeCol1Tribe tribe;
+  memset(&tribe, 0, sizeof(tribe));
+  tribe.x = 10;
+  tribe.y = 8;
+  tribe.nation_id = 4;
+  tribe.mission = 0xff;
+  tribe.population = 4;
+  col1.tribe = &tribe;
+  col1.head.tribe_count = 1;
+  for (int f = 0; f < (int)COLONIZE_COL1_FF_COUNT; ++f) {
+    col1.head.founding_father[f] = -1;
+  }
+  col1.indian[0].euro_diplo[0] = COL1_INDIAN_MET_BIT;
+  ColonizeColonyPool pool;
+  colonies_init(&pool);
+  colonies_set_occupancy_map(NULL);
+  ColonizeColony* a = &pool.colonies[0];
+  a->active = true;
+  a->id = 0;
+  a->x = 10;
+  a->y = 10;
+  for (int i = 0; i < COLONIZE_COLONY_FIELD_TILES_MAX; ++i) {
+    a->tiles[i] = -1;
+  }
+  pool.colony_count = 1;
+  const ColonizeWorld w = world_make(NULL, &pool, &map, &col1, true, NULL, NULL);
+  CHECK(colonies_indian_claim_tribe_from_w(&w, 0, 10, 10, 10, 9) == 0, "unworked plot is claimed");
+  a->tiles[colonies_field_tile_index(0, -1)] = 0;
+  CHECK(colonies_indian_claim_tribe_from_w(&w, 0, 10, 10, 10, 9) < 0, "#1680: worked plot is not claimed");
+  map_free(&map);
+  return failures != failures_before ? 1 : 0;
+}
+
 /*
  * The rest of the original hand-written main(): one long narrative that
  * threads a single map/pool/cid/names/units fixture through founding,
@@ -1936,9 +2031,13 @@ static int case_colonies_core(void) {
         );
       }
 
-      /* House tier is 1:1 (no back-conversion): out == min(stock, 3). */
+      /* House tier is 1:1 (no back-conversion): out == min(stock, 3). The
+       * output tier is the chain's owned count (#1692), so drop the shop too. */
       c->has_building[works] = false;
       c->has_building[house] = true;
+      if (smithy >= 0) {
+        c->has_building[smithy] = false;
+      }
       c->colonists[0].building_type = house;
       static const int k_house_stock[] = {0, 1, 2, 3, 5};
       static const int k_house_out[] = {0, 1, 2, 3, 3};
@@ -4185,6 +4284,8 @@ static int unit_population_floor_abandon_edges(void) {
 
 static const TestCase k_cases[] = {
   {"unit_tb32_capture_keeps_war", unit_tb32_capture_keeps_war},
+  {"unit_capture_unseen_skips_effects", unit_capture_unseen_skips_effects},
+  {"unit_claim_skips_worked_plot", unit_claim_skips_worked_plot},
     {"unit_colonies_core", case_colonies_core},
     {"unit_population_floor_abandon_edges", unit_population_floor_abandon_edges},
     {"colony_delete_appends_next", case_colony_delete_appends_next},

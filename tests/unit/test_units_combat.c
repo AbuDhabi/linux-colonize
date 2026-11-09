@@ -652,6 +652,31 @@ static int unit_combat_sfx_visibility(void) {
       rc = 1;
     }
   }
+  /* port_bugs.md #1791: FUN_465b_0000 raw 75660-75692 also shows an AI-vs-AI
+   * fight under Complete Map (0x53a2) or when the attacker carries the
+   * viewport's vis bit. */
+  for (int term = 0; term < 2 && rc == 0; ++term) {
+    g_event_sfx_calls = 0;
+    const int aid = units_spawn_allow_stack(&pool, 0, 5, 9 + term);
+    const int did = units_spawn_allow_stack(&pool, 1, 6, 9 + term);
+    units_get(&pool, aid)->nation_id = 1;
+    units_get(&pool, did)->nation_id = 2;
+    if (term == 0) {
+      col1.head.show_entire_map = 1;
+    } else {
+      units_set_combat_human_nation(0);
+      units_get(&pool, aid)->col1_vis_mask = 1u << 0;
+    }
+    ColonizeDosRng rng;
+    dos_rng_seed(&rng, 7);
+    units_resolve_land_combat_ff_w(&(ColonizeWorld){.units=&pool, .col1=&col1, .col1_ok=true, .rng=&rng}, aid, did);
+    col1.head.show_entire_map = 0;
+    units_set_combat_human_nation(-1);
+    if (g_event_sfx_calls == 0) {
+      fprintf(stderr, "combat_sfx: AI-vs-AI term %d silent (want audible)\n", term);
+      rc = 1;
+    }
+  }
   /* Human attacker: audible. */
   if (rc == 0) {
     g_event_sfx_calls = 0;
@@ -695,7 +720,9 @@ static int unit_combat_sfx_visibility(void) {
     ColonizeDosRng rng;
     dos_rng_seed(&rng, 10);
     units_resolve_land_combat_ff_w(&(ColonizeWorld){.units=&pool, .col1=&col1, .col1_ok=true, .rng=&rng}, aid, did);
-    if (g_event_sfx_calls != 2 || g_event_sfx_ids[0] != 0x50 || g_event_sfx_ids[1] != 0x41) {
+    /* #1814: the win limb adds the 0x40 field selector (asm 0x5D50C). */
+    if (g_event_sfx_calls != 3 || g_event_sfx_ids[0] != 0x50 || g_event_sfx_ids[1] != 0x41 ||
+        g_event_sfx_ids[2] != 0x40) {
       fprintf(stderr, "combat_sfx: native typed/generic sequence got %d calls (%d,%d)\n",
               g_event_sfx_calls, g_event_sfx_ids[0], g_event_sfx_ids[1]);
       rc = 1;
@@ -712,7 +739,7 @@ static int unit_combat_sfx_visibility(void) {
     ColonizeDosRng rng;
     dos_rng_seed(&rng, 12);
     units_resolve_land_combat_ff_w(&(ColonizeWorld){.units=&pool, .col1=&col1, .col1_ok=true, .rng=&rng}, aid, did);
-    if (g_event_sfx_calls != 1 || g_event_sfx_ids[0] != 0x50) {
+    if (g_event_sfx_calls != 2 || g_event_sfx_ids[0] != 0x50 || g_event_sfx_ids[1] != 0x40) {
       fprintf(stderr, "combat_sfx: repeat native attack got %d calls (first %d)\n",
               g_event_sfx_calls, g_event_sfx_ids[0]);
       rc = 1;
@@ -729,13 +756,13 @@ static int unit_combat_sfx_visibility(void) {
     ColonizeDosRng rng;
     dos_rng_seed(&rng, 11);
     units_resolve_land_combat_ff_w(&(ColonizeWorld){.units=&pool, .col1=&col1, .col1_ok=true, .rng=&rng}, aid, did);
-    if (g_event_sfx_calls != 1 || g_event_sfx_ids[0] != 0x4c) {
+    if (g_event_sfx_calls != 2 || g_event_sfx_ids[0] != 0x4c || g_event_sfx_ids[1] != 0x40) {
       fprintf(stderr, "combat_sfx: cavalry attack got %d calls (first %d)\n",
               g_event_sfx_calls, g_event_sfx_ids[0]);
       rc = 1;
     }
   }
-  /* 5fef:2577-259f: a losing land attacker emits a second cue. */
+  /* #1814: the attacker-loss limb (asm 0x5D7A4-0x5D857) plays no cue. */
   if (rc == 0) {
     g_event_sfx_calls = 0;
     const int aid = units_spawn_allow_stack(&pool, 1, 4, 5);
@@ -745,7 +772,7 @@ static int unit_combat_sfx_visibility(void) {
     (void)units_resolve_land_combat_ff_w(
       &(ColonizeWorld){.units=&pool, .col1=&col1, .col1_ok=true, .rng=NULL}, aid, did
     );
-    if (g_event_sfx_calls != 2 || g_event_sfx_ids[0] != 0x41 || g_event_sfx_ids[1] != 0x40) {
+    if (g_event_sfx_calls != 1 || g_event_sfx_ids[0] != 0x41) {
       fprintf(stderr, "combat_sfx: land loss got %d calls (%d,%d)\n",
               g_event_sfx_calls, g_event_sfx_ids[0], g_event_sfx_ids[1]);
       rc = 1;
@@ -2391,6 +2418,14 @@ static int unit_combat_outcome_popup_gates(void) {
             pop.queue_count ? pop.queue[0].body : "", job);
     rc = 1;
   }
+  /* port_bugs.md #1793: the 1b0e tail has no ship test; a naval or fort win
+   * (no attacker unit, as 03f6's phantom) over a human ship gets @EUROPEWIN. */
+  ai_popup_clear(&pop);
+  units_combat_outcome_popups(&pool, NULL, &human, 1, 1, 0, 1, 0, &col1);
+  if (pop.queue_count != 1) {
+    fprintf(stderr, "popup gates: naval @EUROPEWIN queued %d (want 1)\n", pop.queue_count);
+    rc = 1;
+  }
   /* Off a colony tile the beaten brave still gets @INDIANLOSE. */
   ai_popup_clear(&pop);
   human.x = 7;
@@ -3182,7 +3217,9 @@ static int unit_naval_win_cue_ships_only(void) {
 }
 
 /* FUN_5fef_31ea raw 101482-101487: a razed village's Treasure spawn that fails
- * (no room / no row) zeroes the amount and shows no @LOOT. */
+ * (no room / no row) zeroes the amount and shows no @LOOT. port_bugs.md #1794:
+ * the razer here is AI (no human gate in DOS), and villages_burned is a
+ * wrapping byte INC (raw 101201). */
 static int unit_village_loot_spawn_failure_silent(void) {
   ColonizeUnitPool* bp = calloc(1, sizeof(*bp));
   if (!bp) {
@@ -3206,6 +3243,10 @@ static int unit_village_loot_spawn_failure_silent(void) {
     memset(col1.head.founding_father, 0xff, sizeof(col1.head.founding_father));
     col1.head.tribe_count = 1;
     col1.tribe = &tribe;
+    for (int n = 0; n < 4; ++n) {
+      col1.player[n].control = 1; /* every nation AI */
+    }
+    col1.nation[0].villages_burned = 255;
     AiPopupState pops;
     ai_popup_init(&pops);
     units_set_combat_popups(&pops, test_game_txt()); /* textless OKs are dropped */
@@ -3217,6 +3258,11 @@ static int unit_village_loot_spawn_failure_silent(void) {
     }
     units_set_combat_popups(NULL, NULL);
     got[has_treasure] = razed ? loot : -1;
+    if (razed && col1.nation[0].villages_burned != 0) {
+      fprintf(stderr, "LOOT popups: villages_burned %d (want wrap to 0)\n",
+              col1.nation[0].villages_burned);
+      got[has_treasure] = -2;
+    }
   }
   free(bp);
   if (got[0] != 0 || got[1] != 1) {

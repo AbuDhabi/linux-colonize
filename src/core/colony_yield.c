@@ -339,13 +339,7 @@ static int colony_yield_pipeline(
    * `uVar2 = FUN_137f_0142(x,y); if ((uVar2 & 10) != 0) local_26 += 1;` —
    * road bit 0x02 OR settlement bit 0x08, not road alone. Then +1 for a
    * river with +1 more on a major river (terrain bits 0x40/0x80), all added
-   * *before* the SoL fold and expert doubling. The port deliberately narrows
-   * the `& 0x0a` test to the road bit only (`map_tile_has_road`) — the same
-   * decision the shared improvement stack below already makes for the same
-   * reason (smell audit #26: widening to road-or-settlement breaks
-   * golden_colony_prod01 via St. Louis +1 food) — and it is unreachable here
-   * in practice because `colonies_plot_blocked_mask` (colony_plots.c
-   * 203-208) refuses any plot carrying a village or a foreign colony centre.
+   * *before* the SoL fold and expert doubling.
    * Combined with the unit-sized add in the shared improvement
    * stack below this reproduces the old "furs road/river bucket = 2,
    * major river 4, expert-doubled" totals exactly (2026-08-15 Hudson
@@ -516,16 +510,15 @@ static int colony_yield_pipeline(
    * keeps its ordinary base yield; only a mountain that never had a deposit
    * arrives here with resource -1 and the bit clear.
    *
-   * The `& 10` test is spelled road-only, matching the identical narrowing
-   * the improvement stack below already applies (DOS tests road|settlement;
-   * see the stack's note and smell audit #26).
+   * The `& 10` test is road OR settlement, as at the stack below
+   * (port_bugs.md #1696).
    */
   bool suppress_improvements = false;
   if (field_job == COLONIZE_JOB_SILVER_MINER && res < 0 &&
       !colony_yield_tile_prime_suppressed(map, x, y)) {
     suppress_improvements = true;
     if (yield != 0) {
-      yield = (map_tile_has_road(map, x, y) || expert) ? 1 : 0;
+      yield = (map_tile_has_road(map, x, y) || map_tile_has_city(map, x, y) || expert) ? 1 : 0;
     }
   }
 
@@ -553,11 +546,7 @@ static int colony_yield_pipeline(
    *     Hills farmer base back to NAMES's 1.
    *   - road on non-crop jobs (>3): +u. DOS tests the runtime FA mask 0x0a
    *     here (`FUN_137f_0142(x,y) & 10` — road bit OR settlement bit, the
-   *     same predicate map.c's road art and movement pair rule use), but
-   *     widening this test to road-or-settlement gives St. Louis +1 food and
-   *     breaks golden_colony_prod01, so the port keeps the road bit alone
-   *     until that colony's settlement-bit worked tile is explained. Smell
-   *     audit #26.
+   *     same predicate map.c's road art and movement pair rule use).
    *   - plow (runtime bit 0x40) on crop jobs (<4): +u.
    *   - river (terrain bit 0x40): +u; major river (terrain 0x80) adds +u
    *     once more ONLY if the stack so far is exactly u — i.e. river was

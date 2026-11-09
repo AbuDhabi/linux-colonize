@@ -45,6 +45,9 @@ void game_try_prompt_landho(ColonizeGameState* game, int dest_x, int dest_y);
 bool game_handle_modal_input(ColonizeGameState* game, const ColonizeInputState* input);
 static void game_apply_howmuch_result(ColonizeGameState* game);
 static void game_do_buy_construction(ColonizeGameState* game, int colony_id);
+static const char* game_cargo_name(const ColonizeGameState* game, int cargo);
+static void game_colony_bar_line(ColonizeGameState* game, bool refusal, const char* const* parts,
+                                 size_t count, bool bang);
 void game_request_buy_construction_confirm(ColonizeGameState* game);
 void game_colony_open_load_prompt(
   ColonizeGameState* game, const ColonizeColony* colony, int cargo
@@ -654,6 +657,7 @@ static bool game_found_finalize(ColonizeGameState* game, int uid, const char* ch
     if (woodcut_has_pending()) {
       game->found_open_colony_id = cid;
     } else {
+      game->colony_screen.multi_mode = COLONY_MULTI_PRODUCTION; /* raw 77043: DS:0x337 = 0 */
       game_enter_colony(game, cid); /* FUN_281f_0608, raw 77045 */
     }
   }
@@ -712,7 +716,12 @@ bool game_do_found_colony_at_unit(ColonizeGameState* game, int uid) {
    * port_bugs.md #682: the name prompt is the LAST gate. Everything that touches
    * the world (unit consume, colony create, sound, woodcut, first-worker
    * placement) lives in game_found_finalize and runs only on accept.
+   * FUN_479b_076e clears +0x315a and +0x314c at entry, before the prompt (raw
+   * 76978-76979), so an Esc at @COLONY still leaves the founder idle (#1716).
    */
+  ColonizeUnit* founder_mut = units_get(&game->units, uid);
+  founder_mut->col1_counter16 = 0;       /* +0x315a = 0 */
+  founder_mut->orders = UNITS_ORDER_NONE; /* +0x314c = 0 */
   game_found_open_colony_name(game, uid);
   return true;
 }
@@ -1149,9 +1158,11 @@ static void game_do_trade_delete_slot(ColonizeGameState* game, int slot) {
 }
 
 /*
- * Begin Trade Route step 2 (DOS FUN_2b5a_1e66 tail): route picked; assign it,
- * then let the player pick the starting destination (FUN_647e_090a) when the
- * route has more than one stop.
+ * Begin Trade Route step 2 (DOS FUN_2b5a_1e66 tail, raw 42849-42862): route picked. A
+ * route other than the unit's nibble is written at once with stop 0 (0862 + 08b2), then
+ * the FUN_647e_090a stop picker always runs, a one-stop route included, with the unit's
+ * stop as the default; Esc there leaves the orders as they were (#1719). The port holds
+ * the nibble only while orders == 2, so only such a unit is rewritten before the picker.
  */
 void game_trade_begin_route(ColonizeGameState* game, int route) {
   if (!game || !game->units_ok || !game->col1_ok) {
@@ -1165,21 +1176,17 @@ void game_trade_begin_route(ColonizeGameState* game, int route) {
   if (r->dest_count == 0) {
     return;
   }
-  if (r->dest_count > 1) {
-    game->trade_begin_route_pending = route;
-    /* DOS FUN_2b5a_1e66 reads the unit's current stop (FUN_281f_0858) as the
-     * @default preselect when the unit is already working this route; a
-     * fresh assignment preselects stop 0. */
-    int preselect = 0;
-    const ColonizeUnit* pu = units_get_const(&game->units, sid);
-    if (pu && pu->active && pu->orders == UNITS_ORDER_TRADE_ROUTE &&
-        pu->follow_unit_id == route) {
-      preselect = pu->col1_counter16;
+  ColonizeUnit* u = units_get(&game->units, sid);
+  int preselect = 0;
+  if (u && u->active && u->orders == UNITS_ORDER_TRADE_ROUTE) {
+    if (u->follow_unit_id != route) {
+      u->follow_unit_id = route; /* FUN_281f_0862 */
+      u->col1_counter16 = 0;     /* FUN_281f_08b2(u, 0) */
     }
-    game_trade_open_stop_picker(game, route, preselect);
-    return;
+    preselect = u->col1_counter16; /* FUN_281f_0876 */
   }
-  game_trade_begin_at_stop(game, route, 0);
+  game->trade_begin_route_pending = route;
+  game_trade_open_stop_picker(game, route, preselect);
 }
 
 /* Begin Trade Route final step: order 2, aim the chosen stop. */
@@ -1551,6 +1558,13 @@ bool game_europe_boycott_gate(ColonizeGameState* game, int cargo_type) {
       !europe_cargo_boycotted_ex(&game->europe, &game->col1, game->human_nation, cargo_type)) {
     return false;
   }
+  /* FUN_38fd_2dfe raw 60904-60908: a screen bound to a non-human nation zeroes every
+   * boycott (nation+0x20) and lets the trade go ahead (#1722). */
+  if (!game->europe.bound_human) {
+    game->col1.nation[game->human_nation].boycott_bitmap = 0;
+    game->europe.boycott_bitmap = 0;
+    return false;
+  }
   game_europe_ask_boycott_buyback(game, cargo_type);
   return true;
 }
@@ -1649,6 +1663,107 @@ void game_europe_sell_first_hold(ColonizeGameState* game, int hidx, int cargo, b
   }
   (void)europe_sell_hold(eu, &game->col1, game->human_nation, hidx, slot);
   game_europe_drain_price_events(game);
+}
+
+static const char* game_europe_ship_type_name(ColonizeGameState* game, const EuropeHarborShip* ship) {
+  const ColonizeUnitType* ut =
+    units_type(&game->units, europe_ship_type_index(&game->units, ship));
+  return ut ? ut->name : "";
+}
+
+/* FUN_38fd_285c tail (raw 60701-60722): empty the slot whole (0aec), put held - amount back
+ * on the source (0d58), load the destination (0d58), then the gold bar "N cargo @CMESSAGE 2
+ * <destination type name>" (0b50 kind 1). */
+void game_europe_ship_transfer_commit(
+  ColonizeGameState* game, int src, int dst, int slot, int amount
+) {
+  EuropeScreen* eu = &game->europe;
+  if (src < 0 || dst < 0 || src >= eu->harbor_ships || dst >= eu->harbor_ships ||
+      slot < 0 || slot >= EUROPE_SHIP_CARGO_MAX) {
+    return;
+  }
+  EuropeHarborShip* s = &eu->harbor[src];
+  EuropeHarborShip* d = &eu->harbor[dst];
+  const int ctype = s->hold_goods_type[slot];
+  const int held = s->hold_goods_amount[slot];
+  if (held <= 0 || held >= 255) {
+    game_colony_cargo_refusal(game, 11, -1, -1); /* 0aec < 0 -> 0bdc(0xb, 0x78) */
+    return;
+  }
+  const int moved = amount < held ? amount : held;
+  s->hold_goods_type[slot] = 0;
+  s->hold_goods_amount[slot] = 0;
+  (void)goods_holds_compact(s->hold_goods_type, s->hold_goods_amount, EUROPE_SHIP_CARGO_MAX);
+  (void)goods_pack_into_holds(
+    s->hold_goods_type, s->hold_goods_amount, EUROPE_SHIP_CARGO_MAX, ctype, held - moved,
+    EUROPE_SHIP_CARGO_MAX
+  );
+  /* The 0b96 room test passed, so the load fits without a slot bound. */
+  (void)goods_pack_into_holds(
+    d->hold_goods_type, d->hold_goods_amount, EUROPE_SHIP_CARGO_MAX, ctype, moved,
+    EUROPE_SHIP_CARGO_MAX
+  );
+  char qty_s[16], prep[64];
+  snprintf(qty_s, sizeof(qty_s), "%d", moved);
+  const char* w = reports_labels_field("CMESSAGE", 2);
+  snprintf(prep, sizeof(prep), "%s", w ? w : "");
+  const char* parts[] = {qty_s, game_cargo_name(game, ctype), prep, game_europe_ship_type_name(game, d)};
+  game_colony_bar_line(game, false, parts, 4, false);
+}
+
+/*
+ * FUN_38fd_2edc raw 60979-60984: a hold (0x9e1e) dragged off the selected harbor ship onto
+ * another harbor ship's icon -> 291f_0e36 = FUN_38fd_285c(src, dst, slot, shift), raw
+ * 60650-60725 (#1732). No room (0b96 == 0): the red @CMESSAGE 4 bar, naming the cargo
+ * DOS reads from the DESTINATION's same slot (0be6(param_2, param_3), raw 60663). Else
+ * the amount is min(room, 100, held); Shift asks @HOWMUCH3 (cargo, source and destination
+ * type names, that cap) first.
+ */
+void game_europe_ship_transfer(ColonizeGameState* game, int src, int dst, int slot, bool shift) {
+  if (!game || !game->europe_ok) {
+    return;
+  }
+  EuropeScreen* eu = &game->europe;
+  if (src < 0 || dst < 0 || src >= eu->harbor_ships || dst >= eu->harbor_ships ||
+      slot < 0 || slot >= EUROPE_SHIP_CARGO_MAX) {
+    return;
+  }
+  const EuropeHarborShip* s = &eu->harbor[src];
+  const int ctype = s->hold_goods_type[slot];
+  const int held = s->hold_goods_amount[slot];
+  int room = europe_harbor_cargo_room(eu, game->units_ok ? &game->units : NULL, dst, ctype);
+  if (room <= 0) {
+    europe_buy_no_room_bar(eu, eu->harbor[dst].hold_goods_type[slot]);
+    game_europe_drain_price_events(game);
+    return;
+  }
+  if (room > 100) {
+    room = 100;
+  }
+  if (held <= room) {
+    room = held;
+  }
+  if (shift) {
+    if (held <= 0 || held >= 255) {
+      return;
+    }
+    PopupMsgTokens tok;
+    memset(&tok, 0, sizeof(tok));
+    tok.string0 = game_cargo_name(game, ctype);
+    tok.string1 = game_europe_ship_type_name(game, s);
+    tok.string2 = game_europe_ship_type_name(game, &eu->harbor[dst]);
+    tok.number0 = room;
+    tok.has_number0 = true;
+    char prompt[AI_POPUP_BODY_LEN];
+    popup_msg_fill(&game->messages, "HOWMUCH3", &tok, "", prompt, sizeof(prompt));
+    game->howmuch_move_dst_unit_id = dst; /* a harbor index while in Europe */
+    howmuch_open(
+      &game->howmuch, HOWMUCH_KIND_MOVE, prompt,
+      howmuch_amount_label(&game->messages, "HOWMUCH3", ""), room, room, ctype, slot
+    );
+    return;
+  }
+  game_europe_ship_transfer_commit(game, src, dst, slot, room);
 }
 
 /*
@@ -1798,16 +1913,21 @@ void game_request_buy_construction_confirm(ColonizeGameState* game) {
    * just "Complete it" / "Never mind" (@BUYME1) if affordable, or the
    * informational @BUYME0 sibling if not. Buy itself only tops the
    * resources up — it does not complete the project (player-corrected). */
-  const int gold_cost = colonies_construction_gold_cost_ex(
-    &game->colonies, colony, game->col1_ok ? &game->col1 : NULL
-  );
-  if (game->europe.gold < gold_cost) {
+  ColonizeCol1Save* col1 = game->col1_ok ? &game->col1 : NULL;
+  const int gold_cost = colonies_construction_gold_cost_ex(&game->colonies, colony, col1);
+  /* FUN_2f2b_5e44 raw 52693-52699: no popup unless the project decodes and a hammer or
+   * tools deficit is left; the cost is 0 exactly when neither is (#1717). */
+  if (gold_cost <= 0) {
+    return;
+  }
+  const int gold = (int)europe_nation_gold(&game->europe, col1, game->human_nation);
+  if (gold < gold_cost) {
     PopupMsgTokens gtok;
     memset(&gtok, 0, sizeof(gtok));
     gtok.string0 = bname;
     gtok.number0 = gold_cost;
     gtok.has_number0 = true;
-    gtok.number1 = game->europe.gold;
+    gtok.number1 = gold;
     gtok.has_number1 = true;
     char gbody[AI_POPUP_BODY_LEN];
     popup_msg_fill(&game->messages, "BUYME0", &gtok, "", gbody, sizeof(gbody));
@@ -1820,7 +1940,7 @@ void game_request_buy_construction_confirm(ColonizeGameState* game) {
   tok.string0 = bname;
   tok.number0 = gold_cost;
   tok.has_number0 = true;
-  tok.number1 = game->europe.gold;
+  tok.number1 = gold;
   tok.has_number1 = true;
   char body[AI_POPUP_BODY_LEN];
   popup_msg_fill(&game->messages, "BUYME1", &tok, "", body, sizeof(body));
@@ -2029,6 +2149,22 @@ void game_open_trade_route_picker(ColonizeGameState* game, int mode) {
   if (!cheat_list_open_trade_select(&game->cheat_list, prompt, labels, ids, count)) {
     game->trade_select_mode = 0;
     diag_warn("trade route picker: cheat list refused to open");
+    return;
+  }
+  /* FUN_647e_0796 param_2 = the FUN_291f_08ec default row (#1718): Begin passes the
+   * unit's route nibble (FUN_281f_0858, raw 42847), Edit DS:0x1d69 (raw 103110), Delete 0
+   * (raw 103169). The port holds the nibble only while orders == 2. */
+  int def_route = 0;
+  if (mode == 1) {
+    const ColonizeUnit* u = units_get_const(&game->units, game->units.selected_id);
+    def_route = (u && u->orders == UNITS_ORDER_TRADE_ROUTE) ? u->follow_unit_id : 0;
+  } else if (mode == 2) {
+    def_route = game->trade_last_edited;
+  }
+  for (int row = 0; row < count; ++row) {
+    if (ids[row] == def_route) {
+      cheat_list_set_selection(&game->cheat_list, row);
+    }
   }
 }
 
@@ -2396,7 +2532,8 @@ static void game_trade_service_screen_request(ColonizeGameState* game) {
       for (int i = slot; i < count - 1; ++i) {
         col1_trade_nibble_set(nib, i, col1_trade_nibble_cargo(nib, i + 1));
       }
-      col1_trade_nibble_set(nib, count - 1, 0);
+      /* raw 103019-103024: shift down, then 2a1f_07b6(count - 1); the vacated nibble
+       * keeps its stale cargo, as in the DOS save bytes (#1721). */
       if (ts->request_is_load) {
         st->load_count--;
       } else {
@@ -2923,6 +3060,14 @@ static void game_apply_howmuch_result(ColonizeGameState* game) {
   const int amt = game->howmuch.result_amount;
   const int cargo = game->howmuch.result_cargo;
   const HowmuchKind kind = game->howmuch.result_kind;
+  if (kind == HOWMUCH_KIND_MOVE && game->in_europe) {
+    /* FUN_38fd_285c raw 60690-60698: the typed amount clamped to 0..cap (the box max). */
+    game_europe_ship_transfer_commit(
+      game, game->europe.selected_harbor, game->howmuch_move_dst_unit_id,
+      game->howmuch.result_payload, amt
+    );
+    return;
+  }
   if (kind == HOWMUCH_KIND_MOVE) {
     /* @HOWMUCH3: ship-to-ship transfer of a chosen amount (port_bugs.md #432
      * pattern), never through the warehouse. */
@@ -2943,6 +3088,11 @@ static void game_apply_howmuch_result(ColonizeGameState* game) {
       (void)units_load_goods(&game->units, src, ctype, held - moved);
     }
     if (moved > 0) {
+      /* raw 51696-51697: the receiver loses any orders but a trade route (#1730). */
+      ColonizeUnit* du = units_get(&game->units, dst);
+      if (du && du->orders != UNITS_ORDER_TRADE_ROUTE) {
+        du->orders = UNITS_ORDER_NONE;
+      }
       game_colony_cargo_moved(game, moved, ctype, dst);
     } else {
       game_colony_cargo_refusal(game, 4, -1, -1); /* FUN_2f2b_4fec: 2ec6(4, 0x78) */
@@ -3150,8 +3300,9 @@ static bool game_apply_popup_voyage(ColonizeGameState* game) {
     const int choice = game->ai_popups.result_choice_id;
     ai_popup_consume_result(&game->ai_popups);
     ColonizeUnit* ship = units_get(&game->units, ship_id);
-    if (!cancelled && ship && ship->active && units_is_sea(&game->units, ship_id)) {
-      if (choice == 1) {
+    /* `cmp [bp-0xc],1; jnz 0xfeea`: Esc (-1) takes the No arm like row 0 (#1729). */
+    if (ship && ship->active && units_is_sea(&game->units, ship_id)) {
+      if (!cancelled && choice == 1) {
         /*
          * port_bugs.md #717: "Yes" sails, full stop. FUN_4720_049e's shared
          * reason-4/5 UI body (ndisasm 0x3FECE-0x3FEE9) is

@@ -371,12 +371,11 @@ void reports_compute_score_w(
       }
     }
 
-    /* DOS: with 0x5382|0x10 the report prints only "SCORING COMPLETE" and
-     * composes nothing — every component stays 0. */
-    if (out->scoring_complete) {
-      return;
-    }
-
+    /* No early return on scoring_complete: FUN_41f2_0092 tests 0x5382 & 0x10
+     * only on the param_1 != 0 draw path (41f2:00f6 jumps to 024a for 0), so
+     * the compute-only call (FUN_41f2_14a8, the Hall of Fame score) gets the
+     * full total; reports_render_score draws only SCORING COMPLETE
+     * (port_bugs.md #1808). */
     /* Citizens: colony population + qualifying map/Europe units — see
      * reports_score_collect_citizen_jobs for the two source-specific rules. */
     {
@@ -401,8 +400,11 @@ void reports_compute_score_w(
     if (out->independence_achieved && out->declare_year < 1780) {
       out->early_revolution_pts = (1780 - out->declare_year) * 2;
     }
-    if (col1->head.game_options.intervention_announced && nat->liberty_bells_pool >= 100) {
-      out->bells_pts = (int)nat->liberty_bells_pool / 100;
+    /* raw 71327 (asm 41f2:08bb `CMP word [BX+0xc],0x64; JL`): the pool is
+     * read signed, so a pool above 32767 scores nothing (port_bugs.md #1808). */
+    if (col1->head.game_options.intervention_announced &&
+        (int16_t)nat->liberty_bells_pool >= 100) {
+      out->bells_pts = (int)(int16_t)nat->liberty_bells_pool / 100;
       if (out->bells_pts > 100) {
         out->bells_pts = 100;
       }
@@ -543,6 +545,17 @@ void reports_render_score(
   const char* diff_name = reports_difficulty_title(sc.difficulty);
   const char* nation_adj = reports_nation_adjective_display_name(human);
 
+  if (sc.scoring_complete) {
+    /* FUN_41f2_0092: 0x5382|0x10 -> only @MISC #126 "SCORING COMPLETE" through
+     * FUN_281f_0100 over (0, 0x140) at y 0x61 in DS:0x830 (41f2:0130-0152), nothing else:
+     * the test sits before the subtitle build at 015a (port_bugs.md #1807). */
+    char done[48];
+    reports_draw_dos_centered(
+      body_font, fb, 0, 0x140, 0x61, reports_misc_word(126, "", done, sizeof(done)),
+      COLONIZE_COL_BASIC
+    );
+    return;
+  }
   /* Subtitle: "<difficulty rank> <leader> of the <nation>: <Season> <year>" (FUN_41f2_0092
    * raw 71101-71117: FUN_281f_0178 appends DS:0x50 " ", FUN_281f_01be DS:0x55 ": ",
    * port_bugs.md #1211; golden "Viceroy Michiel De Ruyter of the Dutch: Autumn 1630"). */
@@ -574,14 +587,6 @@ void reports_render_score(
   /* LABELS.TXT @MISC: #59 "Gold", #121 "Total Score", #115 "Citizens",
    * #134 "Continental Congress", #69 "Rebel" + #71 "Sentiment". */
   char w1[48], w2[48];
-  if (sc.scoring_complete) {
-    /* FUN_41f2_0092: 0x5382|0x10 -> only @MISC #126 "SCORING COMPLETE" through
-     * FUN_281f_0100 over (0, 0x140) at y 0x61 in DS:0x830 (41f2:0130-0152), nothing else. */
-    reports_draw_dos_centered(
-      body_font, fb, 0, 0x140, 0x61, reports_misc_word(126, "", w1, sizeof(w1)), COLONIZE_COL_BASIC
-    );
-    return;
-  }
   if (!col1) {
     snprintf(line, line_sz, "%-24s%d", reports_misc_word(59, "", w1, sizeof(w1)), sc.treasury);
     reports_draw_line(
@@ -729,7 +734,8 @@ void reports_render_score(
     rows[n_lines] = 1;
     colors[n_lines++] = REPORTS_SCORE_GREEN_COLOR;
   }
-  if (col1->head.game_options.intervention_announced && col1->nation[human].liberty_bells_pool >= 100) {
+  if (col1->head.game_options.intervention_announced &&
+      (int16_t)col1->nation[human].liberty_bells_pool >= 100) { /* signed, raw 71327 */
     /* DOS label is the runtime pointer DS:0x97e4 — the NAMES.TXT @CARGO name
      * table (DS:0x97de = row 15 Muskets, docs/combat_analysis.md; 2-byte
      * stride) at row 18, "Liberty Bells". */

@@ -1925,6 +1925,14 @@ static void game_render_map_popups(
 COLONIZE_INTERNAL bool game_render_screen(
   const ColonizeGameState* game, ColonizeFramebuffer8* framebuffer, ColonizePalette* palette
 ) {
+  /* A report opened from the Europe screen (F2-F10, #1736) draws over it. */
+  if (game->in_report) {
+    const ColonizeFont* font = game->menu_font_ok ? &game->menu_font : NULL;
+    const ColonizeWorld w = game_world_const(game);
+    reports_render_w(&w, game->reports_ok ? &game->reports : NULL, game->report_id, game->congress_page2, game->labor_detail_job, game->economic_page, game->colony_page, game->naval_page, game->report_nation, game->map_cursor_x, game->map_cursor_y, game->turn_number, font, framebuffer);
+    return true;
+  }
+
   if (game->in_europe) {
     render_europe_screen(game, framebuffer);
     /*
@@ -1953,13 +1961,6 @@ COLONIZE_INTERNAL bool game_render_screen(
         framebuffer
       );
     }
-    return true;
-  }
-
-  if (game->in_report) {
-    const ColonizeFont* font = game->menu_font_ok ? &game->menu_font : NULL;
-    const ColonizeWorld w = game_world_const(game);
-    reports_render_w(&w, game->reports_ok ? &game->reports : NULL, game->report_id, game->congress_page2, game->labor_detail_job, game->economic_page, game->colony_page, game->naval_page, game->report_nation, game->map_cursor_x, game->map_cursor_y, game->turn_number, font, framebuffer);
     return true;
   }
 

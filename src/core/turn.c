@@ -561,8 +561,11 @@ static void turn_advance_day(ColonizeTurnProcessor* proc, ColonizeTurnContext* c
   }
   /* raw 6459-6461: FUN_281f_061e = FUN_3844_0442 follows the calendar step
    * every day, before the next day top, so it reads the human's autosaved
-   * state (independence 1->2: Spain's rebel band stays 44). */
-  turn_run_year_end_chrome(ctx, &proc->result);
+   * state (independence 1->2: Spain's rebel band stays 44). Gated on
+   * `DS:0x828 == 0 && DS:0x826 == 0` (no demo, no autoplay; #1820). */
+  if (!ctx->autoplay) {
+    turn_run_year_end_chrome(ctx, &proc->result);
+  }
 }
 
 COLONIZE_INTERNAL void turn_step_setup(ColonizeTurnProcessor* proc, ColonizeTurnContext* ctx) {
@@ -886,10 +889,37 @@ static void turn_step_all_ai_anchor(ColonizeTurnProcessor* proc, ColonizeTurnCon
   proc->step = TURN_PROC_IDLE;
 }
 
+/*
+ * FUN_38fd_0058 phase 4 for the human (5e52, raw 58963 / 58980): 0xfa8
+ * @PRICEUP / 0xfb0 @PRICEDOWN OK dialog (FUN_281f_0652(tag, 2)), shown inline
+ * once per cargo that crosses a threshold, so before 5e52's immigration pick
+ * (#1821). AI slots tick in turn_run_ai_nation_eot without dialogs
+ * (port_bugs.md #1012).
+ */
+static void turn_queue_price_popups(ColonizeTurnContext* ctx) {
+  for (int i = 0; ctx->ai_popups && i < ctx->europe->price_event_count; ++i) {
+    const int c = ctx->europe->price_event_cargo[i];
+    PopupMsgTokens tok;
+    memset(&tok, 0, sizeof(tok));
+    tok.string0 = ctx->europe->cargo[c].name;
+    tok.string1 = ctx->europe->port_city;
+    tok.number0 = europe_sell_price(ctx->europe, c); /* FUN_291f_09ea */
+    tok.has_number0 = true;
+    popup_chrome_ok(
+      ctx->ai_popups, ctx->messages,
+      ctx->europe->price_event_dir[i] > 0 ? "PRICEUP" : "PRICEDOWN", &tok, ""
+    );
+  }
+  /* Shown — clear, or the next player sell/buy replays these stale events
+   * via game_europe_drain_price_events. */
+  ctx->europe->price_event_count = 0;
+}
+
 COLONIZE_INTERNAL void turn_step_finish_5e52(ColonizeTurnProcessor* proc, ColonizeTurnContext* ctx);
 COLONIZE_INTERNAL void turn_step_finish_colony(ColonizeTurnProcessor* proc, ColonizeTurnContext* ctx);
 COLONIZE_INTERNAL void turn_step_finish_colony_loop(ColonizeTurnProcessor* proc, ColonizeTurnContext* ctx);
 COLONIZE_INTERNAL void turn_step_king_tail(ColonizeTurnProcessor* proc, ColonizeTurnContext* ctx);
+COLONIZE_INTERNAL void turn_human_ship_repairs(ColonizeTurnProcessor* proc, ColonizeTurnContext* ctx);
 
 /* Body of TURN_PROC_FINISH (part 1: up to the human 5e52 immigration tick). */
 COLONIZE_INTERNAL void turn_step_finish(ColonizeTurnProcessor* proc, ColonizeTurnContext* ctx) {
@@ -924,6 +954,29 @@ COLONIZE_INTERNAL void turn_step_finish(ColonizeTurnProcessor* proc, ColonizeTur
        * EOT stays in the human's own snapshot (DOSBox independence 8->9: New
        * Amsterdam's visible_to_euro[3] reads 18 at pop 17). */
       turn_reveal_fog_for_nation(ctx, ctx->human_nation);
+      /* The same unit walk (raw 58326-58369) runs 3844_0004 (raw 58333: a
+       * lone Convert deserts, @DEADCONVERTS) and the repair timers (@REFIT,
+       * DS:0x14c) before 4962_0606 / 5e52, so these notices lead the turn
+       * (#1821). */
+      if (ctx->human_nation >= 0 && ctx->human_nation < 4) {
+        /* FUN_3844_0004 (port_bugs.md #725): human owner — FUN_281f_0652(0xee2, 4)
+         * = @DEADCONVERTS, once per Convert lost. */
+        const int converts_lost =
+          units_tick_convert_outside_colony(ctx->units, ctx->map, ctx->human_nation);
+        for (int k = 0; k < converts_lost && ctx->ai_popups; ++k) {
+          PopupMsgTokens tok;
+          memset(&tok, 0, sizeof(tok));
+          char body[AI_POPUP_BODY_LEN];
+          const char* fb = "";
+          if (ctx->messages) {
+            popup_msg_fill(ctx->messages, "DEADCONVERTS", &tok, fb, body, sizeof(body));
+          } else {
+            snprintf(body, sizeof(body), "%s", fb);
+          }
+          ai_popup_enqueue_ok(ctx->ai_popups, AI_POPUP_TAG_INFO, NULL, body);
+        }
+        turn_human_ship_repairs(proc, ctx);
+      }
       /* The human's own 5e52 (raw 58375) opens its 00f2 here, after the day
        * top, with the same timer-word reseed every slot's 5e52 does. */
       if (ctx->col1_ok && ctx->col1 && !ctx->col1->head.game_options.woi) {
@@ -936,6 +989,7 @@ COLONIZE_INTERNAL void turn_step_finish(ColonizeTurnProcessor* proc, ColonizeTur
         europe_tick_market_prices_w(
           &mw, ctx->human_nation, ctx->turn_number ? *ctx->turn_number : 0u
         );
+        turn_queue_price_popups(ctx);
       }
       /* 0a9e = FUN_4962_0606 (raw 58374): the specialty census is taken before
        * 5e52, so a recruit picked there is not in it. */
@@ -969,6 +1023,13 @@ COLONIZE_INTERNAL void turn_step_finish_colony(ColonizeTurnProcessor* proc, Colo
       /* 0a82 = 48d3_06ba (raw 58377): after the 3dc8 answer, before the colony loop. */
       turn_run_human_europe_pass(ctx);
       turn_human_colony_eot_begin(ctx, &proc->colony_cursor);
+      /* raw 58378-58380: DS:0x14c (a harbor refit, 5e52's dock probe) opens
+       * the Europe screen here, before the colony loop (#1821). Yield so the
+       * caller can open it before the first colony's messages. */
+      if (proc->result.request_europe_open) {
+        proc->step = TURN_PROC_FINISH_COLONY_LOOP;
+        return;
+      }
       turn_step_finish_colony_loop(proc, ctx);
 }
 
@@ -1068,39 +1129,6 @@ COLONIZE_INTERNAL void turn_step_king_tail(ColonizeTurnProcessor* proc, Colonize
       proc->show_indicator = false;
       turn_set_active_nation(ctx, ctx->human_nation);
       /*
-       * FUN_38fd_0058 runs as the first act of each nation's own 5e52 (after
-       * the reseed, before immigration): AI slots in turn_run_ai_nation_eot,
-       * the human in its 00f2 in FINISH. Only the human's price popups are
-       * queued here. port_bugs.md #1012.
-       */
-      if (ctx->europe) {
-        /* FUN_38fd_0058 phase 4: 0xfa8 @PRICEUP / 0xfb0 @PRICEDOWN OK dialog
-         * (FUN_281f_0652(tag, 2)) for the human nation only. DOS calls this
-         * inline once per cargo that crosses threshold — a turn where two
-         * different goods both move gets two separate dialogs, not one;
-         * queue every entry (previously only the last event survived). */
-        if (ctx->ai_popups) {
-          for (int i = 0; i < ctx->europe->price_event_count; ++i) {
-            const int c = ctx->europe->price_event_cargo[i];
-            PopupMsgTokens tok;
-            memset(&tok, 0, sizeof(tok));
-            tok.string0 = ctx->europe->cargo[c].name;
-            tok.string1 = ctx->europe->port_city;
-            tok.number0 = europe_sell_price(ctx->europe, c); /* FUN_291f_09ea */
-            tok.has_number0 = true;
-            popup_chrome_ok(
-              ctx->ai_popups, ctx->messages,
-              ctx->europe->price_event_dir[i] > 0 ? "PRICEUP" : "PRICEDOWN", &tok,
-              ""
-            );
-          }
-        }
-        /* Shown — clear, or the next player sell/buy replays these stale
-         * events via game_europe_drain_price_events and an unrelated cargo
-         * (e.g. Coats) looks like it moved in response to that sale. */
-        ctx->europe->price_event_count = 0;
-      }
-      /*
        * FUN_281f_0668 → FUN_43f7_2244 (viceroy_unpacked.c:6418): the
        * peacetime @MERCENARIES offer sits in the human arm of the year loop
        * after FUN_281f_0644 (= 3844_00f2, everything above) and right before
@@ -1110,32 +1138,9 @@ COLONIZE_INTERNAL void turn_step_king_tail(ColonizeTurnProcessor* proc, Colonize
       turn_set_active_nation(ctx, ctx->human_nation);
       const ColonizeWorld rw = world_from_turn_ctx(ctx);
       turn_refresh_moves_for_nation_w(&rw, ctx->human_nation);
-      if (ctx->human_nation >= 0 && ctx->human_nation < 4) {
-        /* FUN_3844_0004 (port_bugs.md #725): human owner — FUN_281f_0652(0xee2, 4)
-         * = @DEADCONVERTS, once per Convert lost. */
-        {
-          const int converts_lost =
-            units_tick_convert_outside_colony(ctx->units, ctx->map, ctx->human_nation);
-          for (int k = 0; k < converts_lost && ctx->ai_popups; ++k) {
-            PopupMsgTokens tok;
-            memset(&tok, 0, sizeof(tok));
-            char body[AI_POPUP_BODY_LEN];
-            const char* fb = "";
-            if (ctx->messages) {
-              popup_msg_fill(ctx->messages, "DEADCONVERTS", &tok, fb, body, sizeof(body));
-            } else {
-              snprintf(body, sizeof(body), "%s", fb);
-            }
-            ai_popup_enqueue_ok(ctx->ai_popups, AI_POPUP_TAG_INFO, NULL, body);
-          }
-        }
-        turn_human_ship_repairs(proc, ctx);
-        /* No King's-Galleon offer here: FUN_465b_0000 raw 75800-75815 is the
-         * only DOS trigger and it fires on the move onto the colony tile
-         * (game_loop.c move tail). The end-of-turn sweep that used to live
-         * here re-offered parked Treasures every turn and auto-cashed them
-         * post-WoI, neither of which DOS does. */
-      }
+      /* Converts and repairs run in FINISH's unit walk (#1821). No King's-Galleon
+       * offer here: FUN_465b_0000 raw 75800-75815 is the only DOS trigger and
+       * it fires on the move onto the colony tile (game_loop.c move tail). */
       /* No unit pick here: DOS autosaves (FUN_130d_0172, raw 6413) before the
        * human arm, and FUN_2b5a_3b68 (raw 46831-46833) opens Move Pieces with
        * 0x5392 = 0xffff before picking. game_finish_end_turn does both after

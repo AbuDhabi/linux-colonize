@@ -174,7 +174,13 @@ static void save_load_cancel(SaveLoadDialog* dlg) {
 }
 
 static void save_load_confirm(SaveLoadDialog* dlg, int idx) {
+  if (!dlg || idx < 0 || idx >= dlg->option_count) {
+    return;
+  }
   if (!save_load_can_confirm(dlg, idx)) {
+    /* FUN_7562_04e8 (raw 119797-119800): an empty slot's occupied flag (0x59f5 + slot) is 0,
+     * so the box is freed and 04e8 returns 1, as for Esc: the dialog closes, nothing loads. */
+    save_load_cancel(dlg);
     return;
   }
   dlg->has_result = true;
@@ -187,19 +193,15 @@ static void save_load_move_selection(SaveLoadDialog* dlg, int delta) {
   if (!dlg || dlg->option_count <= 0 || delta == 0) {
     return;
   }
-  int idx = dlg->selection;
-  for (int step = 0; step < dlg->option_count; ++step) {
-    idx += delta;
-    if (idx < 0) {
-      idx = dlg->option_count - 1;
-    } else if (idx >= dlg->option_count) {
-      idx = 0;
-    }
-    if (dlg->mode == SAVE_LOAD_MODE_SAVE || dlg->slot_occupied[idx]) {
-      dlg->selection = idx;
-      return;
-    }
+  /* FUN_7562_0052 adds every row with FUN_291f_0176 and disables none, so the
+   * FUN_6f74_2580 list stops on "(EMPTY)" rows in Load mode too (port_bugs.md #1809). */
+  int idx = dlg->selection + delta;
+  if (idx < 0) {
+    idx = dlg->option_count - 1;
+  } else if (idx >= dlg->option_count) {
+    idx = 0;
   }
+  dlg->selection = idx;
 }
 
 bool save_load_handle_input(SaveLoadDialog* dlg, const ColonizeInputState* input) {
@@ -245,13 +247,13 @@ bool save_load_handle_input(SaveLoadDialog* dlg, const ColonizeInputState* input
   }
 
   /* port_bugs.md: mousing over a row moves the highlight (only on real movement,
-   * so it doesn't fight the arrow keys; unloadable rows don't take it). */
+   * so it doesn't fight the arrow keys). */
   if (input->mouse_x != dlg->hover_mx || input->mouse_y != dlg->hover_my) {
     dlg->hover_mx = input->mouse_x;
     dlg->hover_my = input->mouse_y;
     if (input->mouse_x >= dlg->dialog_x && input->mouse_x < dlg->dialog_x + dlg->dialog_w) {
       const int idx = save_load_option_at_y(dlg, input->mouse_y);
-      if (idx >= 0 && save_load_can_confirm(dlg, idx)) {
+      if (idx >= 0) {
         dlg->selection = idx;
       }
     }

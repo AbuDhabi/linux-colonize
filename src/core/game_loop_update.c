@@ -337,6 +337,39 @@ void game_colony_open_load_prompt(
 }
 
 /*
+ * FUN_2f2b_4da6 param_3 != 0 arm (raw 51586-51604): the @HOWMUCH2 amount entry
+ * for unloading hold `hold` of the selected transport into the colony; the
+ * answer runs the HOWMUCH_KIND_UNLOAD applier (@WAREHOUSEFULL gate, then the
+ * partial transfer). Colony-screen '_' (#1735).
+ */
+void game_colony_open_unload_prompt(
+  ColonizeGameState* game, const ColonizeColony* colony, int hold
+) {
+  const ColonizeUnit* tu = units_get_const(&game->units, game->colony_screen.transport_unit_id);
+  if (!colony || !tu || hold < 0 || hold >= COLONIZE_UNIT_CARGO_MAX ||
+      tu->hold_goods_amount[hold] <= 0 || tu->hold_goods_amount[hold] >= 255) {
+    return;
+  }
+  const int ctype = tu->hold_goods_type[hold];
+  const int max_amt = tu->hold_goods_amount[hold];
+  char prompt[AI_POPUP_BODY_LEN];
+  PopupMsgTokens tok;
+  memset(&tok, 0, sizeof(tok));
+  tok.string0 = (game->europe_ok && ctype >= 0 && ctype < game->europe.cargo_count)
+                  ? game->europe.cargo[ctype].name
+                  : "";
+  tok.string1 = units_display_name(&game->units, tu);
+  tok.string2 = colony->name[0] ? colony->name : "";
+  tok.number0 = max_amt;
+  tok.has_number0 = true;
+  popup_msg_fill(&game->messages, "HOWMUCH2", &tok, "", prompt, sizeof(prompt));
+  howmuch_open(
+    &game->howmuch, HOWMUCH_KIND_UNLOAD, prompt,
+    howmuch_amount_label(&game->messages, "HOWMUCH2", ""), max_amt, max_amt, ctype, hold
+  );
+}
+
+/*
  * European Status buy prompt: the @HOWMUCH4 amount dialog for the selected
  * market cargo, sized by the selected ship's free room (DOS FUN_38fd_1fa2,
  * smell audit #83), param_4 != 0: Shift+L, '+' and Shift+drag. Callers
@@ -1324,8 +1357,8 @@ COLONIZE_INTERNAL GameUpdateStep game_update_report_screen(ColonizeGameState* ga
   return GAME_UPDATE_CONTINUE;
 }
 
-/* @RENAMECOLONY name entry. DOS opens it by clicking the title bar
- * (thunk_FUN_1000_9898, zone 10); the R key is a port extra. */
+/* @RENAMECOLONY name entry. DOS opens it only by clicking the title bar
+ * (thunk_FUN_1000_9898, zone 10); R is outside the 2f2b_6372 key table (#1737). */
 static void game_colony_open_rename(ColonizeGameState* game, const ColonizeColony* colony) {
   char prompt[AI_POPUP_BODY_LEN];
   popup_msg_fill(&game->messages, "RENAMECOLONY", NULL, "", prompt, sizeof(prompt));
@@ -1640,11 +1673,9 @@ static GameUpdateStep game_colony_screen_mouse_click(
       break;
     }
     case COLONY_HIT_AREA_INTERIOR:
-      /* DOS 2f2b:609e — click on the area view's non-assignable centre
-       * flips the game-wide badge-numbers toggle (DS:0x336). FUN_2f2b_47bc
-       * treats it as an inner cell: focus and cursor move there. #1284. */
-      csv->show_production_numbers = !csv->show_production_numbers;
-      game->col1.stuff.ui_toggle_336 = csv->show_production_numbers ? 1 : 0;
+      /* FUN_2f2b_47bc treats the area view's centre as an inner cell: focus and
+       * cursor move there on the press (#1284); the badge toggle waits for the
+       * release (2f2b:609e, game_update_colony_screen, #1724). */
       csv->focus = COLONY_FOCUS_AREA;
       csv->area_dx = 0;
       csv->area_dy = 0;
@@ -1678,13 +1709,10 @@ static GameUpdateStep game_colony_screen_mouse_click(
       break;
     }
     case COLONY_HIT_CUSTOM_HOUSE_ROW:
-      /* FUN_6f74_2580: the press puts the bar on the row (raw 116745-116758), the release
-       * flips it (@checkbox, raw 117052-117058). */
+      /* FUN_6f74_2580: the press puts the bar on the row (raw 116745-116758); the
+       * release flips it (game_colony_custom_house_mouse, #1724). */
       if (hit.index >= 0 && hit.index < csv->custom_house_count) {
         csv->custom_house_selection = hit.index;
-        colonies_toggle_custom_house_cargo(
-          &game->colonies, game->colony_view_id, csv->custom_house_cargo_ids[hit.index]
-        );
       }
       break;
     case COLONY_HIT_CUSTOM_HOUSE_OUTSIDE:
@@ -2027,6 +2055,51 @@ static void game_colony_list_help(
 
 /* Colony-screen keyboard: Escape / Enter, the C construction toggle, the
  * 1/2/3/M/N tab keys and the open sub-panel's own navigation keys. */
+/*
+ * F2-F10 on the colony screen (FUN_2f2b_6372 2f2b:680a -> 64e4, nation = the
+ * colony's owner byte +0x1a) and the Europe screen (FUN_38fd_4f6e 38fd:52b2 ->
+ * 5054, table CS:0x50e6, nation DS:0x9e12): F2-F9 call the report bodies
+ * straight (291f_040c .. 041a, no @SETREPORT pick), F10 the Score report or,
+ * with DS:0x5383 & 0x20, the retire chain (game_open_score_report); the screen
+ * stays up underneath (#1736). True when the key was one of them.
+ */
+static bool game_screen_report_fkey(ColonizeGameState* game, ColonizeKey key, int nation) {
+  if (key < COLONIZE_KEY_F2 || key > COLONIZE_KEY_F10) {
+    return false;
+  }
+  if (key == COLONIZE_KEY_F10) {
+    if (game_cheats_enabled(game)) {
+      /* The retire chain ends at the title and never returns to this screen. */
+      game->in_colony = false;
+      game->colony_view_id = -1;
+      if (game->in_europe) {
+        game->in_europe = false;
+        game_europe_deliver_bound_ships(game);
+        game_europe_view_service(game);
+      }
+    }
+    game_open_score_report(game);
+    return true;
+  }
+  ColonizeReportId id;
+  if (reports_id_from_fkey((int)(key - COLONIZE_KEY_F1) + 1, &id)) {
+    game_open_report(game, id);
+    if (game->in_report && game->report_id == id) {
+      game->report_nation = nation;
+    }
+  }
+  return true;
+}
+
+/* No sub-panel up: DOS runs every one (jobs, construction, leave-as, dock
+ * orders, Custom House, message boxes) in its own FUN_6f74_2580 loop, so
+ * FUN_2f2b_6372's keys reach only the bare screen (#1738). */
+static bool game_colony_bare(const ColonyScreenView* csv) {
+  return !csv->jobs_open && !csv->construction_open && !csv->eject_open &&
+         !csv->dock_orders_open && !csv->custom_house_open &&
+         csv->message_kind == COLONY_MSG_NONE;
+}
+
 static GameUpdateStep game_colony_screen_keys(
   ColonizeGameState* game, const ColonizeInputState* input, ColonizeColony* colony,
   ColonyScreenView* csv, const ColonizeWorldMap* cmap
@@ -2105,6 +2178,10 @@ static GameUpdateStep game_colony_screen_keys(
     game_colony_screen_help(game, colony, csv);
     return GAME_UPDATE_RETURN_TRUE;
   }
+  if (colony && game_colony_bare(csv) && !ui_drag_active(&game->ui_drag) &&
+      game_screen_report_fkey(game, input->last_key, colony->nation_id)) {
+    return GAME_UPDATE_RETURN_TRUE;
+  }
 
   /* C = Construction Change (tech-supp). Toggle: down when Construction is
    * already up, otherwise every other sub-panel closes first so the new one
@@ -2128,7 +2205,7 @@ static GameUpdateStep game_colony_screen_keys(
   }
 
   /* 1/2/3 = multifunction tabs; M cycles; N toggles production numbers; =/+ load. */
-  for (int ti = 0; ti < input->text_input_len; ++ti) {
+  for (int ti = 0; game_colony_bare(csv) && ti < input->text_input_len; ++ti) {
     const char ch = input->text_input[ti];
     /* FUN_2f2b_6372 (2f2b:6722 / 6654): 1/2/3 and M set DS:0x338 = DS:0x337
      * = the new tab. #1285. */
@@ -2156,13 +2233,10 @@ static GameUpdateStep game_colony_screen_keys(
     }
     /* FUN_2f2b_6372 cheat tail (T S $ % ^ !), only with the cheat bit set and
      * on the bare colony screen (DOS runs every sub-panel in its own loop). */
-    if (colony && !csv->jobs_open && !csv->construction_open && !csv->eject_open &&
-        !csv->dock_orders_open && !csv->custom_house_open &&
-        csv->message_kind == COLONY_MSG_NONE && game_colony_cheat_key(game, colony, csv, ch)) {
+    if (colony && game_colony_cheat_key(game, colony, csv, ch)) {
       return GAME_UPDATE_RETURN_TRUE;
     }
-    if ((ch == '=' || ch == '+') && colony && game->units_ok && !csv->jobs_open &&
-        !csv->construction_open) {
+    if ((ch == '=' || ch == '+') && colony && game->units_ok) {
       /* DOS reads DS:0x33a directly: static 0 (Food) until a slot is picked. */
       const int cargo = (csv->selected_cargo >= 0 && csv->selected_cargo < COLONIZE_CARGO_COUNT)
                           ? csv->selected_cargo
@@ -2200,9 +2274,54 @@ static GameUpdateStep game_colony_screen_keys(
       }
       return GAME_UPDATE_RETURN_TRUE;
     }
-    if ((ch == 'r' || ch == 'R') && colony && !csv->jobs_open && !csv->construction_open &&
-        csv->message_kind == COLONY_MSG_NONE) {
-      game_colony_open_rename(game, colony);
+    if ((ch == '-' || ch == '_') && colony && game->units_ok) {
+      /* FUN_2f2b_6372 2f2b:66ae-66dd (#1735): no holder (DS:0x33c == 0) -> red bar
+       * @CMESSAGE 5 (FUN_2f2b_2ec6(5, 0x78)); else FUN_2f2b_4da6(ship, DS:0x33a,
+       * key == '_'). 4da6 (raw 51565-51640): FUN_281f_0c2c's first hold of the
+       * cargo, none -> red @CMESSAGE 9, cargo, @CMESSAGE 10; '_' asks @HOWMUCH2;
+       * the @WAREHOUSEFULL confirm (answer 2 goes on), then the hold goes ashore
+       * and the gold bar reads qty, cargo, @CMESSAGE 2, the colony name. */
+      const int cargo = (csv->selected_cargo >= 0 && csv->selected_cargo < COLONIZE_CARGO_COUNT)
+                          ? csv->selected_cargo
+                          : 0;
+      const ColonizeUnit* tu = units_get_const(&game->units, csv->transport_unit_id);
+      if (csv->transport_unit_id < 0 || !tu) {
+        game_colony_cargo_refusal(game, 5, -1, -1);
+        return GAME_UPDATE_RETURN_TRUE;
+      }
+      int hold = -1;
+      for (int h = 0; h < COLONIZE_UNIT_CARGO_MAX && hold < 0; ++h) {
+        if (tu->hold_goods_amount[h] > 0 && tu->hold_goods_amount[h] < 255 &&
+            tu->hold_goods_type[h] == cargo) {
+          hold = h;
+        }
+      }
+      if (hold < 0) {
+        game_colony_cargo_refusal(game, 9, cargo, 10);
+      } else if (ch == '_') {
+        game_colony_open_unload_prompt(game, colony, hold);
+      } else if (!game_colony_unload_ask(game, csv->transport_unit_id, hold, 0, 0)) {
+        const int moved =
+          game_colony_unload_hold_commit(game, csv->transport_unit_id, hold, 0, NULL);
+        if (moved > 0) {
+          char qty_s[16];
+          snprintf(qty_s, sizeof(qty_s), "%d", moved);
+          const char* prep = reports_labels_field("CMESSAGE", 2);
+          const char* parts[] = {
+            qty_s, game->europe_ok && cargo < game->europe.cargo_count ? game->europe.cargo[cargo].name : "",
+            prep ? prep : "", colony->name
+          };
+          char line[AI_POPUP_BAR_MSG_LEN];
+          size_t n = 0;
+          line[0] = '\0';
+          for (size_t i = 0; i < sizeof(parts) / sizeof(parts[0]); ++i) {
+            if (parts[i][0] && n < sizeof(line)) {
+              n += (size_t)snprintf(line + n, sizeof(line) - n, "%s%s", n ? " " : "", parts[i]);
+            }
+          }
+          (void)ai_popup_enqueue_bar_message(&game->ai_popups, line);
+        }
+      }
       return GAME_UPDATE_RETURN_TRUE;
     }
   }
@@ -2229,7 +2348,7 @@ static GameUpdateStep game_colony_screen_keys(
   }
 
   /* B = buy remaining construction with gold + warehouse tools. */
-  if (input->last_key == COLONIZE_KEY_B && colony &&
+  if (input->last_key == COLONIZE_KEY_B && colony && game_colony_bare(csv) &&
       colony->building_in_production >= 0) {
     csv->multi_mode = COLONY_MULTI_CONSTRUCTION; /* 2f2b:673c; DS:0x338 untouched */
     game_request_buy_construction_confirm(game);
@@ -2245,7 +2364,7 @@ static GameUpdateStep game_colony_screen_cargo_keys(
   ColonyScreenView* csv
 ) {
   /* L = load the highest-key cargo (FUN_479b_11a4); U = unload the lowest-key hold (DOS pick). */
-  if (!csv->jobs_open && !csv->construction_open && colony && game->units_ok) {
+  if (game_colony_bare(csv) && colony && game->units_ok) {
     if (input->last_key == COLONIZE_KEY_L) {
       /* 2f2b:662e: FUN_291f_01de -> FUN_479b_11a4(selected ship). */
       game_colony_load_best_cargo(game, csv->transport_unit_id, game->colony_view_id);
@@ -2260,13 +2379,51 @@ static GameUpdateStep game_colony_screen_cargo_keys(
 
   /* SPACE = FUN_364b_0688 on the viewed colony (FUN_2f2b_6372 2f2b:6950), a
    * CHEAT-bit-only extra production tick; without the bit DOS ignores the key. */
-  if (input->last_key == COLONIZE_KEY_SPACE && colony && !csv->jobs_open &&
-      !csv->construction_open && !csv->eject_open && !csv->dock_orders_open &&
-      !csv->custom_house_open && csv->message_kind == COLONY_MSG_NONE &&
+  if (input->last_key == COLONIZE_KEY_SPACE && colony && game_colony_bare(csv) &&
       game_colony_cheat_produce(game, colony)) {
     return GAME_UPDATE_RETURN_TRUE;
   }
   return GAME_UPDATE_CONTINUE;
+}
+
+/*
+ * The @CUSTOM @checkbox box's mouse (FUN_6f74_2580, #1724): while a button that went down
+ * inside the open box is held, the bar follows the pointer over the rows (raw
+ * 116745-116758); either button's release over a row flips the barred row (raw
+ * 117052-117058), so press on A, drag to B flips B. `s_armed` keeps the release of the
+ * press that opened the box from flipping a row.
+ */
+static void game_colony_custom_house_mouse(
+  ColonizeGameState* game, const ColonizeInputState* input, const ColonizeColony* colony,
+  ColonyScreenView* csv
+) {
+  static bool s_armed; /* ponytail: one colony screen per process; a csv field if that changes */
+  if (!csv->custom_house_open) {
+    s_armed = false;
+    return;
+  }
+  const bool released = input->mouse_left_released || input->mouse_right_released;
+  if (input->mouse_left_clicked || input->mouse_right_clicked) {
+    s_armed = true;
+  }
+  if (s_armed && (csv->mouse_held || released)) {
+    const ColonyScreenHitResult hit = colony_screen_hit_test(
+      csv, &game->colonies, colony, game->units_ok ? &game->units : NULL, input->mouse_x,
+      input->mouse_y
+    );
+    if (hit.kind == COLONY_HIT_CUSTOM_HOUSE_ROW && hit.index >= 0 &&
+        hit.index < csv->custom_house_count) {
+      csv->custom_house_selection = hit.index;
+      if (released) {
+        colonies_toggle_custom_house_cargo(
+          &game->colonies, game->colony_view_id, csv->custom_house_cargo_ids[hit.index]
+        );
+      }
+    }
+  }
+  if (released) {
+    s_armed = false;
+  }
 }
 
 COLONIZE_INTERNAL GameUpdateStep game_update_colony_screen(ColonizeGameState* game, const ColonizeInputState* input) {
@@ -2348,6 +2505,10 @@ COLONIZE_INTERNAL GameUpdateStep game_update_colony_screen(ColonizeGameState* ga
       if (hover.kind == COLONY_HIT_BUILDING) {
         csv->hover_building_row = hover.index;
       }
+    }
+
+    if (colony) {
+      game_colony_custom_house_mouse(game, input, colony, csv);
     }
 
     /* The colony's other FUN_6f74_2580 boxes (dock orders 5746 / 51ec, the @CUSTOM
@@ -2440,6 +2601,18 @@ COLONIZE_INTERNAL GameUpdateStep game_update_colony_screen(ColonizeGameState* ga
     if (ui_drag_active(&game->ui_drag) && input->mouse_left_released && colony) {
       game_colony_drag_drop(game, colony, cmap, input->mouse_x, input->mouse_y, input->shift_held);
       return GAME_UPDATE_RETURN_TRUE;
+    }
+    /* 2f2b:609e: the release (DS:0x7f4) over the area view's centre flips the badge
+     * numbers DS:0x336 (#1724; the press only moves the focus). */
+    if (input->mouse_left_released && colony && game_colony_bare(csv)) {
+      const ColonyScreenHitResult hit = colony_screen_hit_test(
+        csv, &game->colonies, colony, game->units_ok ? &game->units : NULL, input->mouse_x,
+        input->mouse_y
+      );
+      if (hit.kind == COLONY_HIT_AREA_INTERIOR) {
+        csv->show_production_numbers = !csv->show_production_numbers;
+        game->col1.stuff.ui_toggle_336 = csv->show_production_numbers ? 1 : 0;
+      }
     }
 
     {
@@ -2648,6 +2821,10 @@ static GameUpdateStep game_europe_screen_keys(
     game_europe_screen_help(game, eu);
     return GAME_UPDATE_RETURN_TRUE;
   }
+  if (!ui_drag_active(&game->ui_drag) &&
+      game_screen_report_fkey(game, input->last_key, game->human_nation)) {
+    return GAME_UPDATE_RETURN_TRUE;
+  }
 
   /* DOS-LITERAL FUN_38fd_4f6e raw 66016-66038: Tab steps DS:0xf9a market -> harbor -> dock,
    * wrapping, past the harbor while DS:0xfa2 ships are 0 and the dock while DS:0x9e2a units
@@ -2702,7 +2879,9 @@ static GameUpdateStep game_europe_screen_keys(
    * param_4 = (key == '+' || key == 'L')). U : sell the lowest-key hold
    * (FUN_479b_0f60). */
   if (input->last_key == COLONIZE_KEY_L) {
-    if (eu->selected_harbor >= 0 && !game_europe_boycott_gate(game, eu->selected_market)) {
+    if (eu->harbor_ships <= 0) {
+      game_europe_refusal(game, "CMESSAGE", 5); /* 38fd:51ba-51c1, #1740 */
+    } else if (eu->selected_harbor >= 0 && !game_europe_boycott_gate(game, eu->selected_market)) {
       if (input->shift_held) {
         game_europe_open_buy_prompt_for(game, eu->selected_harbor, eu->selected_market);
       } else {
@@ -2716,21 +2895,72 @@ static GameUpdateStep game_europe_screen_keys(
     game_europe_sell_best_hold(game, eu->selected_harbor);
     return GAME_UPDATE_RETURN_TRUE;
   }
-  /* S / Space / Enter with a ship selected (focus mode 1): the ship menu,
-   * FUN_38fd_2bfe, not a direct sail (FUN_38fd_4f6e 38fd:5364-5491); its row 2
-   * sails through the @SAILAWAY confirm. These keys do not read DS:0xf9a
-   * (eu->focus, only F1 does): a selected harbor ship is the ship focus. */
-  if (input->last_key == COLONIZE_KEY_S || input->last_key == COLONIZE_KEY_SPACE ||
-      input->last_key == COLONIZE_KEY_ENTER) {
-    if (eu->selected_harbor >= 0) {
-      /* raw 67692: a damaged hull (bit7, not Artillery) gets no menu here. */
-      if (eu->selected_harbor < eu->harbor_ships && !eu->harbor[eu->selected_harbor].damaged) {
+  /*
+   * DOS-LITERAL FUN_38fd_4f6e 38fd:52d9-5579 (raw 67602-67730, #1739): every key ends in a
+   * branch on the focused panel DS:0xf9a. Arrows step that panel's cursor and wrap it with
+   * FUN_281f_038e (FUN_1262_0128: below 0 -> n - 1, n or more -> 0).
+   *  0 market (DS:0xf9e, n 0x10): Up/Left -1, Right/Down +1; Enter/Space: a boycotted cargo
+   *    (291f_0cd8) asks @KISSUP (291f_0c06), else nothing. S does nothing.
+   *  1 harbor (DS:0x9e20 = DS:0x9e1c, n DS:0xfa2): Up <4 +4, <0xc +8, <0x19 -0xc, else 0;
+   *    Down >=0xc -8, >=8 = 3, >=4 -4, else +0xc; Left/Right -/+1. S/Space/Enter: the
+   *    ship menu (291f_0d1e) unless the hull is damaged (+0x3148 bit 7, not type 0xb).
+   *    DOS's "Enter on an unselected cursor only selects" arm is dead: every writer
+   *    keeps 0x9e20 == 0x9e1c.
+   *  2 dock (DS:0x9e2c, n DS:0x9e2a): Up >=6 = 2, <3 +3, else -3; Down <3 +3, <6 -3,
+   *    else 0; Left/Right -/+1. S/Space/Enter: @ARMOPTIONS (291f_0e28).
+   */
+  {
+    const ColonizeKey k = input->last_key;
+    const bool act = k == COLONIZE_KEY_S || k == COLONIZE_KEY_SPACE || k == COLONIZE_KEY_ENTER;
+    const bool up = colonize_key_up(k);
+    const bool down = colonize_key_down(k);
+    const bool left = colonize_key_left(k);
+    const bool right = colonize_key_right(k);
+    const bool arrow = up || down || left || right;
+    if (eu->focus == 0 && (arrow || k == COLONIZE_KEY_SPACE || k == COLONIZE_KEY_ENTER)) {
+      if (arrow) {
+        int c = eu->selected_market + ((up || left) ? -1 : 1);
+        eu->selected_market = c < 0 ? 0x10 - 1 : c >= 0x10 ? 0 : c;
+      } else {
+        (void)game_europe_boycott_gate(game, eu->selected_market);
+      }
+      return GAME_UPDATE_RETURN_TRUE;
+    }
+    if (eu->focus == 1 && (arrow || act)) {
+      const int n = eu->harbor_ships;
+      if (arrow && n > 0) {
+        int c = eu->selected_harbor < 0 ? 0 : eu->selected_harbor;
+        if (up) {
+          c = c < 4 ? c + 4 : c < 0xc ? c + 8 : c < 0x19 ? c - 0xc : 0;
+        } else if (down) {
+          c = c >= 0xc ? c - 8 : c >= 8 ? 3 : c >= 4 ? c - 4 : c + 0xc;
+        } else {
+          c += left ? -1 : 1;
+        }
+        eu->selected_harbor = c < 0 ? n - 1 : c >= n ? 0 : c;
+      } else if (act && eu->selected_harbor >= 0 && eu->selected_harbor < n &&
+                 !eu->harbor[eu->selected_harbor].damaged) {
         game_europe_open_ship_menu(game, eu->selected_harbor);
       }
       return GAME_UPDATE_RETURN_TRUE;
     }
-    if (input->last_key == COLONIZE_KEY_S) {
-      eu->status[0] = '\0';
+    if (eu->focus == 2 && (arrow || act)) {
+      const int n = eu->dock_count;
+      if (arrow && n > 0) {
+        int c = eu->dock_selected;
+        if (up) {
+          c = c >= 6 ? 2 : c < 3 ? c + 3 : c - 3;
+        } else if (down) {
+          c = c < 3 ? c + 3 : c < 6 ? c - 3 : 0;
+        } else {
+          c += left ? -1 : 1;
+        }
+        eu->dock_selected = c < 0 ? n - 1 : c >= n ? 0 : c;
+      } else if (act && eu->dock_selected >= 0 && eu->dock_selected < n) {
+        eu->menu_dock_index = eu->dock_selected;
+        europe_build_dock_menu(eu, &game->messages, eu->dock_selected);
+        europe_menu_open(eu, EUROPE_MENU_DOCK);
+      }
       return GAME_UPDATE_RETURN_TRUE;
     }
   }
@@ -2747,9 +2977,11 @@ static GameUpdateStep game_europe_screen_keys(
       }
       return GAME_UPDATE_RETURN_TRUE;
     }
-    if ((ch == '=' || ch == '+') && eu->selected_harbor >= 0) {
+    if ((ch == '=' || ch == '+') && (eu->selected_harbor >= 0 || eu->harbor_ships <= 0)) {
       /* Same branch as key l / L (38fd:51ba): '=' full load, '+' prompt. */
-      if (!game_europe_boycott_gate(game, eu->selected_market)) {
+      if (eu->harbor_ships <= 0) {
+        game_europe_refusal(game, "CMESSAGE", 5); /* 51c1: "Nothing to transport" (#1740) */
+      } else if (!game_europe_boycott_gate(game, eu->selected_market)) {
         if (ch == '+') {
           game_europe_open_buy_prompt_for(game, eu->selected_harbor, eu->selected_market);
         } else {
@@ -2831,6 +3063,54 @@ static GameUpdateStep game_europe_screen_mouse(
     }
   }
 
+  /*
+   * Market cells (FUN_38fd_3502 raw 61107-61176) and harbor ships (FUN_38fd_2edc raw
+   * 60949-61033): the press of either button focuses and selects (raw 61143-61145,
+   * 61012-61019); a right release opens the cargo article (FUN_291f_0934) or the ship
+   * type's (FUN_291f_0942, with DS:0xfa2 ships in port), then redraws Europe (0dfe)
+   * (#1741); a left release over a boycotted cargo asks @KISSUP (raw 61149-61151, #1742).
+   */
+  if (!ui_drag_active(&game->ui_drag) &&
+      (input->mouse_right_clicked ||
+       ((input->mouse_right_released || input->mouse_left_released) && press_on_screen))) {
+    const EuropeHitResult rh = game_europe_hit(game, input->mouse_x, input->mouse_y);
+    if (rh.kind == EUROPE_HIT_MARKET && rh.index >= 0 && rh.index < 0x10) {
+      if (input->mouse_right_clicked) {
+        eu->focus = 0;
+        eu->selected_market = rh.index;
+      }
+      if (input->mouse_right_released && press_on_screen) {
+        game_open_pedia_article(game, PEDIA_CAT_CARGO, rh.index, false);
+        game->pedia_return_europe = true;
+        return GAME_UPDATE_RETURN_TRUE;
+      }
+      if (input->mouse_left_released && press_on_screen) {
+        (void)game_europe_boycott_gate(game, rh.index);
+      }
+      if (!input->mouse_left_clicked) {
+        return GAME_UPDATE_RETURN_TRUE;
+      }
+    } else if (rh.kind == EUROPE_HIT_HARBOR_SHIP && rh.index >= 0 &&
+               rh.index < eu->harbor_ships) {
+      if (input->mouse_right_clicked) {
+        eu->focus = 1;
+        eu->selected_harbor = rh.index;
+      }
+      if (input->mouse_right_released && press_on_screen) {
+        const EuropeHarborShip* hs = &eu->harbor[rh.index];
+        const int ti = game->units_ok ? europe_ship_type_index(&game->units, hs) : hs->type_index;
+        if (ti >= 0) {
+          game_open_pedia_article(game, PEDIA_CAT_UNIT, ti, false);
+          game->pedia_return_europe = true;
+        }
+        return GAME_UPDATE_RETURN_TRUE;
+      }
+      if (input->mouse_right_clicked && !input->mouse_left_clicked) {
+        return GAME_UPDATE_RETURN_TRUE;
+      }
+    }
+  }
+
   if (input->mouse_left_clicked) {
     if (ui_drag_active(&game->ui_drag)) {
       return GAME_UPDATE_RETURN_TRUE;
@@ -2877,14 +3157,19 @@ static GameUpdateStep game_europe_screen_mouse(
       if (europe_cargo_boycotted_ex(
             eu, game->col1_ok ? &game->col1 : NULL, game->human_nation, hit.index
           )) {
-        /* GAME.TXT @SOMEBOYCOTT: "...click on the cargo type in question"
-         * to ask that the boycott be lifted -- pay-back-taxes buyback,
-         * not the normal buy/sell flow. DOS (FUN_38fd_2dfe) asks first with
-         * the @KISSUP two-row CHOICE and only pays on its second row; see
-         * game_europe_ask_boycott_buyback. */
-        if (game->col1_ok && game->human_nation >= 0) {
-          game_europe_ask_boycott_buyback(game, hit.index);
-        }
+        /* GAME.TXT @SOMEBOYCOTT: the @KISSUP buyback is asked on the RELEASE
+         * (FUN_38fd_3502 raw 61149-61151, DS:0x7f4; see below, #1742); the
+         * press over a boycotted cargo does nothing more. */
+      } else if (eu->harbor_ships == 0) {
+        /* FUN_38fd_1fa2 raw 60389-60397 (via 291f_0b42): no ship in port -> red bar
+         * @CMESSAGE 5, the cargo name, DS:0xfca "!" (#1742). */
+        const char* w = reports_labels_field("CMESSAGE", 5);
+        char line[AI_POPUP_BAR_MSG_LEN];
+        snprintf(
+          line, sizeof(line), "%s%s%s!", w ? w : "", w && w[0] ? " " : "",
+          hit.index < eu->cargo_count ? eu->cargo[hit.index].name : ""
+        );
+        (void)ai_popup_enqueue_bar_refusal(&game->ai_popups, line);
       } else if (eu->selected_harbor < 0) {
         eu->status[0] = '\0';
       } else {
@@ -3921,7 +4206,9 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
     return true;
   }
 
-  if (input->last_key == COLONIZE_KEY_P) {
+  /* Alt+letter goes to the menu titles (FUN_2b5a_3252, game_update_map_menu_bar),
+   * never to these plain-letter orders (#1743: Alt-R built a road). */
+  if (input->last_key == COLONIZE_KEY_P && !input->alt_held) {
     if (game_key_pioneer_order(
           game, units_pioneer_plow_w, GAME_INDIAN_LAND_FOREST, MAP_MENU_ACTION_PLOW_FIELDS
         )) {
@@ -3929,7 +4216,7 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
     }
   }
 
-  if (input->last_key == COLONIZE_KEY_R) {
+  if (input->last_key == COLONIZE_KEY_R && !input->alt_held) {
     if (game_key_pioneer_order(
           game, units_pioneer_road_w, GAME_INDIAN_LAND_ROAD, MAP_MENU_ACTION_BUILD_ROAD
         )) {
@@ -3937,7 +4224,7 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
     }
   }
 
-  if (input->last_key == COLONIZE_KEY_E && !game->in_menu) {
+  if (input->last_key == COLONIZE_KEY_E && !input->alt_held && !game->in_menu) {
     game_europe_command(game);
     return true;
   }

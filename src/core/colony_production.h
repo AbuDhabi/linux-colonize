@@ -66,6 +66,12 @@ int colony_prod_manufacturing_output_row(
   int craft_profession,
   int sol_bonus
 );
+/* The row to pass above for a worker in `building_row`: FUN_15eb_1d4c takes
+ * the tier from 039e(0aec(job)), the count of owned rows along the chain, not
+ * the worker's building (port_bugs.md #1692). Chain row [count - 1]. */
+int colony_prod_craft_tier_row(
+  const ColonizeColonyPool* pool, const ColonizeColony* colony, int building_row
+);
 
 /*
  * Raw-good input for ONE worker's manufacturing output. Factory tier takes

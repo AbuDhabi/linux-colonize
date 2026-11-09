@@ -523,27 +523,50 @@ static bool colony_screen_prod_hammers_slot(const ColonizeColonyPreview* p, Colo
 }
 
 /*
- * DOS-LITERAL FUN_2f2b_208c raw 48745-48779, unpressed: a frame the label's FONTTINY width + 5
- * wide and 9 tall, 0x30 along the bottom and right first, then 0x39 along the top and left over
- * it, and the label at (+3, +2) in 0x0f through the one-pass FUN_281f_013c (no hotkey ink).
+ * DOS-LITERAL FUN_2f2b_208c raw 48745-48779: a frame the label's FONTTINY width + 5 wide and
+ * 9 tall, bottom and right first, then top and left over it, and the label at (+3, +2)
+ * through the one-pass FUN_281f_013c (no hotkey ink). Unpressed: 0x30 / 0x39, label 0x0f.
+ * Pressed (flag 1, 2f2b:21de-225d): 0x39 / 0x30, a 0x0f fill inside the bevel, label 0.
  * Literal WOODPANL indices, pixel-checked against new_amsterdam_construction.png /
- * recife_construction.png (port_bugs.md #1124). `white` = the port's dead-queue blink phase:
- * all 0x0f with black text.
+ * recife_construction.png (port_bugs.md #1124, #1698). Returns the button width.
  */
-static void colony_screen_dos_button(
+static int colony_screen_dos_button(
   ColonizeFramebuffer8* framebuffer, const ColonizeFont* font, int x, int y, const char* label,
-  bool white
+  bool pressed
 ) {
   const int w = font_text_width(font, label) + 5;
   const int h = 9;
-  if (white) {
-    fb_fill_rect(framebuffer, x, y, w, h, 0x0f);
+  const uint8_t br = pressed ? 0x39 : 0x30;
+  const uint8_t tl = pressed ? 0x30 : 0x39;
+  fb_fill_rect(framebuffer, x, y + h - 1, w, 1, br);
+  fb_fill_rect(framebuffer, x + w - 1, y, 1, h, br);
+  fb_fill_rect(framebuffer, x, y, w, 1, tl);
+  fb_fill_rect(framebuffer, x, y, 1, h, tl);
+  if (pressed) {
+    fb_fill_rect(framebuffer, x + 1, y + 1, w - 2, h - 2, 0x0f);
   }
-  fb_fill_rect(framebuffer, x, y + h - 1, w, 1, white ? 0x0f : 0x30);
-  fb_fill_rect(framebuffer, x + w - 1, y, 1, h, white ? 0x0f : 0x30);
-  fb_fill_rect(framebuffer, x, y, w, 1, white ? 0x0f : 0x39);
-  fb_fill_rect(framebuffer, x, y, 1, h, white ? 0x0f : 0x39);
-  font_draw_text(font, framebuffer, x + 3, y + 2, label, white ? 0 : 0x0f);
+  font_draw_text(font, framebuffer, x + 3, y + 2, label, pressed ? 0 : 0x0f);
+  return w;
+}
+
+/* The colony's project (+0x94) by name: an @BUILDING row, a buildable unit (only codes past
+ * the @BUILDING table, colonies_unit_build_info), or "" with none (+0x94 < 0). */
+static void colony_screen_project_name(
+  const ColonizeColonyPool* pool, const ColonizeColony* colony, char* out, size_t out_sz
+) {
+  out[0] = '\0';
+  if (!pool || !colony || colony->building_in_production < 0) {
+    return;
+  }
+  if (colonies_building_type(pool, colony->building_in_production)) {
+    snprintf(out, out_sz, "%s", colonies_building_name(pool, colony->building_in_production));
+    return;
+  }
+  const char* unit_name = NULL;
+  int hammers = 0;
+  int tools = 0;
+  colonies_unit_build_info(colony->building_in_production, &unit_name, &hammers, &tools);
+  snprintf(out, out_sz, "%s", unit_name ? unit_name : "");
 }
 
 void colony_screen_draw_multifunction(
@@ -561,8 +584,9 @@ void colony_screen_draw_multifunction(
   /* DOS FUN_2f2b_2b66 (raw 49180-49212, asm 2f2b:2b66-2c3a): each button is an
    * ink-0x3f outline plus its sprite. Unselected: outline one pixel down-right
    * (304, y+1), sprite at (303, y). Selected: outline at (303, y), sprite at
-   * (304, y+1) — the pressed look. port_bugs.md #1275. */
-  for (int i = 0; i < 3; ++i) {
+   * (304, y+1) — the pressed look. port_bugs.md #1275. FUN_2f2b_2c3c (asm 2f2b:2c51-2c72)
+   * draws none in the spy view (DS:0xb98), port_bugs.md #1712. */
+  for (int i = 0; i < 3 && !view->spy_view; ++i) {
     const int y = COLONY_TAB_BTN_Y + i * COLONY_TAB_BTN_PITCH;
     /* While a tab press is held DS:0x339 (the button under the pointer) is
      * the one drawn pressed (FUN_2f2b_4a1c -> 2c3c(1,1)). port_bugs.md #1285. */
@@ -672,7 +696,13 @@ void colony_screen_draw_multifunction(
      * idx 57, exact RGB match against the golden's sampled ink color). */
     if (font) {
       const char* title = "";
-      if (labels) {
+      char project[64];
+      if (view->spy_view) {
+        /* FUN_2f2b_1e46 asm 2f2b:1e4a-1ec4: the spy view titles the pane with the colony's
+         * project (+0x94 via 0ac4 / 0d4e / 11b4), not @CMISC 1 (port_bugs.md #1713). */
+        colony_screen_project_name(pool, colony, project, sizeof(project));
+        title = project;
+      } else if (labels) {
         const ColonizeMsgSection* cmisc = assets_msg_find(labels, "CMISC");
         if (cmisc && cmisc->line_count > 1 && cmisc->lines[1][0]) {
           title = cmisc->lines[1];
@@ -742,7 +772,7 @@ void colony_screen_draw_multifunction(
     const char* abandon_lbl = assets_msg_line_or(labels, "MODABANDON", 0, "");
     if (font && !view->spy_view && abandon_lbl[0] && mods_on(MOD_POPULATION_FLOOR)) {
       view->abandon_btn_w = font_text_width(font, abandon_lbl) + 5;
-      colony_screen_dos_button(
+      (void)colony_screen_dos_button(
         framebuffer, font, COLONY_ABANDON_BTN_RIGHT - view->abandon_btn_w, COLONY_ABANDON_BTN_Y,
         abandon_lbl, false
       );
@@ -768,32 +798,27 @@ void colony_screen_draw_multifunction(
       colonies_unit_build_info(colony->building_in_production, &unit_name, &unit_hammers, &unit_tools);
     }
     if (font) {
-      if (bt) {
-        snprintf(line, sizeof(line), "%s", colonies_building_name(pool, colony->building_in_production));
-      } else if (unit_name) {
-        snprintf(line, sizeof(line), "%s", unit_name);
-      } else {
-        /* FUN_2f2b_1e46: no project (+0x94 < 0) = empty title. */
-        line[0] = '\0';
-      }
+      colony_screen_project_name(pool, colony, line, sizeof(line));
       /* DOS FUN_2f2b_21da raw 48852: FUN_281f_0100(name, 0xd3, 0x5b, 0x84, 0x39). */
       colony_screen_text_centred(font, framebuffer, 0xd3, 0x5b, 0x84, line, 0x39);
       /* DOS-LITERAL FUN_2f2b_21da raw 48797-48800: BUY (@CTITLE 2, only while +0x94 >= 0) at
        * (0xd8, 0x8a), CHANGE (@CTITLE 3) at (0x10e, 0x8a) (port_bugs.md #1124). */
       const char* buy_lbl = assets_msg_line_or(labels, "CTITLE", 2, "");
       const char* chg_lbl = assets_msg_line_or(labels, "CTITLE", 3, "");
-      if (colony->building_in_production >= 0) {
-        colony_screen_dos_button(framebuffer, font, 0xd8, 0x8a, buy_lbl, false);
-      }
-      /* Player-requested: the project in production is already built (a dead queue —
-       * nothing will ever complete), so CHANGE blinks normal / white-filled to flag it. Not a
-       * DOS behaviour. */
-      const bool already_built =
-        colony->building_in_production >= 0
-        && colony->building_in_production < COLONIZE_BUILDING_TYPES_MAX
-        && colony->has_building[colony->building_in_production];
-      colony_screen_dos_button(framebuffer, font, 0x10e, 0x8a, chg_lbl,
-                               already_built && (view->blink_ms / 500u) % 2u == 0u);
+      /* FUN_2f2b_21da: while a press on pane 4 is held (DS:0x7ee, DS:0x8d54) the button
+       * under the pointer (DS:0x342) draws pressed. FUN_2f2b_2d1c -> 2262: on the
+       * construction tab with BUILD_COMPLETE (+0x1c & 0x80) and no such press, CHANGE draws
+       * pressed in the DS:0x334 == 0 blink phase (port_bugs.md #1698). */
+      const bool held = view->mouse_held && view->press_region == 4;
+      const int pressed = held ? view->multi_btn_342 : -1;
+      view->buy_btn_w = colony->building_in_production >= 0
+                          ? colony_screen_dos_button(framebuffer, font, 0xd8, 0x8a, buy_lbl,
+                                                     pressed == 0)
+                          : 0;
+      const bool change_blink = !held && (colony->colony_flags & COLONIZE_COLONY_FLAG_BUILD_COMPLETE) &&
+                                colony_screen_blink_on(view);
+      view->change_btn_w = colony_screen_dos_button(framebuffer, font, 0x10e, 0x8a, chg_lbl,
+                                                    pressed == 1 || change_blink);
     }
     /* Accumulated carpenter hammers toward the current project, as four
      * rows of one-fourth of the total need each — player-requested (was a

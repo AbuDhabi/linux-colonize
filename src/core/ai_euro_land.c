@@ -280,8 +280,12 @@ void ai_euro_5952_improve_best_plot(
   if ((col->ai_flags & COLONIZE_COLONY_AI_WANTS_PIONEER_WORK) == 0) {
     return; /* raw 94402: colony+0x1b & 0x80 */
   }
-  if (col->stock[COLONIZE_CARGO_TOOLS] <= 0x13) {
-    return; /* raw 93978 local_16 */
+  if (ai_euro_5952_tools_latch == 0) {
+    /* raw 94403 local_16: the tick latch (seeded at raw 93978, set by the
+     * Pioneer join 94261 and the tools buy 94385, never lowered), not the
+     * live stock — the equip arm may have taken the tools since
+     * (port_bugs.md #1653). */
+    return;
   }
   if (turn % 7 == 0) {
     return; /* raw 94403: that turn belongs to the road-connect helper */
@@ -758,6 +762,7 @@ ColonizeColony* ai_euro_5952_tools_supply_and_connect(
       }
       col->stock[COLONIZE_CARGO_TOOLS] += 0x14;
       have_tools = 1;
+      ai_euro_5952_tools_latch = 1; /* raw 94385 `local_16 = 1` */
     }
   }
   if (have_tools && turn % 7 == 0 && ai_euro_5952_road_connect_0000(ctx, col)) {
@@ -888,25 +893,17 @@ int ai_euro_20e6_nearest_colony(
   return ai_goals_nearest_colony_15eb_0142(ctx->map, ctx->colonies, x, y, nation, cid, out_dist);
 }
 
-/* FUN_1000_8f74 / FUN_4cc6_0356 nearest village to (x,y). */
+/* FUN_1000_8f74 = FUN_281f_0d84(x, y, -1, -1) -> FUN_4cc6_0356 nearest village
+ * to (x,y): `<=`, so the LAST tied village wins (raw 80975, port_bugs.md
+ * #1654), and a hit binds it through FUN_281f_0a4c -> FUN_15dc_0032 (DS:0x8d4a
+ * / DS:0x8d52 = g_colonies_bound_tribe), which a later 5952 tick whose own
+ * 0d84 misses still reads. */
 int ai_euro_20e6_nearest_village(const ColonizeTurnContext* ctx, int x, int y, int* out_dist) {
-  int best = -1;
-  int bd = 9999;
-  if (ctx->col1_ok && ctx->col1 && ctx->col1->tribe) {
-    for (uint16_t ti = 0; ti < ctx->col1->head.tribe_count; ++ti) {
-      const ColonizeCol1Tribe* t = &ctx->col1->tribe[ti];
-      if (t->nation_id < 4 || t->nation_id > 11 || t->x >= 200 || t->y >= 200) {
-        continue;
-      }
-      const int d = map_dos_dist(x - (int)t->x, y - (int)t->y);
-      if (d < bd) {
-        bd = d;
-        best = (int)ti;
-      }
-    }
-  }
-  if (out_dist) {
-    *out_dist = bd;
+  const ColonizeCol1Save* col1 = ctx->col1_ok ? ctx->col1 : NULL;
+  const int best = colonies_nearest_tribe_on(col1, ctx->map, x, y, -1, out_dist);
+  if (best >= 0) {
+    const int bn = (int)col1->tribe[best].nation_id - 4;
+    g_colonies_bound_tribe = (bn >= 0 && bn <= 7) ? bn : -1;
   }
   return best;
 }
@@ -1777,10 +1774,14 @@ static int ai_euro_land_explore_scan_target(
         for (int r = 0; r < 9 && free_site; ++r) {
           const int rx = (r < 8) ? tx + MAP_DIR8_DX[r] : tx;
           const int ry = (r < 8) ? ty + MAP_DIR8_DY[r] : ty;
-          const int oid = units_id_at(ctx->units, rx, ry);
-          const ColonizeUnit* ou = oid >= 0 ? units_get_const(ctx->units, oid) : NULL;
-          if (ou && oid != u->id && ou->orders == UNITS_ORDER_BUILD_COLONY) {
-            free_site = 0;
+          /* raw 89176-89184: 07e0 / 02e4 walk the whole tile chain
+           * (port_bugs.md #1655), not just its first unit. */
+          for (int oid = units_tile_head_id_at(ctx->units, rx, ry); oid >= 0;
+               oid = units_tile_chain_next_id(ctx->units, oid)) {
+            const ColonizeUnit* ou = units_get_const(ctx->units, oid);
+            if (ou && oid != u->id && ou->orders == UNITS_ORDER_BUILD_COLONY) {
+              free_site = 0;
+            }
           }
         }
         if (!free_site) {
@@ -3024,6 +3025,13 @@ int ai_euro_20e6_missionary_arm(ColonizeTurnContext* ctx, ColonizeUnit* u, int n
      * spot was the port's re-act seeing a fresh Colonist on the colony tile.
      */
     ai_euro_20e6_explorer_flag(ctx, u, &s); /* local_6a, pre-strip type */
+    /* Everything downstream reads +0x3146 live (local_64, the only cached
+     * copy, raw 88411, is never read): the wander scan's found-score /
+     * cost-byte choice (raw 88709-88731) sees the Colonist's type flags,
+     * not the Missionary's 0x20 (port_bugs.md #1650). */
+    s.dos_type = ai_euro_20e6_dos_type(ctx->units, u);
+    s.flags = ai_euro_20e6_type_flags(s.dos_type);
+    s.combat = ai_euro_20e6_type_combat(s.dos_type);
     if (ai_euro_20e6_pre_4d2e_gate(ctx, u, nation_id)) {
       (void)ai_euro_20e6_4d2e_tail(ctx, u, &s, 0);
     }
@@ -3130,10 +3138,8 @@ int ai_euro_20e6_47b9_dead_end(ColonizeTurnContext* ctx, ColonizeUnit* u, int na
   if (s.home_cid == s.cid && s.home_colony >= 0) {
     const ColonizeColony* home = colonies_get(ctx->colonies, s.home_colony);
     if (home && home->active && home->nation_id == nation_id) {
-      if (units_orders_follow_goto(u->orders) && u->goto_x == home->x &&
-          u->goto_y == home->y) {
-        return 1; /* already walking there */
-      }
+      /* No "already walking there" shortcut: 27f5 -> 20c6 rewrites plan,
+       * orders 0x0b and goal every time (port_bugs.md #1651). */
       u->col1_ai_plan = 0x35; /* LAB_4567: DX = '5' (asm OVL14 0x4574) */
       ai_euro_set_goto(u, AI_EURO_ACT_GOAL, home->x, home->y);
       return 1;
@@ -3149,10 +3155,6 @@ int ai_euro_20e6_47b9_dead_end(ColonizeTurnContext* ctx, ColonizeUnit* u, int na
     if (mate >= 0) {
       const ColonizeUnit* mu = units_get_const(ctx->units, mate);
       if (mu && map_continent_id_at(ctx->map, mu->x, mu->y) == s.cid) {
-        if (units_orders_follow_goto(u->orders) && u->goto_x == mu->x &&
-            u->goto_y == mu->y) {
-          return 1;
-        }
         u->col1_ai_plan = 0x21; /* '!' */
         ai_euro_set_goto(u, AI_EURO_ACT_GOAL, mu->x, mu->y);
         return 1;
@@ -3526,15 +3528,43 @@ int ai_euro_europe_dock_land_units(const ColonizeUnitPool* units, int nation_id)
  * FUN_48d3_015e bumps it the instant a hull is GIVEN its Europe course (raw
  * 77712), and the divert arm decrements it again (raw 90575), so it is a
  * "how many hulls are already heading home" throttle rather than a position
- * read. The port tallies on demand instead of census + bump, so a hull
- * counts while it stands on either eastbound lane (port_bugs.md #1056) or still
- * carries the `+0x314b = 0x45` Europe stamp that 015e writes. A docked hull
- * is not counted (it stands on 236+n).
+ * read. The port keeps the same byte (ai_euro_s_9456: census at the
+ * dispatcher start, then the bump and the 5b66 'E' wake decrement). A docked
+ * hull is not counted (it stands on 236+n).
  */
+uint8_t ai_euro_s_9456[4];
+uint8_t ai_euro_s_9456_valid[4];
+
+/* The FUN_4962_0018 census half of DS:0x9456 (raw 78182-78185): own hulls
+ * whose x is 240+n or 244+n. Taken at the nation's dispatcher start, like
+ * DS:0x945a; later in the turn only 015e's bump and 5b66's 'E' wake move it
+ * (port_bugs.md #1626). A stamped hull still in the New World is not
+ * counted. */
+void ai_euro_9456_census(const ColonizeUnitPool* units, int nation_id) {
+  if (!units || nation_id < 0 || nation_id > 3) {
+    return;
+  }
+  uint8_t n = 0;
+  for (int i = 0; i < units_slot_end(units); ++i) {
+    const ColonizeUnit* u = &units->units[i];
+    if (u->active && u->nation_id == nation_id && units_is_sea(units, u->id) &&
+        (u->x == 240 + nation_id || u->x == 244 + nation_id)) {
+      n++;
+    }
+  }
+  ai_euro_s_9456[nation_id] = n;
+  ai_euro_s_9456_valid[nation_id] = 1;
+}
+
 int ai_euro_europe_lane_ships(const ColonizeUnitPool* units, int nation_id) {
   if (!units || nation_id < 0 || nation_id > 3) {
     return 0;
   }
+  if (ai_euro_s_9456_valid[nation_id]) {
+    return ai_euro_s_9456[nation_id]; /* DOS byte, compared unsigned */
+  }
+  /* No census this session yet (standalone callers): lane hulls plus 'E'
+   * stamps, the census + bump shape. */
   int n = 0;
   for (int i = 0; i < units_slot_end(units); ++i) {
     const ColonizeUnit* u = &units->units[i];
@@ -3574,6 +3604,9 @@ int ai_euro_20e6_3fa6_sail_home(ColonizeTurnContext* ctx, ColonizeUnit* u, int n
   }
   ai_euro_set_goto(u, UNITS_ORDER_AI_SAIL, hx, hy);
   u->col1_ai_plan = AI_EURO_PLAN_EUROPE_BOUND; /* raw 77712-77727 */
+  if (nation_id >= 0 && nation_id < 4) {
+    ai_euro_s_9456[nation_id]++; /* raw 77712 `DS:0x9456[nation]++` */
+  }
   return 1;
 }
 
@@ -3623,11 +3656,8 @@ int ai_euro_20e6_europe_dock_demand(
   if (!ai_euro_20e6_457e_type_gate(ctx, u, s.dos_type)) {
     return 0; /* bVar7 */
   }
-  /* A hull already carrying the course counts itself in the lane tally, so the
-   * comparison below would stop re-firing for it; let it keep sailing home. */
-  if (u->col1_ai_plan == AI_EURO_PLAN_EUROPE_BOUND) {
-    return ai_euro_20e6_3fa6_sail_home(ctx, u, nation_id);
-  }
+  /* No 'E' short-cut: DOS re-tests dock > lane every act (raw 89724-89727);
+   * the port-invented re-stamp for 'E' hulls is gone (port_bugs.md #1626). */
   const int dock_count = ctx->ai_euro_dock_census_valid[nation_id]
     ? ctx->ai_euro_dock_census[nation_id]
     : ai_euro_europe_dock_land_units(ctx->units, nation_id);
@@ -3787,6 +3817,12 @@ int ai_euro_move_scoring_gate(ColonizeTurnContext* ctx, ColonizeUnit* u, int nat
    * port's 0 means "nothing decided here", the same thing.
    */
   if (u->orders != 0 && u->orders != 5 && u->orders != 6 && u->orders < 10) {
+    return 0;
+  }
+  /* raw 88410-88414: FUN_281f_0302 off-inset tile -> '@', LAB_5a78
+   * (port_bugs.md #1628, same bail as ai_euro_act_land's). */
+  if (!map_coords_inset(ctx->map, u->x, u->y)) {
+    u->col1_ai_plan = 0x40;
     return 0;
   }
   /*

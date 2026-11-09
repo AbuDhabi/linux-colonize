@@ -314,6 +314,10 @@ void game_colony_open_jobs(
   ColonizeGameState* game, ColonizeColony* colony, const ColonizeWorldMap* cmap, int tile_index
 );
 void game_colony_drag_begin_cargo(ColonizeGameState* game, int cargo_type);
+/* @HOWMUCH2 for unloading hold `hold` of the selected transport (FUN_2f2b_4da6 '_'). */
+void game_colony_open_unload_prompt(
+  ColonizeGameState* game, const ColonizeColony* colony, int hold
+);
 void game_colony_drag_begin_colonist(ColonizeGameState* game, int colonist_index);
 void game_colony_drag_begin_hold(ColonizeGameState* game, int hold_index);
 void game_colony_drag_begin_outside(ColonizeGameState* game, int unit_id);

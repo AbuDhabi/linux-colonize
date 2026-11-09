@@ -962,6 +962,7 @@ static int improve_pick_beside_village(int buggy) {
   }
   ColonizeColony* col = fx_colony_add(&f.colonies, 1, 8, 8, 3);
   col->stock[COLONIZE_CARGO_TOOLS] = 50;
+  ai_euro_5952_tools_latch = 1; /* local_16: seeded from the 50 tools */
   col->ai_flags |= COLONIZE_COLONY_AI_WANTS_PIONEER_WORK | COLONIZE_COLONY_AI_WANTS_PIONEER_CLEAR;
   static ColonizeCol1Tribe village;
   memset(&village, 0, sizeof(village));
@@ -1001,8 +1002,75 @@ static int improve_pick_reads_tribe_alarm_fixed(void) {
   return 0;
 }
 
+/* port_bugs.md #1653: the improve arm gates on the tick latch local_16
+ * (raw 94403), not the live tools stock. Returns the picked plot. */
+static int improve_pick_with(int tools, int latch) {
+  Fixture f;
+  if (fixture_init(&f, 1) != 0) {
+    return -2;
+  }
+  for (size_t i = 0; i < f.map.tile_count; ++i) {
+    f.map.terrain[i] = 3;
+    f.map.layer3[i] = 0xf1;
+    f.map.seen[i] = 0xff;
+  }
+  ColonizeColony* col = fx_colony_add(&f.colonies, 1, 8, 8, 3);
+  col->stock[COLONIZE_CARGO_TOOLS] = tools;
+  col->ai_flags |= COLONIZE_COLONY_AI_WANTS_PIONEER_WORK;
+  ai_euro_5952_tools_latch = latch;
+  int owner = -1;
+  int plot = -1;
+  ai_euro_5952_improve_best_plot(&f.ctx, col, &owner, &plot);
+  ai_euro_5952_tools_latch = 0;
+  fixture_free(&f);
+  return plot;
+}
+
+static int improve_gate_reads_tools_latch(void) {
+  if (improve_pick_with(0, 1) < 0) {
+    return fail("latch set, tools taken by the equip arm: DOS still improves");
+  }
+  if (improve_pick_with(50, 0) >= 0) {
+    return fail("latch clear: no improve even with 50 tools in stock");
+  }
+  return 0;
+}
+
+/* port_bugs.md #1654: FUN_4cc6_0356 keeps `<=`, so the last of two
+ * equidistant villages wins, and the hit binds DS:0x8d52. */
+static int nearest_village_last_tie_wins(void) {
+  Fixture f;
+  if (fixture_init(&f, 1) != 0) {
+    return 1;
+  }
+  static ColonizeCol1Tribe v[2];
+  memset(v, 0, sizeof v);
+  v[0].x = 6;
+  v[0].y = 8;
+  v[0].nation_id = 5;
+  v[1].x = 10;
+  v[1].y = 8;
+  v[1].nation_id = 7;
+  f.col1.tribe = v;
+  f.col1.head.tribe_count = 2;
+  g_colonies_bound_tribe = -1;
+  int d = -1;
+  const int vi = ai_euro_20e6_nearest_village(&f.ctx, 8, 8, &d);
+  const int bound = g_colonies_bound_tribe;
+  g_colonies_bound_tribe = -1;
+  f.col1.tribe = NULL;
+  fixture_free(&f);
+  if (vi != 1 || d != 2 || bound != 3) {
+    fprintf(stderr, "vi=%d d=%d bound=%d\n", vi, d, bound);
+    return fail("tie: the last village wins and binds its tribe");
+  }
+  return 0;
+}
+
 static const TestCase k_cases[] = {
+    {"nearest_village_last_tie_wins", nearest_village_last_tie_wins},
     {"improve_pick_reads_tribe_alarm_fixed", improve_pick_reads_tribe_alarm_fixed},
+    {"improve_gate_reads_tools_latch", improve_gate_reads_tools_latch},
     {"road_connect_far_one_axis_fixed", road_connect_far_one_axis_fixed},
     {"assemble_boards_whole_reserved_hull", assemble_boards_whole_reserved_hull},
     {"assemble_ignores_empty_hold_sentinel", assemble_ignores_empty_hold_sentinel},

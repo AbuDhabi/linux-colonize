@@ -718,6 +718,9 @@ int colonies_fortification_defense_bonus_percent(
 
 /* Remove colony and warehouse cargo; on-tile units are left alone. */
 bool colonies_abandon(ColonizeColonyPool* pool, int colony_id);
+/* Same, deleted during `acting_nation`'s turn (DS:0x5394): only that nation's
+ * trade-route cursors shift (FUN_647e_060e). colonies_abandon = the owner. */
+bool colonies_abandon_by(ColonizeColonyPool* pool, int colony_id, int acting_nation);
 
 /* occupancy map bind rationale (see docs/colony.md#colonies_set_occupancy_map) */
 void colonies_set_occupancy_map(ColonizeWorldMap* map);
@@ -730,6 +733,11 @@ void colonies_set_units_context(ColonizeUnitPool* units);
 /* Owner swap + DOS side effects; *plunder_gold (may be NULL) = treasury share moved. */
 bool colonies_capture_ex(
   ColonizeColonyPool* pool, int colony_id, int new_nation_id, int* plunder_gold
+);
+/* Same with FUN_5fef_1b0e's param_4: !show skips the treasury share, the
+ * 0x53c8 resets and the WAR toggle (colonies_capture_ex passes true). */
+bool colonies_capture_show_ex(
+  ColonizeColonyPool* pool, int colony_id, int new_nation_id, int* plunder_gold, bool show
 );
 
 /* tool-step equip rule sharing rationale (see docs/colony.md#colonies_equip_tools_take) */
@@ -1119,12 +1127,6 @@ enum {
 
 const char* const* colonies_building_chain(int chain);
 
-/* True when the colony owns a Church or a Cathedral (audit GL-10 — the
- * game_loop copy was a verbatim duplicate of this file-local test). */
-int colonies_has_church_or_cathedral(
-  const ColonizeColonyPool* pool,
-  const ColonizeColony* col
-);
 
 /* Active colonies belonging to `nation` (audit AK-9: ai.c, ai_king.c and
  * ai_euro.c each had a byte-identical private copy, plus five inline ones). */

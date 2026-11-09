@@ -608,10 +608,10 @@ bool units_unboard(ColonizeUnitPool* pool, int unit_id) {
  */
 /* FUN_1427_04d6 mode 0 rank of a rider: Treasure, then @UNIT size 6..1. */
 static int units_pickup_rank_04d6(const ColonizeUnitPool* pool, const ColonizeUnit* u) {
-  if (u->type_index == UNITS_KIND_TREASURE) {
+  const ColonizeUnitType* t = units_type(pool, u->type_index);
+  if (t && units_type_kind(t) == UNITS_KIND_TREASURE) {
     return 7;
   }
-  const ColonizeUnitType* t = units_type(pool, u->type_index);
   return t && t->space >= 1 && t->space <= 6 ? t->space : 0;
 }
 
@@ -732,10 +732,12 @@ int units_ship_departure_pickup(
     if (u->aboard_ship_id == ship_id) {
       /* Own rider: back on the walk like any other. */
     } else if (u->aboard_ship_id >= 0) {
-      /* Riding another own ship still on the tile. Only a sentried passenger
-       * transfers; an awake (player-activated) one stays with its ship. */
+      /* Riding another own ship still on the tile. FUN_1427_10be (asm
+       * 1427:11d4-1232) takes a sentried rider, or any rider when the tile
+       * is water (FUN_13e4_0074); off water an awake one stays. */
       const ColonizeUnit* host = units_get_const(pool, u->aboard_ship_id);
-      if (fixed || u->orders != UNITS_ORDER_SENTRY || !host || host->x != x || host->y != y) {
+      if (fixed || (u->orders != UNITS_ORDER_SENTRY && !(map && map_tile_is_water(map, x, y))) ||
+          !host || host->x != x || host->y != y) {
         continue;
       }
     } else if (!units_is_on_map(u) || u->x != x || u->y != y ||

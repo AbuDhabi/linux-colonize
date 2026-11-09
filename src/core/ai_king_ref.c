@@ -111,8 +111,6 @@ static int ai_king_10f0_pick_colony(const ColonizeTurnContext* ctx, int human, i
  */
 static int ai_king_10f0_score_tile(const ColonizeTurnContext* ctx, int human, int cx, int cy,
                                    int tx, int ty) {
-  static const int k_raster8_dx[8] = {-1, 0, 1, -1, 1, -1, 0, 1};
-  static const int k_raster8_dy[8] = {-1, -1, -1, 0, 0, 1, 1, 1};
   if (!ctx || !ctx->map || !map_coords_inset(ctx->map, tx, ty) ||
       !map_tile_is_water(ctx->map, tx, ty)) {
     return -1;
@@ -160,8 +158,8 @@ static int ai_king_10f0_score_tile(const ColonizeTurnContext* ctx, int human, in
   }
   const int colony_region = map_continent_id_at(ctx->map, cx, cy);
   for (int d = 0; d < 8; ++d) {
-    const int nx = tx + k_raster8_dx[d];
-    const int ny = ty + k_raster8_dy[d];
+    const int nx = tx + MAP_DIR8_DX[d];
+    const int ny = ty + MAP_DIR8_DY[d];
     if (!map_coords_inset(ctx->map, nx, ny) || !map_tile_is_land(ctx->map, nx, ny)) {
       continue;
     }
@@ -178,8 +176,6 @@ static int ai_king_10f0_score_tile(const ColonizeTurnContext* ctx, int human, in
 
 static bool ai_king_10f0_pick_spawn(const ColonizeTurnContext* ctx, int human, int cx, int cy,
                                     int* out_x, int* out_y) {
-  static const int k_raster8_dx[8] = {-1, 0, 1, -1, 1, -1, 0, 1};
-  static const int k_raster8_dy[8] = {-1, -1, -1, 0, 0, 1, 1, 1};
   if (!ctx || !out_x || !out_y) {
     return false;
   }
@@ -192,11 +188,13 @@ static bool ai_king_10f0_pick_spawn(const ColonizeTurnContext* ctx, int human, i
    * layer3 low nibble, the open-sea region id. The port's two-pass relaxation
    * was dead in pass 0 (map_continent_id_at returns -1 on water) and accepted
    * any non-lake water in pass 1, including a Sea Lane tile with nibble != 1
-   * that DOS rejects (port_bugs.md #873c).
+   * that DOS rejects (port_bugs.md #873c). The walk is DS:0xb4 / 0xbe
+   * (N first) with strict `<` keeping the first best (raw 74339-74371;
+   * port_bugs.md #1662, the old raster order picked a different tie).
    */
   for (int d = 0; d < 8; ++d) {
-    const int tx = cx + k_raster8_dx[d];
-    const int ty = cy + k_raster8_dy[d];
+    const int tx = cx + MAP_DIR8_DX[d];
+    const int ty = cy + MAP_DIR8_DY[d];
     if (ctx->map && (int)(map_get_layer3(ctx->map, tx, ty) & MAP_L3_CONTINENT_MASK) != 1) {
       continue;
     }
@@ -450,8 +448,10 @@ static void ai_king_ref_tory_uprising(ColonizeTurnContext* ctx, int crown, int h
   if (dos_rng_range(ctx->rng, 0, (int)ctx->col1->head.difficulty + 1) == 0) {
     return;
   }
-  static const int dx8[8] = {-1, 0, 1, 1, 1, 0, -1, -1};
-  static const int dy8[8] = {-1, -1, -1, 0, 1, 1, 1, 0};
+  /* raw 73865-73867 / 73887-73889: DS:0xb4 / 0xbe walk, N first
+   * (port_bugs.md #1663; the old table started NW). */
+  const int* dx8 = MAP_DIR8_DX;
+  const int* dy8 = MAP_DIR8_DY;
   if (!ctx->colonies) {
     return;
   }

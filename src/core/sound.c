@@ -88,6 +88,7 @@ typedef struct SoundState {
   bool preview_active; /* Pick Music: selection plays immediately (FUN_281f_04c0) */
   bool cinematic; /* OPENING/CLOSING cue owns the driver (separate EXEs in DOS) */
   bool demo;      /* DS:0x828: the self-running demo (argv -D) */
+  bool woi;       /* DS:0x5382 bit 0: the War of Independence is on */
   double samples_to_tick; /* audio frames left before the next PIT tick */
 
   SoundSong decoded; /* one-entry cache for the offline event API */
@@ -687,7 +688,8 @@ void sound_set_options(ColonizeSoundOptions opts) {
    */
   const bool any_off = !opts.background_music || !opts.event_music || !opts.sound_effects;
   if (any_off && g_sound.vm) {
-    g_sound.current_id = -1;
+    /* 04de leaves DS:0x96: the next pick still rerolls away from the faded tune
+     * (port_bugs.md #1811). */
     gsound_vm_play(g_sound.vm, 1);
   }
   pthread_mutex_unlock(&g_sound.lock);
@@ -806,19 +808,25 @@ static int sound_pick_next_tune_id(void) {
    *                            if (rng_range(0,4)==0) { base=1;  count=12; } }
    *   if (DS:0x828)          { base=1;  count=24; }
    *
-   * The port keeps the peacetime arm (1-in-9, not the 1-in-8 this used to
-   * roll). The WoI arm (DS:0x5382 bit0) has no input here: sound.c is a leaf
-   * module with no game state, and at the one moment the WoI default would
-   * matter the port already selects the same pool explicitly via
-   * sound_set_bgm_pool(3) (ai_king_ref.c, FUN_43f7_10f0 43f7:145b). The demo arm
-   * reads the flag sound_set_demo stores.
+   * Peacetime rolls 1-in-9 (not the 1-in-8 this used to roll). The WoI arm
+   * (asm 129f:013f-0192, DS:0x5382 bit 0) reads the flag sound_set_woi stores
+   * (port_bugs.md #1811); the demo arm the one sound_set_demo stores.
    */
   g_sound.pick_rng.state = dos_rng_tick_word() & 0x7fffu; /* 129f:0138, FUN_1d1d_0df2 */
   int base = 1;
   int count = 12;
-  if (sound_pick_rand(9) == 0) {
+  if (!g_sound.woi) {
+    if (sound_pick_rand(9) == 0) {
+      base = 13;
+      count = 11;
+    }
+  } else {
     base = 13;
-    count = 11;
+    count = 6;
+    if (sound_pick_rand(5) == 0) {
+      base = 1;
+      count = 12;
+    }
   }
   if (g_sound.demo) {
     base = 1;
@@ -968,7 +976,8 @@ int sound_driver_song_id(void) {
   return id;
 }
 
-/* Pick Music: DOS stores the chosen id in DS:0x96 and plays it immediately (FUN_281f_04c0). */
+/* Pick Music: DOS stores the chosen id in DS:0x96 and plays it immediately (FUN_281f_04c0)
+ * through the FUN_12d8_000e option gate; DS:0x94 / 0x9e stay as they were (port_bugs.md #1811). */
 void sound_play_preview(int id) {
   if (!g_sound.inited) {
     return;
@@ -986,12 +995,20 @@ void sound_play_preview(int id) {
   }
   pthread_mutex_lock(&g_sound.lock);
   g_sound.preview_active = true;
-  g_sound.pending_id = -1;
-  g_sound.pending = false;
   g_sound.current_id = id;
-  if (g_sound.vm) {
-    gsound_vm_play(g_sound.vm, id);
+  sound_dispatch_gated_unlocked(id);
+  pthread_mutex_unlock(&g_sound.lock);
+}
+
+/* FUN_281f_04c0 = FUN_12d8_000e: the option gate, then the driver, at once. Unlike
+ * sound_play's FUN_129f_02cc queue it neither waits for the running song nor touches
+ * DS:0x94 / 0x96 / 0x9e (port_bugs.md #1811). */
+void sound_play_now(int id) {
+  if (!g_sound.inited || !COLONIZE_SOUND_PLAYBACK_ENABLED) {
+    return;
   }
+  pthread_mutex_lock(&g_sound.lock);
+  sound_dispatch_gated_unlocked(id);
   pthread_mutex_unlock(&g_sound.lock);
 }
 
@@ -1073,6 +1090,15 @@ void sound_set_demo(bool active) {
   }
   pthread_mutex_lock(&g_sound.lock);
   g_sound.demo = active;
+  pthread_mutex_unlock(&g_sound.lock);
+}
+
+void sound_set_woi(bool active) {
+  if (!g_sound.inited) {
+    return;
+  }
+  pthread_mutex_lock(&g_sound.lock);
+  g_sound.woi = active;
   pthread_mutex_unlock(&g_sound.lock);
 }
 

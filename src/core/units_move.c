@@ -244,9 +244,14 @@ COLONIZE_INTERNAL UnitsMoveStatus units_move_board(units_move_ctx* c) {
         units_mp_exhaust(pool, unit);
       }
       g_units_last_enter_reason = COLONIZE_ENTER_NO_MP;
+      g_units_465b_settled = true; /* raw 75825-75830: the gamble lost */
       return UNITS_MOVE_RETURN_FALSE;
     }
   }
+  /* The plain step's LAB_465b_0673 ORs (raw 75661-75664, 75695-75697)
+   * run before 0916 on every allowed step, the board included. */
+  units_465b_0673_vis_or(pool, map, unit, dest_x, dest_y);
+  units_465b_07d6_human_or(pool, unit, c->col1);
   if (unit->orders == UNITS_ORDER_SENTRY || unit->orders == UNITS_ORDER_FORTIFY ||
       unit->orders == UNITS_ORDER_FORTIFIED) {
     unit->orders = UNITS_ORDER_NONE;
@@ -310,6 +315,8 @@ COLONIZE_INTERNAL UnitsMoveStatus units_move_board(units_move_ctx* c) {
   units_sentry_wake_scan(pool, map, colonies, ship_id);
   g_units_last_enter_reason = COLONIZE_ENTER_BOARD;
   g_units_last_board_pax_id = unit_id;
+  /* Plain step: bVar5 = true (raw 75829), so the 0bd1 tail is skipped. */
+  g_units_465b_settled = true;
   return UNITS_MOVE_RETURN_TRUE;
 }
 
@@ -395,6 +402,13 @@ static void units_465b_05ca_bvar4_reseed(const units_move_ctx* c) {
   }
 }
 
+/* FUN_281f_07e0(dest) = FUN_1427_005c (raw 75473): the destination chain's
+ * latest arrival, which 465b's Privateer skip reads; fallback when empty. */
+static int units_465b_dest_head(const units_move_ctx* c, int fallback) {
+  const int head = units_tile_head_id_at(c->pool, c->dest_x, c->dest_y);
+  return head >= 0 ? head : fallback;
+}
+
 /* FUN_465b_0000 raw 75527-75595: the Euro relation band for a computer Euro
  * mover whose bVar4 target (the occupant's nation, else the settlement
  * owner, raw 75467-75478) is another Euro nation. A Privateer on either side
@@ -477,7 +491,7 @@ COLONIZE_INTERNAL UnitsMoveStatus units_move_combat_no_foe(units_move_ctx* c) {
     g_units_last_enter_reason = COLONIZE_ENTER_NO_MP;
     return UNITS_MOVE_RETURN_FALSE;
   }
-  units_465b_ai_euro_band(c, nc->nation_id, -1);
+  units_465b_ai_euro_band(c, nc->nation_id, units_465b_dest_head(c, -1));
   if (c->unit->nation_id != g_units_combat_human_nation) {
     c->foreign_colony_entry = true;
     units_465b_0673_vis_or(pool, c->map, c->unit, dest_x, dest_y);
@@ -540,16 +554,20 @@ COLONIZE_INTERNAL UnitsMoveStatus units_move_combat_pre(units_move_ctx* c) {
    * @SNEAK / @DECLAREWAR. The popups live in the shared mover, so the AI
    * path-step mover (FUN_479b_0972) raises them too, not only
    * ai_euro_try_attack (campaign8 CN8-O17: French took Roanoke unannounced). */
+  /* Raw 75473 / 75528 (asm 465b:00e7 CALLF 281f_07e0): the band, its
+   * Privateer skip and the sighting key on the tile chain head (latest
+   * arrival), not on the best defender. port_bugs.md #1839. */
+  const int dest_head = units_465b_dest_head(c, foe);
   {
-    const ColonizeUnit* tu = units_get_const(pool, foe);
+    const ColonizeUnit* tu = units_get_const(pool, dest_head);
     if (tu) {
-      units_465b_ai_euro_band(c, tu->nation_id, foe);
+      units_465b_ai_euro_band(c, tu->nation_id, dest_head);
     }
   }
   /* FUN_465b_0000 raw 75527-75545: Privateer-sighting relation bit,
    * written before the attack resolves (same 465b entry head as the
    * Indian alarm slam below). */
-  ai_euro_465b_privateer_sighting(col1, pool, c->rng, unit_id, foe);
+  ai_euro_465b_privateer_sighting(col1, pool, c->rng, unit_id, dest_head);
   /*
    * FUN_465b_0000 (viceroy_unpacked.c:75600-75626): a Euro unit moving onto
    * a tile held by an Indian occupant slams tribe alarm by (difficulty+5),
@@ -837,7 +855,7 @@ COLONIZE_INTERNAL UnitsMoveStatus units_move_colony_entry(units_move_ctx* c) {
       colonies_get(colonies, colonies_id_at(colonies, dest_x, dest_y));
     if (fc && fc->active && fc->nation_id != c->unit->nation_id) {
       /* Raw 75527-75595: the band runs on the settlement owner too. */
-      units_465b_ai_euro_band(c, fc->nation_id, -1);
+      units_465b_ai_euro_band(c, fc->nation_id, units_465b_dest_head(c, -1));
       units_465b_05ca_bvar4_reseed(c);
     }
   }
@@ -1009,6 +1027,16 @@ COLONIZE_INTERNAL UnitsMoveStatus units_move_commit_step(units_move_ctx* c) {
    * ship-switch bug, docs/tolerated_dos_bugs.md TB-2). */
   if (ship) {
     (void)units_ship_departure_pickup(pool, map, unit_id, ox, oy);
+    /* FUN_465b_0000 raw 75706-75710 (asm 465b:080a-082d): every unit behind
+     * the 08e4 head of the detached group, i.e. every rider, gets Sentry. */
+    if (!c->combat_attack_entry && !c->foreign_colony_entry) {
+      for (int i = 0; i < unit->cargo_count; ++i) {
+        ColonizeUnit* pax = units_get(pool, unit->cargo_ids[i]);
+        if (pax) {
+          pax->orders = UNITS_ORDER_SENTRY;
+        }
+      }
+    }
   }
   /* FUN_281f_07e0 + 08e4 sorts the destination's existing chain for
    * ships too (FUN_465b_0000 raw 75709-75710), before 0948 relinks arrival. */
@@ -2638,6 +2666,29 @@ static bool units_greedy_owner_ok(
   return colony_owner == u->nation_id && nx == gx && ny == gy;
 }
 
+/* FUN_6662_0f74 raw 104680-104696: a candidate off the mover's domain
+ * (0768 / 078c water test != local_26, e.g. a ship onto land) also jumps to
+ * LAB_6662_13a5, which takes only the own colony that is the goal tile.
+ * units_can_enter_w's DOCK arm has no goal test. port_bugs.md #1803. */
+static bool units_greedy_domain_ok(
+  const ColonizeUnitPool* pool,
+  const ColonizeUnit* u,
+  const ColonizeWorldMap* map,
+  const ColonizeColonyPool* colonies,
+  int nx,
+  int ny,
+  int gx,
+  int gy
+) {
+  if (map_tile_is_water(map, nx, ny) == units_unit_is_sea(pool, u)) {
+    return true;
+  }
+  const ColonizeColony* col =
+    colonies ? colonies_get(colonies, colonies_id_at(colonies, nx, ny)) : NULL;
+  return col && col->active && col->nation_id == u->nation_id && col->nation_id <= 3 &&
+         nx == gx && ny == gy;
+}
+
 static bool units_greedy_next_step(
   const ColonizeUnitPool* pool,
   int unit_id,
@@ -2732,7 +2783,8 @@ static bool units_greedy_next_step(
         }
         /* 0f74's own 06d2/0696 gate, :104678-104690 — see
          * units_greedy_owner_ok. This is the loop DOS spells it in. */
-        if (!units_greedy_owner_ok(u, map, colonies, nx, ny, goal_x, goal_y)) {
+        if (!units_greedy_owner_ok(u, map, colonies, nx, ny, goal_x, goal_y) ||
+            !units_greedy_domain_ok(pool, u, map, colonies, nx, ny, goal_x, goal_y)) {
           continue;
         }
         if (!units_flood_can_enter(pool, colonies, map, u->type_index, nx, ny, unit_id)) {
@@ -2808,6 +2860,10 @@ static bool units_greedy_next_step(
        */
       const int wig_occ = map_tile_tribe_or_presence(map, nx, ny);
       if (wig_occ >= 0 && u->nation_id >= 0 && wig_occ != u->nation_id) {
+        continue;
+      }
+      /* Raw 104727: 0768(cand) != local_26 rejects, with no colony escape. */
+      if (map_tile_is_water(map, nx, ny) != units_unit_is_sea(pool, u)) {
         continue;
       }
       if (!units_flood_can_enter(pool, colonies, map, u->type_index, nx, ny, unit_id)) {
@@ -3083,20 +3139,28 @@ static int units_coarse_waypoint(
   *out_ucx = ucx;
   *out_ucy = ucy;
   if (!units_coarse_snap(pool, map, gx, gy, sea, &gcx, &gcy)) {
-    return 0;
+    /* DOS-LITERAL FUN_6662_0b4e raw 104329 (asm 6662:0bcd): the goal snap's
+     * result is ignored and 09ae writes 0xa14e / 0xa14c only on success, so
+     * the BFS starts on the unit's own cell, pops it at once, finds no
+     * neighbour cost and returns 1 with the goal restored (as below). */
+    *out_x = gx;
+    *out_y = gy;
+    return 1;
   }
   uint8_t cost[UNITS_COARSE_ROWS][UNITS_COARSE_COLS];
   memset(cost, 0, sizeof(cost));
   uint8_t qr[256];
   uint8_t qc[256];
-  int head = 0;
-  int tail = 0;
+  /* DS:0x2d18 / 0x2d16: byte counters that wrap on the 256-entry queue; the
+   * walk stops when they meet (raw 104369-104404). */
+  uint8_t head = 0;
+  uint8_t tail = 0;
   cost[gcx][gcy] = 1;
   qr[tail] = (uint8_t)gcx;
   qc[tail] = (uint8_t)gcy;
   tail++;
   int found = 0;
-  while (head < tail) {
+  for (;;) {
     const int cx = qr[head];
     const int cy = qc[head];
     head++;
@@ -3116,11 +3180,12 @@ static int units_coarse_waypoint(
         continue;
       }
       cost[nx][ny] = (uint8_t)(cost[cx][cy] + 1);
-      if (tail < 256) {
-        qr[tail] = (uint8_t)nx;
-        qc[tail] = (uint8_t)ny;
-        tail++;
-      }
+      qr[tail] = (uint8_t)nx;
+      qc[tail] = (uint8_t)ny;
+      tail++;
+    }
+    if (tail == head) {
+      break;
     }
   }
   if (!found) {
@@ -3555,6 +3620,13 @@ bool units_advance_goto_one_step_w(
      * and an arriving AI ship ends its turn on the spot.
      */
     if (u->x == gx && u->y == gy) {
+      /* DOS-LITERAL FUN_479b_0972 raw 77107-77110: every arriving Pioneer,
+       * human included, drops +0x3155 / +0x3156 (an invalid raw block
+       * already saves as 0 / 0xff). */
+      if (u->col1_hold_raw_valid && units_is_pioneer(pool, unit_id)) {
+        u->col1_hold_raw[5] = 0;
+        u->col1_hold_raw[6] = 0xff;
+      }
       if (u->orders == UNITS_ORDER_AI_SAIL) {
         units_mp_exhaust(pool, u);
       }

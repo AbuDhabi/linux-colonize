@@ -140,16 +140,24 @@ static void ai_euro_5d04_woi_seize_manowar(ColonizeTurnContext* ctx, int nation_
   if (!ctx->units) {
     return;
   }
+  /* 07e0 / 02e4 walk the dock chain newest arrival first (lower slot first on
+   * an equal stamp, units_tile_chain_next_id's rule) and take the first
+   * match, so the newest docked MoW goes, not the lowest slot
+   * (port_bugs.md #1623). */
+  ColonizeUnit* pick = NULL;
   for (int i = 0; i < units_slot_end(ctx->units); ++i) {
     ColonizeUnit* u = &ctx->units->units[i];
     if (!u->active || u->nation_id != nation_id || !ai_euro_at_europe_dock(nation_id, u->x, u->y)) {
       continue;
     }
-    if (ai_euro_20e6_dos_type(ctx->units, u) == 0x12) {
-      (void)units_despawn(ctx->units, u->id);
-      ctx->col1->head.expeditionary_force[2]++;
-      return;
+    if (ai_euro_20e6_dos_type(ctx->units, u) == 0x12 &&
+        (!pick || u->tile_stack_order > pick->tile_stack_order)) {
+      pick = u;
     }
+  }
+  if (pick) {
+    (void)units_despawn(ctx->units, pick->id);
+    ctx->col1->head.expeditionary_force[2]++;
   }
 }
 
@@ -1858,7 +1866,10 @@ static int ai_euro_5d04_nation_planning_structural(ColonizeTurnContext* ctx, int
     return 1;
   }
   /* Raw 92568 `if (local_3e != 0 || !bVar21)`: a shipless nation that
-   * bought nothing skips the whole hire tail. */
+   * bought nothing skips the whole hire tail. DOS zeroes local_3e only inside
+   * the ladder gate (raw 92536); when the gate is skipped (WoI, or a ship
+   * count over the threshold) it reads an unset stack word. The port reads 0
+   * there (port_bugs.md #1649, DOS bug not reproduced). */
   if (candidate != 0 || !f.no_ships) {
     ai_euro_5d04_hire_ladder_tail(ctx, nation_id, &f);
   }

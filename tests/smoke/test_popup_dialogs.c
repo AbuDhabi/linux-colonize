@@ -366,9 +366,16 @@ static int case_right_click_is_left_click(void) {
     in.mouse_right_clicked = b == 1;
     cheat_list_handle_input(&cl, &in);
   }
-  if (!cl.open) {
-    rc = fail("cheat list: off a DEBUG.TXT list box a click does nothing");
+  if (!cl.open || cl.selection != -1) {
+    rc = fail("cheat list: off a DEBUG.TXT list box a click stays up with no selection");
   }
+  in.mouse_left_clicked = in.mouse_right_clicked = false;
+  in.last_key = COLONIZE_KEY_ENTER;
+  cheat_list_handle_input(&cl, &in);
+  if (!cl.open || cl.has_result) {
+    rc = fail("cheat list: Enter after an off-box click confirms nothing (raw 116717)");
+  }
+  in.last_key = COLONIZE_KEY_NONE;
   font_file_free(&font);
   return rc;
 }
@@ -1315,6 +1322,7 @@ static int case_howmuch_move_keeps_rest(void) {
   } else {
     game->colony_screen.transport_unit_id = src;
     game->howmuch_move_dst_unit_id = dst;
+    units_get(&game->units, dst)->orders = UNITS_ORDER_SENTRY;
     (void)howmuch_open(&game->howmuch, HOWMUCH_KIND_MOVE, "How much?", NULL, 100, 30, 3, 0);
     ColonizeInputState in;
     memset(&in, 0, sizeof(in));
@@ -1326,6 +1334,10 @@ static int case_howmuch_move_keeps_rest(void) {
       fprintf(stderr, "  src=%d dst=%d\n", src_held, dst_held);
       rc = fail("30 moved, 70 stay on the source ship");
     }
+    if (units_get(&game->units, dst)->orders != UNITS_ORDER_NONE) {
+      rc = fail("#1730: a sentried receiver loses its orders (raw 51696-51697)");
+    }
+    units_get(&game->units, dst)->orders = UNITS_ORDER_TRADE_ROUTE;
     /* Destination takes only part: fill it to 1 free ton of the same cargo. */
     const int dst_room = units_goods_hold_count(&game->units, dst) * 100 - 31;
     if (units_load_goods(&game->units, dst, 3, dst_room) != dst_room) {
@@ -1338,6 +1350,76 @@ static int case_howmuch_move_keeps_rest(void) {
         fprintf(stderr, "  src=%d\n", src_left);
         rc = fail("partial accept: 1 moved, 69 stay on the source ship");
       }
+      if (units_get(&game->units, dst)->orders != UNITS_ORDER_TRADE_ROUTE) {
+        rc = fail("#1730: a trade-route receiver keeps orders 2");
+      }
+    }
+  }
+  assets_msg_free(&names);
+  free(game);
+  return rc;
+}
+
+/*
+ * port_bugs.md #1732: FUN_38fd_2edc -> FUN_38fd_285c, a hold dragged onto another harbor ship.
+ * min(room, 100, held) moves; no room moves nothing; Shift asks @HOWMUCH3 and moves the answer.
+ */
+static int case_europe_ship_transfer(void) {
+  ColonizeGameState* game = calloc(1, sizeof(*game));
+  ColonizeMsgCatalog names;
+  assets_msg_init(&names);
+  if (!game || !assets_msg_load_file(&names, "COLONIZE/NAMES.TXT") ||
+      !units_load_types(&game->units, &names)) {
+    assets_msg_free(&names);
+    free(game);
+    fprintf(stderr, "SKIP: NAMES.TXT\n");
+    return TR_SKIP;
+  }
+  ai_popup_init(&game->ai_popups);
+  int rc = 0;
+  const int caravel = units_kind_type_index(&game->units, UNITS_KIND_CARAVEL);
+  EuropeScreen* eu = &game->europe;
+  game->europe_ok = true;
+  game->units_ok = true;
+  eu->harbor_ships = 2;
+  eu->harbor[0].type_index = caravel;
+  eu->harbor[1].type_index = caravel;
+  eu->harbor[0].hold_goods_type[0] = 3;
+  eu->harbor[0].hold_goods_amount[0] = 80;
+  game_europe_ship_transfer(game, 0, 1, 0, false);
+  if (eu->harbor[0].hold_goods_amount[0] != 0 || eu->harbor[1].hold_goods_amount[0] != 80 ||
+      eu->harbor[1].hold_goods_type[0] != 3) {
+    rc = fail("#1732: the whole 80 moves to the other harbor ship");
+  }
+  /* Destination full of other cargo (a caravel has two holds): nothing moves. */
+  eu->harbor[0].hold_goods_type[0] = 3;
+  eu->harbor[0].hold_goods_amount[0] = 50;
+  eu->harbor[1].hold_goods_type[1] = 4;
+  eu->harbor[1].hold_goods_amount[1] = 100;
+  eu->harbor[1].hold_goods_type[0] = 4;
+  eu->harbor[1].hold_goods_amount[0] = 100;
+  game_europe_ship_transfer(game, 0, 1, 0, false);
+  if (eu->harbor[0].hold_goods_amount[0] != 50) {
+    rc = fail("#1732: no room on the destination moves nothing");
+  }
+  /* Shift: @HOWMUCH3 capped at min(room, 100, held), the answer moves, the rest stays. */
+  eu->harbor[1].hold_goods_amount[0] = 0;
+  eu->harbor[1].hold_goods_amount[1] = 0;
+  game->in_europe = true;
+  eu->selected_harbor = 0;
+  game_europe_ship_transfer(game, 0, 1, 0, true);
+  if (!game->howmuch.open || game->howmuch.max_amount != 50) {
+    rc = fail("#1732: Shift opens @HOWMUCH3 capped at the 50 held");
+  } else {
+    (void)howmuch_open(&game->howmuch, HOWMUCH_KIND_MOVE, "How much?", NULL, 50, 20, 3, 0);
+    ColonizeInputState in;
+    memset(&in, 0, sizeof(in));
+    in.last_key = COLONIZE_KEY_ENTER;
+    game_handle_modal_input(game, &in);
+    if (eu->harbor[0].hold_goods_amount[0] != 30 || eu->harbor[1].hold_goods_amount[0] != 20) {
+      fprintf(stderr, "  src=%d dst=%d\n", eu->harbor[0].hold_goods_amount[0],
+              eu->harbor[1].hold_goods_amount[0]);
+      rc = fail("#1732: 20 typed moves, 30 stay");
     }
   }
   assets_msg_free(&names);
@@ -1794,6 +1876,7 @@ static const TestCase k_cases[] = {
     {"save_load_is_fonttiny", case_save_load_is_fonttiny},
     {"howmuch", case_howmuch},
     {"howmuch_move_keeps_rest", case_howmuch_move_keeps_rest},
+    {"europe_ship_transfer", case_europe_ship_transfer},
     {"options", case_options},
     {"checkbox_hotkeys", case_checkbox_hotkeys},
     {"list_keys_wrap", case_list_keys_wrap},

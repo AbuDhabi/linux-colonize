@@ -694,6 +694,11 @@ void game_europe_refusal(ColonizeGameState* game, const char* section, int index
 void game_europe_open_sell_prompt(ColonizeGameState* game, int hidx, int hold);
 void game_europe_sell_first_hold(ColonizeGameState* game, int hidx, int cargo, bool prompt);
 void game_europe_sell_best_hold(ColonizeGameState* game, int hidx);
+/* FUN_38fd_285c: harbor ship-to-ship hold transfer (drag onto another harbor ship). */
+void game_europe_ship_transfer(ColonizeGameState* game, int src, int dst, int slot, bool shift);
+void game_europe_ship_transfer_commit(
+  ColonizeGameState* game, int src, int dst, int slot, int amount
+);
 void game_europe_open_ship_menu(ColonizeGameState* game, int hidx);
 bool game_europe_boycott_gate(ColonizeGameState* game, int cargo_type);
 bool game_europe_blocked_by_woi(const ColonizeGameState* game);

@@ -25,6 +25,10 @@ extern ColonizeCol1Save* g_colonies_col1;
 extern ColonizeUnitPool* g_colonies_units; /* colonies_set_units_context */
 void colonies_mark_settlement_tile(int x, int y, bool on);
 void colonies_col1_rebel_divisor_adjust(ColonizeCol1Save* col1, int x, int y, int delta);
+/* colonies_indian_claim_tribe_from_w without the 06a6 worked-plot test (seat reaction). */
+int colonies_indian_claim_tribe_unseated_w(
+  const ColonizeWorld* w, int viewer_nation, int origin_x, int origin_y, int x, int y
+);
 
 /* --- owned by colony_plots.c --- */
 void colonies_clear_colonist_tile(ColonizeColony* col, int colonist_index);

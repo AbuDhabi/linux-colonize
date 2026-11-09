@@ -635,6 +635,44 @@ static int unit_building_hover_label(void) {
     }
   }
 
+  /* port_bugs.md #1687: an unowned slot (category 13, the church) is labelled too
+   * (FUN_2f2b_44d4 stops at the first slot box, 05ee prints @MISC 122). */
+  if (rc == 0) {
+    int xs[32], ys[32];
+    colony_screen_assign_slot_positions_ex(&col, xs, ys, NULL, colony_screen_layout_seed(&view));
+    const int cls = colony_screen_building_slots[13].size_class;
+    colony_screen_update_hover(
+      &view, &col, COLONY_VIEWPORT_X + xs[13] + colony_screen_class_box[cls][0] / 2,
+      COLONY_VIEWPORT_Y + ys[13] + colony_screen_class_box[cls][1] / 2
+    );
+    view.hover_building_row = -1;
+    memset(pixels_on, 0, sizeof(pixels_on));
+    colony_screen_blit_buildings(&view, &pool, &col, &units, NULL, &font, false, &fb_on);
+    if (view.hover_cat_plus1 != 14 || memcmp(pixels_on, pixels_off, sizeof(pixels_on)) == 0) {
+      fprintf(stderr, "hover_label: unowned church slot drew no label (cat+1 %d)\n",
+              view.hover_cat_plus1);
+      rc = 1;
+    }
+    colony_screen_update_hover(&view, NULL, 0, 0);
+  }
+  /* port_bugs.md #1686: FUN_2f2b_0434 keeps the last owned row, so the warehouse slot is
+   * the Stable alone or over the Warehouse. */
+  const int warehouse = colonies_find_building(&pool, "Warehouse");
+  const int stable = colonies_find_building(&pool, "Stable");
+  if (rc == 0 && warehouse >= 0 && stable >= 0) {
+    col.has_building[stable] = true;
+    const int alone = colony_screen_slot_row(&pool, &col, COLONY_CAT_WAREHOUSE);
+    col.has_building[warehouse] = true;
+    const int both = colony_screen_slot_row(&pool, &col, COLONY_CAT_WAREHOUSE);
+    col.has_building[stable] = false;
+    const int plain = colony_screen_slot_row(&pool, &col, COLONY_CAT_WAREHOUSE);
+    if (alone != stable || both != stable || plain != warehouse) {
+      fprintf(stderr, "slot_row: warehouse slot %d/%d/%d want %d/%d/%d\n", alone, both, plain,
+              stable, stable, warehouse);
+      rc = 1;
+    }
+  }
+
   colony_screen_free(&view);
   font_file_free(&font);
   assets_msg_free(&names);
@@ -1206,10 +1244,13 @@ static int case_colony_screen_render_workflow(void) {
         }
       }
     }
-    /* Fence art itself paints the gutter — only fail if hit-test still uses +4. */
+    /* Fence art itself paints the gutter — only fail if hit-test still uses +4. The hit
+     * box is the FUN_2f2b_11b2 icon cell (port_bugs.md #1691). */
     {
+      int fxs[1];
+      const int fy = colony_screen_fence_unit_layout(&view, layout_x, layout_y, 1, fxs);
       ColonyScreenHitResult hit =
-        colony_screen_hit_test(&view, &pool, col, &units, mid_x, strip_y + 9);
+        colony_screen_hit_test(&view, &pool, col, &units, fxs[0] + 1, fy + 8);
       if (hit.kind != COLONY_HIT_OUTSIDE_UNIT || hit.index != 0) {
         fprintf(
           stderr,
@@ -1952,13 +1993,15 @@ static int case_colony_screen_render_workflow(void) {
     }
 
     view.multi_mode = COLONY_MULTI_CONSTRUCTION;
+    /* The boxes are the buttons as drawn (FUN_2f2b_5fc6); 0x1e = FUN_2f2b_21da's clear width. */
+    view.change_btn_w = 0x1e;
     hit = colony_screen_hit_test(
       &view,
       &pool,
       sample,
       &units,
-      COLONY_MULTI_X + COLONY_MULTI_W - 20,
-      COLONY_PANEL_CONTENT_Y + 16
+      0x10e + 10,
+      0x8a + 4
     );
     if (hit.kind != COLONY_HIT_MULTI_CHANGE) {
       fprintf(stderr, "expected construction CHANGE hit got kind=%d\n", (int)hit.kind);
@@ -1979,13 +2022,12 @@ static int case_colony_screen_render_workflow(void) {
        * with none (captured AI colony, 0xFF) the left half is plain pane. */
       ColonizeColony probe = *sample;
       probe.building_in_production = 0;
-      const ColonyScreenHitResult with_proj = colony_screen_hit_test(
-        &view, &pool, &probe, &units, COLONY_MULTI_X + 4, COLONY_PANEL_CONTENT_Y + 10
-      );
+      view.buy_btn_w = 0x1e;
+      const ColonyScreenHitResult with_proj =
+        colony_screen_hit_test(&view, &pool, &probe, &units, 0xd8 + 4, 0x8a + 4);
       probe.building_in_production = -1;
-      const ColonyScreenHitResult no_proj = colony_screen_hit_test(
-        &view, &pool, &probe, &units, COLONY_MULTI_X + 4, COLONY_PANEL_CONTENT_Y + 10
-      );
+      const ColonyScreenHitResult no_proj =
+        colony_screen_hit_test(&view, &pool, &probe, &units, 0xd8 + 4, 0x8a + 4);
       if (with_proj.kind != COLONY_HIT_MULTI_BUY || no_proj.kind != COLONY_HIT_MULTI_PANE) {
         fprintf(
           stderr, "expected BUY only with a project got %d/%d\n", (int)with_proj.kind,
@@ -4000,6 +4042,28 @@ static int unit_mini_unit_percent_scaler(void) {
   return rc;
 }
 
+/* port_bugs.md #1685: the fence body's leave-as role is its type's DS:0x30e job
+ * (FUN_15eb_0902), so Continental Army is the Soldier row and Continental Cavalry the
+ * Dragoon row; a type with no profession slot has none. */
+static int unit_fence_role_continentals(void) {
+  ColonizeUnit u;
+  memset(&u, 0, sizeof(u));
+  static const struct { int type, role; } k[] = {
+    {0, COLONIZE_EJECT_COLONIST}, {1, COLONIZE_EJECT_SOLDIER}, {4, COLONIZE_EJECT_DRAGOON},
+    {9, COLONIZE_EJECT_SOLDIER},  {7, COLONIZE_EJECT_DRAGOON}, {6, -1},
+  };
+  int rc = 0;
+  for (size_t i = 0; i < sizeof(k) / sizeof(k[0]); ++i) {
+    u.type_index = k[i].type;
+    const int got = colony_screen_unit_eject_role(NULL, &u);
+    if (got != k[i].role) {
+      fprintf(stderr, "fence_role: type %d got %d want %d\n", k[i].type, got, k[i].role);
+      rc = 1;
+    }
+  }
+  return rc;
+}
+
 static const TestCase k_cases[] = {
     {"unit_spy_view_draws_no_selection_boxes", unit_spy_view_draws_no_selection_boxes},
     {"unit_town_hall_tiers_area_view", unit_town_hall_tiers_area_view},
@@ -4027,6 +4091,7 @@ static const TestCase k_cases[] = {
     {"unit_hit_test_stage_seam", unit_hit_test_stage_seam},
     {"unit_ai_owner_title_line", unit_ai_owner_title_line},
     {"unit_mini_unit_percent_scaler", unit_mini_unit_percent_scaler},
+    {"unit_fence_role_continentals", unit_fence_role_continentals},
 };
 
 TEST_MAIN(k_cases)

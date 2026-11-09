@@ -449,7 +449,7 @@ bool turn_human_colony_eot_resume(ColonizeTurnContext* ctx, ColonizeTurnResult* 
   }
   const int n = ctx->human_nation;
   ColonizeCol1Nation* nat = &ctx->col1->nation[n];
-  /* .crosses is a per-call tally the human path never reads. */
+  /* .crosses: this slice's colonies, each composed at its own Phase A. */
   AiNationColonyBellStep bell_step = {
     .ctx = ctx, .nat = nat, .nation = n, .control = ctx->col1->player[n].control, .crosses = 0
   };
@@ -460,7 +460,16 @@ bool turn_human_colony_eot_resume(ColonizeTurnContext* ctx, ColonizeTurnResult* 
   );
   g_turn_1528_last_walked_colony = NULL;
   turn_set_birth_units_pool(NULL);
+  /* FUN_364b_0688 raw 57789: nation +0x2e += this colony's crosses (0x8dea)
+   * at the end of its own tick (#1822). The Europe screen is the human's
+   * authoritative cross counter; the record mirrors it. */
+  {
+    unsigned cur = (unsigned)(ctx->europe ? ctx->europe->current_crosses : nat->current_crosses) +
+                   (unsigned)bell_step.crosses;
+    nat->current_crosses = (uint16_t)(cur > 65535u ? 65535u : cur);
+  }
   if (ctx->europe) {
+    ctx->europe->current_crosses = nat->current_crosses;
     ctx->europe->liberty_bells_pool = nat->liberty_bells_pool;
     ctx->europe->liberty_bells_last_turn = nat->liberty_bells_last_turn;
   }
@@ -664,6 +673,12 @@ void turn_run_nation_ticks_immigration(ColonizeTurnContext* ctx, ColonizeTurnRes
       pre_passage = ctx->europe->recruit_passage;
     }
     const int imm = woi_now ? 0 : europe_tick_immigration_pressure_w(&iw, ctx->human_nation);
+    /* FUN_38fd_5e52 asm 38fd:5ebb-5ee4: the human's immigrant music fires once
+     * crosses exceed the need, before the Brewster test (38fd:5ee7), so for the
+     * Brewster pick and a spawn refused at the unit cap too (#1824). */
+    if (imm == 1 || imm == 2) {
+      europe_notify_immigrant_sound(ctx->europe); /* 281f_0498(2) */
+    }
     if (imm == 2) {
       /* Brewster: player picks from the pool (@RECRUITCHOOSE); applied via
        * units_brewster_apply_popup_ex_w in game_loop. DOS 4884 is a blocking
@@ -719,7 +734,6 @@ void turn_run_nation_ticks_immigration(ColonizeTurnContext* ctx, ColonizeTurnRes
         if (ctx->col1_ok && ctx->col1 && ctx->human_nation >= 0 && ctx->human_nation < 4) {
           ctx->col1->nation[ctx->human_nation].nation_flags |= 0x40u; /* raw 68601 */
         }
-        europe_notify_immigrant_sound(ctx->europe); /* FUN_38fd_5e52 38fd:5ecb: pool 2 */
         const char* name = "";
         if (ctx->europe->dock_count > 0) {
           name = ctx->europe->dock[ctx->europe->dock_count - 1].name;
@@ -764,8 +778,12 @@ void turn_run_nation_ticks_tail(ColonizeTurnContext* ctx, ColonizeTurnResult* ou
      * church crosses. So the threshold test above saw last turn's crosses
      * plus only the 584a +2; this turn's colony output lands here, after it.
      * (The AI arm further down has always been in this order.)
+     * #1822: with a save, each colony's crosses are composed at its own
+     * Phase A and land in turn_human_colony_eot_resume (raw 57228-57229,
+     * 57789), after earlier colonies' elections; only the no-save path
+     * adds the live total here.
      */
-    {
+    if (!human_bells_per_colony) {
       unsigned cur = (unsigned)ctx->europe->current_crosses + (unsigned)crosses;
       if (cur > 65535u) {
         cur = 65535u;
@@ -1038,6 +1056,13 @@ void turn_tally_professions_w(const ColonizeWorld* w, int nation_id, uint8_t out
 int turn_voyage_ship_count(const ColonizeTurnContext* ctx, int nation) {
   if (!ctx || !ctx->units) {
     return 0;
+  }
+  /* FUN_48d3_0002 raw 77563-77588 reads the census byte, not the live pool:
+   * an AI's hull lost or bought since the last 4962_0018 still counts as
+   * then. AI hulls never leave the pool, so the census is exact for them;
+   * only the human needs the Europe-hull reconstruction below (#1823). */
+  if (nation != ctx->human_nation && nation >= 0 && nation < 4 && ctx->col1_ok && ctx->col1) {
+    return ctx->col1->stuff.ship_counts[nation];
   }
   int ships = units_count_sea_for_nation(ctx->units, nation);
   if (ctx->europe && (int)ctx->europe->bound_nation == nation) {

@@ -3691,6 +3691,36 @@ static int case_tb36_declare_seen_mask(void) {
   return rc;
 }
 
+/* #1664: FUN_43f7_1a26 raw 74836-74840 runs 0934 on every human unit,
+ * passengers included, so a passenger's carried allotment is spent too. */
+static int case_declare_exhausts_passengers(void) {
+  int rc = fx_prefix(11);
+  if (rc == 0) {
+    const int ship = units_spawn_allow_stack(&units, 0, 6, 6);
+    const int pax = units_spawn_allow_stack(&units, 0, 6, 6);
+    ColonizeUnit* p = units_get(&units, pax);
+    if (ship < 0 || !p) {
+      rc = fail("declare pax: spawn");
+    } else {
+      units_set_nation(units_get(&units, ship), 0);
+      units_set_nation(p, 0);
+      p->aboard_ship_id = ship;
+      p->moves = 0;
+      p->aboard_moves = 3;
+      p->mp_spent_turn = 0;
+      ai_king_do_declare(&ctx, 0);
+      p = units_get(&units, pax);
+      if (!p || p->aboard_moves != 0 || p->mp_spent_turn != 1) {
+        fprintf(stderr, "unit_ai_king: declare pax aboard_moves=%d spent=%d (want 0/1)\n",
+                p ? p->aboard_moves : -9, p ? p->mp_spent_turn : -9);
+        rc = fail("declare must exhaust passengers too");
+      }
+    }
+  }
+  fx_close();
+  return rc;
+}
+
 /* FUN_4962_0018 raw 78159-78165 tallies every unit of the nation, so a Frigate on a Europe list
  * blocks @KINGFRIGATE (the raw 58394 Frigate-count test). */
 static int case_king_frigate_gate_counts_europe(void) {
@@ -4092,5 +4122,6 @@ static const TestCase k_cases[] = {
   {"narrative_teardown", case_narrative_teardown},
   {"tb40_audience_own_sol", case_tb40_audience_own_sol},
   {"tb36_declare_seen_mask", case_tb36_declare_seen_mask},
+  {"declare_exhausts_passengers", case_declare_exhausts_passengers},
 };
 TEST_MAIN(k_cases)

@@ -53,7 +53,7 @@ Continue / Zoom rows, MSS figure; popups.md "Colony-event choices"). The
 | `@VICEROY2` | Done | new-game wizard |
 | `@LANDHO` | Done | human move with land in the destination 3x3 (`FUN_4720_049e` tail) → name New World |
 | `@COLONY` | Done | name entry after found |
-| `@RENAMECOLONY` | Done | colony title-bar click (DOS) or **R** (port extra) rename |
+| `@RENAMECOLONY` | Done | colony title-bar click (DOS; no key, #1737) rename |
 | `@LANDFALL` | Done | AI_POPUP_TAG_LANDFALL |
 | `@LANDFALL2` | Done | river variant: `game_loop.c` picks LANDFALL vs LANDFALL2 by `map_tile_has_river` on the dest tile (DOS FUN_4720_015c terrain-flag bit 0x40) |
 | `@ONLYPIO` | Dead text | literal absent from VICEROY.EXE; DOS greys the menu row (`0b34` raw 42211-42215). Popup deleted 2026-09-22, port_bugs.md #621 |
@@ -430,7 +430,7 @@ Continue / Zoom rows, MSS figure; popups.md "Colony-event choices"). The
 | `@NOMAYORSDURINGREV` | Done | FUN_5f7a_000e Meet-With-Mayor WoI refusal (raw :98838) — `game_loop.c` AI_POPUP_TAG_SCOUT_COLONY choice 1 |
 | `@HOWMUCH1` | Done | howmuch colony load |
 | `@HOWMUCH2` | Done | confirmed 2026-09-16: shift+drag colony-cargo unload already opens the real amount prompt (`game_loop_colony.c`, `HOWMUCH_KIND_UNLOAD`) alongside the DOS-matching whole-hold plain drag |
-| `@HOWMUCH3` | Done | 2026-09-16: added shift+drag amount prompt for ship-to-ship cargo transfer (`game_loop_colony.c` `UI_DRAG_COLONY_HOLD` handler, new `HOWMUCH_KIND_MOVE` path + `howmuch_move_dst_unit_id`); `game_apply_howmuch_result` now does a real hold-to-hold transfer instead of mis-routing through `game_colony_load_hold` (warehouse load) |
+| `@HOWMUCH3` | Done | 2026-09-16: added shift+drag amount prompt for ship-to-ship cargo transfer (`game_loop_colony.c` `UI_DRAG_COLONY_HOLD` handler, new `HOWMUCH_KIND_MOVE` path + `howmuch_move_dst_unit_id`); `game_apply_howmuch_result` now does a real hold-to-hold transfer instead of mis-routing through `game_colony_load_hold` (warehouse load). The Europe harbor twin (FUN_38fd_285c, a hold dragged onto another harbor ship) is `game_europe_ship_transfer` (port_bugs.md #1732) |
 | `@HOWMUCH4` | Done | Europe buy amount |
 | `@HOWMUCH5` | Done | Europe sell amount |
 | `@AMBUSHHINT` | Done | already real (`turn_colony.c` `turn_woi_bell_test` `popup_chrome_ok("AMBUSHHINT", …)`, paired with `@CONSIDER`) — verified against DOS FUN_4345_0a22; VGA PARKED |
@@ -536,6 +536,8 @@ Mouse: `FUN_6f74_2580` acts on the release of either button alike (raw 117036-11
 right button only sets `DS:0x1f68` for a `DS:0x1f66` help-armed caller (raw 117062-117065).
 Only Esc returns -1. Off the box a release does nothing unless the box has flag bit 0
 (`@checkbox`, `FUN_647e_*` pickers, save/load, some colony / Europe lists), which leave with 0.
+Either way the off-box press first drops the selection (raw 116717), so Enter on a box that
+stays up confirms nothing (`cheat_list_handle_input`, port_bugs.md #1672).
 
 ---
 

@@ -12,6 +12,7 @@
 #include "core/europe.h"
 #include "core/europe_internal.h"
 #include "core/game_dialogs.h"
+#include "core/howmuch_dialog.h"
 #include "core/game_loop_internal.h"
 #include "core/reports.h"
 #include "core/reports_names.h"
@@ -671,6 +672,17 @@ static int case_europe_workflow(void) {
       europe_free(&eu);
       return 1;
     }
+    /* #1677: 38fd:2dfe multiplies in 16 bits, so an ask of 66 quotes
+     * (int16)33000 = -32536 (sign-extended). */
+    col1.nation[0].boycott_bitmap |= (uint16_t)(1u << COLONIZE_CARGO_FURS);
+    eu.boycott_bitmap = col1.nation[0].boycott_bitmap;
+    eu.cargo[COLONIZE_CARGO_FURS].ask = 66;
+    if (europe_buyback_boycott_cost(&eu, &col1, 0, COLONIZE_CARGO_FURS) != -32536) {
+      fprintf(stderr, "buyback cost must wrap at 16 bits, got %d\n",
+              europe_buyback_boycott_cost(&eu, &col1, 0, COLONIZE_CARGO_FURS));
+      europe_free(&eu);
+      return 1;
+    }
     fprintf(stderr, "europe boycott buyback ok\n");
   }
 
@@ -1206,8 +1218,10 @@ static int case_europe_workflow(void) {
   eu.dock[2].present = true;
   eu.dock[2].sentry = true;
   eu.dock[2].profession = 26;
+  eu.harbor[0].trade_route_plus1 = 2; /* #1707: the manual Sail zeroes +0x314c */
+  eu.harbor[0].trade_stop = 1;
   if (!europe_set_sail_from_harbor(&eu, 0, 1, NULL, 0) || eu.bound_ships != 1 ||
-      eu.harbor_ships != 0) {
+      eu.harbor_ships != 0 || eu.bound[0].trade_route_plus1 != 0 || eu.bound[0].trade_stop != 0) {
     fprintf(stderr, "set_sail failed: %s\n", eu.status);
     europe_free(&eu);
     return 1;
@@ -4154,7 +4168,100 @@ static int case_europe_trade_route_departure_no_dockers(void) {
   return 0;
 }
 
+/* #1705 / #1706 / #1707: @ARMOPTIONS rows 1-3 write no status line, Sell
+ * Tools leaves the record's +0x3159 byte alone (only a Pioneers row carries it
+ * aboard), Buy Tools sets 100; a manual Sail drops the trade route. */
+static int case_europe_dock_menu_dos_bytes(void) {
+  diag_init(0, NULL);
+  EuropeScreen eu;
+  char err[256];
+  if (!test_europe_load(&eu, "COLONIZE", err, sizeof(err))) {
+    fprintf(stderr, "dock bytes: europe_load failed: %s\n", err);
+    return 1;
+  }
+  int rc = 1;
+  europe_cheat_add_gold(&eu, 50000);
+  eu.dock_count = 0;
+  memset(eu.dock, 0, sizeof(eu.dock));
+  if (!europe_dock_push_load(&eu, "Hardy Pioneers", 19)) {
+    goto done;
+  }
+  eu.dock[0].dos_type = EUROPE_DOCK_TYPE_PIONEERS;
+  eu.dock[0].tools = 60;
+  snprintf(eu.status, sizeof(eu.status), "%s", "keep");
+  if (!europe_apply_dock_menu_row(&eu, NULL, 0, 0, EUROPE_ARM_ROW_BOARD) ||
+      strcmp(eu.status, "keep") != 0) {
+    fprintf(stderr, "dock bytes: Board wrote a status line \"%s\"\n", eu.status);
+    goto done;
+  }
+  if (!europe_apply_dock_menu_row(&eu, NULL, 0, 0, EUROPE_ARM_ROW_SELL_TOOLS) ||
+      eu.dock[0].dos_type != EUROPE_DOCK_TYPE_COLONISTS || eu.dock[0].tools != 60) {
+    fprintf(stderr, "dock bytes: Sell Tools type %d tools %d\n", eu.dock[0].dos_type,
+            eu.dock[0].tools);
+    goto done;
+  }
+  {
+    ColonizeUnit kit;
+    memset(&kit, 0, sizeof(kit));
+    europe_apply_dock_row_kit(&kit, &eu.dock[0]);
+    if (kit.tools != 0) {
+      fprintf(stderr, "dock bytes: a Colonists row must not carry tools (%d)\n", kit.tools);
+      goto done;
+    }
+  }
+  if (!europe_apply_dock_menu_row(&eu, NULL, 0, 0, EUROPE_ARM_ROW_BUY_TOOLS) ||
+      eu.dock[0].tools != 100) {
+    fprintf(stderr, "dock bytes: Buy Tools tools %d\n", eu.dock[0].tools);
+    goto done;
+  }
+  rc = 0;
+done:
+  europe_free(&eu);
+  return rc;
+}
+
+/* #1828: FUN_6f74_2580's text box: Backspace deletes the last character and
+ * drops the select, Delete clears only a selected field, letters are kept
+ * (the parse stops at them), arrows and +/- do nothing. */
+static int case_europe_howmuch_text_box(void) {
+  HowmuchDialog hm;
+  ColonizeInputState in;
+  if (!howmuch_open(&hm, HOWMUCH_KIND_BUY, "", NULL, 100, 100, 0, 0)) {
+    return 1;
+  }
+  memset(&in, 0, sizeof(in));
+  in.last_key = COLONIZE_KEY_UP;
+  howmuch_handle_input(&hm, &in);
+  in.last_key = COLONIZE_KEY_BACKSPACE;
+  howmuch_handle_input(&hm, &in);
+  in.last_key = COLONIZE_KEY_ENTER;
+  howmuch_handle_input(&hm, &in);
+  if (!hm.has_result || hm.result_amount != 10) {
+    fprintf(stderr, "howmuch: 100 + Up + Backspace + Enter = %d\n", hm.result_amount);
+    return 1;
+  }
+  if (!howmuch_open(&hm, HOWMUCH_KIND_BUY, "", NULL, 100, 50, 0, 0)) {
+    return 1;
+  }
+  memset(&in, 0, sizeof(in));
+  snprintf(in.text_input, sizeof(in.text_input), "%s", "1a0");
+  in.text_input_len = 3;
+  howmuch_handle_input(&hm, &in);
+  memset(&in, 0, sizeof(in));
+  in.last_key = COLONIZE_KEY_DELETE;
+  howmuch_handle_input(&hm, &in); /* not selected: no-op */
+  in.last_key = COLONIZE_KEY_ENTER;
+  howmuch_handle_input(&hm, &in);
+  if (!hm.has_result || hm.result_amount != 1) {
+    fprintf(stderr, "howmuch: \"1a0\" = %d\n", hm.result_amount);
+    return 1;
+  }
+  return 0;
+}
+
 static const TestCase k_cases[] = {
+    {"case_europe_howmuch_text_box", case_europe_howmuch_text_box},
+    {"case_europe_dock_menu_dos_bytes", case_europe_dock_menu_dos_bytes},
     {"case_europe_trade_route_departure_no_dockers", case_europe_trade_route_departure_no_dockers},
     {"case_europe_damaged_push_keeps_royal_gift", case_europe_damaged_push_keeps_royal_gift},
     {"case_europe_royal_gift_round_trip", case_europe_royal_gift_round_trip},

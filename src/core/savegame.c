@@ -189,9 +189,18 @@ bool savegame_probe_col1_slot(
     return true; /* not occupied */
   }
 
-  /* One implementation, shared with col1_save_human_nation, so the failure
-   * path cannot drift (smell audit #76). */
-  const int human = col1_save_human_nation_from(&head, players);
+  /* DOS-LITERAL FUN_7562_0052 raw 119650-119658: the label's leader and nationality come from
+   * the first of the four player records whose control byte (+0x31) is 0, else record 0. Not
+   * head.human_player (0x5398) and no hot-seat redirect (port_bugs.md #1810). */
+  int human = -1;
+  for (int n = 0; human < 0 && n < 4; ++n) {
+    if (players[n].control == 0) {
+      human = n;
+    }
+  }
+  if (human < 0) {
+    human = 0;
+  }
 
   out->occupied = true;
   memcpy(out->leader_name, players[human].name, sizeof(out->leader_name));

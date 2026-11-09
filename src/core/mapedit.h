@@ -96,7 +96,9 @@ typedef struct MapEditor {
   int pick_row_file[AI_POPUP_CHOICE_MAX]; /* choice id -> file index, -2 prev, -3 next */
 
   int press_region; /* FUN_1000_1b84 region latched on press, -1 none */
-  bool prev_left, prev_right;
+  /* FUN_1c21_0042: DS:0x72e held latch (set on press, cleared when all
+   * buttons are up) and DS:0x720 right flag latched at the press. */
+  bool mouse_held, mouse_right;
   uint32_t clock_ms;
   bool quit;
   int exit_code; /* DS:0x62 */

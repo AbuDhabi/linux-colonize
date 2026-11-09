@@ -335,6 +335,7 @@ static int case_r11_no_indian_war_hit(void) {
       wf.indian[i].alarm_by_player[0] = 97; /* relation 3 */
       wf.indian[i].euro_diplo[0] |= COL1_INDIAN_MET_BIT;
       wf.indian[i].euro_diplo[1] = (uint8_t)(wf.indian[i].euro_diplo[1] & ~COL1_INDIAN_MET_BIT); /* unmet */
+      wf.nation[1].relation_by_indian[i] = (uint8_t)(wf.nation[1].relation_by_indian[i] & ~COL1_INDIAN_MET_BIT); /* Euro side too (#1618) */
     }
     ai_diplo_declare_war(&wf, 0, 1);
     for (int i = 0; i < 8; ++i) {
@@ -2521,6 +2522,7 @@ static int case_153e_ally_pay(void) {
   e->tribe = tribe;
   e->head.tribe_count = 1;
   e->indian[0].euro_diplo[0] = COL1_INDIAN_MET_BIT; /* England met tribe slot 4 */
+  e->nation[0].relation_by_indian[0] = e->indian[0].euro_diplo[0];
   ai_diplo_write(e, 0, 1, AI_DIPLO_MET | AI_DIPLO_PEACE);
   ai_diplo_write(e, 1, 0, AI_DIPLO_MET | AI_DIPLO_PEACE);
   ai_diplo_write(e, 0, 2, AI_DIPLO_MET);
@@ -2600,6 +2602,7 @@ static int case_153e_ally_pay(void) {
    * England now has 0 gold -> @UNFORTUNATE. */
   if (rc == 0) {
     e->indian[0].euro_diplo[1] = (uint8_t)(COL1_INDIAN_MET_BIT | COL1_INDIAN_PEACE_BIT);
+    e->nation[1].relation_by_indian[0] = e->indian[0].euro_diplo[1];
     e->nation[0].founding_fathers[FF_BENJAMIN_FRANKLIN / 8] |=
       (uint8_t)(1u << (FF_BENJAMIN_FRANKLIN % 8));
     e->nation[0].gold = 1000; /* gold/50 = 20 for the price */

@@ -188,9 +188,11 @@ bool units_resolve_land_combat_ff_w(
     return false;
   }
   const bool combat_audible = units_combat_is_visible(pool, attacker_id, defender_id);
+  g_units_combat_param4 = combat_audible ? 1 : 0; /* reset on every exit below */
+  bool suppress_generic = false;
+  int fire_id = UNITS_SFX_ATTACK_FIRE;
   if (combat_audible) {
     units_combat_music_sting();
-    bool suppress_generic = false;
     /* FUN_5fef_1b0e 5fef:2271 and 232e-23a7: these are two separate calls.
      * The typed cue precedes the generic attack cue on a visible native attack
      * against a human European defender. DOS even forwards typed ids below the event range to the music
@@ -220,7 +222,6 @@ bool units_resolve_land_combat_ff_w(
     }
     const int atk_row = units_type_dos_code(at);
     const int def_row = units_type_dos_code(dt);
-    int fire_id = UNITS_SFX_ATTACK_FIRE;
     if (atk_row == 11 || def_row == 11) {
       fire_id = 0x42;
     } else if (atk_row == 4 || atk_row == 5 || atk_row == 7 || atk_row == 8) {
@@ -228,10 +229,13 @@ bool units_resolve_land_combat_ff_w(
     } else if (at->attack > 1 || dt->attack > 1) {
       fire_id = 0x41;
     }
-    if (!suppress_generic) {
-      units_play_event_sound(fire_id);
-    }
   }
+  /* FUN_5fef_1b0e entry (raw ~100384, [bp-0xd4]): 06be = FUN_137f_03e4, the
+   * owner of a settlement (colony or village) on the target, read before the
+   * fight; the win-limb cue selector below tests it (asm 0x5D500). */
+  const ColonizeWorldMap* cue_map = w->map ? w->map : g_units_fallout_map;
+  const bool target_settled = cue_map && map_tile_has_city(cue_map, def->x, def->y) &&
+    units_tile_owner_nibble(cue_map, def->x, def->y) >= 0;
 
   /*
    * FUN_5fef_1b0e / FUN_157e: attacker 004a(mode=1); defender 015e + peels.
@@ -301,6 +305,11 @@ bool units_resolve_land_combat_ff_w(
   if (brave_vs_human_arty) {
     eng.atk_wins = false;
   }
+  /* FUN_5fef_1b0e asm 0x5D29E-0x5D317: the generic attack cue follows the
+   * roll, the typed cue and the Combat Analysis dialog (port_bugs.md #1814). */
+  if (combat_audible && !suppress_generic) {
+    units_play_event_sound(fire_id);
+  }
   combat_analysis_log_engagement(pool, &eng, true);
 
   const int ambush = (er.atk_flags.flags & COMBAT_FLAG_AMBUSH) != 0;
@@ -310,6 +319,14 @@ bool units_resolve_land_combat_ff_w(
   units_dissolve_notify(0);
 
   if (eng.atk_wins) {
+    /* FUN_5fef_1b0e asm 0x5D4E7-0x5D50F (port_bugs.md #1814): on the
+     * attacker-win limb outside the temporary-defender limb, before the
+     * defender's outcome: 0x43 for a ship or Artillery (row 0xb) attacker,
+     * else 0x49 when a settlement stands on the target, else 0x40. The
+     * temporary-defender limb's 0x4a / 0x4b / 0x48 are the caller's. */
+    if (combat_audible && !units_defender_is_dos_scratch_row()) {
+      units_play_event_sound(units_type_dos_code(at) == 11 ? 0x43 : target_settled ? 0x49 : 0x40);
+    }
     const int def_x = def->x;
     const int def_y = def->y;
     const int def_nation = def->nation_id;
@@ -424,16 +441,10 @@ bool units_resolve_land_combat_ff_w(
         units_despawn(pool, attacker_id);
       }
     }
+    g_units_combat_param4 = -1;
     return true;
   }
-  /* FUN_5fef_1b0e 5fef:2577-259f: attacker-loss cue precedes outcome.
-   * 06be probes the defender tile for a native settlement. */
-  if (combat_audible) {
-    const ColonizeWorldMap* map = w->map ? w->map : g_units_fallout_map;
-    const bool village = map && map_tile_has_city(map, def->x, def->y) &&
-      map_tile_tribe_or_presence(map, def->x, def->y) >= 4;
-    units_play_event_sound(units_type_dos_code(at) == 11 ? 0x43 : village ? 0x49 : 0x40);
-  }
+  /* The attacker-loss limb (asm 0x5D7A4-0x5D857) plays no cue (#1814). */
   {
     const int atk_nation = atk->nation_id;
     const int def_nation = def->nation_id;
@@ -543,6 +554,7 @@ bool units_resolve_land_combat_ff_w(
     }
   }
   g_units_last_combat = -1;
+  g_units_combat_param4 = -1;
   units_dissolve_notify(1);
   units_combat_pump_popups();
   return false;
@@ -767,10 +779,9 @@ bool units_resolve_naval_combat_ff_w(
     return false;
   }
   const bool combat_audible = units_combat_is_visible(pool, attacker_id, defender_id);
+  g_units_combat_param4 = combat_audible ? 1 : 0; /* reset on every exit below */
   if (combat_audible) {
     units_combat_music_sting();
-    /* FUN_5fef_1b0e 5fef:2332-234c: every ship attack selects 0x42. */
-    units_play_event_sound(0x42);
   }
 
   /* FUN_157e_004a + 1b0e difficulty peels for both sides. */
@@ -795,6 +806,11 @@ bool units_resolve_naval_combat_ff_w(
     pool, &sctx, &eng, &er, attacker_id, defender_id, atk->nation_id, def->nation_id, def->x,
     def->y, rng, col1
   );
+  /* FUN_5fef_1b0e 5fef:2332-234c (asm 0x5D2A4-0x5D317): every ship attack
+   * selects 0x42, after the roll and the Combat Analysis dialog (#1814). */
+  if (combat_audible) {
+    units_play_event_sound(0x42);
+  }
   combat_analysis_log_engagement(pool, &eng, true);
 
   /*
@@ -815,7 +831,8 @@ bool units_resolve_naval_combat_ff_w(
       evades = 0; /* no-RNG (deterministic test) path: always fight */
     }
     if (evades) {
-      if (units_combat_human_involved(col1, atk->nation_id, def->nation_id)) {
+      /* 1b0e shows 0x1c0b whenever param_4 is set (port_bugs.md #1791). */
+      if (combat_audible) {
         PopupMsgTokens tok;
         memset(&tok, 0, sizeof(tok));
         tok.string0 = units_combat_nation_label(col1, def->nation_id);
@@ -827,6 +844,7 @@ bool units_resolve_naval_combat_ff_w(
           AI_POPUP_TAG_COMBAT_SHIP, "EVASIVE", def->nation_id, atk->nation_id, 0, &tok, ""
         );
       }
+      g_units_combat_param4 = -1;
       units_combat_pump_popups();
       return false;
     }
@@ -837,31 +855,38 @@ bool units_resolve_naval_combat_ff_w(
   units_dissolve_notify(0);
 
   if (eng.atk_wins) {
-    units_combat_outcome_popups(
-      pool, atk, def, 1, atk->nation_id, def->nation_id, 1, 0, col1
-    );
+    /* FUN_5fef_1b0e asm 0x5D4ED-0x5D4FB: the attacker-win limb selects 0x43
+     * for a ship attacker, before the defender's outcome (#1814). */
+    if (combat_audible) {
+      units_play_event_sound(0x43);
+    }
     const int def_x = def->x;
     const int def_y = def->y;
     const int def_nation = def->nation_id;
+    const int atk_nation = atk->nation_id;
+    const ColonizeUnit lose_snap = *def;
     /* DOS 0ec0: every unit on the loser tile, in chain order, takes its own loss. */
     (void)units_sweep_naval_stack_after_loss(
       pool, def_x, def_y, def_nation, attacker_id, defender_id, col1, rng
+    );
+    /* port_bugs.md #1793: 0352's @SHIPDAMAGE / @SHIPSUNK first, then the
+     * 1b0e tail @EUROPEWIN (raw 100810). Snapshot keeps the label past a sink. */
+    units_combat_outcome_popups(
+      pool, NULL, &lose_snap, 1, atk_nation, def_nation, 1, 0, col1
     );
     /* No captured/seized cue for a ship-vs-ship win (port_bugs.md #1383): DOS
      * pushes @SEIZURESEA (0x1297) only from the Crown seizure FUN_43f7_0512;
      * FUN_5fef_1b0e and FUN_5fef_0352 never do. */
     g_units_last_combat = 1;
+    g_units_combat_param4 = -1;
     units_dissolve_notify(1);
     units_combat_pump_popups();
     return true;
   }
-  /* FUN_5fef_1b0e 5fef:2577-258b: a losing ship emits 0x43. */
-  if (combat_audible) {
-    units_play_event_sound(0x43);
-  }
-  units_combat_outcome_popups(
-    pool, def, atk, 0, atk->nation_id, def->nation_id, 1, 0, col1
-  );
+  /* The attacker-loss limb plays no cue (asm 0x5D7A4-0x5D857, #1814). */
+  const int atk_nation = atk->nation_id;
+  const int def_nation = def->nation_id;
+  const ColonizeUnit win_snap = *def;
   /*
    * DOS 1b0e raw 100759: 0ec0(attacker, defender) walks the chain the
    * attacker is IN. Before the roll (raw 100568) FUN_281f_0916 = 1427_12f6
@@ -875,7 +900,12 @@ bool units_resolve_naval_combat_ff_w(
   (void)units_apply_naval_loss_outcome(
     pool, attacker_id, defender_id, 0, 0, 1, col1, rng
   );
+  /* port_bugs.md #1793: @EUROPELOSE after the 0352 popups (raw 100810). */
+  units_combat_outcome_popups(
+    pool, &win_snap, NULL, 0, atk_nation, def_nation, 1, 0, col1
+  );
   g_units_last_combat = -1;
+  g_units_combat_param4 = -1;
   units_dissolve_notify(1);
   units_combat_pump_popups();
   return false;
@@ -1048,6 +1078,17 @@ static bool units_fort_hull_loss(
       AI_POPUP_TAG_COMBAT_SHIP, "SHIPSUNK", def->nation_id, -1, 0, &tok, ""
     );
     units_play_event_sound(0x57);
+    /* raw 99662-99672 (inside the param_3 gate): 04b6(1) for a human loser,
+     * 04b6(4) for a human winner (port_bugs.md #1816). */
+    if (col1) {
+      if (def->nation_id >= 0 && def->nation_id <= 3 &&
+          col1->player[def->nation_id].control == 0) {
+        units_set_bgm_pool(1);
+      }
+      if (fort_nation >= 0 && fort_nation <= 3 && col1->player[fort_nation].control == 0) {
+        units_set_bgm_pool(4);
+      }
+    }
   }
   /* FUN_5fef_0352 raw 99653-99690: Royal-flagged hull lost → tax cut (port_bugs.md #659). */
   (void)units_royal_loss_tax_cut((ColonizeCol1Save*)col1, pool, def);
@@ -1205,6 +1246,7 @@ bool units_fort_vs_ship(
      * since units of two nations should never share a sea tile.
      */
     const int nat = def->nation_id;
+    const ColonizeUnit lose_snap = *def;
     bool primary_sunk = false;
     for (int id = units_tile_head_id_at(pool, def->x, def->y); id >= 0;) {
       const int next = units_tile_chain_next_id(pool, id);
@@ -1222,13 +1264,18 @@ bool units_fort_vs_ship(
       }
       id = next;
     }
+    /* port_bugs.md #1793: 03f6's phantom is the colony owner (< 4) with
+     * bVar28 false, so the 1b0e tail (raw 100810) runs @EUROPEWIN. */
+    units_combat_outcome_popups(pool, NULL, &lose_snap, 1, fort_nation, nat, 1, 0, col1);
     if (show) {
       units_dissolve_notify(1);
     }
     return primary_sunk;
   }
   /* port_bugs.md #249: fort loses the exchange → NOTHING happens (DOS undoes the
-   * temp attacker and the ship sails on; the old ship-slow was invented). */
+   * temp attacker and the ship sails on; the old ship-slow was invented),
+   * except the 1b0e tail's @EUROPELOSE + 04ac(4) for a human ship (#1793). */
+  units_combat_outcome_popups(pool, def, NULL, 0, fort_nation, def->nation_id, 1, 0, col1);
   return false;
 }
 

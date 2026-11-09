@@ -1458,6 +1458,11 @@ bool game_colony_drag_drop(
               /* Partial fit: put the remainder back in the source hold. */
               (void)units_load_goods(&game->units, csv->transport_unit_id, ctype, amt - moved);
             }
+            /* raw 51696-51697: the receiver loses any orders but a trade route (#1730). */
+            ColonizeUnit* du = units_get(&game->units, dst);
+            if (du && du->orders != UNITS_ORDER_TRADE_ROUTE) {
+              du->orders = UNITS_ORDER_NONE;
+            }
             game_colony_cargo_moved(game, moved, ctype, dst);
           } else {
             game_colony_cargo_refusal(game, 4, -1, -1); /* FUN_2f2b_4fec: 2ec6(4, 0x78) */
@@ -1682,17 +1687,25 @@ bool game_europe_drag_drop(ColonizeGameState* game, int mx, int my, bool shift) 
       }
     }
   } else if (kind == UI_DRAG_EUROPE_HOLD) {
-    if (hit.kind == EUROPE_HIT_MARKET) {
+    /* FUN_38fd_2edc raw 60979-60984: released over a harbor ship's icon -> 285c (#1732). */
+    const int dst_ship = europe_harbor_ship_icon_at(
+      eu, game->units_ok ? &game->units : NULL, game_icons(game),
+      game_europe_transit_line_h(game), mx, my
+    );
+    if (dst_ship >= 0 && eu->selected_harbor >= 0) {
+      game_europe_ship_transfer(game, eu->selected_harbor, dst_ship, drag->index, shift);
+    } else if (hit.kind == EUROPE_HIT_MARKET) {
       const int dh = drag->index;
       if (eu->selected_harbor >= 0 && dh >= 0 && dh < EUROPE_SHIP_CARGO_MAX &&
           game_europe_boycott_gate(game, eu->harbor[eu->selected_harbor].hold_goods_type[dh])) {
         /* FUN_38fd_3502 raw 61107-61125: boycotted cargo -> @KISSUP, trade aborted. */
-      } else if (eu->selected_harbor >= 0 && shift) {
-        /* Shift+drag: @HOWMUCH5 amount entry instead of selling the whole hold. */
-        game_europe_open_sell_prompt(game, eu->selected_harbor, drag->index);
-      } else if (eu->selected_harbor >= 0) {
-        europe_sell_hold(eu, &game->col1, game->human_nation, eu->selected_harbor, drag->index);
-        game_europe_drain_price_events(game);
+      } else if (eu->selected_harbor >= 0 && dh >= 0 && dh < EUROPE_SHIP_CARGO_MAX) {
+        /* raw 61063-61065 keep only the goods type (0x9e24); FUN_38fd_3502 raw 61118-61123
+         * -> FUN_38fd_23c4(ship, type, shift) sells the FIRST hold of that type (0c2c), the
+         * Shift @HOWMUCH5 prompt included (#1731). */
+        game_europe_sell_first_hold(
+          game, eu->selected_harbor, eu->harbor[eu->selected_harbor].hold_goods_type[dh], shift
+        );
       }
     }
   } else if (kind == UI_DRAG_EUROPE_HARBOR_SHIP) {
@@ -1761,6 +1774,9 @@ bool game_colony_apply_outside_role(
   int horses_take = 0;
   const char* type_name = units_equip_role_type_name(units, u->type_index, role);
   int type_index_override = -1;
+  /* raw 50755-50757: the body's own @JOB row is listed and enabled whatever FUN_15eb_3454
+   * answers (colony_screen_list_outside_roles), so its pick skips the re-test (#1747). */
+  const bool own_row = role == units_type_default_job(u->type_index) - UNITS_JOB_COLONIST;
   switch (role) {
   case COLONIZE_EJECT_MISSIONARY:
     /*
@@ -1777,7 +1793,7 @@ bool game_colony_apply_outside_role(
      * writes the profession byte — and this path has never re-professioned a
      * body for any other row either.
      */
-    if (!colonies_eject_row_offered(pool, colony, u->profession, role)) {
+    if (!own_row && !colonies_eject_row_offered(pool, colony, u->profession, role)) {
       return false;
     }
     type_index_override = units_kind_type_index(units, UNITS_KIND_MISSIONARY);
@@ -1785,7 +1801,7 @@ bool game_colony_apply_outside_role(
   case COLONIZE_EJECT_COLONIST:
     /* raw 13561-13565: the Colonist row is not offered to a Jesuit under the
      * DS:0x8dc6 test — see colonies_eject_row_offered. */
-    if (!colonies_eject_row_offered(pool, colony, u->profession, role)) {
+    if (!own_row && !colonies_eject_row_offered(pool, colony, u->profession, role)) {
       return false;
     }
     (void)colonies_eject_role_gear(role, stock_tools, &tools_take, &muskets_take, &horses_take);

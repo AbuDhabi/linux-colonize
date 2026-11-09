@@ -2273,6 +2273,20 @@ static int case_custom_house_autosell(void) {
     );
     return 1;
   }
+  /* #1777: raw 57303-57326 builds the line without testing the proceeds, so a
+   * bid of 1 (sell price 0) still shows "... for 0.". */
+  eu.cargo[COLONIZE_CARGO_TOBACCO].bid = 1;
+  col->stock[COLONIZE_CARGO_TOBACCO] = 120;
+  col->stock[COLONIZE_CARGO_FOOD] = 10;
+  ai_popup_init(&ch_pops);
+  memset(&prod, 0, sizeof(prod));
+  turn_run_colony_production_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .col1=(ColonizeCol1Save*)(&col1), .col1_ok=true, .europe=(EuropeScreen*)(&eu)}, 0, &prod, &ch_pops, NULL);
+  ch_line = ai_popup_bar_message(&ch_pops);
+  if (!ch_line || !strstr(ch_line, " 0. 0 0 0") || col->stock[COLONIZE_CARGO_TOBACCO] != 50) {
+    fprintf(stderr, "CH 0-gold line '%s'\n", ch_line ? ch_line : "(none)");
+    return 1;
+  }
+  eu.cargo[COLONIZE_CARGO_TOBACCO].bid = 10;
 
   /* dos_bugs.md DB-75: Tools checked while the project needs 100. DOS
    * (Phase B before Phase L) sells down to 50; the port hides the project's
@@ -5128,11 +5142,23 @@ static int case_human_crosses_order(void) {
     fprintf(stderr, "crosses order: immigrant arrived a turn early (dock=%d)\n", eu.dock_count);
     return 1;
   }
-  /* need-2 +2 (584a) +3 (colony, added AFTER the tick). */
-  if (eu.current_crosses != (uint16_t)(need + 3u)) {
+  /* need-2 +2 (584a); with a save the colony's crosses land in its own
+   * 364b_0688 (raw 57789), composed live at its Phase A (#1822). */
+  if (eu.current_crosses != need) {
+    fprintf(stderr, "crosses order: tick want %u got %u\n", (unsigned)need,
+            (unsigned)eu.current_crosses);
+    return 1;
+  }
+  int colony_bells = 0;
+  int colony_crosses = 0;
+  turn_compose_colony_bells_crosses(
+    &pool, col, &col1, colony_prod_sol_bonus(&col1, col), &colony_bells, &colony_crosses
+  );
+  turn_run_human_colony_eot(&ctx, &out);
+  if (colony_crosses <= 0 || eu.current_crosses != (uint16_t)(need + colony_crosses)) {
     fprintf(
       stderr, "crosses order: want %u got %u\n",
-      (unsigned)(need + 3u), (unsigned)eu.current_crosses
+      (unsigned)(need + colony_crosses), (unsigned)eu.current_crosses
     );
     return 1;
   }
@@ -5595,7 +5621,7 @@ static int case_year_end_victory_stops_turn(void) {
  * clear DS:0x53c2 with no @SCORED revive, and FUN_130d_0290 returns (raw
  * 6511) before the next day top, so nothing of the new day runs: no tribe,
  * no Euro slot, no colony EOT, no autosave. Human slot 3, no colonies. */
-static void game_end_day_run(bool woi, ColonizeTurnResult* out) {
+static void game_end_day_run(bool woi, bool autoplay, ColonizeTurnResult* out) {
   fx_begin();
   static ColonizeColonyPool pool;
   colonies_init(&pool);
@@ -5627,12 +5653,13 @@ static void game_end_day_run(bool woi, ColonizeTurnResult* out) {
   ctx.col1_ok = true;
   ctx.status = status;
   ctx.status_size = sizeof(status);
+  ctx.autoplay = autoplay;
   *out = turn_end(&ctx);
 }
 
 static int case_losenocolonies_stops_day(void) {
   ColonizeTurnResult out;
-  game_end_day_run(false, &out);
+  game_end_day_run(false, false, &out);
   if (!out.year_end_defeat || out.request_autosave_turn || out.request_autosave_decade) {
     fprintf(stderr, "losenocolonies: defeat %d autosave %d/%d (want 1, 0/0)\n",
             (int)out.year_end_defeat, (int)out.request_autosave_turn,
@@ -5642,9 +5669,22 @@ static int case_losenocolonies_stops_day(void) {
   return 0;
 }
 
+/* #1820: FUN_130d_0290 raw 6459 skips the year-end 3844_0442 under autoplay
+ * (DS:0x826) or the demo (DS:0x828): no defeat, the day runs on. */
+static int case_year_end_skipped_autoplay(void) {
+  ColonizeTurnResult out;
+  game_end_day_run(false, true, &out);
+  if (out.year_end_defeat || !out.request_autosave_turn) {
+    fprintf(stderr, "autoplay year end: defeat %d autosave %d (want 0, 1)\n",
+            (int)out.year_end_defeat, (int)out.request_autosave_turn);
+    return 1;
+  }
+  return 0;
+}
+
 static int case_war_lost_stops_day(void) {
   ColonizeTurnResult out;
-  game_end_day_run(true, &out);
+  game_end_day_run(true, false, &out);
   if (!out.year_end_war_lost || out.year_end_victory || out.request_autosave_turn ||
       out.request_autosave_decade) {
     fprintf(stderr, "war lost: lost %d win %d autosave %d/%d (want 1, 0, 0/0)\n",
@@ -7800,6 +7840,11 @@ static bool eotd_run(AiPopupTag tag, int choice, int* produced_at, bool* active_
   return seen;
 }
 
+static int g_brewster_bgm2;
+static void brewster_bgm_hook(int pool) {
+  g_brewster_bgm2 += pool == 2;
+}
+
 /* FUN_38fd_4884 raw 64766 zeroes the crosses inside 5e52 (raw 68607); this
  * turn's colony crosses land after it (00f2 raw 58386). */
 static int case_brewster_pick_before_colony_crosses(void) {
@@ -7810,18 +7855,33 @@ static int case_brewster_pick_before_colony_crosses(void) {
   g->col1.nation[0].founding_fathers[FF_WILLIAM_BREWSTER / 8] |=
     (uint8_t)(1u << (FF_WILLIAM_BREWSTER % 8));
   g->eu.current_crosses = 30000; /* well past any 584a threshold */
+  /* #1822: the colony's crosses are composed live at its own Phase A. */
+  int want_bells = 0;
+  int want_crosses = 0;
+  turn_compose_colony_bells_crosses(
+    &g->pool, col, &g->col1, colony_prod_sol_bonus(&g->col1, col), &want_bells, &want_crosses
+  );
   uint8_t census_before[32];
   const ColonizeWorld cw = {.units = &g->units, .colonies = &g->pool, .europe = &g->eu};
   turn_tally_professions_w(&cw, 0, census_before);
   int produced = -1;
   bool active = false;
-  if (!eotd_run(AI_POPUP_TAG_BREWSTER_PICK, 0, &produced, &active)) {
+  g_brewster_bgm2 = 0;
+  europe_set_bgm_hook(brewster_bgm_hook);
+  const bool picked = eotd_run(AI_POPUP_TAG_BREWSTER_PICK, 0, &produced, &active);
+  europe_set_bgm_hook(NULL);
+  if (!picked) {
     fprintf(stderr, "brewster: no @RECRUITCHOOSE pick was queued\n");
     return 1;
   }
-  if (g->eu.dock_count != 1 || g->eu.current_crosses != 3) {
-    fprintf(stderr, "brewster: dock %d crosses %u (want 1 / this turn's 3)\n", g->eu.dock_count,
-            (unsigned)g->eu.current_crosses);
+  /* #1824: 38fd:5ebb-5ee4 plays the immigrant music before the Brewster test. */
+  if (g_brewster_bgm2 != 1) {
+    fprintf(stderr, "brewster: immigrant music %d times (want 1)\n", g_brewster_bgm2);
+    return 1;
+  }
+  if (g->eu.dock_count != 1 || want_crosses <= 0 || g->eu.current_crosses != want_crosses) {
+    fprintf(stderr, "brewster: dock %d crosses %u (want 1 / this turn's %d)\n", g->eu.dock_count,
+            (unsigned)g->eu.current_crosses, want_crosses);
     return 1;
   }
   /* The 0a9e specialty census (raw 58374) precedes 5e52: the recruit is not in it. */
@@ -7830,6 +7890,44 @@ static int case_brewster_pick_before_colony_crosses(void) {
   if (memcmp(turn_prof_census[0], census_before, sizeof census_before) != 0 ||
       memcmp(census_after, census_before, sizeof census_before) == 0) {
     fprintf(stderr, "brewster: census holds the recruit (or the pick spawned no unit)\n");
+    return 1;
+  }
+  return 0;
+}
+
+/* #1821: FUN_3844_00f2's unit walk (raw 58326-58369) shows a harbor @REFIT
+ * before 4962_0606 / 5e52, and its DS:0x14c opens Europe (raw 58378-58380)
+ * before the colony loop (raw 58384): FINISH queues the refit before any
+ * colony produces, and yields at the loop's head with the Europe request. */
+static int case_refit_before_colony_loop(void) {
+  eotd_setup(TURN_PROC_FINISH, 1600, 36);
+  EotDialogFx* g = &g_eotd;
+  g->units.type_count = 11;
+  snprintf(g->units.types[10].name, sizeof(g->units.types[10].name), "Shipa");
+  g->units.types[10].domain = COLONIZE_UNIT_DOMAIN_SEA;
+  ColonizeUnit hull;
+  memset(&hull, 0, sizeof(hull));
+  hull.col1_origin = 0xff;
+  hull.col1_counter16 = 3;
+  hull.type_index = 10;
+  if (!europe_harbor_push_damaged(&g->eu, &hull, "Shipa", true)) {
+    fprintf(stderr, "refit first: harbor push failed\n");
+    return 1;
+  }
+  (void)turn_processor_advance(&g->proc, &g->ctx);
+  if (g->pop.queue_count < 1 || !strstr(g->pop.queue[0].body, "Shipa") ||
+      g->proc.result.colonies_produced != 0 || !g->proc.result.request_europe_open) {
+    fprintf(stderr, "refit first: queued %d produced %d europe %d\n", g->pop.queue_count,
+            g->proc.result.colonies_produced, (int)g->proc.result.request_europe_open);
+    return 1;
+  }
+  for (int i = 0; i < 16 && g->proc.step != TURN_PROC_FINISH_COLONY_LOOP; ++i) {
+    ai_popup_clear(&g->pop);
+    (void)turn_processor_advance(&g->proc, &g->ctx);
+  }
+  if (g->proc.step != TURN_PROC_FINISH_COLONY_LOOP || g->proc.result.colonies_produced != 0) {
+    fprintf(stderr, "refit first: step %d produced %d at the Europe yield\n",
+            (int)g->proc.step, g->proc.result.colonies_produced);
     return 1;
   }
   return 0;
@@ -8167,10 +8265,44 @@ done:
   return rc;
 }
 
+/* #1823: FUN_48d3_0002 raw 77563-77588 reads the census byte DS:0x9418, not
+ * the live pool: an AI's count is stuff.ship_counts; the human keeps the
+ * live pool + Europe-hull reconstruction. */
+static int case_voyage_count_ai_census(void) {
+  fx_begin();
+  ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
+  units_reset(&units);
+  units_set_occupancy_map(NULL);
+  ColonizeCol1Save col1;
+  memset(&col1, 0, sizeof(col1));
+  col1.stuff.ship_counts[0] = 7;
+  col1.stuff.ship_counts[1] = 3;
+  EuropeScreen eu;
+  memset(&eu, 0, sizeof(eu));
+  eu.bound_nation = 0;
+  eu.harbor_ships = 2;
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.human_nation = 0;
+  ctx.units = &units;
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+  ctx.europe = &eu;
+  const int ai = turn_voyage_ship_count(&ctx, 1);
+  const int human = turn_voyage_ship_count(&ctx, 0);
+  if (ai != 3 || human != 2) {
+    fprintf(stderr, "voyage count: ai %d (want 3) human %d (want 2)\n", ai, human);
+    return 1;
+  }
+  return 0;
+}
+
 static const TestCase k_cases[] = {
   {"building_upkeep_eot", case_building_upkeep_eot},
   {"brewster_pick_before_colony_crosses", case_brewster_pick_before_colony_crosses},
   {"tax_audience_before_colony_eot", case_tax_audience_before_colony_eot},
+  {"refit_before_colony_loop", case_refit_before_colony_loop},
   {"colony_messages_yield_colony_loop", case_colony_messages_yield_colony_loop},
   {"frigate_before_merc_roll", case_frigate_before_merc_roll},
   {"frigate_accept_draws_before_merc_roll", case_frigate_accept_draws_before_merc_roll},
@@ -8244,6 +8376,8 @@ static const TestCase k_cases[] = {
   {"year_end_victory_stops_turn", case_year_end_victory_stops_turn},
   {"losenocolonies_stops_day", case_losenocolonies_stops_day},
   {"war_lost_stops_day", case_war_lost_stops_day},
+  {"year_end_skipped_autoplay", case_year_end_skipped_autoplay},
+  {"voyage_count_ai_census", case_voyage_count_ai_census},
   {"year_end_section_d", case_year_end_section_d},
   {"census_profession_tally", case_census_profession_tally},
   {"tally_counts_europe_side", case_tally_counts_europe_side},

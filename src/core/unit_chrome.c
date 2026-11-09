@@ -281,9 +281,29 @@ int unit_chrome_unit_badge_index(const ColonizeUnit* u, int cur) {
 }
 
 int unit_chrome_real_orders(int orders_index) {
-  return orders_index >= UNIT_CHROME_ORDERS_PLAN_BASE
-           ? (orders_index - UNIT_CHROME_ORDERS_PLAN_BASE) & 15
-           : orders_index;
+  if (orders_index >= UNIT_CHROME_ORDERS_PLAN_BASE) {
+    return (orders_index - UNIT_CHROME_ORDERS_PLAN_BASE) & 15;
+  }
+  if (orders_index >= UNIT_CHROME_ORDERS_HOLDS_BASE) {
+    return (orders_index - UNIT_CHROME_ORDERS_HOLDS_BASE) & 15;
+  }
+  return orders_index;
+}
+
+static int g_chrome_view_nation = -1;
+static bool g_chrome_view_complete_map;
+
+void unit_chrome_set_viewer(int view_nation, bool complete_map) {
+  g_chrome_view_nation = view_nation;
+  g_chrome_view_complete_map = complete_map;
+}
+
+int unit_chrome_viewer_nation(void) {
+  return g_chrome_view_nation;
+}
+
+bool unit_chrome_viewer_complete_map(void) {
+  return g_chrome_view_complete_map;
 }
 
 char unit_chrome_order_letter(int orders_index, int nation_id) {
@@ -300,7 +320,7 @@ char unit_chrome_order_letter(int orders_index, int nation_id) {
     return 'X';
   }
   if (orders_index >= UNIT_CHROME_ORDERS_HOLDS_BASE) {
-    return (char)('0' + (orders_index - UNIT_CHROME_ORDERS_HOLDS_BASE) % 10);
+    return (char)('0' + ((orders_index - UNIT_CHROME_ORDERS_HOLDS_BASE) >> 4) % 10);
   }
   if (orders_index >= UNIT_CHROME_ORDERS_REPAIR_BASE) {
     const int n = orders_index - UNIT_CHROME_ORDERS_REPAIR_BASE;

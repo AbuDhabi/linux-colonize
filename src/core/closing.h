@@ -18,8 +18,10 @@
  *
  * CLOSING.TXT @CLOSING rows: Series, Frame, Repeats, BaseX, Delay
  *   series 0..6 → CLOS-HAT / LDY / MAN / MIL / FWK / ROC / BEL
- *   Frame + Delay = first global clock tick the series is drawn
- *   Repeats -1 = loop the sheet until the end marker
+ *   Frame = first global clock tick the series is drawn
+ *   Repeats -1 = loop the sheet until the end marker, 0 = play once and
+ *   hold the last sprite
+ *   Delay = hidden ticks between cycles (a re-armed cycle starts at sprite 2)
  *   BaseX is added to the sprite's own FUN_6f30_002e anchor
  *   series -1, Frame N = stop when the clock reaches N (shipped: 390)
  *
@@ -61,10 +63,9 @@
  *   0x59  COLDIG event when CLOS-FWK's pre-increment frame is
  *         1, 27, 37 or 42 (`_anim_loop` 0x284)
  *
- * Both cues re-fire on every wrap of their sheet: a repeats == -1 row makes
- * `_anim_loop` (0x2c4-0x2e5) reset the counter to 1 and stay active instead
- * of retiring the series, so the counter cycles 1..sprite_count for the whole
- * run. closing.c's cue block carries the full counter/frame mapping.
+ * CLOS-FWK (Delay 0) wraps straight back to counter 1, so 0x59 re-fires every
+ * cycle. CLOS-HAT (Delay 16) re-arms at counter 1 and draws 2 first, so 0x5a
+ * fires once (closing.c closing_tick).
  */
 #define CLOSING_BGM_ID 0x3d
 #define CLOSING_CHEER_SOUND_ID 0x5a
@@ -76,6 +77,11 @@ typedef struct ClosingSeries {
   int repeats;
   int base_x;
   int delay;
+  /* `_anim_loop` runtime (record +2 / +4 / +10 / +12), set by closing_open. */
+  int start;
+  int repeats_left;
+  bool active;
+  int counter; /* 1-based drawn sprite, 0 before the first draw */
 } ClosingSeries;
 
 typedef struct ClosingCinematic {

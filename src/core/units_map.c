@@ -394,7 +394,9 @@ static void units_despawn_rotation_step(ColonizeUnitPool* pool, int id) {
   }
 }
 
-bool units_despawn(ColonizeUnitPool* pool, int unit_id) {
+/* census: false for a hull sailing to Europe (FUN_48d3_007a relinks it onto
+ * the lane and deletes nothing, so DS:0x8cfc keeps it and its riders). */
+static bool units_despawn_impl(ColonizeUnitPool* pool, int unit_id, bool census) {
   ColonizeUnit* unit = units_get(pool, unit_id);
   if (!unit) {
     return false;
@@ -407,7 +409,9 @@ bool units_despawn(ColonizeUnitPool* pool, int unit_id) {
     for (int i = 0; i < unit->cargo_count; ++i) {
       ColonizeUnit* pax = units_get(pool, unit->cargo_ids[i]);
       if (pax) {
-        units_census_count_destroy(pax);
+        if (census) {
+          units_census_count_destroy(pax);
+        }
         units_despawn_rotation_step(pool, pax->id);
         units_clear_slot(pool, pax);
         if (pool->unit_count > 0) {
@@ -450,7 +454,9 @@ bool units_despawn(ColonizeUnitPool* pool, int unit_id) {
       unit->home_tribe_index < (int)g_units_fallout_col1->head.tribe_count) {
     g_units_fallout_col1->tribe[unit->home_tribe_index].state.needs_colonist = 1;
   }
-  units_census_count_destroy(unit);
+  if (census) {
+    units_census_count_destroy(unit);
+  }
   units_despawn_rotation_step(pool, unit_id);
   units_clear_slot(pool, unit);
   if (pool->unit_count > 0) {
@@ -462,6 +468,10 @@ bool units_despawn(ColonizeUnitPool* pool, int unit_id) {
   return true;
 }
 
+bool units_despawn(ColonizeUnitPool* pool, int unit_id) {
+  return units_despawn_impl(pool, unit_id, true);
+}
+
 bool units_despawn_to_europe(ColonizeUnitPool* pool, int unit_id) {
   ColonizeUnit* unit = units_get(pool, unit_id);
   if (!unit) {
@@ -469,7 +479,7 @@ bool units_despawn_to_europe(ColonizeUnitPool* pool, int unit_id) {
   }
   const bool was_selected = pool->selected_id == unit_id;
   const int slot = (int)(unit - pool->units);
-  if (!units_despawn(pool, unit_id)) {
+  if (!units_despawn_impl(pool, unit_id, false)) {
     return false;
   }
   if (was_selected) {
@@ -829,7 +839,7 @@ static int units_stack_rank_04d6(const ColonizeUnitPool* pool, int id) {
   if (t && t->cargo > 0) {
     return 8;
   }
-  if (u && u->type_index == UNITS_KIND_TREASURE) {
+  if (t && units_type_kind(t) == UNITS_KIND_TREASURE) {
     return 7;
   }
   return t && t->space >= 1 && t->space <= 6 ? t->space : 0;
@@ -1357,11 +1367,18 @@ void units_occupancy_refresh_tile(ColonizeUnitPool* pool, int x, int y, int exce
   if (!units_occupancy_map || !pool) {
     return;
   }
+  const ColonizeWorldMap* map = units_occupancy_map;
+  /* FUN_1427_02ca (raw 7478-7509) stamps the owner nibble only when the tile
+   * was empty before the arrival (1427_005c() < 0); 023a (leaving) never
+   * stamps. The presence bit still holds the pre-move state here. */
+  const bool was_present =
+    map->layer2 && x >= 0 && y >= 0 && x < map->width && y < map->height &&
+    (map->layer2[y * map->width + x] & MAP_OCCUPANCY_HAS_UNIT) != 0;
   const int present = units_tile_has_on_map_unit(pool, x, y, except_id);
   map_occupancy_set_layer2(
     units_occupancy_map, x, y, MAP_OCCUPANCY_HAS_UNIT, present != 0
   );
-  if (present) {
+  if (present && !was_present) {
     units_claim_tile_owner_from_stack(pool, units_occupancy_map, x, y, except_id);
   }
 }

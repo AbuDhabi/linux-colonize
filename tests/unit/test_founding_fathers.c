@@ -3691,6 +3691,34 @@ int main(void) {
   }
 
   {
+    /* port_bugs.md #1700: FUN_4345_0a22 (asm 4345:0aad-0aef) zeroes +0xc at
+     * the threshold even when no Father is left to elect. */
+    founding_fathers_reset();
+    ColonizeCol1Save ncol1;
+    col1_save_init(&ncol1);
+    seed_unclaimed(&ncol1);
+    ff_test_calendar(&ncol1);
+    ColonizeCol1Nation* nn = &ncol1.nation[1];
+    memset(nn, 0, sizeof(*nn));
+    memset(nn->founding_fathers, 0xff, sizeof(nn->founding_fathers));
+    nn->founding_father_count = (uint16_t)COLONIZE_COL1_FF_COUNT;
+    nn->next_founding_father = -1;
+    nn->liberty_bells_pool = (uint16_t)(founding_fathers_bells_needed(&ncol1, 1) + 5u);
+    ColonizeDosRng nrng;
+    dos_rng_seed(&nrng, 12345u);
+    ColonizeTurnContext nctx;
+    memset(&nctx, 0, sizeof(nctx));
+    nctx.human_nation = 0;
+    nctx.col1 = &ncol1;
+    nctx.col1_ok = true;
+    nctx.rng = &nrng;
+    if (founding_fathers_try_elect(&nctx, 1) || nn->liberty_bells_pool != 0) {
+      return fail("#1700: no-candidate threshold must zero the bell pool");
+    }
+    fprintf(stderr, "unit_founding_fathers: no-candidate pool zero ok\n");
+  }
+
+  {
     const int rc = ff_case_fathers_from_names();
     if (rc == TR_SKIP) {
       fprintf(stderr, "unit_founding_fathers: @FATHERS from NAMES.TXT skipped (no COLONIZE/)\n");

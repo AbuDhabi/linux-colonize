@@ -25,6 +25,7 @@ typedef struct TextEditState {
   int cursor;    /* caret byte index, 0..len */
   int anchor;    /* selection anchor byte index; selection is [lo,hi) */
   bool dragging; /* left button went down in the field and is still held */
+  int max_len;   /* field max (DOS field +6) = cap - 1 from the last handle_input; 0 = unknown */
 } TextEditState;
 
 typedef enum TextEditAction {
@@ -34,7 +35,7 @@ typedef enum TextEditAction {
   TEXT_EDIT_ACTION_CANCEL    /* Esc */
 } TextEditAction;
 
-/* Point the caret at the end of buf; select_all highlights the whole text. */
+/* Point the caret at the end of buf; select_all highlights the whole text. Clears max_len. */
 void text_edit_reset(TextEditState* st, const char* buf, bool select_all);
 
 bool text_edit_has_selection(const TextEditState* st);

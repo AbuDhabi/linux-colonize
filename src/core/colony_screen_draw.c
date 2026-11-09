@@ -865,6 +865,42 @@ void colony_screen_draw_area_overlays(
   }
 
   /*
+   * port_bugs.md #284 / DOS FUN_15eb_26e4: unworked plots still claimed as Indian land (MET
+   * tribe radius, land unbought, no Peter Minuit) carry a totem pole, ICONS.SS #108. DOS
+   * FUN_2f2b_0ba8 (asm 2f2b:0c89-0cbf) draws it in the per-plot pass, before the guard and
+   * the boxes, only when the plot's DS:0x8df0 blocked byte is 0 (no LCR, village, other
+   * colony's worker, foreign guard or unexplored bit), as a plain FUN_281f_0254 blit at
+   * (x + 8, y + 4) (port_bugs.md #1711).
+   */
+  if (col1) {
+    const ColonizeWorld cw = world_make(
+      (ColonizeUnitPool*)units, (ColonizeColonyPool*)pool, (ColonizeWorldMap*)map,
+      (ColonizeCol1Save*)col1, true, NULL, NULL
+    );
+    for (int dy = -half; dy <= half; ++dy) {
+      for (int dx = -half; dx <= half; ++dx) {
+        const int ti = colonies_field_tile_index(dx, dy);
+        if ((dx == 0 && dy == 0) || ti < 0 || colonies_plot_blocked_mask(&cw, colony, ti) != 0) {
+          continue;
+        }
+        const int who = (int)colony->tiles[ti];
+        if (who >= 0 && who < colony->colonist_count && colony->colonists[who].active &&
+            colony->colonists[who].field_job >= 0) {
+          continue; /* worked tile — DOS clears the claim slot */
+        }
+        if (colonies_indian_claim_tribe_from_w(&cw, colony->nation_id, colony->x, colony->y,
+                                               colony->x + dx, colony->y + dy) < 0) {
+          continue;
+        }
+        if (view->icons_ok && COLONY_ICON_TOTEM < view->icons.sprite_count) {
+          ss_blit_sprite(&view->icons, COLONY_ICON_TOTEM, framebuffer,
+                         origin_x + (dx + half) * tile + 8, origin_y + (dy + half) * tile + 4);
+        }
+      }
+    }
+  }
+
+  /*
    * DOS FUN_2f2b_0ba8 tile loop (asm 2f2b:0c46-0d39, EXE file 0x26546): per ring
    * plot, the DS:0x8df0 blocked byte (colonies_plot_blocked_mask) draws
    *   0x40 (worked by another colony): a colour-0xc box over the 24x24 tile;
@@ -1011,48 +1047,6 @@ void colony_screen_draw_area_overlays(
     );
   }
 
-  /*
-   * port_bugs.md #284 / DOS FUN_15eb_26e4: unworked tiles still claimed as Indian
-   * land (MET tribe radius, land unbought, no Peter Minuit) carry a totem
-   * pole marker — ICONS.SS #108 (8x16 red totem pole), bottom-centred with
-   * the standard 2px shadow like other on-tile figures.
-   */
-  if (col1) {
-    for (int dy = -half; dy <= half; ++dy) {
-      for (int dx = -half; dx <= half; ++dx) {
-        if (dx == 0 && dy == 0) {
-          continue;
-        }
-        const int ti = colonies_field_tile_index(dx, dy);
-        if (ti >= 0) {
-          const int who = (int)colony->tiles[ti];
-          if (who >= 0 && who < colony->colonist_count &&
-              colony->colonists[who].active && colony->colonists[who].field_job >= 0) {
-            continue; /* worked tile — DOS clears the claim slot */
-          }
-        }
-        const ColonizeWorld cw = world_make(NULL, (ColonizeColonyPool*)pool, (ColonizeWorldMap*)map, (ColonizeCol1Save*)col1, col1 != NULL, NULL, NULL);
-        /* MOD_TOWN_HALL_TIERS 5x5: FUN_15eb_26e4 never claims a corner or an
-         * out-of-radius plot. */
-        if (half > COLONY_MINIMAP_GRID / 2 &&
-            (ti < 0 || (colonies_plot_blocked_mask(&cw, colony, ti) & 0x10u) != 0)) {
-          continue;
-        }
-        if (colonies_indian_claim_tribe_from_w(&cw, colony->nation_id, colony->x, colony->y, colony->x + dx, colony->y + dy) < 0) {
-          continue;
-        }
-        const int tx = origin_x + (dx + half) * tile;
-        const int ty = origin_y + (dy + half) * tile;
-        if (view->icons_ok && COLONY_ICON_TOTEM < view->icons.sprite_count) {
-          const ColonizeSprite* sp = &view->icons.sprites[COLONY_ICON_TOTEM];
-          const int ix = tx + (tile - sp->width) / 2;
-          const int iy = ty + tile - sp->height - 1;
-          colony_screen_blit_icon_shadowed(view, COLONY_ICON_TOTEM, framebuffer, ix, iy, 0);
-        }
-      }
-    }
-  }
-
   /* MOD_TOWN_HALL_TIERS: the 5x5 shows the plots the colony cannot work (the
    * four corners, and every plot FUN_15eb_23f2 marks 0x10: outside the Town
    * Hall radius, off-map or unseen) under a black checkerboard; the same bit
@@ -1116,11 +1110,20 @@ void colony_screen_render_minimap(
       const int tile_y = (dy + DOS_HALF) * 16;
       ColonizeMapLayerCmd cmds[MAP_LAYER_CMDS_MAX];
       const int ncmd = map_tile_layer_cmds(map, mx, my, 0, cmds, MAP_LAYER_CMDS_MAX);
+      /* DS:0x18a = colony (asm 2f2b:0ae2): FUN_6ba1_0938 (raw 109651 / 109729 / 109740)
+       * leaves the resource out of the pre-scale block; it is drawn crisp below. */
+      int res_sprite = -1;
+      for (int layer = 0, nl = map_phys0_overlay_count(map, mx, my); layer < nl; ++layer) {
+        if (map_phys0_overlay_kind_at(map, mx, my, layer) == MAP_OVERLAY_KIND_RESOURCE) {
+          res_sprite = map_phys0_overlay_sprite_at(map, mx, my, layer);
+        }
+      }
       for (int ci = 0; ci < ncmd; ++ci) {
         const ColonizeMapLayerCmd* cmd = &cmds[ci];
         const ColonizeSpriteSheet* sheet =
           (cmd->sheet == MAP_LAYER_SHEET_TERRAIN) ? terrain : phys0;
-        if (!sheet || cmd->sprite < 0 || cmd->sprite >= sheet->sprite_count) {
+        if (!sheet || cmd->sprite < 0 || cmd->sprite >= sheet->sprite_count ||
+            (cmd->sheet == MAP_LAYER_SHEET_PHYS0 && cmd->sprite == res_sprite)) {
           continue;
         }
         colony_screen_blit_where_dest(
@@ -1145,6 +1148,31 @@ void colony_screen_render_minimap(
     pixels, SCRATCH, SCRATCH, framebuffer, origin_x - pad, origin_y - pad, origin_x,
     origin_y, grid * tile, grid * tile
   );
+
+  /* FUN_2f2b_0a74 asm 2f2b:0b06-0b97 (port_bugs.md #1710): after the scale, each ring plot
+   * on the map (FUN_281f_0302) and seen by the colony's nation (0x10 << nation & FUN_281f_074a,
+   * nation < 4) gets its FUN_281f_0718 resource unscaled, PHYS0 id 0x5a + r (1-based), at
+   * (dx * 0x18 + 0xfc, dy * 0x18 + 0x3c) = the plot's 24px cell + (4, 4). */
+  if (phys0) {
+    const ColonizeColony* col = w ? colonies_find_at_xy(w->colonies, colony_x, colony_y) : NULL;
+    const int nation = col ? col->nation_id : 4;
+    const int half = grid / 2;
+    for (int dy = -half; dy <= half; ++dy) {
+      for (int dx = -half; dx <= half; ++dx) {
+        const int mx = colony_x + dx;
+        const int my = colony_y + dy;
+        if ((dx == 0 && dy == 0) || !map_coords_inset(map, mx, my) ||
+            (nation < 4 && !map_tile_seen_by(map, mx, my, nation))) {
+          continue;
+        }
+        const int r = map_dos_resource_at(map, mx, my);
+        if (r >= 0 && r + 0x5a - 1 < phys0->sprite_count) {
+          ss_blit_sprite(phys0, r + 0x5a - 1, framebuffer, origin_x + (dx + half) * tile + 4,
+                         origin_y + (dy + half) * tile + 4);
+        }
+      }
+    }
+  }
 
   /* Black 1px frame one pixel outside the 3x3 tile grid — golden-measured
    * (new_amsterdam_production.png: frame at x 223/296, y 31/104 around tiles

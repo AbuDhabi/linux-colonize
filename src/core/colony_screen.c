@@ -50,6 +50,8 @@ void colony_screen_reset_ui(ColonyScreenView* view) {
   view->selected_outside_unit = -1;
   view->drag_from_tile = -1;
   view->hover_building_row = -1;
+  view->hover_cat_plus1 = 0;
+  view->multi_btn_342 = -1;
   view->press_region = 0x14;
   view->tab_pressed = -1;
   /* show_production_numbers deliberately NOT reset here: it is DOS's
@@ -531,16 +533,14 @@ void colony_screen_open_eject(
 }
 
 int colony_screen_unit_eject_role(const ColonizeUnitPool* units, const ColonizeUnit* u) {
-  /* FUN_281f_0c0e for a fence body: its type's @JOB 0x13..0x18 = leave-as roles 0..5. */
-  switch (u ? units_type_kind(units_type(units, u->type_index)) : UNITS_KIND_UNKNOWN) {
-  case UNITS_KIND_COLONIST: return COLONIZE_EJECT_COLONIST;
-  case UNITS_KIND_PIONEER: return COLONIZE_EJECT_PIONEER;
-  case UNITS_KIND_SOLDIER: return COLONIZE_EJECT_SOLDIER;
-  case UNITS_KIND_SCOUT: return COLONIZE_EJECT_SCOUT;
-  case UNITS_KIND_DRAGOON: return COLONIZE_EJECT_DRAGOON;
-  case UNITS_KIND_MISSIONARY: return COLONIZE_EJECT_MISSIONARY;
-  default: return -1;
-  }
+  /* FUN_281f_0c0e -> FUN_15eb_0e18 -> FUN_15eb_0902 (raw 9939) for a fence body: the type's
+   * DS:0x30e @JOB, 0x13..0x18 = leave-as roles 0..5 (Continental Army 0x15 and Continental
+   * Cavalry 0x17 included, port_bugs.md #1685). */
+  (void)units;
+  const int job = u ? units_type_default_job(u->type_index) : -1;
+  return job >= UNITS_JOB_COLONIST && job < UNITS_JOB_COLONIST + COLONIZE_EJECT_ROLE_COUNT
+           ? job - UNITS_JOB_COLONIST
+           : -1;
 }
 
 /* The body's tools as FUN_15eb_1068 (raw 11232-11243) and FUN_2f2b_348c (raw 50553-50569)

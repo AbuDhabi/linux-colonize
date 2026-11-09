@@ -418,6 +418,7 @@ static void ai_king_war_act(ColonizeTurnContext* ctx) {
   if (human >= 0 && human < (int)COLONIZE_COL1_NATION_COUNT &&
       (ctx->col1->nation[human].nation_flags & 0x08u) == 0) {
     ctx->col1->nation[human].nation_flags |= 0x08u;
+    sound_set_bgm(3); /* raw 74921: 1eca opens with FUN_281f_04ac(3), port_bugs.md #1659 */
     const int army = units_kind_type_index(ctx->units, UNITS_KIND_CONT_ARMY);
     const int cav = units_kind_type_index(ctx->units, UNITS_KIND_CONT_CAV);
     const int soldier_ty = units_kind_type_index(ctx->units, UNITS_KIND_SOLDIER);
@@ -1233,24 +1234,19 @@ void ai_king_nation_turn_2424(ColonizeTurnContext* ctx) {
     ctx->human_nation == col1_fixed_human(ctx->col1_ok ? ctx->col1 : NULL, ctx->human_nation);
 
   if (!ai_king_independence_declared(ctx->col1_ok ? ctx->col1 : NULL)) {
+    /* FUN_43f7_2424: 1d42 (thunk 2a1f_007e) runs FIRST on the peacetime
+     * path, before the SoL calc and the succession check (raw 75172-75180,
+     * port_bugs.md #1660) — the royal purse stipend + threshold @KINGBUY
+     * pool buy (the tax audience is the separate 38fd_5be8 machinery). */
+    if (king_slot) {
+      ai_king_1d42_royal_purse(ctx);
+    }
     /* DOS 1b3a SoL cache tail: `0x31 < SoL && *0x53d2 < 0` → the War of the
      * Spanish Succession vacates the King's future slot ahead of time. */
     if (king_slot && sol > 49) {
       ai_king_succession(ctx);
     }
-    /* FUN_43f7_2424: 1d42 runs FIRST on the peacetime path — the royal
-     * purse stipend + threshold @KINGBUY pool buy (real 1d42; the tax
-     * audience below is the separate 38fd_5be8 machinery). */
-    if (king_slot) {
-      ai_king_1d42_royal_purse(ctx);
-    }
     /* Tax roll and @KINGNEWWAR: ai_king_human_5e52_tail, earlier in 00f2. */
-    /* FUN_3844_00f2 tail: @KINGFRIGATE every 8th peacetime turn. An AI-run
-     * DS:0x5398 slot (turn.c turn_step_all_ai_anchor) took it in its AI arm. */
-    if (!(ctx->col1_ok && ctx->col1 && ctx->human_nation >= 0 && ctx->human_nation < 4 &&
-          ctx->col1->player[ctx->human_nation].control != 0)) {
-      ai_king_frigate_offer(ctx, ctx->human_nation);
-    }
     /*
      * FUN_43f7_2424 tail: decile SoL notify (DS:0x53d8 dedup), full port
      * 2026-09-06 (was status-only with an invented founding_father_count
@@ -1271,6 +1267,9 @@ void ai_king_nation_turn_2424(ColonizeTurnContext* ctx) {
       const int rising = last < sol / 10;
       const int falling = !rising && last > (sol + 4) / 10;
       if (rising || falling) {
+        /* raw 75184 / 75199: FUN_281f_04ac(3) before @REBELUP, 04ac(1)
+         * before @REBELDOWN (port_bugs.md #1659). */
+        sound_set_bgm(rising ? 3 : 1);
         const char* country = reports_nation_country_phrase(ctx->human_nation & 3, 0);
         if (ai_king_human_popups(ctx)) {
           PopupMsgTokens tok;
@@ -1291,6 +1290,14 @@ void ai_king_nation_turn_2424(ColonizeTurnContext* ctx) {
     }
     /* #1405 follow-up: the invented SoL 40-49 "restless" status line is gone —
      * DOS 2424 shows nothing in that band (the decile notify is @REBELUP). */
+    /* FUN_3844_00f2 tail (raw 58392-58425), after 2424 (0a66) returns, so
+     * after the decile notify (port_bugs.md #1660): @KINGFRIGATE every 8th
+     * peacetime turn. An AI-run DS:0x5398 slot (turn.c
+     * turn_step_all_ai_anchor) took it in its AI arm. */
+    if (!(ctx->col1_ok && ctx->col1 && ctx->human_nation >= 0 && ctx->human_nation < 4 &&
+          ctx->col1->player[ctx->human_nation].control != 0)) {
+      ai_king_frigate_offer(ctx, ctx->human_nation);
+    }
   }
 
   if (ctx->active_turn_nation) {

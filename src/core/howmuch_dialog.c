@@ -165,63 +165,47 @@ bool howmuch_handle_input(HowmuchDialog* dlg, const ColonizeInputState* input) {
     return true;
   }
 
-  int delta = 0;
-  if (colonize_key_up(input->last_key)) {
-    delta = input->shift_held ? 10 : 1;
-  } else if (colonize_key_down(input->last_key)) {
-    delta = input->shift_held ? -10 : -1;
-  }
-  if (delta != 0) {
-    dlg->amount += delta;
+  /*
+   * FUN_6f74_2580 text-box arm (raw 116946-116990, #1828) knows only
+   * Backspace, Enter, Esc, F1, Delete and printable characters (ctype & 0x57);
+   * arrows and +/- are not amount steps. The amount is the caller's atoi-style
+   * parse of the field (1d1d_223c), which stops at the first non-digit.
+   */
+  if (input->last_key == COLONIZE_KEY_BACKSPACE) {
+    /* `s[len-1] = 0; *box &= 0x7f`: delete the last character, drop the select. */
+    const size_t n = strlen(dlg->field);
+    if (n > 0) {
+      dlg->field[n - 1] = '\0';
+    }
+    dlg->field_selected = false;
+    dlg->amount = atoi(dlg->field);
     howmuch_clamp(dlg);
-    howmuch_sync_field(dlg);
     return true;
   }
-
-  if (input->last_key == COLONIZE_KEY_BACKSPACE) {
+  if (input->last_key == COLONIZE_KEY_DELETE) {
+    /* 0x153 clears a preselected field only. */
     if (dlg->field_selected) {
-      dlg->amount = 0;
-      howmuch_sync_field(dlg);
+      dlg->field[0] = '\0';
       dlg->field_selected = false;
-    } else {
-      size_t n = strlen(dlg->field);
-      if (n > 0) {
-        dlg->field[n - 1] = '\0';
-        dlg->amount = dlg->field[0] ? atoi(dlg->field) : 0;
-        howmuch_clamp(dlg);
-      }
+      dlg->amount = 0;
     }
     return true;
   }
 
   if (input->text_input_len > 0) {
     for (int i = 0; i < input->text_input_len; ++i) {
-      const char ch = input->text_input[i];
-      if (ch == '+' || ch == '=') {
-        dlg->amount += input->shift_held ? 10 : 1;
-        howmuch_clamp(dlg);
-        howmuch_sync_field(dlg);
-        continue;
-      }
-      if (ch == '-' || ch == '_') {
-        dlg->amount -= input->shift_held ? 10 : 1;
-        howmuch_clamp(dlg);
-        howmuch_sync_field(dlg);
-        continue;
-      }
-      if (ch < '0' || ch > '9') {
+      const unsigned char ch = (unsigned char)input->text_input[i];
+      if (ch < 0x20 || ch > 0x7e) {
         continue;
       }
       if (dlg->field_selected) {
-        dlg->field[0] = ch;
-        dlg->field[1] = '\0';
+        dlg->field[0] = '\0';
         dlg->field_selected = false;
-      } else {
-        size_t n = strlen(dlg->field);
-        if (n + 1 < sizeof(dlg->field)) {
-          dlg->field[n] = ch;
-          dlg->field[n + 1] = '\0';
-        }
+      }
+      const size_t n = strlen(dlg->field);
+      if (n + 1 < sizeof(dlg->field)) {
+        dlg->field[n] = (char)ch;
+        dlg->field[n + 1] = '\0';
       }
       dlg->amount = atoi(dlg->field);
       howmuch_clamp(dlg);

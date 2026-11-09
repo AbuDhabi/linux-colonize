@@ -466,8 +466,6 @@ int ai_goals_colony_balance_flags_w(
   int nation_id,
   int continent_id
 ) {
-  const ColonizeWorldMap* map = w->map;
-  const ColonizeColonyPool* colonies = w->colonies;
   /* Gated on col1_ok like every other col1 reader (port_bugs.md #1110: three
    * ctx callers used to pass the save ungated). */
   const ColonizeCol1Save* col1 = w->col1_ok ? w->col1 : NULL;
@@ -479,25 +477,12 @@ int ai_goals_colony_balance_flags_w(
     return 0;
   }
 
-  int have_frozen_census = 0;
-  for (int i = 0; i < 64; ++i) {
-    have_frozen_census |= col1->stuff.colony_counts_by_continent[i];
-  }
+  /* DS:0x94e6 only, as FUN_4962 froze it: no live recount, not even before
+   * the first colony exists (an all-zero census is the real state then). */
   int nation_cont[4][16];
-  memset(nation_cont, 0, sizeof(nation_cont));
-  if (have_frozen_census) {
-    for (int n = 0; n < 4; ++n) {
-      for (int cid = 0; cid < 16; ++cid) {
-        nation_cont[n][cid] = col1->stuff.colony_counts_by_continent[n * 16 + cid];
-      }
-    }
-  } else if (map && colonies) {
-    /* Synthetic/new-game contexts can precede their first 4962 census. */
-    for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
-      const ColonizeColony* c = &colonies->colonies[i];
-      if (!c->active || c->nation_id < 0 || c->nation_id > 3) continue;
-      const int cid = map_continent_id_at(map, c->x, c->y);
-      if (cid >= 0 && cid < 16) nation_cont[c->nation_id][cid]++;
+  for (int n = 0; n < 4; ++n) {
+    for (int cid = 0; cid < 16; ++cid) {
+      nation_cont[n][cid] = col1->stuff.colony_counts_by_continent[n * 16 + cid];
     }
   }
   int euro_on_cont = 0;
@@ -773,7 +758,9 @@ int ai_goals_pick_founding_tile_ex_w(
      * happily returned a dwelling as a colony site -- the founder then walked
      * into the village, which resolves as an attack, and died there.
      */
-    if (col1 && col1->tribe) {
+    /* raw 87282-87283: `local_c == 8 || bVar1` — stay (dir 8) skips the
+     * occupancy / settlement gates below, village and colony included. */
+    if (dir != 8 && col1 && col1->tribe) {
       int on_village = 0;
       for (uint16_t ti = 0; ti < col1->head.tribe_count; ++ti) {
         const ColonizeCol1Tribe* t = &col1->tribe[ti];
@@ -795,7 +782,7 @@ int ai_goals_pick_founding_tile_ex_w(
      * (no colony within one tile) refused that; fresh 1591 two-turn: a
      * French Dragoon lands at (19,9) beside Dutch Curacao.
      */
-    if (colonies && colonies_id_at(colonies, nx, ny) >= 0) {
+    if (dir != 8 && colonies && colonies_id_at(colonies, nx, ny) >= 0) {
       continue;
     }
     /*

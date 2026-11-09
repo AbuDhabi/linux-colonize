@@ -386,7 +386,40 @@ static int case_section_width_parse(void) {
   return popup_msg_section_width(&sec) == 0x50 ? 0 : fail("no @width = 0x50");
 }
 
+/* port_bugs.md #1768: FUN_6f74_309c drops a lone '%', has %HEXn (4-digit hex) and %YEAR. */
+static int case_dos_token_parser(void) {
+  PopupMsgTokens tok;
+  memset(&tok, 0, sizeof(tok));
+  tok.number1 = 0xab;
+  tok.has_number1 = true;
+  popup_msg_set_year(1607);
+  char out[64];
+  popup_msg_apply_tokens(out, sizeof(out), "5% off, %% kept, %HEX1 in %YEAR%", &tok);
+  popup_msg_set_year(0);
+  return strcmp(out, "5 off, % kept, 00ab in 1607") == 0 ? 0 : fail(out);
+}
+
+/* port_bugs.md #1769: FUN_6f74_32a4 forces choice state on @options with no blank line. */
+static int case_options_directive_starts_choices(void) {
+  char lines[4][COLONIZE_MSG_LINE_LEN] = {"@width=120", "Pick one", "@options", "Yes"};
+  uint8_t blank[4] = {0, 0, 0, 0};
+  ColonizeMsgSection sec;
+  memset(&sec, 0, sizeof(sec));
+  sec.lines = lines;
+  sec.blank_before = blank;
+  sec.line_count = 4;
+  char choices[4][POPUP_MSG_CHOICE_LEN];
+  char body[64];
+  popup_msg_section_body(&sec, body, sizeof(body), true);
+  if (popup_msg_choices(&sec, choices, 4) != 1 || strcmp(choices[0], "Yes") != 0) {
+    return fail("@options row must be a choice");
+  }
+  return strcmp(body, "Pick one") == 0 ? 0 : fail(body);
+}
+
 static const TestCase k_cases[] = {
+    {"case_dos_token_parser", case_dos_token_parser},
+    {"case_options_directive_starts_choices", case_options_directive_starts_choices},
     {"case_section_width_parse", case_section_width_parse},
     {"case_dialog_figure_scan", case_dialog_figure_scan},
     {"case_underscore_reads_as_space", case_underscore_reads_as_space},

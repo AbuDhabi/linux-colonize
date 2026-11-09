@@ -686,7 +686,9 @@ bool cheat_list_handle_input(CheatListDialog* dlg, const ColonizeInputState* inp
       /* Off the box only a flag-bit-0 box leaves (raw 117052-117054): the FUN_647e_* pickers
        * (|= 1: 01c6 raw 102384, 0796 raw 102707, 090a raw 102770, 0e80 raw 102957) with 0 =
        * no pick, and a @checkbox box (|= 5, raw 117354) with its toggles kept. A DEBUG.TXT
-       * section list (FUN_281f_03fe) stays up. */
+       * section list (FUN_281f_03fe) stays up. Every kind first drops the selection
+       * (piVar8[0x26] = 0, raw 116717), so Enter on a box that stays up confirms nothing. */
+      dlg->selection = -1;
       if (dlg->multi_select) {
         cheat_list_confirm_multi(dlg);
       } else if (dlg->kind == CHEAT_LIST_KIND_GOTO_PORT ||

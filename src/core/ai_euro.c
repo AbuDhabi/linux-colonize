@@ -1008,7 +1008,14 @@ void ai_euro_refresh_colony_ai_flags(
    * 2026-09-10 C3) — correct removal, but "DOS has no writer at all" was
    * wrong; the real writer is a live lead, not absent (2026-09-10 D7).
    */
-  colony_prod_refresh_sol_flags(c, (ctx->col1_ok && ctx->col1) ? ctx->col1 : NULL);
+  /*
+   * +0x1c SoL bits 0x04 / 0x02 are NOT stepped here. FUN_5952_035e never
+   * writes them (its only +0x1c writes are the bit 0x10 clear, raw 94145, and
+   * set, raw 95846); the one-step latch is FUN_364b_0688 Phase D, already run
+   * per colony by the production tick (turn_production.c). Calling
+   * colony_prod_refresh_sol_flags here stepped AI colonies twice per turn
+   * (port_bugs.md #1631).
+   */
   /*
    * +0x1c bit 0x40 (COASTAL) is a founding-time stamp, not a per-turn
    * reading. DOS's only writer of that bit anywhere in the image is
@@ -1648,6 +1655,7 @@ void ai_euro_dispatcher_turn(ColonizeTurnContext* ctx, int nation_id) {
     ctx->ai_euro_dock_census[nation_id] = (uint8_t)census;
   }
   ctx->ai_euro_dock_census_valid[nation_id] = 1;
+  ai_euro_9456_census(ctx->units, nation_id); /* same 4962_0018 pass, DS:0x9456 */
 
   /* FUN_521d_6d8e raw 93118-93142: the complete 5952 colony tick
    * precedes inventory and Europe planning; those read its new stocks. */
@@ -1702,4 +1710,6 @@ void ai_euro_reset(void) {
 
   memset(ai_euro_s_20e6_explorers, 0, sizeof(ai_euro_s_20e6_explorers));
   memset(ai_euro_s_20e6_village_visited, 0, sizeof(ai_euro_s_20e6_village_visited));
+  memset(ai_euro_s_9456, 0, sizeof(ai_euro_s_9456));
+  memset(ai_euro_s_9456_valid, 0, sizeof(ai_euro_s_9456_valid));
 }

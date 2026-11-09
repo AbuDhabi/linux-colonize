@@ -84,6 +84,8 @@ void sound_play(int id);
  * sound_play runs, not after event stings go idle.
  */
 int sound_driver_song_id(void);
+/* DOS FUN_281f_04c0 sites: gate + play at once, no queue, DS:0x96 untouched. */
+void sound_play_now(int id);
 
 /*
  * Play a song for A/B testing from Pick Music even when autoplay is disabled.
@@ -128,6 +130,8 @@ bool sound_event_music_gate(void);
 void sound_set_cinematic(bool active);
 /* DS:0x828, the self-running demo: the tune pool's default arm is tunes 1-24. */
 void sound_set_demo(bool active);
+/* DS:0x5382 bit 0 (War of Independence): FUN_129f_00f6's default pool is 13 / 6. */
+void sound_set_woi(bool active);
 void sound_service(void);
 
 /* Currently playing song id (BGM/event/title), or -1 if none: DS:0x96, not

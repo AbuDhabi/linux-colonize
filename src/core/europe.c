@@ -648,7 +648,9 @@ int europe_buyback_boycott_cost(
   if (price <= 0) {
     return 0;
   }
-  return price * 500;
+  /* FUN_38fd_2dfe (raw 60919-60920): `iVar3 * 500` is a 16-bit IMUL,
+   * sign-extended to the long (asks >= 66 wrap negative). DOS-LITERAL. */
+  return (int16_t)(price * 500);
 }
 
 int europe_buyback_boycott(
@@ -703,7 +705,7 @@ int europe_buyback_boycott(
   if (price <= 0) {
     return 0;
   }
-  const int cost = price * 500;
+  const int cost = europe_buyback_boycott_cost(eu, col1, human_nation, cargo_type);
   if (eu->gold < cost) {
     /* GAME.TXT @KISSSORRY: "Unfortunately, we only have {%NUMBER0$}
      * available." — same sentence game_dialogs.c's KISSSORRY popup shows;

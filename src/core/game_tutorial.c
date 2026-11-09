@@ -77,16 +77,6 @@ static bool tut_open_land(int cls) {
   return cls >= 2 && cls <= 5;
 }
 
-/* FUN_281f_0718 = FUN_137f_04b0: the special resource, -1 on a village tile
- * (FUN_137f_0392: settlement bit with a tribe owner nibble >= 4). */
-static int tut_resource(const ColonizeWorldMap* map, int x, int y) {
-  if (map_tile_has_city(map, x, y) &&
-      ((map_get_layer3(map, x, y) >> MAP_L3_OWNER_SHIFT) & MAP_L3_OWNER_MASK) >= 4) {
-    return -1;
-  }
-  return map_resource_type_for_yield(map, x, y);
-}
-
 /* DS:0x97c0 + 2*row: NAMES.TXT @CARGO column 0, copied out of the shared
  * reports_names_field scratch so two names can sit in one token set. */
 static const char* tut_cargo_name(int row, char* out, size_t out_size) {
@@ -140,7 +130,7 @@ static int tut_first_colony_site(const ColonizeGameState* game, int x, int y) {
     if (colony_yield_terrain_class_base(map_dos_terr_class_at(map, tx, ty), 0) != 0) {
       food_tiles++;
     }
-    switch (tut_resource(map, tx, ty)) {
+    switch (map_dos_resource_at(map, tx, ty)) { /* FUN_281f_0718 = 137f_04b0 */
       case 2:
         cargo = cargo < 0 ? 0 : cargo;
         break;

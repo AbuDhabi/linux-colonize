@@ -14,17 +14,21 @@ static int post_terrain_byte(const ColonizeWorldMap* map, int x, int y) {
 }
 
 static int post_terr_class(const ColonizeWorldMap* map, int x, int y) {
-  /* FUN_13e4_000e / FUN_281f_078c */
+  /* FUN_281f_078c -> FUN_13e4_003a: off-map = 0x19; FUN_13e4_000e: with
+   * 0x20 set, bit 0x80 set -> 0x1b, clear -> 0x1c (asm 7845-7860). */
+  if (!map || !map->terrain || x < 0 || y < 0 || x >= map->width || y >= map->height) {
+    return 0x19;
+  }
   const int b = post_terrain_byte(map, x, y);
   if ((b & 0x20) != 0) {
-    return ((b & 0x80) != 0) ? 0x1c : 0x1b;
+    return ((b & 0x80) != 0) ? 0x1b : 0x1c;
   }
   return b & 0x1f;
 }
 
 static int post_is_ocean_hs(const ColonizeWorldMap* map, int x, int y) {
-  /* FUN_281f_0768 */
-  const int t = post_terr_class(map, x, y);
+  /* FUN_281f_0768 -> FUN_13e4_0074: raw byte & 0x1f against 0x19 / 0x1a. */
+  const int t = post_terrain_byte(map, x, y) & 0x1f;
   return t == 0x19 || t == 0x1a;
 }
 

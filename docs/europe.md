@@ -195,6 +195,11 @@ last ship, or a sail that empties the dock, puts the focus back on the market
 market -> harbor -> dock and wraps, skipping the harbor while no ship is in port
 (`DS:0xfa2` = `harbor_ships`) and the dock while it is empty (`DS:0x9e2a` = `dock_count`),
 then refreshes the panels (`thunk_FUN_291f_0b18`); port: `game_europe_screen_keys`.
+Every key then reaches the focus tail 38fd:52d9 (raw 67602-67730, #1739): the arrows
+move the focused panel's cursor (market `DS:0xf9e`, harbor `DS:0x9e20`/`0x9e1c` in a
++-4/+-8/+-0xc grid walk, dock `DS:0x9e2c` in a +-3 walk, all wrapped by `FUN_281f_038e`);
+Enter / Space on the market asks @KISSUP for a boycotted cargo, S / Space / Enter on the
+harbor opens the ship menu and on the dock @ARMOPTIONS.
 
 ## Europe sale status line
 
@@ -747,8 +752,8 @@ Port of `FUN_38fd_2bfe(ship, 0)` (raw 60787-60900), port_bugs.md #1176. Opened
 by a left-button RELEASE over a harbor ship ICON (`FUN_38fd_2edc`; the exact
 test is `europe_harbor_ship_icon_at`, empty box space and passenger icons do
 not count, although the press still selects leniently) and by S / Space / Enter
-with a ship selected (`FUN_38fd_4f6e` 38fd:5364-5491; these keys do not read
-`focus` / DS:0xf9a, only F1 does: a selected harbor ship is the ship focus). `game_europe_open_ship_menu`
+while the harbor has the focus (`FUN_38fd_4f6e` 38fd:5364-5491; the key tail
+38fd:52d9 branches on `focus` / DS:0xf9a, see "EuropeScreen focus", #1739). `game_europe_open_ship_menu`
 raises a CHOICE (`AI_POPUP_TAG_EUROPE_SHIP_MENU`): title @EUROPESHIPCLICK
 (STRING0 = ship type name), rows = the lines of @EUROPESHIPOPTIONS under their
 DOS ids: 1 Move to front (`europe_harbor_move_to_front`, selects it), 2 Set sail
