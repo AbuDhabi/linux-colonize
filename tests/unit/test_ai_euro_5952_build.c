@@ -87,6 +87,7 @@ static int fx_build(Fx* f, int pop) {
   f->ctx.human_nation = 0;
   ai_euro_5952_set_ring1_threat(f->col->id, 0);
   ai_euro_5952_labor_running = 0; /* local_76: garrison covered */
+  ai_euro_5952_tools_latch = 0;    /* local_16: the tools buy sets it (#1653) */
   ai_euro_colony_tick_prof_cache_clear(); /* no colony tick in progress */
   return 0;
 }

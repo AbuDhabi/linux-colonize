@@ -661,10 +661,9 @@ static bool map_procedural_rumour_at(const ColonizeWorldMap* map, int x, int y) 
   if (map_is_ocean_index(idx) || idx == 24) {
     return false;
   }
-  /* FUN_12ab_0540 / FUN_137f_0598: a rumour shows only while the owner nibble is 0xf
-   * (FUN_12ab_0204 / FUN_137f_0200 < 0), not on the settlement bit (port_bugs.md #1832). */
-  const int nib = (int)((map_get_layer3(map, x, y) >> MAP_L3_OWNER_SHIFT) & MAP_L3_OWNER_MASK);
-  if (nib != 0x0f) {
+  const uint8_t layer2 = map->layer2 ? map->layer2[y * map->width + x] : 0;
+  /* FUN_12ab_0204 / 0540: no rumour on settlement tiles. */
+  if ((layer2 & 2u) != 0) {
     return false;
   }
   /* No +1, for the same reason map_resource_type_at_ex dropped it (see there,

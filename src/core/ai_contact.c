@@ -638,16 +638,22 @@ static void ai_contact_enqueue_welcome(ColonizeTurnContext* ctx, int e, int nati
    * recount, no 0->1 floor. */
   const int shown = (ctx->col1 && nation_id >= 4 && nation_id <= 11)
     ? (int)ctx->col1->stuff.tribe_village_counts[nation_id - 4] : 0;
-  /* FUN_5bfb_022e 5bfb:0325: from turn 20 (DS:0x538e ≥ 0x14) the meet
-   * switches the tune pool — 5 Natives, Inca → 7 (Cuzco), Aztec → 6
-   * (Tenochtitlan); 04ac vs 0498 only differ in option gating.
+  /* FUN_5bfb_022e 5bfb:0325: the meet picks a tune — 5 Natives, Inca → 7
+   * (Cuzco), Aztec → 6 (Tenochtitlan) (port_bugs.md #1632).
    * DOS keys both this and the woodcut below on `*(int *)0x8d52`, the tribe
    * SLOT (0 = Inca, 1 = Aztec) — the same value that indexes DS:0x962a at
    * `*0x8d52 + -0x69d6`. This read `nation_id`, which is the 4..11 Col1 id,
    * so neither branch could ever be taken (fixed with port_bugs.md #416). */
   const int tribe_slot = nation_id - 4;
-  if (ctx->col1 && ctx->col1->head.turn >= 20) {
-    sound_set_bgm(tribe_slot == 0 ? 7 : (tribe_slot == 1 ? 6 : 5));
+  /* asm 5bfb:0342-0362: DOS always picks a tune here — 0498 (pool armed,
+   * no restart) when turn < 0x14 && DS:0xa2 (Background Music) != 0 &&
+   * slot >= 2, else 04ac (restart). */
+  const int tune = tribe_slot == 0 ? 7 : (tribe_slot == 1 ? 6 : 5);
+  if (ctx->col1 && ctx->col1->head.turn < 20 && sound_get_options().background_music &&
+      tribe_slot >= 2) {
+    sound_set_bgm_pool(tune);
+  } else {
+    sound_set_bgm(tune);
   }
   /*
    * FUN_5bfb_022e 5bfb:038a, right before the @INDIANWELCOME dialog: the
@@ -958,6 +964,13 @@ void ai_contact_enqueue_village_meet(
   if (u && !u->active) {
     u = NULL;
   }
+  /* FUN_4d56_4528 OVL13:0x45a0-0x45ce, before the ship test: a human entrant
+   * with Background Music off (DS:0xa2 == 0) restarts the tribe tune through
+   * FUN_1000_869c (= 129f_0318): 7 Inca, 6 Aztec, 5 otherwise. */
+  const int meet_tune = nation_id == 4 ? 7 : (nation_id == 5 ? 6 : 5);
+  if (ai_contact_euro_is_human(ctx, e) && !sound_get_options().background_music) {
+    sound_set_bgm(meet_tune);
+  }
   /*
    * Village record: the one being entered. Callers that already know it (the
    * move handler matched a settlement at the destination tile) pass its index
@@ -1008,6 +1021,11 @@ void ai_contact_enqueue_village_meet(
   fb[0] = '\0';
   char body[AI_POPUP_BODY_LEN];
   popup_msg_fill(ctx->messages, section, &tok, fb, body, sizeof(body));
+  /* OVL13:0x4822-0x4848: after the greeting text, alarm >= 0x32 restarts the
+   * tribe tune again (869c, same 7/6/5 pick). */
+  if (alarm >= 0x32) {
+    sound_set_bgm(meet_tune);
+  }
 
   const char* labels[AI_POPUP_CHOICE_MAX];
   int ids[AI_POPUP_CHOICE_MAX];

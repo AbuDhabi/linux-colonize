@@ -782,15 +782,14 @@ static void ai_contact_live_among_natives_body(
    * (Natives), plus 7 when DS:0x8d52 == 0 (Inca) and 6 when it == 1 (Aztec) —
    * the same tribe SLOT / tune triple as the first-meet cue above.
    *
-   * The roll is drawn off a private stream, not ctx->rng: in DOS the very next
-   * thing 0x36c8 does is FUN_1000_8f80 (reseed from the village record), so
-   * the draw cannot shift any later draw. Spending a shared-stream draw here
-   * would.
+   * The roll draws off ctx->rng: in DOS the very next thing 0x36c8 does is
+   * FUN_1000_8f80 (reseed from the village record), so the draw cannot shift
+   * any later draw, and the port reseeds ctx->rng below before its next use.
    */
   if (human) {
     ColonizeDosRng bgm_rng;
     ai_contact_local_rng(ctx, nation_id, &bgm_rng);
-    (void)ai_contact_village_bgm_cue(&bgm_rng, nation_id);
+    (void)ai_contact_village_bgm_cue(ctx->rng ? ctx->rng : &bgm_rng, nation_id);
   }
   ColonizeDosRng village_rng;
   const int skill = ai_contact_a618_skill_ex(ctx, nation_id, t, &village_rng);
@@ -1017,12 +1016,11 @@ static void ai_contact_speak_with_chief(
            * (raw 77782) comes after the head, so a human Speak With Chief
            * plays the same 1-in-4 village tune as Live Among The Natives
            * (#729). DOS draws it (FUN_1000_86c4(0,3)) off the global stream,
-           * but a618 reseeds from the village record (FUN_1000_8f80) before
-           * its next draw, so the roll is stream-neutral: private stream here,
-           * as in ai_contact_live_among_natives_body. */
+           * and a618 reseeds from the village record (FUN_1000_8f80) before
+           * its next draw; the reseed below discards it here too. */
           ColonizeDosRng bgm_rng;
           ai_contact_local_rng(ctx, nation_id, &bgm_rng);
-          (void)ai_contact_village_bgm_cue(&bgm_rng, nation_id);
+          (void)ai_contact_village_bgm_cue(ctx->rng ? ctx->rng : &bgm_rng, nation_id); /* #1632 */
           /* @CHIEFHOWDY: village skill + the three most-wanted goods (ask[] top). */
           const int skill = ai_contact_a618_skill(ctx, nation_id, t);
           /* DOS-LITERAL thunk_FUN_1000_a60c -> thunk_FUN_1000_a618(...,1)
@@ -1044,11 +1042,8 @@ static void ai_contact_speak_with_chief(
              * sorts ask with the unstable 1cf8_000a sort. */
             int cand[16];
             int order[16];
-            /* 2820 head: the human actor's 1-in-4 village tune roll, discarded
-             * by 2820's own 0x83a6 reseed (as in ai_contact_2820_begin_at). */
-            ColonizeDosRng howdy_bgm_rng;
-            ai_contact_local_rng(ctx, nation_id, &howdy_bgm_rng);
-            (void)ai_contact_village_bgm_cue(&howdy_bgm_rng, nation_id);
+            /* No 2820-head tune roll: a60c calls a63c with param_3 = -1
+             * (overlays.c 77536), which fails 2820's human gate. */
             ai_contact_2820_prepare_tables(econ.ask, econ.bid, cand);
             if ((int8_t)t->last_bought >= 0 && t->last_bought < 16) {
               econ.ask[t->last_bought] = 0;

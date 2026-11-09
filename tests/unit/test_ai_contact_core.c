@@ -6436,18 +6436,14 @@ static int sp_53(void) {
     }
     /*
      * a60c -> a618(...,1) head (overlays.c 77535 / 77693-77718): a human
-     * Speak With Chief plays the village tune on a 1-in-4 roll — Inca (slot 0)
-     * arms pool 7, whose pick is 0x36. The roll is the port's private stream.
+     * Speak With Chief rolls the village tune 1-in-4, but the cue is 8688 =
+     * FUN_129f_0300: it only arms the pool, it never restarts a song
+     * (port_bugs.md #1632). With Background Music off nothing starts.
      */
     {
       const uint32_t seed_save = ctx.rng_seed;
-      int hits = 0;
-      int misses = 0;
       for (uint32_t s = 1; s < 24; ++s) {
         ctx.rng_seed = s * 7919u;
-        ColonizeDosRng probe;
-        ai_contact_local_rng(&ctx, 4, &probe);
-        const int hit = dos_rng_range(&probe, 0, 3) == 0;
         const int sid = units_spawn_allow_stack(&units, 2, 6, 5);
         ColonizeUnit* su = units_get(&units, sid);
         if (!su) {
@@ -6476,19 +6472,14 @@ static int sp_53(void) {
         dos_rng_schedule_tick_reseeds(NULL, 0); /* drop the pump's tick reseed */
         const int id = sound_driver_song_id();
         sound_shutdown();
-        if (id != (hit ? 0x36 : -1)) {
-          fprintf(stderr, "unit_ai_contact: chief bgm seed %u hit=%d id=%d\n", s, hit, id);
-          return fail("chief bgm: a618 head cue must follow the 1-in-4 roll");
+        if (id != -1) {
+          fprintf(stderr, "unit_ai_contact: chief bgm seed %u id=%d\n", s, id);
+          return fail("chief bgm: the a618 head cue arms the pool, never restarts");
         }
-        hits += hit;
-        misses += !hit;
         units_despawn(&units, sid);
       }
       ctx.rng_seed = seed_save;
       col1.tribe[0].state.scouted = 0;
-      if (!hits || !misses) {
-        return fail("chief bgm: sweep must see both a hit and a miss");
-      }
     }
   return 0;
 }

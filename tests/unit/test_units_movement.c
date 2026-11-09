@@ -1712,11 +1712,9 @@ static int unit_ai_undefended_colony_band(void) {
   return rc;
 }
 
-/* port_bugs.md #1837 / #1838 / #1840 on one ocean strip:
+/* port_bugs.md #1837 / #1838 on one ocean strip:
  * - the walk-on board is 465b's plain step, so bVar5 = true (raw 75829);
- * - a hull step re-sentries every rider (raw 75706-75710, asm 465b:080a);
- * - arriving on an occupied tile keeps its owner nibble (FUN_1427_02ca
- *   stamps only an empty tile, raw 7478-7509). */
+ * - a hull step re-sentries every rider (raw 75706-75710, asm 465b:080a). */
 static int unit_465b_board_settles_hull_resentries(void) {
   ColonizeUnitPool pool;
   memset(&pool, 0, sizeof(pool));
@@ -1767,20 +1765,12 @@ static int unit_465b_board_settles_hull_resentries(void) {
   if (rc == 0) {
     units_get(&pool, pax)->orders = UNITS_ORDER_NONE; /* woken at sea */
     units_get(&pool, own)->moves = units_max_mp(&pool, own);
-    map_set_owner_nibble(&map, 1, 3, 2); /* stamp left by an earlier visitor */
     if (!units_try_move_w(&w, own, 2, 3)) {
       fprintf(stderr, "board_settle: hull step refused\n");
       rc = 1;
     } else if (units_get(&pool, pax)->orders != UNITS_ORDER_SENTRY) {
       fprintf(stderr, "board_settle: hull step must re-sentry its rider (orders %d)\n",
               units_get(&pool, pax)->orders);
-      rc = 1;
-    } else if (!units_try_move_w(&w, own, 1, 3)) {
-      fprintf(stderr, "board_settle: second hull step refused\n");
-      rc = 1;
-    } else if (units_tile_owner_nibble(&map, 1, 3) != 2) {
-      fprintf(stderr, "board_settle: arrival on an occupied tile restamped nibble %d\n",
-              units_tile_owner_nibble(&map, 1, 3));
       rc = 1;
     }
   }

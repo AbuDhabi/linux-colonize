@@ -127,12 +127,6 @@ static int ensure_map(void) {
     g_map_ready = -1;
     return 1;
   }
-  /* A .MP carries owner nibble 0 everywhere; a game built on it marks every tile unowned
-   * (0xf, FUN_6ba1_10be) before play, and FUN_12ab_0540 / FUN_137f_0598 show a rumour only on
-   * nibble 0xf (port_bugs.md #1832). Pin the in-game lattice. */
-  for (size_t i = 0; i < g_map.tile_count; ++i) {
-    g_map.layer3[i] = (uint8_t)((g_map.layer3[i] & 0x0fu) | 0xf0u);
-  }
   g_map_ready = 1;
   atexit(free_g_map);
   return 0;

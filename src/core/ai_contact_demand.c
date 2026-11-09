@@ -2166,14 +2166,15 @@ int ai_contact_village_bgm_cue(ColonizeDosRng* rng, int nation_id) {
   if (!rng || dos_rng_range(rng, 0, 3) != 0) {
     return 0;
   }
+  /* 0498 / 8688 = FUN_129f_0300: arm the pool only, no restart. */
   const int tribe_slot = nation_id - 4;
   int pool = 5;
-  sound_set_bgm(5);
+  sound_set_bgm_pool(5);
   if (tribe_slot == 0) {
-    sound_set_bgm(7);
+    sound_set_bgm_pool(7);
     pool = 7;
   } else if (tribe_slot == 1) {
-    sound_set_bgm(6);
+    sound_set_bgm_pool(6);
     pool = 6;
   }
   return pool;

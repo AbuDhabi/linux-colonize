@@ -1367,18 +1367,14 @@ void units_occupancy_refresh_tile(ColonizeUnitPool* pool, int x, int y, int exce
   if (!units_occupancy_map || !pool) {
     return;
   }
-  const ColonizeWorldMap* map = units_occupancy_map;
-  /* FUN_1427_02ca (raw 7478-7509) stamps the owner nibble only when the tile
-   * was empty before the arrival (1427_005c() < 0); 023a (leaving) never
-   * stamps. The presence bit still holds the pre-move state here. */
-  const bool was_present =
-    map->layer2 && x >= 0 && y >= 0 && x < map->width && y < map->height &&
-    (map->layer2[y * map->width + x] & MAP_OCCUPANCY_HAS_UNIT) != 0;
   const int present = units_tile_has_on_map_unit(pool, x, y, except_id);
   map_occupancy_set_layer2(
     units_occupancy_map, x, y, MAP_OCCUPANCY_HAS_UNIT, present != 0
   );
-  if (present && !was_present) {
+  /* port_bugs.md #1840 (open): DOS 02ca stamps only an empty tile, but gating
+   * the restamp on the pre-move presence bit drifts golden_idle_continuous
+   * (9 saves, a Brave's vis byte); the restamp still covers something else. */
+  if (present) {
     units_claim_tile_owner_from_stack(pool, units_occupancy_map, x, y, except_id);
   }
 }

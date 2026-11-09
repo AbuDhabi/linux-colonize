@@ -1712,4 +1712,5 @@ void ai_euro_reset(void) {
   memset(ai_euro_s_20e6_village_visited, 0, sizeof(ai_euro_s_20e6_village_visited));
   memset(ai_euro_s_9456, 0, sizeof(ai_euro_s_9456));
   memset(ai_euro_s_9456_valid, 0, sizeof(ai_euro_s_9456_valid));
+  ai_euro_5952_tools_latch = 0; /* tick-local local_16; the tools buy now sets it (#1653) */
 }

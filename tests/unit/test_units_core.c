@@ -7724,7 +7724,7 @@ static int case_selected_passenger_blink(void) {
 
   /* DOS ship-switch bug (docs/tolerated_dos_bugs.md TB-2): the first ship to leave a shared tile
    * scoops the tile's loaded units first come, first served; the rest stay
-   * with the remaining ship(s). Awake passengers stay put. */
+   * with the remaining ship(s). At sea awake riders go too (#1780). */
 static int case_ship_switch_quirk(void) {
   if (fx_open() != 0 || fx_stage2() != 0) {
     return 1;
@@ -7777,12 +7777,13 @@ static int case_ship_switch_quirk(void) {
               sA->cargo_ids[1], pax1, pax2);
       return 1;
     }
-    /* Awake passenger stays with its own ship. */
+    /* port_bugs.md #1780: on a water tile FUN_1427_10be (asm 1427:11d4-1232)
+     * takes an awake rider too (FUN_13e4_0074), so B takes both back. */
     units_get(&pool, pax1)->orders = UNITS_ORDER_NONE;
-    if (units_ship_departure_pickup(&pool, &map, shipB, wx, wy) != 1 ||
-        units_get(&pool, pax1)->aboard_ship_id != shipA ||
+    if (units_ship_departure_pickup(&pool, &map, shipB, wx, wy) != 2 ||
+        units_get(&pool, pax1)->aboard_ship_id != shipB ||
         units_get(&pool, pax2)->aboard_ship_id != shipB) {
-      fprintf(stderr, "ship-switch: awake passenger must not transfer\n");
+      fprintf(stderr, "ship-switch: awake passenger at sea must transfer\n");
       return 1;
     }
     units_despawn(&pool, pax1);
