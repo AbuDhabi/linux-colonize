@@ -519,6 +519,27 @@ static int unit_goto_dos_tails(void) {
       rc = 1;
     }
   }
+  /* #1634: a rim goal fails 0f74's FUN_281f_0302 test (raw 104549): -1 with
+   * no FUN_281f_0934 spend, and 0972 clears the order. */
+  if (rc == 0) {
+    const int rim = units_spawn_allow_stack(&pool, 0, 5, 5);
+    u = units_get(&pool, rim);
+    if (!u) {
+      map_free(&map);
+      fprintf(stderr, "goto_tails: rim spawn failed\n");
+      return 1;
+    }
+    u->nation_id = 0;
+    u->moves = UNITS_MP_PER_TILE;
+    u->orders = UNITS_ORDER_GOTO;
+    u->goto_x = 15;
+    u->goto_y = 5;
+    if (units_advance_goto_one_step_w(&w, rim) || u->orders != UNITS_ORDER_NONE ||
+        u->moves != UNITS_MP_PER_TILE) {
+      fprintf(stderr, "goto_tails: #1634 rim goal: orders=%d moves=%d\n", u->orders, u->moves);
+      rc = 1;
+    }
+  }
   /* #1444: 0f74 never returns 8, so TRADE_ROUTE is cleared on a miss too. */
   if (rc == 0) {
     const int trader = units_spawn_allow_stack(&pool, 0, 2, 2);

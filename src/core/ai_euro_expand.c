@@ -534,9 +534,11 @@ int ai_euro_try_wagon_haul(
      * (capital distance halved, min 1), trade via the 2820 shell on arrival,
      * destroy when no village shares the landmass (LAB_47b9).
      */
-    if (ai_euro_wagon_errand_get(wagon->id) &&
-        ai_euro_20e6_wagon_village_errand(ctx, nation_id, wagon)) {
-      return 1;
+    if (ai_euro_wagon_errand_get(wagon->id)) {
+      const int r = ai_euro_20e6_wagon_village_errand(ctx, nation_id, wagon);
+      if (r) {
+        return r; /* 2 = act over (adjacency trade), see the errand */
+      }
     }
   }
   /*
@@ -631,7 +633,7 @@ void ai_euro_found_with_unit(ColonizeTurnContext* ctx, ColonizeUnit* founder, in
   if (cid >= 0) {
     ai_goals_note_colony_created(nation_id); /* FUN_364b_1ba8 raw 58029, #1600 */
     const ColonizeWorld rw = world_from_turn_ctx(ctx);
-    colonies_reveal_founded_w(&rw, cid); /* FUN_364b_1dd6 Coronado */
+    colonies_reveal_founded_w(&rw, cid); /* FUN_364b_1ba8 raw 58118-58124 Coronado */
     /* DOS-LITERAL FUN_364b_1ba8 raw 58089: the success path's second
      * FUN_281f_0c22 runs FUN_15eb_3956 -> 394c -> 1f72, whose last
      * FUN_15eb_0bd4(1,9) (raw 12688) -> 0b96 -> 0b52 `push bp` (raw 10122)
@@ -692,10 +694,9 @@ void ai_euro_5952_colony_counters(
        * stance note. */
       for (int slot = 0; slot < units_slot_end(ctx->units); ++slot) {
         ColonizeUnit* su = &ctx->units->units[slot];
-        if (!su->active || su->nation_id != nation_id || su->aboard_ship_id >= 0) {
-          continue;
-        }
-        if (su->x != c->x || su->y != c->y) {
+        /* FUN_281f_07e0/02e4 walk the tile chain, riders of a docked ship
+         * included (raw 94047-94060, port_bugs.md #1642). */
+        if (su->nation_id != nation_id || !units_in_tile_chain(ctx->units, su, c->x, c->y)) {
           continue;
         }
         const int t = ai_euro_20e6_dos_type(ctx->units, su);

@@ -1510,8 +1510,11 @@ void units_brewster_enqueue_pick(
   if (!europe || !popups) {
     return;
   }
-  if (ai_popup_busy(popups)) {
-    return; /* one outstanding pick at a time; the tick re-offers next turn */
+  /* One outstanding pick at a time. Not "any popup": the human's @PRICEUP /
+   * @PRICEDOWN are queued just before this tick (5e52 raw 58963/58980, #1821),
+   * and DOS shows the 4884 pick right after them. */
+  if (ai_popup_pending(popups, AI_POPUP_TAG_BREWSTER_PICK, -1, AI_POPUP_KEY_ANY, 0, 0)) {
+    return;
   }
   europe_pool_ensure_filled(europe);
   const char* labels[EUROPE_POOL_SIZE];

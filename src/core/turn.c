@@ -100,7 +100,7 @@ void turn_format_date(uint16_t year, uint16_t autumn, char* out, size_t out_size
 }
 
 /*
- * DOS-LITERAL FUN_4d56_1b3a day top (viceroy_unpacked.c raw 6355-6357,
+ * DOS-LITERAL FUN_130d_0290 day top (viceroy_unpacked.c raw 6355-6357,
  * port_bugs.md #713):
  *
  *   for (local_14 = 0; local_14 < *(int *)0x539c; local_14 = local_14 + 1) {
@@ -1128,14 +1128,9 @@ COLONIZE_INTERNAL void turn_step_king(ColonizeTurnProcessor* proc, ColonizeTurnC
 COLONIZE_INTERNAL void turn_step_king_tail(ColonizeTurnProcessor* proc, ColonizeTurnContext* ctx) {
       proc->show_indicator = false;
       turn_set_active_nation(ctx, ctx->human_nation);
-      /*
-       * FUN_281f_0668 → FUN_43f7_2244 (viceroy_unpacked.c:6418): the
-       * peacetime @MERCENARIES offer sits in the human arm of the year loop
-       * after FUN_281f_0644 (= 3844_00f2, everything above) and right before
-       * FUN_281f_062c (Move Pieces).
-       */
-      ai_king_peacetime_merc_offer(ctx);
-      turn_set_active_nation(ctx, ctx->human_nation);
+      /* The peacetime @MERCENARIES offer (281f_0668 -> 43f7_2244, raw 6418)
+       * follows the 6416 autosave: game_finish_end_turn / turn_end run it
+       * (#1821), so the save keeps DS:0x53d6 and the LCG as DOS writes them. */
       const ColonizeWorld rw = world_from_turn_ctx(ctx);
       turn_refresh_moves_for_nation_w(&rw, ctx->human_nation);
       /* Converts and repairs run in FINISH's unit walk (#1821). No King's-Galleon
@@ -1248,6 +1243,7 @@ ColonizeTurnResult turn_end(ColonizeTurnContext* ctx) {
   turn_processor_start(&proc);
   while (turn_processor_advance(&proc, ctx)) {
   }
+  ai_king_peacetime_merc_offer(ctx); /* after the 6416 autosave, raw 6418 (#1821) */
   return proc.result;
 }
 

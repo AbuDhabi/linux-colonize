@@ -8,9 +8,9 @@ key space                  # end turn 108 (no unit left to move)
 wait 30
 key Return                 # Colonization Help: Time Scale (two turns a year from now on)
 wait 6
-key Return                 # Sons of Liberty in Quebec up to 60%: Continue turn
+key Return                 # price of Cigars in La Rochelle rises to 11 (shown before the colony notices, #1821)
 wait 6
-key Return                 # price of Cigars in La Rochelle rises to 11
+key Return                 # Sons of Liberty in Quebec up to 60%: Continue turn
 wait 6
 key space                  # end turn 109 (Autumn 1600): the Caravel is still at sea
 wait 30
@@ -27,7 +27,7 @@ wait 6
 key Return                 # new cargo of Horses ready at Montreal (storage full)
 wait 6
 # Spring 1601 (turn 110): the Caravel docks in La Rochelle and the Europe screen opens on it (Loading: Caravel).
-key Return                 # Enter on the harbor ship: European harbor options menu
+click 155 155              # the Caravel's icon in the harbor: European harbor options menu (Enter acts on the focused panel only, #1739)
 wait 6
 key Down
 key Down                   # "Unload all cargo" (row 2)
@@ -38,7 +38,7 @@ wait 3
 key Down                   # row 1, first Free Colonist
 key Return                 # recruited: gold 745 -> 345, the colonist joins the dock, the pool slot refills
 wait 6
-key Return                 # harbor options menu again
+click 155 155              # harbor options menu again (the Caravel's icon)
 wait 6
 key Down                   # "Set sail for the New World" (row 1)
 key Return                 # "Shall we set sail" prompt

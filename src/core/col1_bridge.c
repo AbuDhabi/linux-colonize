@@ -1343,30 +1343,18 @@ COLONIZE_INTERNAL void col1_bridge_apply_colonies(Col1ApplyCtx* ctx) {
         dst->colonists[p].idle_job1 = (uint8_t)(occ + 1);
       }
       /*
-       * port_bugs.md (starvation_bug.SAV): salvage — a building occupation that
-       * could not be resolved (chain building missing, or a garbage byte
-       * from the pre-fix exporter that wrote port building indexes) must
-       * not leave the colonist silently idle; put them to work in the Town
-       * Hall rather than let the colony starve unnoticed. occ 19 (plain
+       * port_bugs.md (starvation_bug.SAV) / #901: an UNRESOLVED occupation
+       * byte (chain == -1, e.g. the pre-fix exporter's port building-row
+       * garbage) never named a real occupation, so it is salvaged into the
+       * Town Hall, uncapped, rather than left silently idle. occ 19 (plain
        * colonist) stays idle on purpose.
        *
-       * port_bugs.md #930: a KNOWN occupation (chain >= 0, e.g. a real @JOB
-       * 9..18 whose building is simply missing) is a genuine work-slot
-       * request, so it goes through colonies_assign_workplace and still
-       * honors @MORETHANTHREE (overlays.c:60486-60496, thunk_FUN_1000_9808)
-       * — a damaged save that would overflow the cap leaves the colonist
-       * unplaced rather than seating a 4th statesman.
-       *
-       * An UNRESOLVED occupation byte (chain == -1, e.g. the pre-fix
-       * exporter's port building-row garbage, port_bugs.md #901) never named a
-       * real occupation at all, so it keeps the original uncapped,
-       * park-anywhere-harmless tolerance — routing garbage through the
-       * cap would let it starve out real, resolvable Town Hall workers.
+       * A KNOWN @JOB whose building is missing (chain >= 0) stays unplaced:
+       * DOS keeps the occupation byte and the job produces nothing until
+       * FUN_15eb_28c8 re-seats it (america resync 99: Penobscot's Teacher
+       * without a Schoolhouse made 0 bells in DOS; the old Town Hall seat
+       * made 3). No workplace assignment runs here (port_bugs.md #1776).
        */
-      /* A KNOWN @JOB whose building is missing stays unplaced: DOS keeps the
-       * occupation byte and the job produces nothing until FUN_15eb_28c8
-       * re-seats it (america resync 99: Penobscot's Teacher without a
-       * Schoolhouse made 0 bells in DOS; the old Town Hall seat made 3). */
       if (dst->colonists[p].building_type < 0 && dst->colonists[p].field_job < 0 &&
           occ != (int)UNITS_JOB_COLONIST && chain < 0) {
         const int th = colonies_building_row(colonies, COLONY_BUILDING_TOWN_HALL);
@@ -3863,7 +3851,10 @@ COLONIZE_INTERNAL void col1_bridge_capture_dock_rows(Col1CaptureCtx* ctx) {
         ColonizeUnit kit;
         memset(&kit, 0, sizeof(kit));
         europe_apply_dock_row_kit(&kit, row);
-        dst->cargo_hold[5] = (uint8_t)kit.tools; /* the whole byte, as the map path writes it */
+        /* +0x3159 survives Sell Tools and the other dock rows (ndisasm
+         * 0x340F0-0x3410B, port_bugs.md #1706): the row's byte wins, the kit
+         * fills a fresh arrival. */
+        dst->cargo_hold[5] = (uint8_t)(row->tools > 0 ? row->tools : kit.tools);
       }
       ctx->stack_order_by_col1[written] = key;
       written++;

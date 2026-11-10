@@ -258,8 +258,8 @@ static int ai_euro_20e6_delivery_colony_pick(
       for (int r = 0; r < 20; ++r) {
         const int tx = c->x + MAP_RING20_DX[r];
         const int ty = c->y + MAP_RING20_DY[r];
-        if (tx < 0 || ty < 0 || tx >= (int)ctx->map->width || ty >= (int)ctx->map->height) {
-          continue; /* FUN_1000_84f2 map_tile_in_bounds */
+        if (!map_coords_inset(ctx->map, tx, ty)) {
+          continue; /* raw 89784 FUN_281f_0302: rim tiles skip (port_bugs.md #1634) */
         }
         const int pres = ai_euro_20e6_tribe_or_presence(ctx, tx, ty);
         if (pres < 4) {
@@ -520,8 +520,12 @@ int ai_euro_20e6_load_pick(
  *   - else goto the village tile.
  * The port's AI movement never steps ONTO tribe tiles, so "arrival" is
  * adjacency here — the same substitution every other village arm uses.
- * Returns 1 when it owned the wagon this beat (goto set, traded, or
- * destroyed — caller must re-check active).
+ * Returns 1 when it owned the wagon this beat (goto set, or destroyed —
+ * caller must re-check active), 2 when the adjacency trade stood in for the
+ * whole 27f5 bind -> LAB_5a78 -> 5b66 479b step: the act is over and the
+ * caller must not run the 5a78 tail again (its 0 -> 5 demotion would hit
+ * the orders 0 that 465b's exit left; DOSBox independence 3->4 / america2
+ * 2->3: the crown wagon saves '4', orders 0).
  */
 int ai_euro_20e6_wagon_village_errand(
   ColonizeTurnContext* ctx, int nation_id, ColonizeUnit* wagon
@@ -595,7 +599,7 @@ int ai_euro_20e6_wagon_village_errand(
       units_465b_0bd1_tail(ctx->units, wagon->id, units_before, false);
     }
     wagon->moves = 0; /* 4528 return-code 1 MP forfeit */
-    return 1;
+    return 2;
   }
   /* OVL14 0x46a2-0x46be: bind the village (0a4c), then `jmp 0x27f5` with
    * DX = '4' -> 20c6: plan 0x34, orders 0x0b, goal = the village tile

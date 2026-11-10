@@ -60,6 +60,73 @@ static int case_howmuch(void) {
   return 0;
 }
 
+/* #1724: FUN_6f74_2580 bars the row under the pointer and toggles it on the release;
+ * a release off the box (bar cleared) leaves. */
+static int case_options_release_toggles_barred_row(void) {
+  OptionsDialog od;
+  ColonizeCol1GameOptions opts;
+  memset(&opts, 0, sizeof(opts));
+  if (!options_dialog_open_game(&od, NULL, &opts)) {
+    return fail("options_open_game");
+  }
+  od.dialog_x = 50;
+  od.dialog_y = 50;
+  od.dialog_w = 200;
+  od.dialog_h = 120;
+  od.list_y0 = 60;
+  od.line_h = 10;
+  ColonizeInputState in;
+  memset(&in, 0, sizeof(in));
+  in.mouse_x = 100;
+  in.mouse_y = 61; /* row 0 */
+  in.mouse_left_clicked = true;
+  in.mouse_left_down = true;
+  options_dialog_handle_input(&od, &in);
+  in.mouse_left_clicked = false;
+  in.mouse_y = 71; /* drag to row 1 */
+  options_dialog_handle_input(&od, &in);
+  if (od.values[0] || od.values[1] || od.selection != 1) {
+    return fail("options: press / hold only move the bar");
+  }
+  in.mouse_left_down = false;
+  in.mouse_left_released = true;
+  options_dialog_handle_input(&od, &in);
+  if (!od.open || od.values[0] || !od.values[1]) {
+    return fail("options: the release toggles the barred row and stays open");
+  }
+  /* DS:0x7f6 stays set on the release poll: a release on the box off every row (the
+   * title) sets bVar4 and does nothing. */
+  memset(&in, 0, sizeof(in));
+  in.mouse_x = 100;
+  in.mouse_y = 55;
+  in.mouse_left_clicked = true;
+  in.mouse_left_down = true;
+  options_dialog_handle_input(&od, &in);
+  in.mouse_left_clicked = false;
+  in.mouse_left_down = false;
+  in.mouse_left_released = true;
+  options_dialog_handle_input(&od, &in);
+  if (!od.open || od.values[0] || !od.values[1]) {
+    return fail("options: a release on the title toggles nothing");
+  }
+  memset(&in, 0, sizeof(in));
+  in.mouse_x = 100;
+  in.mouse_y = 61;
+  in.mouse_left_clicked = true;
+  in.mouse_left_down = true;
+  options_dialog_handle_input(&od, &in);
+  in.mouse_left_clicked = false;
+  in.mouse_x = 10; /* off the box: the bar clears */
+  options_dialog_handle_input(&od, &in);
+  in.mouse_left_down = false;
+  in.mouse_left_released = true;
+  options_dialog_handle_input(&od, &in);
+  if (od.open || !od.has_result || od.result_values[0] || !od.result_values[1]) {
+    return fail("options: a release with no bar commits and leaves, row 0 untouched");
+  }
+  return 0;
+}
+
 static int case_options(void) {
   OptionsDialog od;
   ColonizeCol1GameOptions opts;
@@ -301,8 +368,8 @@ static int case_right_click_is_left_click(void) {
   ai_popup_render(&st, &font, NULL, NULL, NULL, 1, 2, 3, &fb);
   in.mouse_x = st.dialog_x > 4 ? 1 : 319;
   ai_popup_handle_input(&st, &in);
-  if (st.has_result || !st.open) {
-    rc = fail("ai_popup: a right click off a choice box does nothing");
+  if (st.has_result || !st.open || st.selection != -1) {
+    rc = fail("ai_popup: a right click off a choice box drops the bar, box open (#1672)");
   }
   ai_popup_cancel_current(&st);
   ai_popup_consume_result(&st);
@@ -330,12 +397,20 @@ static int case_right_click_is_left_click(void) {
   options_dialog_render(&od, &font, NULL, NULL, 68, 149, 138, &fb);
   in.mouse_x = od.dialog_x + 20;
   in.mouse_y = od.list_y0 + 1;
-  options_dialog_handle_input(&od, &in);
-  if (!od.open || od.values[0] != 1) {
-    rc = fail("options: a right click toggles the row, box open");
+  {
+    /* #1724: FUN_6f74_2580 acts on the release (press frame, then release frame). */
+    ColonizeInputState rel = in;
+    options_dialog_handle_input(&od, &in);
+    rel.mouse_right_clicked = false;
+    rel.mouse_right_released = true;
+    options_dialog_handle_input(&od, &rel);
+    if (!od.open || od.values[0] != 1) {
+      rc = fail("options: a right click toggles the row, box open");
+    }
+    in.mouse_x = rel.mouse_x = od.dialog_x > 4 ? 1 : 319;
+    options_dialog_handle_input(&od, &in);
+    options_dialog_handle_input(&od, &rel);
   }
-  in.mouse_x = od.dialog_x > 4 ? 1 : 319;
-  options_dialog_handle_input(&od, &in);
   if (!od.has_result || od.result_cancelled || od.result_values[0] != 1) {
     rc = fail("options: a right click off the @checkbox box leaves with the toggles");
   }
@@ -1272,6 +1347,18 @@ static int case_cheat_prompts_and_text_entry_dos(void) {
     in.mouse_y = 10;
     in.mouse_left_clicked = pass == 0;
     in.mouse_right_clicked = pass == 1;
+    in.mouse_left_down = pass == 0;
+    in.mouse_right_down = pass == 1;
+    name_entry_handle_input(&ne, &in);
+    /* #1724: FUN_6f74_2580 acts on the release (DS:0x7f4), not the press. */
+    if (ne.has_result) {
+      rc = fail("outside press must not accept before the release");
+    }
+    memset(&in, 0, sizeof(in));
+    in.mouse_x = 10;
+    in.mouse_y = 10;
+    in.mouse_left_released = pass == 0;
+    in.mouse_right_released = pass == 1;
     name_entry_handle_input(&ne, &in);
     if (!ne.has_result || ne.result_cancelled || strcmp(ne.result_name, "Jamestown") != 0) {
       rc = fail(pass == 0 ? "outside left click must accept" : "right click must accept");
@@ -1670,6 +1757,11 @@ static int case_mods_dialog_pages(void) {
       in.mouse_y = od.ok_y + od.ok_h / 2;
     }
     options_dialog_handle_input(&od, &in);
+    if (k % 2 != 0) { /* #1724: the release acts */
+      in.mouse_left_clicked = false;
+      in.mouse_left_released = true;
+      options_dialog_handle_input(&od, &in);
+    }
     uint32_t out = mask;
     const uint32_t want = mask ^ 1u << options_dialog_mods_page_id(page, row);
     if (!options_dialog_apply_mods(&od, &out) || out != want) {
@@ -1878,6 +1970,7 @@ static const TestCase k_cases[] = {
     {"howmuch_move_keeps_rest", case_howmuch_move_keeps_rest},
     {"europe_ship_transfer", case_europe_ship_transfer},
     {"options", case_options},
+    {"options_release_toggles_barred_row", case_options_release_toggles_barred_row},
     {"checkbox_hotkeys", case_checkbox_hotkeys},
     {"list_keys_wrap", case_list_keys_wrap},
     {"right_click_is_left_click", case_right_click_is_left_click},

@@ -5,13 +5,17 @@ key s                      # sentry the Wagon Train: nothing left to move, End o
 wait 2
 key space                  # end the turn
 wait 30
+key Return                 # (nested, AI turn) Spanish loot and burn an Iroquois village: @LOOT shown to the human (#1794)
+wait 10
+key Return                 # (nested) Spanish Soldiers routed, demoted: AI-vs-AI fight the human sees (#1791)
+wait 10
+key Return                 # price of Coats in La Rochelle rises (@PRICEUP before the colony loop, #1821)
+wait 6
+key Return                 # King increases military spending: Regulars added to the REF (KINGBUY before succession, #1660)
+wait 6
 key Return                 # War of the Spanish Succession ends: Spain cedes New Spain to the Dutch (Spain withdraws)
 wait 6
-key Return                 # King increases military spending: Regulars added to the REF
-wait 6
 key Return                 # Rebel sentiment 50%
-wait 6
-key Return                 # price of Coats in La Rochelle rises
 wait 6
 key Return                 # Scout 77 on go-to reaches an Iroquois village: Ask to Speak With Chief (row 0)
 wait 6

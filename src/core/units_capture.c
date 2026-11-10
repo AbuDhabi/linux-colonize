@@ -210,7 +210,7 @@ void units_try_capture_foreign_colony_at(
         ind->muskets++;
       }
     }
-    (void)colonies_abandon(colonies, cid);
+    (void)colonies_abandon_by(colonies, cid, u->nation_id); /* DS:0x5394 = the burner (#1682) */
     /*
      * DOS native colony arm: the human victim gets sound 0x53, tune 0x32 and
      * woodcut 11 before @INDIANBURNCOLONY (units_combat_notify_colony_burned);
@@ -264,8 +264,18 @@ void units_try_capture_foreign_colony_at(
   int plunder = units_colony_plunder_stock_sum(col);
   const int old_nat = col->nation_id;
   ColonizeColony snap = *col;
+  /* 1b0e param_4 = 465b local_1c (raw 100969-101030): the treasury share,
+   * the 0x53c8 resets, the WAR toggle and @CAPTURED run only when the fight
+   * is shown. Outside a resolver window take the same predicate here: the
+   * captor's visibility, or a human colony owner (port_bugs.md #1681). */
+  const bool show =
+    g_units_combat_param4 >= 0
+      ? g_units_combat_param4 != 0
+      : (units_combat_is_visible(pool, unit_id, unit_id) ||
+         (col1 && col->nation_id < (int)COLONIZE_COL1_NATION_COUNT &&
+          col1->player[col->nation_id].control == 0));
   int share = 0;
-  if (!colonies_capture_ex(colonies, cid, u->nation_id, &share)) {
+  if (!colonies_capture_show_ex(colonies, cid, u->nation_id, &share, show)) {
     return;
   }
   (void)old_nat;
@@ -290,7 +300,9 @@ void units_try_capture_foreign_colony_at(
       AI_POPUP_TAG_INFO, "HOWTOWIN", u->nation_id, -1, 0, NULL,
       "");
   }
-  units_combat_notify_colony_captured(col1, &snap, u->nation_id, plunder);
+  if (show) {
+    units_combat_notify_colony_captured(col1, &snap, u->nation_id, plunder);
+  }
   /* Raw 100937-100948: the prize claims the ring around it for its new owner. */
   units_capture_claim_ring(units_occupancy_map, cx, cy, u->nation_id);
   /*
@@ -613,19 +625,21 @@ ColonizeEnterReason units_enter_probe_w(
       const int foe_nation = fu ? fu->nation_id : -1;
       /* 465b raw 75528-75529: a Privateer on either side of the entry skips
        * the relation band entirely — it is fair game at peace and it preys at
-       * peace, no war needed (units_privateer_attack). */
-      if (mover && !units_at_war_for_move(units_world_col1(w), mover_nation, foe_nation) &&
-          !units_privateer_attack(pool, mover->id, foe)) {
-        g_units_last_enter_reason = COLONIZE_ENTER_BOUNCE_PEACE;
-      } else if (mover && !units_is_combat_role(pool, mover)) {
+       * peace, no war needed (units_privateer_attack). The defender side is
+       * the tile chain head FUN_281f_07e0 (raw 75473), not the best defender
+       * (port_bugs.md #1839). */
+      const int head = units_tile_head_id_at(pool, x, y);
+      if (mover && !units_is_combat_role(pool, mover)) {
         /*
-         * port_bugs.md: unarmed transports (Caravel/Merchantman/Galleon, attack=0
-         * in @UNIT) must not be able to initiate ship combat — GAME.TXT:
-         * "Only Privateers and Frigates can attack enemy ships." Bounce
-         * instead of fighting; the foreign ship's own attack stat is
-         * irrelevant here, only the mover's.
+         * FUN_4720_015c raw 76036-76043 (port_bugs.md #1778): a ship of type
+         * < 0x10 onto water held by another nation gets reason 7 (@SHIPCOMBAT)
+         * before 465b runs, at war or at peace. GAME.TXT: "Only Privateers
+         * and Frigates can attack enemy ships."
          */
         g_units_last_enter_reason = COLONIZE_ENTER_BOUNCE_FOREIGN;
+      } else if (mover && !units_at_war_for_move(units_world_col1(w), mover_nation, foe_nation) &&
+                 !units_privateer_attack(pool, mover->id, head >= 0 ? head : foe)) {
+        g_units_last_enter_reason = COLONIZE_ENTER_BOUNCE_PEACE;
       } else {
         g_units_last_enter_reason = COLONIZE_ENTER_COMBAT_NAVAL;
       }
@@ -792,12 +806,15 @@ ColonizeEnterReason units_enter_probe_w(
    * 75545-75557) for an armed mover: under a treaty whose encounter cooldown
    * still runs, the step aborts (goto LAB_465b_0bd1) exactly as against a
    * defended tile (America seed-100 resync 331: England's Dragoon walked into
-   * empty French Fort Frontenac at peace and took it). */
+   * empty French Fort Frontenac at peace and took it). A Privateer heading
+   * the tile chain (FUN_281f_07e0, raw 75473/75528) skips the band and its
+   * stop (port_bugs.md #1839). */
   if (colonies && mover && mover_nation >= 0 && mover_nation <= 3) {
     const ColonizeColony* fcol = colonies_get(colonies, colonies_id_at(colonies, x, y));
     if (fcol && fcol->active && fcol->nation_id >= 0 && fcol->nation_id <= 3 &&
         fcol->nation_id != mover_nation &&
-        !units_at_war_for_move(units_world_col1(w), mover_nation, fcol->nation_id)) {
+        !units_at_war_for_move(units_world_col1(w), mover_nation, fcol->nation_id) &&
+        !units_privateer_attack(pool, mover->id, units_tile_head_id_at(pool, x, y))) {
       g_units_last_enter_reason = COLONIZE_ENTER_BOUNCE_PEACE;
       return g_units_last_enter_reason;
     }

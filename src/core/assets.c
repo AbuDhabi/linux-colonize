@@ -369,7 +369,7 @@ static ColonizeMsgSection* msg_add_section(ColonizeMsgCatalog* catalog, const ch
   return section;
 }
 
-static bool msg_push_line(ColonizeMsgSection* section, const char* line, bool blank_before) {
+static bool msg_push_line(ColonizeMsgSection* section, const char* line, int blank_before) {
   if (section->line_count >= section->line_capacity) {
     const int next = section->line_capacity == 0 ? 16 : section->line_capacity * 2;
     char (*grown)[COLONIZE_MSG_LINE_LEN] = realloc(section->lines, (size_t)next * sizeof(*grown));
@@ -391,7 +391,7 @@ static bool msg_push_line(ColonizeMsgSection* section, const char* line, bool bl
   for (char* p = section->lines[section->line_count]; (p = strchr(p, '_')) != NULL;) {
     *p = ' ';
   }
-  section->blank_before[section->line_count] = blank_before ? 1 : 0;
+  section->blank_before[section->line_count] = (uint8_t)(blank_before > 255 ? 255 : blank_before);
   section->line_count++;
   return true;
 }
@@ -407,15 +407,16 @@ static bool msg_load_raw(ColonizeMsgCatalog* catalog, const char* path) {
   }
 
   ColonizeMsgSection* current = NULL;
-  bool pending_blank = false; /* blank line(s) seen since the last stored line */
+  int pending_blank = 0; /* blank lines seen since the last stored line (or the header) */
   char line[512];
   while (fgets(line, sizeof(line), f)) {
     strip_crlf(line);
     if (line[0] == '\0') {
-      /* DOS's dialog parser advances body→choices on blank lines
-       * (FUN_6f74_32a4); remember the boundary without storing the line. */
-      if (current && current->line_count > 0) {
-        pending_blank = true;
+      /* DOS's dialog parser adds 1 to its state on every blank line, leading
+       * ones included (FUN_6f74_32a4 raw 117247, port_bugs.md #1769); count
+       * the run without storing the lines. */
+      if (current) {
+        ++pending_blank;
       }
       continue;
     }
@@ -442,7 +443,7 @@ static bool msg_load_raw(ColonizeMsgCatalog* catalog, const char* path) {
           continue;
         }
         current = msg_add_section(catalog, body);
-        pending_blank = false;
+        pending_blank = 0;
         if (!current) {
           fclose(f);
           return false;
@@ -457,7 +458,7 @@ static bool msg_load_raw(ColonizeMsgCatalog* catalog, const char* path) {
       fclose(f);
       return false;
     }
-    pending_blank = false;
+    pending_blank = 0;
   }
   fclose(f);
   diag_info("Loaded message catalog %s (%d sections)", path, catalog->section_count);
@@ -521,7 +522,7 @@ static void msg_apply_mod_data(ColonizeMsgCatalog* catalog, const char* path) {
         );
         continue;
       }
-      if (!msg_push_line(dst, eq + 1, false)) {
+      if (!msg_push_line(dst, eq + 1, 0)) {
         break;
       }
     }

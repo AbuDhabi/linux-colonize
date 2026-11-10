@@ -312,6 +312,10 @@ static void game_cheat_mark_created_seen(ColonizeGameState* game, int uid) {
   ColonizeUnit* u = units_get(&game->units, uid);
   if (u) {
     u->col1_vis_mask |= 0x0Fu;
+    /* FUN_1427_06b4 tail FUN_1427_02ca; FUN_13f1_02f8: every spawn reveals the
+     * owner's sight around the new unit (#1788). */
+    const ColonizeWorld w = game_world(game);
+    (void)units_reveal_sight_w(&w, u);
   }
 }
 
@@ -1006,7 +1010,7 @@ void game_trade_wizard_open_dest(ColonizeGameState* game, int number) {
  * Default route name (create wizard, ndisasm 00061157-00061240): the first
  * stop's colony name + " " (DS:0x50) + one @TRADENAMES word; on a clash with an
  * existing route append " A" (DS:0x1d89) and keep bumping the last letter,
- * rescanning from route 1, until unique.
+ * rescanning from route 0, until unique.
  *
  * The word is a real game-RNG draw: FUN_281f_04ca(DS:0x83a6) (reseed, the same
  * call as the nation-slot and LCR sites: dos_rng_reseed_83a6) then
@@ -1197,22 +1201,36 @@ void game_apply_trade_dest(ColonizeGameState* game, int id) {
     return;
   }
   if (id == 1000) {
-    /* (Delete Destination) — DOS FUN_647e_060e: shift stops down, fix units. */
+    /* (Delete Destination) — DOS FUN_647e_060e (raw 102569-102597): fix the
+     * cursors of DS:0x5394's units on this route, Europe-lane hulls included
+     * (#1682), then shift stops down. The vacated last stop stays stale. */
     if (stop_i >= (int)r->dest_count || r->dest_count <= 1) {
       return;
     }
     for (int i = stop_i; i < (int)r->dest_count - 1; ++i) {
       r->stop[i] = r->stop[i + 1];
     }
-    memset(&r->stop[r->dest_count - 1], 0, sizeof(r->stop[0]));
     r->dest_count--;
     if (game->units_ok) {
       for (int i = 0; i < units_slot_end(&game->units); ++i) {
         ColonizeUnit* u = &game->units.units[i];
-        if (u->active && u->orders == UNITS_ORDER_TRADE_ROUTE &&
+        if (u->active && u->nation_id == game->human_nation &&
+            u->orders == UNITS_ORDER_TRADE_ROUTE &&
             u->follow_unit_id == game->trade_screen.route &&
             u->col1_counter16 >= stop_i) {
           u->col1_counter16 = u->col1_counter16 > 0 ? u->col1_counter16 - 1 : 0;
+        }
+      }
+    }
+    EuropeHarborShip* lanes[3] = {game->europe.harbor, game->europe.expected, game->europe.bound};
+    const int lane_n[3] = {
+      game->europe.harbor_ships, game->europe.expected_ships, game->europe.bound_ships
+    };
+    for (int l = 0; l < 3; ++l) {
+      for (int i = 0; i < lane_n[l] && i < EUROPE_HARBOR_MAX; ++i) {
+        EuropeHarborShip* sh = &lanes[l][i];
+        if (sh->trade_route_plus1 == game->trade_screen.route + 1 && sh->trade_stop >= stop_i) {
+          sh->trade_stop = sh->trade_stop > 0 ? sh->trade_stop - 1 : 0;
         }
       }
     }

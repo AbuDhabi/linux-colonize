@@ -24,7 +24,9 @@ DS:0x5398 alone (`game_set_all_ai`). In the port:
 
 - `col1_all_ai_fixed_nation(save)` returns DS:0x5398 when no control byte is 0
   (outside hot-seat), else -1. `col1_fixed_human(save, -1)` returns it, so the
-  King, the score and the year-end checks still follow that power.
+  King and the score still follow that power. The year-end checks (FUN_3844_0442)
+  do too in spectator mode, but under autoplay (DS:0x826) or the demo (DS:0x828)
+  FUN_130d_0290 raw 6459 skips them (`ColonizeTurnContext.autoplay`).
 - The game hands the sim `human_nation = -1` (`game_fill_turn_context`).
   `turn.c` keeps DS:0x5398's place in the pipeline. Its slot runs from FINISH
   as an AI slot (00f2 then 6d8e, raw 6400-6408), with the 2424 King arms, which

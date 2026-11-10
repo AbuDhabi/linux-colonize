@@ -1180,30 +1180,7 @@ static int ai_euro_20e6_site_nibble(const ColonizeTurnContext* ctx, int x, int y
  * 135593 / 139050+).
  */
 static int ai_euro_20e6_stack_count(const ColonizeTurnContext* ctx, int x, int y) {
-  return ai_euro_tile_chain_count(ctx->units, x, y);
-}
-
-/* DOS keeps a ship's passengers in the tile chain beside it (FUN_1427_10be
- * carries the sentried units along; 02ca links each arrival in), so every
- * FUN_1427_0d38 walk counts them. The port parks them in the ship's cargo
- * list, off units_is_on_map. */
-bool ai_euro_in_tile_chain(const ColonizeUnitPool* pool, const ColonizeUnit* u, int x, int y) {
-  if (!u->active) {
-    return false;
-  }
-  if (u->aboard_ship_id >= 0) {
-    const ColonizeUnit* ship = units_get_const(pool, u->aboard_ship_id);
-    return ship && units_is_on_map(ship) && ship->x == x && ship->y == y;
-  }
-  return units_is_on_map(u) && u->x == x && u->y == y;
-}
-
-int ai_euro_tile_chain_count(const ColonizeUnitPool* pool, int x, int y) {
-  int n = 0;
-  for (int i = 0; pool && i < units_slot_end(pool); ++i) {
-    n += ai_euro_in_tile_chain(pool, &pool->units[i], x, y);
-  }
-  return n;
+  return units_tile_chain_count(ctx->units, x, y);
 }
 
 /*
@@ -1218,7 +1195,7 @@ int ai_euro_20e6_stack_combat_0b(ColonizeTurnContext* ctx, int x, int y) {
   /* Slot walk (Leads 2, 2026-09-10): `i` is an array index, not a unit id. */
   for (int i = 0; i < units_slot_end(ctx->units); ++i) {
     const ColonizeUnit* o = &ctx->units->units[i];
-    if (!ai_euro_in_tile_chain(ctx->units, o, x, y)) {
+    if (!units_in_tile_chain(ctx->units, o, x, y)) {
       continue;
     }
     if ((units_is_sea(ctx->units, o->id) ? 1 : 0) != (water ? 1 : 0)) {
@@ -2907,7 +2884,7 @@ int ai_euro_20e6_treasure_cash_in(
  * Returns 1 when the unit parked. */
 int ai_euro_20e6_park_arms_4d2e(ColonizeTurnContext* ctx, ColonizeUnit* u, const Ai20e6Unit* s) {
   const int flags = ai_euro_20e6_type_flags(s->dos_type);
-  const int stack = ai_euro_tile_chain_count(ctx->units, u->x, u->y);
+  const int stack = units_tile_chain_count(ctx->units, u->x, u->y);
   for (int arm = 0; arm < 2; ++arm) {
     const int bit = arm == 0 ? 1 : 4;
     const int code = arm == 0 ? 0 : 2;
@@ -4227,10 +4204,11 @@ void ai_euro_try_attack(ColonizeTurnContext* ctx, ColonizeUnit* u, int tx, int t
     return;
   }
   if (ctx->col1_ok && ctx->col1 && f->nation_id >= 0 && f->nation_id < 4 &&
-      !units_privateer_attack(ctx->units, u->id, foe)) {
+      !units_privateer_attack(ctx->units, u->id, units_tile_head_id_at(ctx->units, tx, ty))) {
     /* 465b skips the whole treaty/declare band when either side is a
      * Privateer (units_privateer_attack) — the attack still happens, it just
-     * opens no war. */
+     * opens no war. The defender side is the tile chain head FUN_281f_07e0
+     * (raw 75473 / 75528), not the best defender (port_bugs.md #1839). */
     /* No WAR 0x02 test: 465b reads only PEACE 0x40 here (raw 75553-75593),
      * and 0x02 survives a signed treaty (FUN_5bfb_153e raw 98003/98025). */
     {

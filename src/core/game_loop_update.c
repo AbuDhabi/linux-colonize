@@ -278,7 +278,50 @@ bool game_try_start_intro(ColonizeGameState* game) {
  *    branches (pedia / report / exploits / hall of fame / debug atlas), which
  *    is its own outer guard.
  */
+/* The DECLARATION_SIGNING cue (FUN_43f7_1a26 -> 160a, #1665): close it unseen and open the
+ * signing cinematic. True when the cinematic opened this call. */
+static bool game_take_declaration_signing(ColonizeGameState* game) {
+  if (!game->ai_popups.open ||
+      game->ai_popups.current.tag != AI_POPUP_TAG_DECLARATION_SIGNING) {
+    return false;
+  }
+  ai_popup_cancel_current(&game->ai_popups);
+  ai_popup_consume_result(&game->ai_popups);
+  if (game->declaration_played) {
+    return false;
+  }
+  game->declaration_played = true;
+  const int human = game->human_nation;
+  /* port_bugs.md: the signature on the parchment is the LEADER's name (the
+   * John Hancock moment), not the country. */
+  char default_leader[NEW_GAME_LEADER_NAME_MAX];
+  default_leader[0] = '\0';
+  if (game->leader_name[0] == '\0' &&
+      !(game->col1_ok && human >= 0 && human < 4 && game->col1.player[human].name[0])) {
+    new_game_default_leader_name(
+      game->names_ok ? &game->names : NULL, human, default_leader, sizeof(default_leader)
+    );
+  }
+  const char* signer =
+    (game->col1_ok && human >= 0 && human < 4 && game->col1.player[human].name[0] != '\0')
+      ? game->col1.player[human].name
+      : (game->leader_name[0] ? game->leader_name : default_leader);
+  return declaration_open(&game->declaration, game->resolved_data_dir, signer);
+}
+
 static bool game_service_popup_queue(ColonizeGameState* game, bool zoom_blocked_by_screen) {
+  /* DOS DS:0x34a lives for one colony tick: FUN_364b_0688 opens the colony inside the tick
+   * only on a zoom answer (raw 57946-57949) and LAB_364b_1ae2 resets it. The port's tick
+   * ends for the player once that colony's messages are answered, so a reveal no zoom
+   * claimed dies then and no later open replays it (#1733). */
+  for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+    ColonizeColony* rc = &game->colonies.colonies[i];
+    if (rc->active && rc->pending_build_reveal > 0 && rc->id >= 0 && rc->id < 64 &&
+        (game->ai_popups.colony_zoom_elected & ((uint64_t)1u << rc->id)) == 0 &&
+        !ai_popup_colony_has_pending(&game->ai_popups, rc->id)) {
+      rc->pending_build_reveal = 0;
+    }
+  }
   if (game->ai_popups.open || game->ai_popups.has_result) {
     return false;
   }
@@ -294,6 +337,8 @@ static bool game_service_popup_queue(ColonizeGameState* game, bool zoom_blocked_
     }
   }
   ai_popup_try_present_next(&game->ai_popups);
+  /* The signing cue must never draw: take it the frame it is presented. */
+  (void)game_take_declaration_signing(game);
   return false;
 }
 
@@ -367,6 +412,66 @@ void game_colony_open_unload_prompt(
     &game->howmuch, HOWMUCH_KIND_UNLOAD, prompt,
     howmuch_amount_label(&game->messages, "HOWMUCH2", ""), max_amt, max_amt, ctype, hold
   );
+}
+
+/* FUN_2f2b_4da6 tail (raw 51630-51636): the gold bar after an unload into the viewed
+ * colony, "qty cargo @CMESSAGE 2 colony" (FUN_291f_07b0(1, 0x78, 0)). */
+void game_colony_unload_bar(ColonizeGameState* game, int cargo, int moved) {
+  const ColonizeColony* colony = colonies_get(&game->colonies, game->colony_view_id);
+  if (moved <= 0 || !colony) {
+    return;
+  }
+  char qty_s[16];
+  snprintf(qty_s, sizeof(qty_s), "%d", moved);
+  const char* prep = reports_labels_field("CMESSAGE", 2);
+  const char* parts[] = {
+    qty_s,
+    game->europe_ok && cargo >= 0 && cargo < game->europe.cargo_count
+      ? game->europe.cargo[cargo].name
+      : "",
+    prep ? prep : "", colony->name
+  };
+  char line[AI_POPUP_BAR_MSG_LEN];
+  size_t n = 0;
+  line[0] = '\0';
+  for (size_t i = 0; i < sizeof(parts) / sizeof(parts[0]); ++i) {
+    if (parts[i][0] && n < sizeof(line)) {
+      n += (size_t)snprintf(line + n, sizeof(line) - n, "%s%s", n ? " " : "", parts[i]);
+    }
+  }
+  (void)ai_popup_enqueue_bar_message(&game->ai_popups, line);
+}
+
+/*
+ * FUN_2f2b_4da6 (raw 51565-51640): unload `cargo` from the selected transport into the
+ * viewed colony. FUN_281f_0c2c's first hold of the cargo, none -> red @CMESSAGE 9,
+ * cargo, @CMESSAGE 10; ask_amount asks @HOWMUCH2 (its answer runs the
+ * HOWMUCH_KIND_UNLOAD applier); else the @WAREHOUSEFULL confirm (answer 2 goes on),
+ * then the hold goes ashore and the gold bar shows. Colony '-' / '_' keys (6372) and the
+ * ship-cargo drag onto the warehouse (60dc, ask_amount = Shift).
+ */
+void game_colony_unload_cargo(
+  ColonizeGameState* game, const ColonizeColony* colony, int cargo, bool ask_amount
+) {
+  const int unit_id = game->colony_screen.transport_unit_id;
+  const ColonizeUnit* tu = units_get_const(&game->units, unit_id);
+  if (!colony || !tu) {
+    return;
+  }
+  int hold = -1;
+  for (int h = 0; h < COLONIZE_UNIT_CARGO_MAX && hold < 0; ++h) {
+    if (tu->hold_goods_amount[h] > 0 && tu->hold_goods_amount[h] < 255 &&
+        tu->hold_goods_type[h] == cargo) {
+      hold = h;
+    }
+  }
+  if (hold < 0) {
+    game_colony_cargo_refusal(game, 9, cargo, 10);
+  } else if (ask_amount) {
+    game_colony_open_unload_prompt(game, colony, hold);
+  } else if (!game_colony_unload_ask(game, unit_id, hold, 0, 0)) {
+    game_colony_unload_bar(game, cargo, game_colony_unload_hold_commit(game, unit_id, hold, 0, NULL));
+  }
 }
 
 /*
@@ -519,6 +624,8 @@ COLONIZE_INTERNAL GameUpdateStep game_update_services(ColonizeGameState* game, c
    * pump (which plays from the default pool even with no pool armed) until
    * the cinematic is gone. */
   sound_set_cinematic(game->opening.open || game->closing.open);
+  /* #1811: the pool picker reads DS:0x5382 bit 0 (WoI) live (asm 129f:013f-0192). */
+  sound_set_woi(game->col1_ok && ai_king_independence_declared(&game->col1));
   sound_service();
   if (game_service_opening(game, input, dt_ms)) {
     return game->opening.quit_to_dos ? GAME_UPDATE_RETURN_FALSE : GAME_UPDATE_RETURN_TRUE;
@@ -532,6 +639,15 @@ COLONIZE_INTERNAL GameUpdateStep game_update_services(ColonizeGameState* game, c
       ? ai_king_crown_nation_col1(&game->col1, game->human_nation)
       : -1
   );
+  /* FUN_112b_01ba raw 2124-2129: the hull badge digit keys on DS:0x5396 (viewpoint) and
+   * only the Privateer 'X' on DS:0x53a2 (Complete Map) (#1806). */
+  unit_chrome_set_viewer(
+    game_viewpoint_nation(game), game->col1_ok && game->col1.head.show_entire_map != 0
+  );
+  /* FUN_6f74_309c %YEAR reads DS:0x538a live (#1768). */
+  if (game->col1_ok) {
+    popup_msg_set_year((int)game->col1.head.year);
+  }
   /* port_bugs.md #1177a: FUN_112b_01ba swaps an AI nation's badge letter for its
    * plan byte when the cheat bit and Debug Info Flags DS:0x894 & 8 are set. */
   {
@@ -667,6 +783,21 @@ COLONIZE_INTERNAL GameUpdateStep game_update_services(ColonizeGameState* game, c
     units_set_combat_watch(game_combat_watch, game);
     units_set_combat_dissolve(game_combat_dissolve, game);
   units_set_combat_popup_pump(game_combat_popup_pump, game);
+    /* FUN_3844_00f2 raw 58378-58380 (#1821): DS:0x14c (a harbor refit, 5e52's dock probe)
+     * opens Europe (FUN_281f_05fa) before the colony loop, once the notices before it are
+     * answered. turn_step_finish_colony yields here for it; the pipeline stays frozen
+     * while the screen is up (screen_over_map) and the colony loop resumes on close. */
+    if (game->turn_proc.step == TURN_PROC_FINISH_COLONY_LOOP &&
+        game->turn_proc.result.request_europe_open && game->europe_ok &&
+        !game_europe_blocked_by_woi(game)) {
+      game->turn_proc.result.request_europe_open = false;
+      game->in_europe = true;
+      game->europe.open_on_dock = false;
+      europe_reset_harbor_selection(&game->europe); /* FUN_38fd_55b6 raw 68140 -> 0dd4 */
+      sound_set_bgm(3); /* FUN_75c2_2778: Europe pool */
+      game_tutorial_europe_opened(game);
+      return GAME_UPDATE_RETURN_TRUE;
+    }
     ColonizeTurnContext ctx;
     game_fill_turn_context(game, &ctx);
     if (!turn_processor_advance(&game->turn_proc, &ctx)) {
@@ -773,35 +904,12 @@ COLONIZE_INTERNAL GameUpdateStep game_update_services(ColonizeGameState* game, c
 
   /*
    * DOS FUN_43f7_1a26 plays the signing cinematic (thunk_FUN_2a1f_009a →
-   * FUN_43f7_160a) as part of the declaration itself, immediately before the
-   * @INDEPENDENCE letter. ai_king queues that letter as a KING_LETTER popup,
-   * so arm the cinematic the frame the popup is presented and let it draw on
-   * top until it is dismissed.
+   * FUN_43f7_160a, raw 74743) as part of the declaration itself, before the 0188
+   * @SEIZURE notices and the @INDEPENDENCE letter (#1665). ai_king queues a bodiless
+   * DECLARATION_SIGNING cue in that slot; game_take_declaration_signing closes it the
+   * frame it is presented and the cinematic owns the screen until it is dismissed.
    */
-  bool declaration_just_opened = false;
-  if (!game->declaration_played && game->ai_popups.open &&
-      game->ai_popups.current.tag == AI_POPUP_TAG_KING_LETTER) {
-    game->declaration_played = true;
-    const int human = game->human_nation;
-    /* port_bugs.md: the signature on the parchment is the LEADER's name (the
-     * John Hancock moment), not the country — which had just been renamed
-     * "United Colonies" and truncated to "United Colon" on the line. */
-    char default_leader[NEW_GAME_LEADER_NAME_MAX];
-    default_leader[0] = '\0';
-    if (game->leader_name[0] == '\0' &&
-        !(game->col1_ok && human >= 0 && human < 4 && game->col1.player[human].name[0])) {
-      new_game_default_leader_name(
-        game->names_ok ? &game->names : NULL, human, default_leader, sizeof(default_leader)
-      );
-    }
-    const char* signer =
-      (game->col1_ok && human >= 0 && human < 4 &&
-       game->col1.player[human].name[0] != '\0')
-        ? game->col1.player[human].name
-        : (game->leader_name[0] ? game->leader_name : default_leader);
-    declaration_just_opened =
-      declaration_open(&game->declaration, game->resolved_data_dir, signer);
-  }
+  const bool declaration_just_opened = game_take_declaration_signing(game);
   if (game->declaration.open) {
     /*
      * Runs ahead of the normal modal gate, so take input here too — but not
@@ -1641,17 +1749,11 @@ static GameUpdateStep game_colony_screen_mouse_click(
         }
       }
       break;
-    case COLONY_HIT_MULTI_BUY: {
-      game_request_buy_construction_confirm(game);
-      break;
-    }
+    case COLONY_HIT_MULTI_BUY:
     case COLONY_HIT_MULTI_CHANGE:
-      {
-        ColoniesBuildableOpts bopts = game_colony_buildable_opts(game);
-        colony_screen_open_construction(
-          csv, &game->colonies, game->colony_view_id, &bopts
-        );
-      }
+      /* FUN_2f2b_5fc6: the press only records DS:0x342; the release acts
+       * (game_colony_multi_button_mouse, #1698). */
+      csv->multi_btn_342 = hit.kind == COLONY_HIT_MULTI_BUY ? 0 : 1;
       break;
     case COLONY_HIT_MULTI_ABANDON:
       (void)game_colony_request_eject(game, GAME_COLONY_ABANDON_ALL, COLONIZE_EJECT_COLONIST);
@@ -2277,51 +2379,15 @@ static GameUpdateStep game_colony_screen_keys(
     if ((ch == '-' || ch == '_') && colony && game->units_ok) {
       /* FUN_2f2b_6372 2f2b:66ae-66dd (#1735): no holder (DS:0x33c == 0) -> red bar
        * @CMESSAGE 5 (FUN_2f2b_2ec6(5, 0x78)); else FUN_2f2b_4da6(ship, DS:0x33a,
-       * key == '_'). 4da6 (raw 51565-51640): FUN_281f_0c2c's first hold of the
-       * cargo, none -> red @CMESSAGE 9, cargo, @CMESSAGE 10; '_' asks @HOWMUCH2;
-       * the @WAREHOUSEFULL confirm (answer 2 goes on), then the hold goes ashore
-       * and the gold bar reads qty, cargo, @CMESSAGE 2, the colony name. */
+       * key == '_'). */
       const int cargo = (csv->selected_cargo >= 0 && csv->selected_cargo < COLONIZE_CARGO_COUNT)
                           ? csv->selected_cargo
                           : 0;
-      const ColonizeUnit* tu = units_get_const(&game->units, csv->transport_unit_id);
-      if (csv->transport_unit_id < 0 || !tu) {
+      if (csv->transport_unit_id < 0 || !units_get_const(&game->units, csv->transport_unit_id)) {
         game_colony_cargo_refusal(game, 5, -1, -1);
         return GAME_UPDATE_RETURN_TRUE;
       }
-      int hold = -1;
-      for (int h = 0; h < COLONIZE_UNIT_CARGO_MAX && hold < 0; ++h) {
-        if (tu->hold_goods_amount[h] > 0 && tu->hold_goods_amount[h] < 255 &&
-            tu->hold_goods_type[h] == cargo) {
-          hold = h;
-        }
-      }
-      if (hold < 0) {
-        game_colony_cargo_refusal(game, 9, cargo, 10);
-      } else if (ch == '_') {
-        game_colony_open_unload_prompt(game, colony, hold);
-      } else if (!game_colony_unload_ask(game, csv->transport_unit_id, hold, 0, 0)) {
-        const int moved =
-          game_colony_unload_hold_commit(game, csv->transport_unit_id, hold, 0, NULL);
-        if (moved > 0) {
-          char qty_s[16];
-          snprintf(qty_s, sizeof(qty_s), "%d", moved);
-          const char* prep = reports_labels_field("CMESSAGE", 2);
-          const char* parts[] = {
-            qty_s, game->europe_ok && cargo < game->europe.cargo_count ? game->europe.cargo[cargo].name : "",
-            prep ? prep : "", colony->name
-          };
-          char line[AI_POPUP_BAR_MSG_LEN];
-          size_t n = 0;
-          line[0] = '\0';
-          for (size_t i = 0; i < sizeof(parts) / sizeof(parts[0]); ++i) {
-            if (parts[i][0] && n < sizeof(line)) {
-              n += (size_t)snprintf(line + n, sizeof(line) - n, "%s%s", n ? " " : "", parts[i]);
-            }
-          }
-          (void)ai_popup_enqueue_bar_message(&game->ai_popups, line);
-        }
-      }
+      game_colony_unload_cargo(game, colony, cargo, ch == '_');
       return GAME_UPDATE_RETURN_TRUE;
     }
   }
@@ -2347,9 +2413,10 @@ static GameUpdateStep game_colony_screen_keys(
     }
   }
 
-  /* B = buy remaining construction with gold + warehouse tools. */
-  if (input->last_key == COLONIZE_KEY_B && colony && game_colony_bare(csv) &&
-      colony->building_in_production >= 0) {
+  /* B = buy remaining construction with gold + warehouse tools. FUN_2f2b_6372 2f2b:673c
+   * switches to the Construction tab and calls 291f_0678 -> 5e44 whatever is in
+   * production; 5e44 itself decides whether a popup follows (#1717). */
+  if (input->last_key == COLONIZE_KEY_B && colony && game_colony_bare(csv)) {
     csv->multi_mode = COLONY_MULTI_CONSTRUCTION; /* 2f2b:673c; DS:0x338 untouched */
     game_request_buy_construction_confirm(game);
     return GAME_UPDATE_RETURN_TRUE;
@@ -2384,6 +2451,36 @@ static GameUpdateStep game_colony_screen_cargo_keys(
     return GAME_UPDATE_RETURN_TRUE;
   }
   return GAME_UPDATE_CONTINUE;
+}
+
+/* DOS FUN_2f2b_5fc6 raw 52760-52809 (#1698): every pane-4 event on the Construction tab
+ * (press, hold, release) re-reads the BUY (0) / CHANGE (1) box under the pointer into
+ * DS:0x342; only the release (DS:0x7f4) acts on it, so a press dragged off a button does
+ * nothing and a release over one acts. */
+static void game_colony_multi_button_mouse(
+  ColonizeGameState* game, const ColonizeInputState* input, const ColonizeColony* colony,
+  ColonyScreenView* csv
+) {
+  const bool released = input->mouse_left_released || input->mouse_right_released;
+  if (csv->press_region != 4 || csv->multi_mode != COLONY_MULTI_CONSTRUCTION ||
+      !game_colony_bare(csv) || (!csv->mouse_held && !released)) {
+    return;
+  }
+  const ColonyScreenHitResult hit = colony_screen_hit_test(
+    csv, &game->colonies, colony, game->units_ok ? &game->units : NULL, input->mouse_x,
+    input->mouse_y
+  );
+  csv->multi_btn_342 =
+    hit.kind == COLONY_HIT_MULTI_BUY ? 0 : (hit.kind == COLONY_HIT_MULTI_CHANGE ? 1 : -1);
+  if (!released) {
+    return;
+  }
+  if (csv->multi_btn_342 == 0) {
+    game_request_buy_construction_confirm(game); /* 291f_0678 */
+  } else if (csv->multi_btn_342 == 1) {
+    ColoniesBuildableOpts bopts = game_colony_buildable_opts(game); /* 291f_072c */
+    colony_screen_open_construction(csv, &game->colonies, game->colony_view_id, &bopts);
+  }
 }
 
 /*
@@ -2493,22 +2590,18 @@ COLONIZE_INTERNAL GameUpdateStep game_update_colony_screen(ColonizeGameState* ga
       }
     }
 
-    /* Pointer-over building name label (DOS FUN_2f2b_44d4 hover arm). */
-    csv->hover_building_row = -1;
+    /* Pointer-over building name label (DOS FUN_2f2b_44d4 hover arm): the slot box under
+     * the pointer, owned or not (#1687). */
+    csv->hover_cat_plus1 = 0;
     if (colony && !csv->construction_open && !csv->jobs_open && !csv->eject_open &&
         !csv->dock_orders_open && !csv->custom_house_open &&
         csv->message_kind == COLONY_MSG_NONE && !ui_drag_active(&game->ui_drag)) {
-      const ColonyScreenHitResult hover = colony_screen_hit_test(
-        csv, &game->colonies, colony, game->units_ok ? &game->units : NULL, input->mouse_x,
-        input->mouse_y
-      );
-      if (hover.kind == COLONY_HIT_BUILDING) {
-        csv->hover_building_row = hover.index;
-      }
+      colony_screen_update_hover(csv, colony, input->mouse_x, input->mouse_y);
     }
 
     if (colony) {
       game_colony_custom_house_mouse(game, input, colony, csv);
+      game_colony_multi_button_mouse(game, input, colony, csv);
     }
 
     /* The colony's other FUN_6f74_2580 boxes (dock orders 5746 / 51ec, the @CUSTOM

@@ -317,3 +317,16 @@ to 1, so the tribe's musket stock can be overwritten (port_bugs.md #1563).
 **Port:** `ai_native_021a_tail` (`src/core/ai_native_021a.c`) runs the latch only for owners
 0..3 and leaves the musket word alone. Goldens and idle campaigns pass unchanged.
 **Status:** done (user 2026-11-07; port already differed).
+
+### DB-92 — Euro AI hire-tail gate reads an unset ship-buy candidate
+**DOS:** FUN_521d_5d04 zeroes `local_3e` (the ship-buy candidate) only inside the ship-buy
+ladder block (raw 92536), which runs only outside the War of Independence and while the
+nation's ship count is at or under `ship_cargo/2 + colonies`. The hire-tail gate `if
+(local_3e != 0 || !bVar21)` (raw 92568) reads it either way, so when the ladder is skipped a
+shipless nation runs or skips the hire tail depending on stack junk (port_bugs.md #1649).
+Not traced.
+
+**Port:** `ai_euro_5d04_ship_buy_ladder` returns candidate 0 when its gate fails, so a
+shipless nation skips the hire tail (`ai_euro_5d04_nation_planning_structural`,
+`src/core/ai_euro_europe.c`).
+**Status:** done (user 2026-11-10; port already differed).

@@ -46,12 +46,32 @@ bool units_coords_in_europe_park(int x, int y) {
   return x >= 200 || y >= 200;
 }
 
+bool units_in_tile_chain(const ColonizeUnitPool* pool, const ColonizeUnit* u, int x, int y) {
+  if (!u || !u->active) {
+    return false;
+  }
+  if (u->aboard_ship_id >= 0) {
+    const ColonizeUnit* ship = units_get_const(pool, u->aboard_ship_id);
+    return ship && units_is_on_map(ship) && ship->x == x && ship->y == y;
+  }
+  return units_is_on_map(u) && u->x == x && u->y == y;
+}
+
+int units_tile_chain_count(const ColonizeUnitPool* pool, int x, int y) {
+  int n = 0;
+  for (int i = 0; pool && i < units_slot_end(pool); ++i) {
+    n += units_in_tile_chain(pool, &pool->units[i], x, y);
+  }
+  return n;
+}
+
 /*
- * Tile-stack walk (theme M). DOS parks a boarded passenger off-map at (-2,-2)
- * (FUN_1427_10be), so an on-map test is the DOS-faithful stack filter and a
- * bare `active` test is not: the latter would let passengers answer for the
- * tile their carrier stands on. The tile scans test x/y first: same result,
- * and most slots fail there (half a late-game turn is spent in these scans).
+ * Tile-stack walk (theme M): on-map units only. Passengers live in their
+ * ship's cargo list in the port, so a bare `active` test would let them
+ * answer for the tile their carrier stands on. DOS keeps riders IN the tile
+ * chain (units_in_tile_chain); sites porting a FUN_1427_0d38 walk use that.
+ * The tile scans test x/y first: same result, and most slots fail there
+ * (half a late-game turn is spent in these scans).
  */
 ColonizeUnit* units_next_on_tile(ColonizeUnitPool* pool, int x, int y, int* slot) {
   if (!pool || !slot) {
@@ -84,11 +104,15 @@ int units_count_at(const ColonizeUnitPool* pool, int x, int y) {
   return n;
 }
 
-/* FUN_1427_0d38 opcode 0xa: land units with attack > 1 on the (x,y) stack. */
+/* FUN_1427_0d38 opcode 0xa: land units with attack > 1 in the (x,y) tile
+ * chain, riders of a ship there included (port_bugs.md #1642). */
 int units_military_count_at(const ColonizeUnitPool* pool, int x, int y) {
-  int slot = 0;
   int n = 0;
-  for (const ColonizeUnit* u; (u = units_next_on_tile_const(pool, x, y, &slot)) != NULL;) {
+  for (int i = 0; pool && i < units_slot_end(pool); ++i) {
+    const ColonizeUnit* u = &pool->units[i];
+    if (!units_in_tile_chain(pool, u, x, y)) {
+      continue;
+    }
     const ColonizeUnitType* t = units_type(pool, u->type_index);
     if (t && t->attack > 1 && t->domain != COLONIZE_UNIT_DOMAIN_SEA) {
       n++;

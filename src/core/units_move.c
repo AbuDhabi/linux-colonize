@@ -673,23 +673,14 @@ COLONIZE_INTERNAL UnitsMoveStatus units_move_combat_resolve(units_move_ctx* c) {
     combat_set_auto_defender(false);
   }
   if (won && units_combat_is_visible(pool, unit_id, foe)) {
-    int win_sound = UNITS_SFX_COMBAT_WON;
-    if (c->village_temp >= 0 && col1 && col1->tribe) {
-      /* FUN_5fef_1b0e 5fef:26f6-271a: a village with population > 1
-       * loses one person and emits 0x48; the final loss emits 0x4a. */
-      const ColonizeCol1Tribe* tribe = col1_save_tribe_at(col1, dest_x, dest_y);
-      if (tribe && tribe->population > 1) {
-        win_sound = 0x48;
-      }
+    /* FUN_5fef_1b0e 5fef:26f6-271a (bVar28 limb, port_bugs.md #1814): only
+     * the village temporary defender plays a win cue here, 0x48 while the
+     * village keeps population > 1, 0x4a on its final loss. Every other win
+     * has its cue in the resolver (0x43 / 0x49 / 0x40). */
+    if (phantom_defender) {
+      const ColonizeCol1Tribe* tribe = col1 && col1->tribe ? col1_save_tribe_at(col1, dest_x, dest_y) : NULL;
+      units_play_event_sound(tribe && tribe->population > 1 ? 0x48 : UNITS_SFX_COMBAT_WON);
     }
-    if (phantom_defender && colonies) {
-      const int cid = colonies_id_at(colonies, dest_x, dest_y);
-      const ColonizeColony* cc = cid >= 0 ? colonies_get(colonies, cid) : NULL;
-      if (cc && cc->nation_id >= 0 && cc->nation_id < 4) {
-        win_sound = 0x4b;
-      }
-    }
-    units_play_event_sound(win_sound);
     /* FUN_5fef_1b0e 5fef:2546 + 28b0: an Indian attacker (nation >= 4)
      * beating a colony's defender sets local_6 when population > 1 OR the
      * defender was not the temporary militia (`!bVar28`), then pushes
@@ -3260,8 +3251,10 @@ static bool units_goto_director(
   s_flood_low_move = units_type_max_mp(units_type(pool, u->type_index)) < 4;
   const int gx = u->goto_x;
   const int gy = u->goto_y;
-  if (gx < 0 || gy < 0 || gx >= (int)map->width || gy >= (int)map->height ||
-      gx >= UNITS_GOTO_NONE || gy >= UNITS_GOTO_NONE) {
+  /* raw 104549: FUN_281f_0302 inset test on the goal, so a rim goal is a
+   * miss (-1, no FUN_281f_0934 spend) and 0972 clears the order
+   * (port_bugs.md #1634). */
+  if (!map_coords_inset(map, gx, gy) || gx >= UNITS_GOTO_NONE || gy >= UNITS_GOTO_NONE) {
     return false;
   }
   if (u->x == gx && u->y == gy) {
@@ -3533,7 +3526,11 @@ bool units_advance_goto_one_step_w(
      */
     ColonizeUnit* miss = units_get(pool, unit_id);
     if (miss) {
-      units_mp_exhaust(pool, miss);
+      /* A goal off the FUN_281f_0302 inset exits 0f74 at raw 104549-104550
+       * straight to LAB_6662_1599: -1 with no FUN_281f_0934 spend. */
+      if (map_coords_inset(map, gx, gy)) {
+        units_mp_exhaust(pool, miss);
+      }
       units_clear_orders(pool, unit_id);
     }
     return false;

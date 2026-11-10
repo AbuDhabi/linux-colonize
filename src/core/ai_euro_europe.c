@@ -1869,7 +1869,7 @@ static int ai_euro_5d04_nation_planning_structural(ColonizeTurnContext* ctx, int
    * bought nothing skips the whole hire tail. DOS zeroes local_3e only inside
    * the ladder gate (raw 92536); when the gate is skipped (WoI, or a ship
    * count over the threshold) it reads an unset stack word. The port reads 0
-   * there (port_bugs.md #1649, DOS bug not reproduced). */
+   * there (port_bugs.md #1649, dos_bugs_ai.md DB-92). */
   if (candidate != 0 || !f.no_ships) {
     ai_euro_5d04_hire_ladder_tail(ctx, nation_id, &f);
   }

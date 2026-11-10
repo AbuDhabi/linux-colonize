@@ -399,30 +399,47 @@ bool options_dialog_handle_input(OptionsDialog* dlg, const ColonizeInputState* i
       return true;
     }
   }
-  /* FUN_6f74_2580 treats both buttons alike (release arm raw 117036-117060): a right click
-   * toggles a row like a left one. A @checkbox box has flag bit 0 (|= 5, raw 117354), so a
-   * release off the box leaves (raw 117052-117054). */
+  /* FUN_6f74_2580 treats both buttons alike. FUN_1acb_0056 keeps DS:0x7f6 set on the
+   * release poll, so the held arm (raw 116705-116758) runs on the press, the hold and the
+   * release alike: the bar follows the row under the pointer, leaving the box clears it,
+   * and a pointer on the box but off every row sets bVar4. The release (raw 117036-117060,
+   * #1724) then toggles the barred row of a @checkbox box (flag bit 2), or with the bar
+   * cleared (flag bit 0, |= 5 raw 117354) leaves and commits like Enter (Esc commits too,
+   * except on the Mods pages: options_finish); bVar4 skips it. So press A, drag to B flips
+   * B, and a release on the title does nothing. */
   if (input->mouse_left_clicked || input->mouse_right_clicked) {
-    if (!ui_rect_hit(
-          dlg->dialog_x, dlg->dialog_y, dlg->dialog_w, dlg->dialog_h, input->mouse_x,
-          input->mouse_y
-        )) {
-      /* port_bugs.md: clicking away should commit, like Enter (Esc commits too, except on
-       * the Mods pages: options_finish). */
-      options_finish(dlg, false);
-      return true;
-    }
-    if (dlg->ok_label[0] &&
-        ui_rect_hit(dlg->ok_x, dlg->ok_y, dlg->ok_w, dlg->ok_h, input->mouse_x, input->mouse_y)) {
-      options_finish(dlg, false);
-      return true;
-    }
+    dlg->press_seen = true;
+  }
+  const bool released = input->mouse_left_released || input->mouse_right_released;
+  if (!dlg->press_seen ||
+      !(released || input->mouse_left_down || input->mouse_right_down ||
+        input->mouse_left_clicked || input->mouse_right_clicked)) {
+    return true;
+  }
+  bool off_row = false; /* bVar4 */
+  bool on_ok = false;
+  if (!ui_rect_hit(
+        dlg->dialog_x, dlg->dialog_y, dlg->dialog_w, dlg->dialog_h, input->mouse_x,
+        input->mouse_y
+      )) {
+    dlg->selection = -1;
+  } else {
+    on_ok = dlg->ok_label[0] &&
+            ui_rect_hit(dlg->ok_x, dlg->ok_y, dlg->ok_w, dlg->ok_h, input->mouse_x, input->mouse_y);
     const int idx = options_option_at_y(dlg, input->mouse_y);
     if (idx >= 0) {
       dlg->selection = idx;
-      dlg->values[idx] = dlg->values[idx] ? 0 : 1;
+    } else {
+      off_row = true;
     }
-    return true;
+  }
+  if (released) {
+    dlg->press_seen = false;
+    if (on_ok || (!off_row && (dlg->selection < 0 || dlg->selection >= dlg->option_count))) {
+      options_finish(dlg, false);
+    } else if (!off_row) {
+      dlg->values[dlg->selection] = dlg->values[dlg->selection] ? 0 : 1;
+    }
   }
   return true;
 }

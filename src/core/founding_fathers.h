@@ -26,10 +26,9 @@
  * that want "bells" for SoL fallback / boycott-refusal / score read the pool
  * directly, exactly as DOS does.
  *
- * founding_fathers_tick: final elect pass of the turn for each AI Euro
- * nation (player.control==1); the human's runs in
- * founding_fathers_tick_human_elect. Both loop while the pool still clears
- * the next threshold (port_bugs.md #934).
+ * AI Euro nations (player.control==1) elect at the end of their colony pass
+ * (turn_colony.c); the human's runs in founding_fathers_tick_human_elect.
+ * Both loop while the pool still clears the next threshold (port_bugs.md #934).
  *
  * Effects follow Colonization.pdf + docs/fandom_col1994.md (+ NAMES/decomp).
  * "Rough" means incomplete UI/wiring — not invented gold/crosses stand-ins.
@@ -141,7 +140,7 @@ bool founding_fathers_brebeuf_missionaries_are_experts(
 /*
  * Bartolome de las Casas (PEDIA @FATHER24 / docs/fandom_col1994.md):
  * Existing Indian converts assimilate as free colonists.
- * Elect + ownership tick in founding_fathers_tick: NAMES @JOB Convert (27)
+ * Once at elect (no ownership tick): NAMES @JOB Convert (27)
  * → Free Colonists (19) on owned colony colonists and map units. No gold /
  * crosses fiction.
  */
@@ -218,13 +217,9 @@ bool founding_fathers_revere_should_auto_arm(
   int muskets_stock
 );
 
-/* Elect at most one FF per eligible nation when the bells threshold is met. */
-void founding_fathers_tick(ColonizeTurnContext* ctx);
-
 /* port_bugs.md #434: the human's Congress election check, run in TURN_PROC_FINISH
  * (start of the player's turn) — DOS puts it in the human's own 3844_00f2
- * pass, right before Move Pieces. founding_fathers_tick no longer elects for
- * the human. */
+ * pass, right before Move Pieces. */
 void founding_fathers_tick_human_elect(ColonizeTurnContext* ctx);
 
 /*

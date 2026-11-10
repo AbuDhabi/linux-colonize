@@ -245,6 +245,9 @@ static int case_commons_broadleaf_game(void) {
    * a Swamp town square with Minerals makes 5 ore per turn. So commons
    * food/secondary keep the Game bonus under the settlement bit. */
   map.layer2[gy * map.width + gx] = (uint8_t)(map.layer2[gy * map.width + gx] | 2u);
+  /* The sprite hides only on a native village (owner nibble >= 4, not 0xf:
+   * FUN_12ab_0380 / FUN_137f_0392, port_bugs.md #1829). */
+  map.layer3[gy * map.width + gx] = (uint8_t)((map.layer3[gy * map.width + gx] & 0x0fu) | 0x50u);
   if (map_resource_type_at(&map, gx, gy) >= 0) {
     fprintf(stderr, "settlement bit should hide resource sprite lookup\n");
     map_free(&map);

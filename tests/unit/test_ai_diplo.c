@@ -923,7 +923,6 @@ static int case_marathon3_franklin_peace_gate(void) {
     ctx_e.human_nation = 0;
     ctx_e.status = status_e;
     ctx_e.status_size = sizeof(status_e);
-    founding_fathers_tick(&ctx_e);
     founding_fathers_tick_human_elect(&ctx_e);
     if (!founding_fathers_nation_has(&fr3, 0, FF_BENJAMIN_FRANKLIN)) {
       return fail("M3R1 Franklin elect: should own Benjamin Franklin");

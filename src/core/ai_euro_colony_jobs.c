@@ -873,7 +873,9 @@ static int ai_euro_5952_producible(
   if (out_cargo) {
     *out_cargo = r->out_cargo;
   }
-  return colony_prod_manufacturing_output_row(row, prof, r->craft_profession, sol_bonus);
+  /* FUN_15eb_1d4c asm 15eb:1ee7-1f0d: tier = owned count along the chain (#1692). */
+  return colony_prod_manufacturing_output_row(
+    colony_prod_craft_tier_row(pool, col, row), prof, r->craft_profession, sol_bonus);
 }
 
 /* FUN_15eb_28c8(slot, job) for one field job: true with *best = the elected plot. Runs in
@@ -1206,7 +1208,8 @@ void ai_euro_5952_ledgers(
       continue;
     }
     gross[r->out_cargo] +=
-      colony_prod_manufacturing_output_row(row, c->profession, r->craft_profession, sol_bonus);
+      colony_prod_manufacturing_output_row(colony_prod_craft_tier_row(pool, col, row), c->profession,
+                                           r->craft_profession, sol_bonus);
     craft_row[r->out_cargo] = row;
     craft_in[r->out_cargo] = r->in_cargo;
   }

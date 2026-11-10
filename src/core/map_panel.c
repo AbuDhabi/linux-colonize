@@ -1514,7 +1514,9 @@ COLONIZE_INTERNAL void map_panel_render_minimap(MapPanelRenderCtx* c) {
         if (!map_tile_seen_by(map, u->x, u->y, fog_nation)) {
           continue;
         }
-        /* Same vis-bit gate as the main map (FUN_2f2b_6372). */
+        /* Same vis-bit gate as the main map. The DOS minimap writer is not
+         * identified yet (FUN_2f2b_6372 is the colony-screen loop; finding
+         * it needs a VRAM write breakpoint, port_bugs.md #1776). */
         if (!units_shown_to(u, fog_nation)) {
           continue;
         }

@@ -335,14 +335,9 @@ typedef struct ColonyScreenView {
   int drag_from_tile;
   bool drag_from_selected;
   bool show_production_numbers;
-  /* DOS FUN_2f2b_44d4's hover arm (DS:0x7f6 == 0 branch, DS:0xb9a caches the
-   * last-labelled building): pointing at a built settlement building draws its
-   * name (FUN_2f2b_05ee) centred over the building at the top of the
-   * settlement panel. Building-type index, or -1 when nothing is hovered. */
-  int hover_building_row;
-  /* Category under the pointer + 1 (0 = none, so a zeroed view labels nothing), set by
-   * colony_screen_update_hover (FUN_2f2b_44d4's slot scan, owned or not). The label draws this
-   * slot; hover_building_row is the fallback. */
+  /* DOS FUN_2f2b_44d4's hover arm (DS:0x7f6 == 0 branch): the slot category under the
+   * pointer + 1 (0 = none, so a zeroed view labels nothing), set by
+   * colony_screen_update_hover (owned or not); FUN_2f2b_05ee labels it. */
   int hover_cat_plus1;
   ColonyMultiMode multi_mode;
   int selected_cargo; /* warehouse cargo highlighted for =/+ load; -1 none */

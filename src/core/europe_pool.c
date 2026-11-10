@@ -566,6 +566,14 @@ void europe_seed_campaign_w(const ColonizeWorld* w, uint32_t seed) {
     }
   }
   europe_seed_campaign_prices_w(w, &rng);
+  /* FUN_75c2_235c raw 121597-121599: after 38fd_6024 (this body) and the
+   * draw-free 67f4_0088 / 682a_000c, 0x53a7 = 0 and 0x53a8 = rand(1,8) on the
+   * same stream; DOS reseeds right after, so only the value matters
+   * (port_bugs.md #1646). */
+  if (col1) {
+    col1->head.king_audience_streak = 0;
+    col1->head.king_audience_last_pick = (uint8_t)dos_rng_range(&rng, 1, 8);
+  }
 }
 
 static void europe_init_pool(EuropeScreen* eu) {

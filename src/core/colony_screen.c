@@ -49,7 +49,6 @@ void colony_screen_reset_ui(ColonyScreenView* view) {
   view->selected_colonist = -1;
   view->selected_outside_unit = -1;
   view->drag_from_tile = -1;
-  view->hover_building_row = -1;
   view->hover_cat_plus1 = 0;
   view->multi_btn_342 = -1;
   view->press_region = 0x14;

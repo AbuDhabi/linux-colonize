@@ -284,9 +284,8 @@ COLONIZE_INTERNAL int ai_king_0982_tile_strength(const ColonizeTurnContext* ctx,
   int n = 0;
   for (int i = 0; i < units_slot_end(ctx->units); ++i) {
     const ColonizeUnit* u = &ctx->units->units[i];
-    if (!u->active || u->x != x || u->y != y || !units_is_on_map(u) ||
-        units_is_sea(ctx->units, u->id)) {
-      continue;
+    if (!units_in_tile_chain(ctx->units, u, x, y) || units_is_sea(ctx->units, u->id)) {
+      continue; /* the chain holds docked-ship riders (port_bugs.md #1642) */
     }
     const ColonizeUnitType* t = units_type(ctx->units, u->type_index);
     if (t && t->attack > 1) {
@@ -471,7 +470,8 @@ static void ai_king_ref_tory_uprising(ColonizeTurnContext* ctx, int crown, int h
     int score = (c->population * (100 - sol_p) * 2) / 100 + (int)ctx->col1->head.difficulty + 1;
     for (int i = 0; i < units_slot_end(ctx->units); ++i) {
       const ColonizeUnit* u = &ctx->units->units[i];
-      if (u->active && u->aboard_ship_id < 0 && u->x == (int)c->x && u->y == (int)c->y) {
+      /* raw 73858-73862: FUN_281f_07e0/02e4 chain walk, riders included (#1642). */
+      if (units_in_tile_chain(ctx->units, u, (int)c->x, (int)c->y)) {
         const ColonizeUnitType* ty = units_type(ctx->units, u->type_index);
         score -= ty ? ty->attack : 0;
       }

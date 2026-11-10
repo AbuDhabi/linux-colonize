@@ -631,7 +631,7 @@ static bool game_found_finalize(ColonizeGameState* game, int uid, const char* ch
   if (game->col1_ok && hn >= 0 && hn < 4) {
     game->col1.player[hn].founded_colonies = (uint8_t)game->colonies.name_next[hn];
   }
-  colonies_reveal_founded_w(&w, cid); /* FUN_364b_1dd6 Coronado */
+  colonies_reveal_founded_w(&w, cid); /* FUN_364b_1ba8 raw 58118-58124 Coronado */
   ColonizeColony* col = colonies_get_mut(&game->colonies, cid);
   /* raw 77024: the human arm writes the answered buffer over the default. */
   if (col && chosen_name && chosen_name[0]) {
@@ -1510,8 +1510,8 @@ void game_europe_ask_boycott_buyback(ColonizeGameState* game, int cargo_type) {
     return;
   }
   const int cost = europe_buyback_boycott_cost(eu, &game->col1, human, cargo_type);
-  if (cost <= 0) {
-    return;
+  if (cost == 0) {
+    return; /* not boycotted; a wrapped negative ask*500 still asks (#1677) */
   }
   const char* cname =
     eu->cargo[cargo_type].name[0] ? eu->cargo[cargo_type].name : "";
@@ -2545,7 +2545,7 @@ static void game_trade_service_screen_request(ColonizeGameState* game) {
       break;
   }
 }
-/* ===================== Modal input dispatch & cargo hold load/unload (game_handle_modal_input .. game_colony_unload_hold) ===================== */
+/* ===================== Modal input dispatch & cargo hold load/unload (game_handle_modal_input .. game_colony_load_best_cargo) ===================== */
 
 
 /*
@@ -2923,18 +2923,6 @@ bool game_colony_unload_ask(
   return game_colony_unload_ask_at(game, game->colony_view_id, unit_id, hold, amount, extra_payload);
 }
 
-void game_colony_unload_hold(
-  ColonizeGameState* game,
-  int unit_id,
-  int hold,
-  const char* empty_msg
-) {
-  if (game_colony_unload_ask(game, unit_id, hold, 0, 0)) {
-    return;
-  }
-  (void)game_colony_unload_hold_commit(game, unit_id, hold, 0, empty_msg);
-}
-
 /*
  * The DOS colony-screen cargo status line on the map-strip ring (every append
  * leaves one trailing space; the strip trims it visually). FUN_281f_0056(1)
@@ -3117,8 +3105,9 @@ static void game_apply_howmuch_result(ColonizeGameState* game) {
     if (game_colony_unload_ask(game, csv->transport_unit_id, hold, amt, 0)) {
       return;
     }
-    (void)game_colony_unload_hold_commit(
-      game, csv->transport_unit_id, hold, amt, NULL
+    /* FUN_2f2b_4da6 tail: the gold bar (#1735). */
+    game_colony_unload_bar(
+      game, cargo, game_colony_unload_hold_commit(game, csv->transport_unit_id, hold, amt, NULL)
     );
   } else if (kind == HOWMUCH_KIND_BUY) {
     EuropeScreen* eu = &game->europe;
@@ -3142,7 +3131,7 @@ static void game_apply_howmuch_result(ColonizeGameState* game) {
     );
     game_europe_drain_price_events(game);
   } else if (kind == HOWMUCH_KIND_SOUND_TEST) {
-    sound_play(amt); /* asm 0x23D9D: FUN_281f_04c0([0x9cc8]), no status line */
+    sound_play_now(amt); /* asm 0x23D9D: FUN_281f_04c0([0x9cc8]), no status line */
   }
 }
 
@@ -3221,6 +3210,8 @@ static bool game_apply_popup_map_and_colony(ColonizeGameState* game) {
       const int pmoved = game_colony_unload_hold_commit_at(game, pcid, unit_id, hold, amount, NULL);
       if ((payload & GAME_UNLOAD_PAYLOAD_U_STATUS) && pmoved > 0) {
         game_colony_cargo_status(game, false, pctype, pmoved, unit_id, pcid);
+      } else if (game->in_colony) {
+        game_colony_unload_bar(game, pctype, pmoved); /* FUN_2f2b_4da6 tail (#1735) */
       }
       if (unload_all) {
         /* 99b8 case 5 loops until a hold refuses or the unit runs dry. */

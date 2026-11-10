@@ -314,13 +314,13 @@ bool ai_popup_enqueue_ok_ctx(
    * EOF, so no box is drawn; docs/popups.md "Missing sections show
    * nothing"), so an OK with no text at all is dropped instead of opening an
    * empty frame. The tags whose presentation or dismissal drives the game on
-   * (war end, throne audience, Congress announce, the @INDEPENDENCE letter
-   * that arms the declaration cinematic) still queue. A new OK tag whose
+   * (war end, throne audience, Congress announce, the @INDEPENDENCE letter,
+   * the bodiless signing-cinematic cue) still queue. A new OK tag whose
    * dismissal or result_tag handler moves the game on must join this list,
    * or a missing TXT section would silently skip that step. */
   if (!req.body[0] && !req.title[0] && tag != AI_POPUP_TAG_KING_WAR_END &&
       tag != AI_POPUP_TAG_KING_THRONE && tag != AI_POPUP_TAG_FF_CONGRESS &&
-      tag != AI_POPUP_TAG_KING_LETTER) {
+      tag != AI_POPUP_TAG_KING_LETTER && tag != AI_POPUP_TAG_DECLARATION_SIGNING) {
     if (st) {
       st->last_enqueue_ok = false;
     }
@@ -685,6 +685,8 @@ static const char* ai_popup_tag_name(AiPopupTag tag) {
       return "KING_CHAMBER_MSG";
     case AI_POPUP_TAG_KING_SPECIALIST:
       return "KING_SPECIALIST";
+    case AI_POPUP_TAG_DECLARATION_SIGNING:
+      return "DECLARATION_SIGNING";
   }
   return "UNKNOWN";
 }

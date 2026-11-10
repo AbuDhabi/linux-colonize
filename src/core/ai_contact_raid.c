@@ -881,7 +881,7 @@ int ai_contact_colony_raid_repelled_w(
    * victim gets woodcut 11 the first time, sharing DOS's once-only bit with
    * the native colony-burn site (units_capture.c). */
   if (kind == AI_RAID_SCALP && c->colonist_count <= 0) {
-    (void)colonies_abandon(colonies, colony_id);
+    (void)colonies_abandon_by(colonies, colony_id, indian_nation); /* DS:0x5394 = the raider (#1682) */
     if (ai_contact_euro_is_human(&ctx, euro_nation)) {
       (void)woodcut_fire(col1, WOODCUT_COLONY_BURNING);
     }

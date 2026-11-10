@@ -1,10 +1,10 @@
 # Quebec, base save. On the colony tile (the "fence" strip, left to right, DOS tile-chain order from the
 # head, port_bugs.md #1274): #127 free colonist, #135 Dragoon, #146 free colonist, #91 soldier colonist
 # (fortified); Artillery #143 is not drawn on the fence.
-# Fence icon centres (y 119): #127 x154, #135 x161, #146 x167, #91 x175 (they re-centre as units leave).
+# Fence icons (#1691 layout, row y ~114-129): #127 x141-147, #135 x152-161, #146 x163-168, #91 x174-180 (they re-centre as units leave).
 click 168 128              # open Quebec
 wait 1
-drag 154 119 27 104        # fence colonist #127 -> Carpenter's Shop: joins the colony and works there
+drag 143 121 27 104        # fence colonist #127 -> Carpenter's Shop: joins the colony and works there
 drag 160 119 260 91        # fence colonist #146 -> free land tile S: joins as a Farmer
 drag 158 119 20 44         # fence Dragoon #135 -> Weaver's House: joins as a soldier-profession colonist, horses and muskets go to the warehouse
 click 312 151              # multi pane: switch to the Units Present tab (soldier #91 and Artillery #143)

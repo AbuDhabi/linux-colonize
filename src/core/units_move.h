@@ -406,13 +406,5 @@ bool units_015e_hs_course(
   int* out_x,
   int* out_y
 );
-/* Prefer western rim of eastern high seas near prefer_y — Atlantic approach. */
-bool units_find_eastern_high_seas_tile(
-  const ColonizeUnitPool* pool,
-  const ColonizeWorldMap* map,
-  int prefer_y,
-  int* out_x,
-  int* out_y
-);
 
 #endif

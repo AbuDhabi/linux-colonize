@@ -158,6 +158,7 @@ void game_fill_turn_context(ColonizeGameState* game, ColonizeTurnContext* ctx) {
   ctx->messages = &game->messages;
   ctx->names = game->names_ok ? &game->names : NULL;
   ctx->labels = game->labels_ok ? &game->labels : NULL;
+  ctx->autoplay = game->autoplay || game->demo; /* DS:0x826 / 0x828, 130d_0290 raw 6459 */
 }
 
 /* Purchased-ship cargo tags (see europe_board_sentry_dockers): 0 = Colonists,
@@ -711,6 +712,13 @@ void game_finish_end_turn(ColonizeGameState* game, const ColonizeTurnResult* res
    */
   game_viewpoint_turn_pass(game); /* raw 6410-6413, before the 6416 autosave (#1573) */
   game_apply_turn_autosave(game, result);
+  {
+    /* FUN_281f_0668 -> FUN_43f7_2244 (raw 6418): the peacetime @MERCENARIES
+     * offer, after the 6416 autosave and before Move Pieces (#1821). */
+    ColonizeTurnContext merc_ctx;
+    game_fill_turn_context(game, &merc_ctx);
+    ai_king_peacetime_merc_offer(&merc_ctx);
+  }
   /* FUN_2b5a_3b68 (raw 46831-46833), the human's Move Pieces entry, after
    * the autosave: 0x5392 = 0xffff (it may still name an AI hull that sailed
    * for Europe, raw 76484), then the first unit needing orders. A pick
@@ -1886,6 +1894,13 @@ static GameMenuActionStatus game_menu_action_orders(ColonizeGameState* game, Map
       const ColonizeUnit* head = units_get_const(&game->units, at);
       if (head && head->nation_id != game->human_nation) {
         at = -1;
+      } else if (head && head->aboard_ship_id < 0 && head->orders == UNITS_ORDER_NONE &&
+                 !(units_is_on_map(head) && head->moves > 0) &&
+                 unit_stack_open_lone(
+                   &game->unit_stack, &game->units, game->map_cursor_x, game->map_cursor_y,
+                   game->human_nation
+                 )) {
+        return GAME_MENU_ACTION_DONE; /* raw 42711-42716, as a map click (#1751) */
       }
       if (at >= 0) {
         units_wake(&game->units, at);
@@ -2276,9 +2291,9 @@ bool game_apply_map_menu_action(ColonizeGameState* game, MapMenuAction action) {
  * order before that too — so a click is how you take a Fortified or Sentried
  * unit off its post (port_bugs.md). Its gates are the ones this dispatch already
  * applies before it gets here: the tile must hold a unit of the nation being
- * played, and an own colony is consumed by the colony branch first. Not
- * modelled: DOS's `FUN_281f_0966` corner, which routes an *already* order-less
- * lone unit through the (one-row) stack list instead of straight to select.
+ * played, and an own colony is consumed by the colony branch first. DOS's
+ * `FUN_281f_0966` corner (an order-less lone unit with no moves goes through
+ * the one-row stack list) is game_map_click_dispatch's n == 1 arm.
  */
 void game_click_activate_unit(ColonizeGameState* game, int unit_id) {
   if (!game || !game->units_ok) {
@@ -2354,6 +2369,14 @@ void game_map_click_dispatch(ColonizeGameState* game, int mx, int my) {
                                    )
                                  : 0;
     if (n == 1) {
+      /* FUN_2b5a_1b5a raw 42711-42716 (#1751): an order-less lone unit that
+       * fails FUN_281f_0966 (FUN_1427_1330: on the map with moves left) goes
+       * through the one-row stack list (cancellable) instead. */
+      const ColonizeUnit* lone = units_get_const(&game->units, stack_ids[0]);
+      if (lone && lone->orders == UNITS_ORDER_NONE && !(units_is_on_map(lone) && lone->moves > 0) &&
+          unit_stack_open_lone(&game->unit_stack, &game->units, mx, my, game->human_nation)) {
+        return;
+      }
       game_click_activate_unit(game, stack_ids[0]);
       return;
     }

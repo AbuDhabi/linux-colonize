@@ -713,8 +713,8 @@ static int ai_diplo_stack_attack_sum(const ColonizeTurnContext* ctx, int x, int 
   /* Slot walk — `i` is not a unit id; see ai_diplo_wake_border_garrisons. */
   for (int i = 0; i < units_slot_end(ctx->units); ++i) {
     const ColonizeUnit* u = &ctx->units->units[i];
-    if (!u->active || u->aboard_ship_id >= 0 || u->x != x || u->y != y) {
-      continue;
+    if (!units_in_tile_chain(ctx->units, u, x, y)) {
+      continue; /* 0d38 walks the tile chain, riders included (port_bugs.md #1642) */
     }
     const int is_sea = units_is_sea(ctx->units, u->id);
     if ((tile_land && is_sea) || (!tile_land && !is_sea)) {

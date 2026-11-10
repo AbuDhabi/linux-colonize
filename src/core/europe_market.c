@@ -1505,18 +1505,19 @@ int europe_passenger_icon_sprite(const ColonizeUnitPool* units, int type_index, 
    * (Hardy Pioneer, Veteran Soldier, ...), so a Master Carpenter given tools
    * sailed out as a Hardy Pioneer. A passenger is the same unit the dock
    * showed a moment earlier: route it through the dock's expert/generic
-   * split (DOS FUN_112b_0060), keyed by its own profession.
+   * split (DOS FUN_112b_0060), keyed by its own profession. The kit type
+   * is the @UNIT catalog row (rows 1..5 = EUROPE_DOCK_TYPE_*), never its
+   * name (port_bugs.md #1703).
    */
-  for (int k = EUROPE_DOCK_TYPE_SOLDIERS; k < EUROPE_DOCK_TYPE_COUNT; ++k) {
-    if (strcmp(ut->name, reports_dock_type_name(k)) == 0) {
-      EuropeDockImmigrant d;
-      memset(&d, 0, sizeof(d));
-      snprintf(d.name, sizeof(d.name), "%s", ut->name);
-      d.profession = profession;
-      d.present = true;
-      d.dos_type = k;
-      return europe_dock_icon_sprite(units, &d);
-    }
+  const int k = (int)units_type_kind(ut);
+  if (k >= EUROPE_DOCK_TYPE_SOLDIERS && k < EUROPE_DOCK_TYPE_COUNT) {
+    EuropeDockImmigrant d;
+    memset(&d, 0, sizeof(d));
+    snprintf(d.name, sizeof(d.name), "%s", ut->name);
+    d.profession = profession;
+    d.present = true;
+    d.dos_type = k;
+    return europe_dock_icon_sprite(units, &d);
   }
   return ut->icon_sprite;
 }

@@ -736,7 +736,7 @@ void ai_euro_0a60_goal_orders_structural(ColonizeTurnContext* ctx, int nation_id
  *
  * FUN_1000_8aac mode 2 — 2026-09-06b: the real 0d38 case-2 body IS the
  * plain stack count over the whole tile chain, passengers included
- * (ai_euro_tile_chain_count; the old
+ * (units_tile_chain_count; the old
  * "4fa8 chain splice, substituted" story targeted the wrong function).
  * Mode 0xd (every-4th CONTACT-scan skip, Σ ship hold capacity in the
  * stack) is wired for real at the lurk scan — 2026-09-06b rewire.
@@ -838,7 +838,7 @@ static void ai_euro_0a60_foreign_colony_producers(
       if ((int)col_cnt[nation_id][cont] + (int)land_cnt[nation_id][cont] != 0 &&
           ((rec + turn) & 3) != 0) { /* raw 87778 */
         const int defenders =
-          ai_euro_tile_chain_count(ctx->units, c->x, c->y) + (int)c->population;
+          units_tile_chain_count(ctx->units, c->x, c->y) + (int)c->population;
         if (defenders > 6 - turn / 50) {
           ai_goals_upsert_primary(
             nation_id, c->x, c->y, AI_GOAL_MILITARY, at_peace ? 3 : 5
@@ -1004,7 +1004,7 @@ static void ai_euro_0a60_foreign_colony_producers(
     }
     /* Weakly-defended target cancels the staging goal (raw 1197-1203). */
     const int defenders =
-      ai_euro_tile_chain_count(ctx->units, c->x, c->y) + (int)c->population;
+      units_tile_chain_count(ctx->units, c->x, c->y) + (int)c->population;
     if (defenders <= 6 - turn / 50) {
       outmatched = 0;
       absent = 0;
@@ -1051,8 +1051,8 @@ static void ai_euro_0a60_village_producers(
         const int alarm = ai_diplo_indian_alarm(ctx->col1, ind, nation_id);
         int fire = 1;
         if (alarm < 0x4b) {
-          fire = (ctx->col1->indian[ind - 4].euro_diplo[nation_id] &
-                  COL1_INDIAN_WAR_BIT) != 0;
+          /* 8c28 = 0a38(euro, tribe+4): the Euro-side byte (#1618). */
+          fire = (ai_diplo_read(ctx->col1, nation_id, ind) & COL1_INDIAN_WAR_BIT) != 0;
         }
         if (fire) {
           const int prio = (t->mission & 0x80u) ? 2 : 4;
@@ -1299,7 +1299,7 @@ static void ai_euro_5952_labor_demand(
     /* Slot walk (Leads 2, 2026-09-10): `i` is an array index, not a unit id. */
     for (int i = 0; i < units_slot_end(ctx->units); ++i) {
       const ColonizeUnit* u = &ctx->units->units[i];
-      if (!ai_euro_in_tile_chain(ctx->units, u, c->x, c->y)) {
+      if (!units_in_tile_chain(ctx->units, u, c->x, c->y)) {
         continue; /* FUN_1427_005c chain: passengers included */
       }
       if (units_type_has_profession_slot(ai_euro_20e6_dos_type(ctx->units, u))) {
@@ -1330,7 +1330,7 @@ static void ai_euro_5952_labor_demand(
     /* Slot walk (Leads 2, 2026-09-10): `i` is an array index, not a unit id. */
     for (int i = 0; i < units_slot_end(ctx->units); ++i) {
       ColonizeUnit* u = &ctx->units->units[i];
-      if (!ai_euro_in_tile_chain(ctx->units, u, c->x, c->y)) {
+      if (!units_in_tile_chain(ctx->units, u, c->x, c->y)) {
         continue; /* raw 94040 07e0/02e4 chain: passengers included */
       }
       const int dtype = ai_euro_20e6_dos_type(ctx->units, u);
@@ -2706,7 +2706,7 @@ void ai_euro_colony_goals(ColonizeTurnContext* ctx, int nation_id) {
   ai_goals_clear_work_queue();
 
   /* A: urgency seed; FUN_1d1d_0dae(0x9faa,0,0x10e) coarse-plane wipe + restamp. */
-  ai_coarse_fog_euro_restamp(ctx->units, ctx->colonies, nation_id);
+  ai_coarse_fog_euro_restamp(ctx->units, ctx->colonies, ctx->map, nation_id);
   /* Raw lines 1-189: per-unit 0x3148 housekeeping + foreign-ship CONTACT
    * producer, DOS position (after the memsets, before the colony loop). */
   ai_euro_0a60_unit_housekeeping(ctx, nation_id);

@@ -323,10 +323,6 @@ int ai_euro_20e6_park_arms_4d2e(ColonizeTurnContext* ctx, ColonizeUnit* u, const
 void ai_euro_20e6_prologue(ColonizeTurnContext* ctx, const ColonizeUnit* u, int nation, Ai20e6Unit* s);
 int ai_euro_20e6_own_colonies_on(const ColonizeTurnContext* ctx, int nation, int cid);
 int ai_euro_10ec_land_units_on(const ColonizeTurnContext* ctx, int nation, int cid);
-/* FUN_1427_0d38 tile-chain membership: on-map units at (x,y) plus the
- * passengers of ships there (ai_euro_land.c). */
-bool ai_euro_in_tile_chain(const ColonizeUnitPool* pool, const ColonizeUnit* u, int x, int y);
-int ai_euro_tile_chain_count(const ColonizeUnitPool* pool, int x, int y);
 /* DS:0x95f2[cid] as this nation's FUN_4962_0018 census left it (ai_euro_ship.c). */
 int ai_euro_20e6_presence_95f2(const ColonizeTurnContext* ctx, int nation, int cid);
 int ai_euro_20e6_open_continents(const ColonizeTurnContext* ctx, int nation);

@@ -356,9 +356,8 @@ the slot's row is `FUN_2f2b_0434`'s last owned row of the category (the Stable
 over the Warehouse, the Stockade even unowned: `colony_screen_slot_row`). An
 unowned slot is labelled `@MISC` 122 ("Trees", centred like the wide classes);
 the class-3 fence corner appends " " + `@MISC` 123 (port_bugs.md #1686, #1687).
-Ported as `colony_screen_update_hover` (`ColonyScreenView.hover_cat_plus1`;
-`hover_building_row`, set from `colony_screen_hit_test`, is the fallback) plus a
-tail block in `colony_screen_blit_buildings`.
+Ported as `colony_screen_update_hover` (`ColonyScreenView.hover_cat_plus1`, set
+each frame by the game loop) plus a tail block in `colony_screen_blit_buildings`.
 The backdrop is a solid colour-0 fill: `FUN_281f_00ba` -> `FUN_1b9e_000a` with
 x/y/w in AX/DX/BX and stack args colour `PUSH 0`, height 7, then the far
 pointer of the target surface `DS:0x2da8..0x2dae` (where the colour sits, not

@@ -3198,8 +3198,14 @@ bool units_try_native_settlement_fallout_w(
         col1, attacker_nation_id, tribe_nation, rng, rich_capital);
     }
     if (gold > 0) {
-      const bool spawned =
-        units_spawn_treasure_train(units, tile_x, tile_y, attacker_nation_id, gold) >= 0;
+      const int treasure_id =
+        units_spawn_treasure_train(units, tile_x, tile_y, attacker_nation_id, gold);
+      const bool spawned = treasure_id >= 0;
+      /* FUN_1427_06b4 tail (02ca + 13f1_02f8): every spawn reveals the
+       * owner's sight around the new unit (port_bugs.md #1788). */
+      if (spawned) {
+        (void)units_reveal_sight_w(w, units_get_const(units, treasure_id));
+      }
       /* FUN_5fef_31ea raw 101482-101487: a failed FUN_281f_095c spawn zeroes
        * the amount and skips 04ac(2) and the @LOOT popup. Neither is gated on
        * a human side: an AI razer shows @LOOT too (port_bugs.md #1794). */
@@ -3709,7 +3715,8 @@ void units_lcr_burial_resolve_w(
     if (fizzle_in) {
       units_dissolve_notify(0);
     }
-    if (units_spawn_treasure_train(pool, x, y, nation, gold) < 0) {
+    const int treasure_id = units_spawn_treasure_train(pool, x, y, nation, gold);
+    if (treasure_id < 0) {
       /* `if (param_1 < 0) goto LAB_65dd_080a`: no popup, no @SCREWED; local_e
        * stays 0 so nothing changed on screen (identical frames, no fizzle). */
       if (fizzle_in) {
@@ -3717,6 +3724,8 @@ void units_lcr_burial_resolve_w(
       }
       return;
     }
+    /* FUN_1427_06b4 tail: the spawn reveals the owner's sight (#1788). */
+    (void)units_reveal_sight_w(w, units_get_const(pool, treasure_id));
     /* 65dd:0654: human + no tribe claim → 0x24 treasure tune (281f_048e). */
     if (nation == human_nation && screwed_tribe < 0) {
       units_play_event_sound(0x24);
@@ -4034,6 +4043,8 @@ bool units_resolve_lcr_rumour_w(
       }
       break;
     }
+    /* FUN_1427_06b4 tail: the spawn reveals the owner's sight (#1788). */
+    (void)units_reveal_sight_w(w, units_get_const(pool, treasure_id));
     s_lcr_cibola_total++; /* 103546: `*(char *)0x1dc7 += 1` after the spawn. */
     /* FUN_65dd_0004 65dd:04b6 case 2: queued tune (281f_048e). The spawn sits
      * in the roll loop (raw 103543), so a failed spawn never reaches the cue

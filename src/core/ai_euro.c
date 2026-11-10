@@ -203,7 +203,7 @@ void ai_euro_refresh_continent_stance(ColonizeTurnContext* ctx, int nation_id) {
       } else {
         const int alarm = ai_diplo_indian_alarm(ctx->col1, other, nation_id);
         if (alarm < 0x4b &&
-            (ctx->col1->indian[other - 4].euro_diplo[nation_id] & COL1_INDIAN_WAR_BIT) == 0) {
+            (ai_diplo_read(ctx->col1, nation_id, other) & COL1_INDIAN_WAR_BIT) == 0) { /* Euro side, #1618 */
           continue;
         }
       }
@@ -686,8 +686,11 @@ int ai_euro_colony_needs_colonists_5952(
       if (!colonies_field_tile_delta(ti, &dx, &dy)) {
         continue;
       }
-      if (map_tile_is_water(map, c->x + dx, c->y + dy)) {
-        ++blocked; /* off-map or Ocean / High Seas */
+      /* raw 94086 / 94092: FUN_281f_0302 inset test, so a rim tile counts
+       * as off the map (port_bugs.md #1634). */
+      if (!map_coords_inset(map, c->x + dx, c->y + dy) ||
+          map_tile_is_water(map, c->x + dx, c->y + dy)) {
+        ++blocked; /* off-map/rim or Ocean / High Seas */
       }
     }
   }
@@ -890,8 +893,8 @@ void ai_euro_refresh_colony_ai_flags(
       }
       const int tx = c->x + dx;
       const int ty = c->y + dy;
-      if (tx < 0 || ty < 0 || tx >= (int)ctx->map->width || ty >= (int)ctx->map->height) {
-        ++unproductive; /* raw 94086-94088: off-map counts as blocked */
+      if (!map_coords_inset(ctx->map, tx, ty)) {
+        ++unproductive; /* raw 94086-94088: off the FUN_281f_0302 inset (rim too) counts as blocked */
         continue;
       }
       const int cls = map_dos_terr_class_at(ctx->map, tx, ty);
@@ -949,6 +952,9 @@ void ai_euro_refresh_colony_ai_flags(
       }
       const int tx = c->x + dx;
       const int ty = c->y + dy;
+      if (!map_coords_inset(ctx->map, tx, ty)) {
+        continue; /* raw 94085: the 0x80 counters sit inside the FUN_281f_0302 else */
+      }
       if (!map_tile_has_road(ctx->map, tx, ty)) {
         c->ai_flags |= COLONIZE_COLONY_AI_WANTS_PIONEER_WORK;
         break;

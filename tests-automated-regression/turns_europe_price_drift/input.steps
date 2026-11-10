@@ -6,7 +6,7 @@
 # Furs ledger (nr / tons / gold) and the EOT market tick move across both turn ends (turn 108 -> 110).
 key e                      # open the European Status screen (Galleon A selected in the harbor)
 wait 30
-key Return                 # harbor options for Galleon A
+click 155 155              # Galleon A's icon (first in the harbor): its options menu (Enter acts on the focused panel only, #1739)
 wait 60
 key Down
 key Down                   # "Unload all cargo" (row 2)
@@ -20,9 +20,9 @@ key space                  # end turn 108
 wait 300
 key Return                 # Colonization Help: Time Scale
 wait 60
-key Return                 # Sons of Liberty in Quebec up to 60%
+key Return                 # price of Cigars rises to 11 (shown before the colony notices, #1821)
 wait 60
-key Return                 # price of Cigars rises to 11
+key Return                 # Sons of Liberty in Quebec up to 60%
 wait 60
 key e                      # Europe again (turn 109)
 wait 30

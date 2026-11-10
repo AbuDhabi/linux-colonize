@@ -185,7 +185,8 @@ int ai_king_mow_sail_home_20e6(ColonizeTurnContext* ctx, struct ColonizeUnit* u,
  * turn, WoI not declared, seller = random nation at peace with the human,
  * offered only when affordable). Pay → 10f0 paid landing. DOS runs it in
  * the human's year-loop slot right before Move Pieces; call it once per
- * turn from the TURN_PROC_KING tail. Never for AI nations.
+ * turn after the turn autosave (game_finish_end_turn / turn_end; raw 6416
+ * save then 6418 offer). Never for AI nations.
  */
 void ai_king_peacetime_merc_offer(ColonizeTurnContext* ctx);
 

@@ -922,8 +922,8 @@ void game_retire_after_score(ColonizeGameState* game) {
   game_hof_save(game);
 
   if (sc.exploits_tier >= 0 && !sc.scoring_complete) {
-    /* DOS FUN_41f2_0b70 plays the tier-selected tune at the coin reveal. */
-    sound_play(sound_retire_tune_id(sc.exploits_tier));
+    /* DOS FUN_41f2_0b70 plays the tier tune at the coin reveal via 281f_04c0 (#1811). */
+    sound_play_now(sound_retire_tune_id(sc.exploits_tier));
     game_build_exploits(game, &sc);
     game->in_exploits = true;
   } else {

@@ -10,13 +10,17 @@
 # a new Artillery on the Montreal tile) with its notice.
 key space                  # end the turn (autumn 1599)
 wait 30
+key Return                 # (nested, AI turn) Spanish loot and burn an Iroquois village: @LOOT shown to the human (#1794)
+wait 10
+key Return                 # (nested) Spanish Soldiers routed, demoted: AI-vs-AI fight the human sees (#1791)
+wait 10
+key Return                 # price of Coats in La Rochelle rises (@PRICEUP before the colony loop, #1821)
+wait 6
 key Return                 # @NEEDTOOLS: Artillery in Montreal needs 40 tools, 37 available: Continue turn
 wait 6
 key Return                 # Quebec colony produces Lumber Mill: Continue turn
 wait 6
 key Return                 # King increases military spending: Regulars added to the REF
-wait 6
-key Return                 # price of Coats in La Rochelle rises
 wait 6
 shot
 key s                      # sentry Scout 77 (spring 1600): nothing left to move
@@ -25,16 +29,14 @@ key space                  # end the turn (spring 1600)
 wait 30
 key Return                 # Colonization Help: Time Scale (two turns per year from now on)
 wait 30
-key Return                 # English defeat French Colonists near Guadeloupe
-wait 10
 key Return                 # French wagon train captured by the English
 wait 6
 key Return                 # French colonists captured by the English
 wait 6
 key Return                 # English march into Guadeloupe, 90$ plundered
 wait 6
-key Return                 # Montreal colony produces Artillery: Continue turn
+key Return                 # price of Cigars in La Rochelle rises (@PRICEUP before the colony loop, #1821)
 wait 6
-key Return                 # price of Cigars in La Rochelle rises
+key Return                 # Montreal colony produces Artillery: Continue turn
 wait 6
 shot

@@ -8,31 +8,33 @@
 # Gold 429 -> 727 (the English plunder of Guadeloupe takes 152 of it).
 key space                  # end the turn (autumn 1599)
 wait 300
-key Return                 # (the Custom House sale line 'Quebec sells 100 Furs ...' needs no answer) War of the Spanish Succession ends: Spain cedes New Spain to the Dutch
+key Return                 # (nested, AI turn) Spanish loot and burn an Iroquois village: @LOOT shown to the human (#1794)
 wait 60
-key Return                 # King increases military spending: Regulars added to the REF
+key Return                 # (nested) Spanish Soldiers routed, demoted: AI-vs-AI fight the human sees (#1791)
+wait 60
+key Return                 # price of Coats in La Rochelle rises (@PRICEUP before the colony loop, #1821)
+wait 60
+key Return                 # (the Custom House sale line 'Quebec sells 100 Furs ...' needs no answer) King increases military spending: Regulars added to the REF (KINGBUY before succession, #1660)
+wait 60
+key Return                 # War of the Spanish Succession ends: Spain cedes New Spain to the Dutch
 wait 60
 key Return                 # Rebel sentiment 50%
 wait 60
-key Return                 # price of Coats in La Rochelle rises
-wait 60
 shot
-key s                      # sentry Scout 77 (spring 1600): nothing left to move
-wait 30
-key space                  # end the turn (spring 1600)
+key space                  # Scout 77 (no orders) is skipped; End of Turn prompt
+wait 300
+key Return                 # end the turn (spring 1600)
 wait 300
 key Return                 # Colonization Help: Time Scale (two turns per year from now on)
 wait 300
-key Return                 # English defeat French Colonists near Guadeloupe
-wait 100
 key Return                 # French wagon train captured by the English
 wait 60
 key Return                 # French colonists captured by the English
 wait 60
-key Return                 # English march into Guadeloupe, 90$ plundered
+key Return                 # English march into Guadeloupe, 152$ plundered
+wait 60
+key Return                 # price of Cigars in La Rochelle rises (@PRICEUP before the colony loop, #1821)
 wait 60
 key Return                 # (after 'Quebec sells 52 Tobacco ...') SoL membership in Quebec up to 60%: Continue turn
-wait 60
-key Return                 # price of Cigars in La Rochelle rises
 wait 60
 shot

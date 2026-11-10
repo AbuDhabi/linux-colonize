@@ -960,8 +960,9 @@ bool map_nation_watches_tile(const ColonizeWorldMap* map, int x, int y, int nati
     const size_t i = (size_t)ny * map->width + (size_t)nx;
     const uint8_t occ = map->layer2[i];
     const int owner = (map->layer3[i] >> MAP_L3_OWNER_SHIFT) & MAP_L3_OWNER_MASK;
-    /* FUN_137f_0314: unit present + owner nibble; FUN_137f_0358: colony (owner < 4). */
-    if ((occ & MAP_OCCUPANCY_HAS_UNIT) != 0 && owner == nation_id) {
+    /* FUN_137f_0314: inset (FUN_137f_000a) + unit present + owner nibble;
+     * FUN_137f_0358: colony (owner < 4), no inset test (port_bugs.md #1634). */
+    if ((occ & MAP_OCCUPANCY_HAS_UNIT) != 0 && owner == nation_id && map_coords_inset(map, nx, ny)) {
       return true;
     }
     if ((occ & MAP_OCCUPANCY_HAS_CITY) != 0 && owner < 4 && owner == nation_id) {
@@ -1020,8 +1021,8 @@ void map_seen_to_col1(const ColonizeWorldMap* map, uint8_t* col1_seen, size_t co
  * blitted). An ocean tile (param_2 = 1) takes the ocean neighbour art as-is.
  *
  * (x, y) is the tile being drawn, (nx, ny) its cardinal neighbour; -1 means
- * DOS skips the edge entirely. Off-map tiles read as seen, so neither the
- * seen-side nor the fog-side helper fires on the map rim.
+ * DOS skips the edge entirely (always for an off-map neighbour). A rim
+ * neighbour (in bounds, off the inset) counts as unseen: see map_edge_walk.
  */
 static int map_fog_edge_fill_for(
   const ColonizeWorldMap* map,
@@ -1459,13 +1460,14 @@ static int map_edge_walk(
         continue;
       }
     } else {
-      /* The seen side lets off-map neighbours through (they read as unseen)
-       * and relies on map_fog_edge_fill_for returning -1 for them; the reveal
-       * side skips them outright, as the DOS fog-side walk does. */
-      if (kind == MAP_EDGE_FOG_REVEAL && !map_in_bounds(map, nx, ny)) {
-        continue;
-      }
-      if (map_tile_seen_by(map, nx, ny, nation_id) != (kind == MAP_EDGE_FOG_REVEAL)) {
+      /* FUN_6ba1_06e0 bVar11 (raw 109491-109492 + 109517-109523): a
+       * neighbour off the FUN_281f_0302 inset counts as unseen even when its
+       * seen bit is set, so the seen side draws toward a rim tile and the
+       * reveal side skips it (port_bugs.md #1634). Off-map neighbours stay
+       * skipped (map_fog_edge_fill_for returns -1 for them). */
+      const bool nb_seen =
+        map_coords_inset(map, nx, ny) && map_tile_seen_by(map, nx, ny, nation_id);
+      if (nb_seen != (kind == MAP_EDGE_FOG_REVEAL)) {
         continue;
       }
       fill = map_fog_edge_fill_for(map, x, y, nx, ny);

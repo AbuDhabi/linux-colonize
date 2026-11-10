@@ -9,19 +9,23 @@
 # everything stays at or under capacity, no further notices.
 key space                  # end the turn (autumn 1599)
 wait 30
+key Return                 # (nested, AI turn) Spanish loot and burn an Iroquois village: @LOOT shown to the human (#1794)
+wait 10
+key Return                 # (nested) Spanish Soldiers routed, demoted: AI-vs-AI fight the human sees (#1791)
+wait 10
+key Return                 # price of Coats in La Rochelle rises (@PRICEUP before the colony loop, #1821)
+wait 6
 key Return                 # @SPOIL1 Montreal (Warehouse, cap 200): 30 Lumber thrown away: Continue turn
 wait 6
 key Return                 # @SPOIL2 Quebec (no Warehouse, cap 100): Cotton 130 and Furs 120 clipped, 'some of our cargo': Continue turn
 wait 6
 key Return                 # @CARGOREADY1: Tobacco in Quebec at its storage capacity (100): Continue turn
 wait 6
+key Return                 # King increases military spending: Regulars added to the REF (KINGBUY before succession, #1660)
+wait 6
 key Return                 # War of the Spanish Succession ends: Spain cedes New Spain to the Dutch
 wait 6
-key Return                 # King increases military spending: Regulars added to the REF
-wait 6
 key Return                 # Rebel sentiment 50%
-wait 6
-key Return                 # price of Coats in La Rochelle rises
 wait 6
 shot
 key s                      # sentry Scout 77 (spring 1600): nothing left to move
@@ -30,16 +34,14 @@ key space                  # end the turn (spring 1600)
 wait 30
 key Return                 # Colonization Help: Time Scale (two turns per year from now on)
 wait 30
-key Return                 # English defeat French Colonists near Guadeloupe
-wait 10
 key Return                 # French wagon train captured by the English
 wait 6
 key Return                 # French colonists captured by the English
 wait 6
 key Return                 # English march into Guadeloupe, 90$ plundered
 wait 6
-key Return                 # SoL membership in Quebec up to 60%: Continue turn
+key Return                 # price of Cigars in La Rochelle rises (@PRICEUP before the colony loop, #1821)
 wait 6
-key Return                 # price of Cigars in La Rochelle rises
+key Return                 # SoL membership in Quebec up to 60%: Continue turn
 wait 6
 shot

@@ -16,6 +16,8 @@ key Return               # French colonists captured by the English
 wait 6
 key Return               # English march into Guadeloupe, 90 gold plundered
 wait 6
+key Return               # price of Cigars rises (@PRICEUP before the colony loop, port_bugs.md #1821)
+wait 6
 key Return               # Pocahontas has joined the Continental Congress
 wait 6
 key Return               # congress screen: skip the animation
@@ -33,8 +35,7 @@ key Return               # Franklin becomes next_founding_father (19)
 wait 6
 key Return               # SoL Quebec 60% (Continue turn)
 wait 30
-key Return               # price of Cigars rises; the Caravel reaching Europe opens the Europe screen
-wait 6
+wait 6                   # the Caravel reaching Europe opens the Europe screen
 key Escape               # leave the Europe screen
 wait 6
 key s                    # turn 109 (Autumn 1600): sentry the eleven units woken next to the English

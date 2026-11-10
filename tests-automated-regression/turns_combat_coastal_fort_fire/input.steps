@@ -16,21 +16,22 @@ key Return               # dismiss the analysis: the fort hits
 wait 10
 key Return               # @SHIPDAMAGE "{French Caravel} damaged! Ship returns to {Quebec} for repairs." (nearest
 wait 10                 #  own Drydock; goto = return-from-Europe tile 49,30; repair bill 0 vs a doubled fort)
+key Return               # @EUROPELOSE "{English} defeat {French Caravel} near Jamestown!" (fort fire runs the 1b0e popup block, #1793)
+wait 10
 key Return               # (AI turn running; presses between popups are ignored)
 wait 10
-                         #  wagon train captured (no outcome popup: #1464/#1465)
+key Return               # French wagon train captured by the English
+wait 10
 key Return               # French colonists captured by the English
 wait 10
 key Return               # English march into Guadeloupe, 90 gold plundered
 wait 10
-key Return               # SoL Quebec 60% (Continue turn)
+key Return               # "{Caravel} has completed its repairs in {Quebec}." (@REFIT right after the unit walk, #1821)
 wait 10
-key Return
-wait 10
-key Return               # price of Cigars rises
-wait 10
-key Return               # "{Caravel} has completed its repairs in {Quebec}." (French turn-109 repair tick);
-wait 10                 #  Caravel #148 reaching Europe opens the Europe screen
+key Return               # price of Cigars rises (@PRICEUP before the colony loop, #1821)
+wait 30
+key Return               # SoL Quebec 60% (Continue turn); Caravel #148 reaching Europe opens the Europe screen
+wait 30
 key Escape               # leave the Europe screen; the repaired Caravel asks for orders
 wait 6
 shot

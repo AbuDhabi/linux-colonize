@@ -49,6 +49,14 @@ bool unit_stack_try_open(
   int y,
   int nation_id
 );
+/* Same list for a lone unit (one row, cancellable): FUN_2b5a_1b5a raw 42711-42716. */
+bool unit_stack_open_lone(
+  UnitStackPopup* dlg,
+  const ColonizeUnitPool* pool,
+  int x,
+  int y,
+  int nation_id
+);
 
 /*
  * Returns true if input was consumed (dialog open).

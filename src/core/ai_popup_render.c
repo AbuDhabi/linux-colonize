@@ -110,8 +110,13 @@ bool ai_popup_handle_input(AiPopupState* st, const ColonizeInputState* input) {
         st->selection = idx;
         ai_popup_finish(st, false, st->current.choice_ids[idx]);
       }
-    } else if (st->current.outside_leaves) {
-      ai_popup_finish(st, true, 0); /* 2580 returns 0: no row */
+    } else {
+      /* Off the box every kind drops the selection first (piVar8[0x26] = 0, raw 116717),
+       * so Enter on a box that stays up confirms nothing (#1672). */
+      st->selection = -1;
+      if (st->current.outside_leaves) {
+        ai_popup_finish(st, true, 0); /* 2580 returns 0: no row */
+      }
     }
     return true;
   }

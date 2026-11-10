@@ -132,6 +132,17 @@ queue time (`game_loop_orders.c`) because they do not depend on an answer.
 Two narrow differences after a hot-seat `@MULTIREV` "Yes" are listed in
 [hotseat.md](hotseat.md) "Divergences".
 
+### #1643 — Self diplomacy reads
+`ai_diplo_read(n, n)` returns PEACE|ATTACK_CONFIRMED and a self write is a no-op;
+DOS reads the raw self byte (0 in saves). Whether any DOS loop reaches nation ==
+self could not be settled from the decomp.
+
+### #1831 — Open-sea adjacency accepts region 0
+`map_tile_is_open_sea_adjacent` (map.c) accepts a water neighbour whose region
+(layer3 low nibble) is 0, where DOS `06b4` requires region == 1. Synthetic maps
+with layer3 0 therefore fall back to the plain 8-neighbour water test. On a real
+map this matters only if a water tile carries region 0.
+
 ## Blocked on a live DOS capture
 
 Static reading cannot settle these. Each names exactly what to capture. Do not

@@ -254,6 +254,7 @@ void howmuch_render(
   }
   TextEditState edit;
   text_edit_reset(&edit, dlg->field, dlg->field_selected);
+  edit.max_len = 5; /* FUN_291f_0120(5): no "_" caret on a full field (6f74_1e14, #1812) */
   TextEditColors edit_colors;
   text_edit_default_colors(&edit_colors);
   edit_colors.text = text_color;

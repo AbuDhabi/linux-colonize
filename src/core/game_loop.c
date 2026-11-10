@@ -887,7 +887,11 @@ void game_popup_camera(void* user, const AiPopupRequest* req) {
     y = col->y;
   }
   if (req->cam_mode == AI_POPUP_CAM_CENTRE) {
-    game_set_view_center(game, x, y); /* FUN_1984_029e */
+    /* FUN_1984_029e raw 13951-13960 does nothing off the inset map
+     * (FUN_137f_000a fails; port_bugs.md #1634). */
+    if (map_coords_inset(&game->world_map, x, y)) {
+      game_set_view_center(game, x, y);
+    }
   } else if (req->cam_mode == AI_POPUP_CAM_EDGE) {
     game_camera_edge_center(game, x, y);
   }
@@ -1411,6 +1415,16 @@ static void game_tax_change_mirror(void* user, int nation_id, int new_tax) {
   }
 }
 
+/* port_bugs.md #1824: the immigrant beat, FUN_38fd_5e52 asm 38fd:5ec4-5ee4:
+ * 281f_0498(pool) arms the pool, then 281f_04ac(pool) restarts only when
+ * DS:0xa2 (Background Music) is 0. */
+static void game_immigrant_bgm(int pool) {
+  sound_set_bgm_pool(pool);
+  if (!sound_get_options().background_music) {
+    sound_set_bgm(pool);
+  }
+}
+
 void game_bind_combat_analysis(ColonizeGameState* game) {
   if (!game) {
     return;
@@ -1423,7 +1437,7 @@ void game_bind_combat_analysis(ColonizeGameState* game) {
   units_set_bgm_hook(sound_set_bgm);
   units_set_tax_change_hook(game_tax_change_mirror, game);
   europe_set_sound_hook(sound_play);
-  europe_set_bgm_hook(sound_set_bgm);
+  europe_set_bgm_hook(game_immigrant_bgm);
   woodcut_set_sound_hooks(sound_play, sound_set_bgm);
   woodcut_set_bgm_gate_hooks(sound_set_bgm_pool, sound_event_music_gate);
   closing_set_sound_hooks(sound_play, sound_set_bgm, sound_stop_sfx);

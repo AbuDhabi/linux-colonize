@@ -318,6 +318,13 @@ void game_colony_drag_begin_cargo(ColonizeGameState* game, int cargo_type);
 void game_colony_open_unload_prompt(
   ColonizeGameState* game, const ColonizeColony* colony, int hold
 );
+/* FUN_2f2b_4da6: unload the first hold of `cargo` from the selected transport into the
+ * viewed colony (ask_amount: @HOWMUCH2 first), then its gold bar. */
+void game_colony_unload_cargo(
+  ColonizeGameState* game, const ColonizeColony* colony, int cargo, bool ask_amount
+);
+/* 4da6's gold bar "qty cargo @CMESSAGE 2 colony" for `moved` (> 0) units ashore. */
+void game_colony_unload_bar(ColonizeGameState* game, int cargo, int moved);
 void game_colony_drag_begin_colonist(ColonizeGameState* game, int colonist_index);
 void game_colony_drag_begin_hold(ColonizeGameState* game, int hold_index);
 void game_colony_drag_begin_outside(ColonizeGameState* game, int unit_id);

@@ -166,9 +166,9 @@ glancing; 18 shot; 20 animal shot; 21 pump-action; 22 gunfight; 23–34 shots (2
 
 | Event id | COLDIG | Sound | DOS push site | Port |
 |---|---|---|---|---|
-| `0x40`/`0x41` | 31 / 32 | shot | `5fef_1b0e` 5fef:232e-23a7 selects generic attack `0x40` or `0x41` by both units' attack stat; `0x40` also occurs in its loss cue. All are gated by `param_4` (visible). | Generic attack and loss selection ported |
+| `0x40`/`0x41` | 31 / 32 | shot | `5fef_1b0e` 5fef:232e-23a7 selects generic attack `0x40` or `0x41` by both units' attack stat; `0x40` is also the field arm of the win-limb selector. All are gated by `param_4` (visible). | Generic attack and loss selection ported |
 | `0x42`/`0x48` | 30 / 29 | shots | `5fef_1b0e`: `0x42` is generic attack for a ship or Artillery; `0x48` is a native village's partial-loss cue | Both ported |
-| `0x43`/`0x49` | 27 / 34 | shots | `5fef_1b0e` 5fef:2577-259f attacker-loss cue: `0x43` for ship/attacking Artillery, `0x49` when the defender tile has a native settlement, else `0x40` | Loss selector ported in `units_combat_resolve.c` |
+| `0x43`/`0x49` | 27 / 34 | shots | `5fef_1b0e` asm 0x5D4E7-0x5D50F attacker-win cue (outside the temporary-defender limb, before the defender's outcome): `0x43` for a ship or Artillery attacker, `0x49` when a colony or village stands on the target (06be = 137f_03e4 >= 0), else `0x40`; the loss limb has no cue | Win selector ported in `units_combat_resolve.c` |
 | `0x44`/`0x45` | 18 / 17 | shot / glancing shot | `5fef_1b0e` 5fef:28b0 native-colony tail selects `0x44` for a ship attacker, otherwise `0x45`; normal native data cannot reach its ship arm. The earlier typed-cue expression can also compute `0x44`. | Both DOS launch expressions for `0x44` are retained, including the normally unreachable tail selector; `0x45` has the same colony/population gate |
 | `0x46`/`0x47` | 16 / 16 | sinking | `5fef_1b0e` 5fef:2292 computes `0x3b + attacker @UNIT row`; rows 11/12 yield these IDs | Same computed dispatch in `units_combat_resolve.c` |
 | `0x4a`/`0x4b` | 28 / 33 | shots | `5fef_1b0e` win; `0x4b` for a temporary defender at a European colony | `units_move.c` win selection with the same visibility and temporary-defender context |
@@ -233,7 +233,7 @@ Europe-open sites); `38fd_5e52` human immigrant → pool 2 (ported, `europe_noti
 with gold → pool 2 (`65dd:04ca`); case 5 vanish → pool 1 (`65dd:0778`); burial-mounds
 BURIAL3 treasure with no tribe claim → `0x24` (`65dd:0654`), a claim → `0x32` ahead of @SCREWED
 (`65dd:06e6`) — all human-only (`local_a`); `4d56_2820` village visit (human, 1-in-3 roll) → pool 5, Inca 7, Aztec 6
-(ported in `ai_contact_speak_with_chief`); `5bfb_022e` first meet → same pools from turn 20 (`04ac` = `129f_0318` restart-if-changed, `0498` = the option-gated wrapper; ported in `ai_contact_enqueue_welcome`);
+(ported in `ai_contact_speak_with_chief`); `5bfb_022e` first meet always picks a tune (nation slot 0→7, 1→6, else 5); it calls `0498` (pool, no restart) when turn < 0x14 && DS:0xa2 != 0 && slot >= 2, else `04ac` (`129f_0318` restart-if-changed) (ported in `ai_contact_enqueue_welcome`, port_bugs.md #1632);
 `43f7_1d42` has a pool-3 call only in its unreachable wartime arm: the function
 returns at entry when wartime, while the peacetime `@KINGBUY` arm returns before
 that call; `43f7_10f0` → pool 3 then `0x3f`

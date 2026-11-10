@@ -20,5 +20,9 @@
 {"type":"key_up","t_ms":4440,"frame":215,"keycode":13,"mod":0}
 {"type":"key_down","t_ms":4776,"frame":236,"keycode":13,"mod":0}
 {"type":"key_up","t_ms":4824,"frame":239,"keycode":13,"mod":0}
-{"type":"key_down","t_ms":5160,"frame":260,"keycode":1073741893,"mod":0}
-{"type":"key_up","t_ms":5176,"frame":261,"keycode":1073741893,"mod":0}
+{"type":"key_down","t_ms":5160,"frame":260,"keycode":13,"mod":0}
+{"type":"key_up","t_ms":5208,"frame":263,"keycode":13,"mod":0}
+{"type":"key_down","t_ms":5544,"frame":284,"keycode":13,"mod":0}
+{"type":"key_up","t_ms":5592,"frame":287,"keycode":13,"mod":0}
+{"type":"key_down","t_ms":5928,"frame":308,"keycode":1073741893,"mod":0}
+{"type":"key_up","t_ms":5944,"frame":309,"keycode":1073741893,"mod":0}

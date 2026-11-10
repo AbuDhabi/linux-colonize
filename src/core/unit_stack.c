@@ -25,18 +25,19 @@ static void unit_stack_close(UnitStackPopup* dlg) {
   dlg->selection = 0;
 }
 
-bool unit_stack_try_open(
+static bool unit_stack_open_min(
   UnitStackPopup* dlg,
   const ColonizeUnitPool* pool,
   int x,
   int y,
-  int nation_id
+  int nation_id,
+  int min_n
 ) {
   if (!dlg || !pool) {
     return false;
   }
   int n = units_collect_tile_stack(pool, x, y, nation_id, dlg->ids, UNITS_TILE_STACK_MAX);
-  if (n <= 1) {
+  if (n < min_n) {
     return false;
   }
   /* port_bugs.md #654: FUN_2b5a_1b5a raw 42760 stops adding rows at 10 (`local_54 < 10`):
@@ -65,6 +66,26 @@ bool unit_stack_try_open(
     }
   }
   return true;
+}
+
+bool unit_stack_try_open(
+  UnitStackPopup* dlg,
+  const ColonizeUnitPool* pool,
+  int x,
+  int y,
+  int nation_id
+) {
+  return unit_stack_open_min(dlg, pool, x, y, nation_id, 2);
+}
+
+bool unit_stack_open_lone(
+  UnitStackPopup* dlg,
+  const ColonizeUnitPool* pool,
+  int x,
+  int y,
+  int nation_id
+) {
+  return unit_stack_open_min(dlg, pool, x, y, nation_id, 1);
 }
 
 /*

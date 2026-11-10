@@ -20,6 +20,8 @@ key Return               # Rebel colonists CAPTURED by the Tory (nested pump)
 wait 10
 key Return               # Tories defeat Rebel Colonists near Guadeloupe (nested pump)
 wait 10
+key Return               # Tory Cavalry routed, demoted to Regulars (nested pump; AI-vs-AI fight the human sees, #1791)
+wait 10
 key Return               # nested pump
 wait 10
 key Return               # Rebel colonists CAPTURED by the Tory (nested pump)
@@ -29,5 +31,7 @@ wait 10
 key Return               # @WARN1: all but 2 of the ports in New France
 wait 10
 key Return               # Iroquois gift of 11 Cotton to Port au Prince
+wait 10
+key Return               # (nested, native turn) a brave beats a Tory Cavalry: routed, demoted (AI-vs-AI fight the human sees, #1791)
 wait 10
 shot                     # Spring 1601

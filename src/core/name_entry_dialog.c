@@ -118,11 +118,16 @@ bool name_entry_handle_input(NameEntryDialog* dlg, const ColonizeInputState* inp
       break;
   }
 
+  /* FUN_6f74_2580 on a text box (no rows, no unit icons): a button release
+   * anywhere, either button, ends the loop at LAB_6f74_2e53 with *param_1
+   * still 0 (raw 117037-117054), so FUN_291f_0120 accepts; only Esc writes
+   * -1 (raw 116791). The press only arms it (#1724), so the release of the
+   * click that opened the dialog does not. Clicks on the field itself stay
+   * the caret editor's. */
   if (input->mouse_left_clicked || input->mouse_right_clicked) {
-    /* FUN_6f74_2580 on a text box (no rows, no unit icons): a button release
-     * anywhere, either button, ends the loop at LAB_6f74_2e53 with *param_1
-     * still 0 (raw 117037-117054), so FUN_291f_0120 accepts; only Esc writes
-     * -1 (raw 116791). Clicks on the field itself stay the caret editor's. */
+    dlg->press_seen = true;
+  }
+  if (dlg->press_seen && (input->mouse_left_released || input->mouse_right_released)) {
     name_entry_finish(dlg, false);
     return true;
   }

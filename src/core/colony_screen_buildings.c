@@ -1078,17 +1078,7 @@ void colony_screen_blit_buildings(
    * the building's top edge; only the two wide classes and an unowned slot push it to
    * the middle of the box.
    */
-  /* Bridge until the game loop calls colony_screen_update_hover: the slot whose row the
-   * building hit-test reported. */
-  int hover_cat = view->hover_cat_plus1 - 1;
-  const int hb = view->hover_building_row;
-  for (int i = 0; hover_cat < 0 && hb >= 0 && hb < COLONIZE_BUILDING_TYPES_MAX &&
-                  colony->has_building[hb] && i < colony_screen_building_slot_count;
-       ++i) {
-    if (colony_screen_slot_row(pool, colony, i) == hb) {
-      hover_cat = i;
-    }
-  }
+  const int hover_cat = view->hover_cat_plus1 - 1;
   if (font && hover_cat >= 0 && hover_cat < colony_screen_building_slot_count) {
     /* FUN_2f2b_05ee raw 47370-47386: an owned row's name, plus " " + @MISC 123 in the
      * class-3 fence corner; an unowned slot is @MISC 122 (port_bugs.md #1687). */

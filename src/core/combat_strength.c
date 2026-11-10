@@ -549,13 +549,12 @@ int combat_type_is_scout(const ColonizeUnitType* type) {
  *   FUN_5fef_0352 capture gate (99380): a WINNER may flip a Colonist/Wagon
  *     only when its own 0x5236 byte is non-zero.
  *
- * NOT the same question as units.c `units_is_combat_role(pool, u)` — "can
- * this BODY fight?" — which also counts carried muskets/horses because this
- * port stores a colony-armed colonist as a Colonists-type unit with kit,
- * where DOS stores it as @UNIT type 1 "Soldiers". The two agree on every
- * stock typed military unit and diverge only on armed colonists. Use THIS
- * one wherever DOS reads the type table; use the units.c one for gameplay
- * "is this a combatant" gates. Smell audit 2026-09-09 #12.
+ * NOT the same question as `units_is_combat_role(pool, u)`
+ * (units_combat_resolve.c), which also accepts a carried muskets/horses kit.
+ * Arming retypes the unit (Soldiers / Dragoons, as DOS stores it), so the two
+ * agree on every unit the game builds and differ only on a non-military type
+ * carrying a stray kit value. Use THIS one wherever DOS reads the type
+ * table. Smell audit 2026-09-09 #12; comment refreshed port_bugs.md #1776.
  */
 int combat_unit_is_combat_role(const ColonizeUnitPool* pool, int unit_id) {
   if (!pool) {
@@ -1101,6 +1100,8 @@ void combat_naval_engage(
   if (out->def_strength < 0) {
     out->def_strength = 0;
   }
-  /* Naval: difficulty peel only (artillery/ambush/SoL are land). */
+  /* Naval: the full 1b0e peel pass runs (difficulty, fatigue, and the WoI
+   * colony / SoL arm for a hull berthed in a colony); the artillery and
+   * ambush clauses never match ships (port_bugs.md #1776). */
   combat_apply_1b0e_peels(ctx, attacker_id, defender_id, out);
 }

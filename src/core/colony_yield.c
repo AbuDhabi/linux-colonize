@@ -199,8 +199,15 @@ static int colony_yield_ocean_neighbor_count(const ColonizeWorldMap* map, int x,
   static const int k_dy[8] = {-1, 0, 1, -1, 1, -1, 0, 1};
   int count = 0;
   for (int i = 0; i < 8; ++i) {
-    const int pedia = map_pedia_terrain_index_at(map, x + k_dx[i], y + k_dy[i]);
-    if (pedia == 25 || pedia == 26) {
+    /* DOS-LITERAL FUN_15eb_16fe raw 11640-11655: FUN_137f_000a inset, then
+     * raw terrain byte & 0x1f in 0x19..0x1a (port_bugs.md #1634). */
+    const int tx = x + k_dx[i];
+    const int ty = y + k_dy[i];
+    if (!map_coords_inset(map, tx, ty)) {
+      continue;
+    }
+    const int cls = map_get_terrain(map, tx, ty) & 0x1f;
+    if (cls == 0x19 || cls == 0x1a) {
       ++count;
     }
   }

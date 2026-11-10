@@ -657,7 +657,7 @@ void europe_set_bgm_hook(void (*set_bgm_fn)(int pool)) {
 void europe_notify_immigrant_sound(EuropeScreen* eu) {
   (void)eu;
   if (g_europe_set_bgm) {
-    g_europe_set_bgm(2); /* 281f_0498(2) for the human's immigrant beat */
+    g_europe_set_bgm(2); /* 281f_0498(2) + 04ac(2) gated on DS:0xa2 (game_loop.c hook) */
   }
 }
 

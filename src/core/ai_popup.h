@@ -56,9 +56,9 @@ typedef enum AiPopupTag {
    * ids, so the slot stays even while nothing enqueues it. */
   AI_POPUP_TAG_KING_CAPTURE = 5,
   AI_POPUP_TAG_KING_TAX = 6,
-  AI_POPUP_TAG_KING_LETTER = 7, /* thin 160a independence rename; game_loop plays the
-                                 * 160a signing cinematic (core/declaration.c) in front
-                                 * of this popup the frame it is presented */
+  AI_POPUP_TAG_KING_LETTER = 7, /* the @INDEPENDENCE letter (FUN_43f7_1a26's 0652); the
+                                 * 160a cinematic plays earlier, off
+                                 * AI_POPUP_TAG_DECLARATION_SIGNING */
   AI_POPUP_TAG_FF_CONGRESS = 8, /* Continental Congress FF elect chrome */
   /* 9 retired: KING_DUMP_GOODS had no enqueue site; DOS 3dc8 has only the
    * single answer-2 tea-party seize (ai_king_enqueue_teaparty_ok). */
@@ -247,6 +247,12 @@ typedef enum AiPopupTag {
   AI_POPUP_TAG_KING_SPECIALIST = 80 /* mods.kings_audience: @KINGSPECIAL, the specialists
                                      * the Crown trains for a tax rise. Choice ids = @JOB
                                      * rows; payload = the tax rise. Esc = none. */
+  ,
+  AI_POPUP_TAG_DECLARATION_SIGNING = 81 /* FUN_43f7_1a26's thunk_FUN_2a1f_009a -> 160a
+                                         * signing cinematic, queued ahead of the 0188
+                                         * @SEIZURE notices and the @INDEPENDENCE letter
+                                         * (#1665). Never drawn: game_loop closes it the
+                                         * moment it is presented and plays the cinematic. */
 } AiPopupTag;
 
 typedef struct AiPopupRequest {

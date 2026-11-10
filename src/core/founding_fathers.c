@@ -1411,8 +1411,9 @@ static void apply_effect(
     case FF_BARTOLOME_DE_LAS_CASAS:
       /* PEDIA @FATHER24 / fandom_col1994.md: existing Indian converts
        * assimilate as free colonists. Elect: profession Convert→Free
-       * Colonist on owned colony colonists + map units, once at elect (no
-       * ownership tick, see founding_fathers_tick). No gold/crosses. */
+       * Colonist on owned colony colonists + map units, once at elect. No
+       * ownership tick: original_saves/colony-prod-tests COLONY00 -> COLONY01
+       * keep the Dutch Converts under Las Casas. No gold/crosses. */
       (void)effect_las_casas_assimilate(
         colonies, units, nation_id == human_nation ? europe : NULL, nation_id
       );
@@ -1604,63 +1605,6 @@ void founding_fathers_apply_popup_result(ColonizeTurnContext* ctx, AiPopupState*
   if (pool >= needed) {
     (void)elect_commit(ctx, nation, idx);
   }
-}
-
-void founding_fathers_tick(ColonizeTurnContext* ctx) {
-  if (!ctx || !ctx->col1_ok || !ctx->col1) {
-    return;
-  }
-  /* No human_nation range gate (port_bugs.md #1057e): a headless run with no
-   * human still elects every control == 1 nation's Fathers. */
-
-  ColonizeCol1Save* col1 = ctx->col1;
-
-  /* port_bugs.md #434: the HUMAN's election is NOT run here. DOS checks it inside
-   * the human's own FUN_3844_00f2 pass, which 130d runs immediately before
-   * that nation's Move Pieces — so the Congress debate belongs to the start
-   * of the player's turn (TURN_PROC_FINISH calls
-   * founding_fathers_tick_human_elect), not the moment End Turn is pressed.
-   */
-
-  /* Each AI Euro nation (control==1); final elect pass for the turn. */
-  for (int n = 0; n < (int)COLONIZE_COL1_NATION_COUNT; ++n) {
-    if (n == ctx->human_nation) {
-      continue;
-    }
-    if (col1->player[n].control != 1) {
-      continue;
-    }
-    /* port_bugs.md #934: keep electing while the pool still clears the new,
-     * higher threshold (DOS 0a22 runs per colony, FUN_364b_0688 raw 57231). */
-    int guard = (int)COLONIZE_COL1_FF_COUNT;
-    while (guard-- > 0 && founding_fathers_try_elect(ctx, n)) {
-      /* loop */
-    }
-  }
-
-  /*
-   * No Las Casas ownership tick. It used to re-assimilate Convert→Free
-   * Colonist every turn while the father was owned, and DOS's own saves say
-   * that never happens: in original_saves/colony-prod-tests the Dutch already
-   * hold Las Casas (father 24) in COLONY00, yet Montreal's first three
-   * colonists are Converts (profession 27) in COLONY00 *and* still Converts in
-   * COLONY01 one full turn later. Since a Convert outproduces a Free Colonist
-   * on every outdoor job but Lumberjack (colony_yield.c), the re-tick was also
-   * quietly costing those colonies yield. The elect-time one-shot stays.
-   */
-
-  /*
-   * No La Salle ownership tick either. DOS FUN_4345_0342's `param_2 == 9`
-   * sweep runs only once, at elect (raw 73084-73092: owner+pop>2 -> stockade
-   * over every existing colony). Future growth across pop 3, or a colony
-   * founded after election, gets the grant from the admit-time body instead
-   * (FUN_15eb_1068 raw 11311-11314: pop>2 && no jobs-menu trial (DS:0x35c)
-   * && FF 9 on a Join/birth admit) — see
-   * founding_fathers_la_salle_check's callers in colony.c and turn.c. There
-   * is no per-turn re-sweep site in the decomp; the old one here was a
-   * PEDIA-wording invention (same defect class as the retired Las Casas tick
-   * above) and is removed.
-   */
 }
 
 void founding_fathers_tick_human_elect(ColonizeTurnContext* ctx) {

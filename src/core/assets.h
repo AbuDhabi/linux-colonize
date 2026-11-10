@@ -19,9 +19,10 @@
 typedef struct ColonizeMsgSection {
   char name[COLONIZE_MSG_SECTION_LEN];
   char (*lines)[COLONIZE_MSG_LINE_LEN];
-  /* Parallel to lines: 1 if one or more blank lines preceded this line in
-   * the file. DOS's dialog parser (FUN_6f74_32a4) advances its parse state
-   * on every empty line — state 1 = body, 2 = choices — so blank lines are
+  /* Parallel to lines: how many blank lines preceded this line in the file
+   * (since the previous stored line or the section header; 255 cap). DOS's
+   * dialog parser (FUN_6f74_32a4) adds 1 to its parse state on every empty
+   * line — state 1 = body, 2 = choices — so blank lines are
    * the real body/choice separator, not keyword heuristics. Blank lines
    * themselves are still not stored (ordinal indexing everywhere relies on
    * that). */

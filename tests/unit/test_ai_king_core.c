@@ -2531,6 +2531,24 @@ static int sp_28(void) {
         assets_msg_free(&game_txt);
         return fail("apply Confirm should enqueue @INDEPENDENCE KING_LETTER OK");
       }
+      /* #1665: FUN_43f7_1a26 plays the 160a cinematic (2a1f_009a, raw 74743) before the
+       * 0188 @SEIZURE notices and the letter: its cue is queued ahead of both. */
+      int signing_at = -1, letter_at = -1;
+      for (int i = 0; i < pop.queue_count; ++i) {
+        if (pop.queue[i].tag == AI_POPUP_TAG_DECLARATION_SIGNING && signing_at < 0) {
+          signing_at = i;
+        }
+        if ((pop.queue[i].tag == AI_POPUP_TAG_KING_LETTER ||
+             pop.queue[i].tag == AI_POPUP_TAG_COMBAT_SEIZURE ||
+             strstr(pop.queue[i].body, "seized")) &&
+            letter_at < 0) {
+          letter_at = i;
+        }
+      }
+      if (signing_at < 0 || signing_at > letter_at) {
+        assets_msg_free(&game_txt);
+        return fail("signing cue must precede @SEIZURE / @INDEPENDENCE (#1665)");
+      }
       if (found_how) {
         assets_msg_free(&game_txt);
         return fail("apply Confirm must NOT enqueue @HOWTOWIN (port_bugs.md #236)");
@@ -3844,6 +3862,8 @@ static int case_king_frigate_sails_from_europe(void) {
     units_spawn_allow_stack_nation(&units, 0, 2, 2, 1);
   }
   europe.harbor_ships = 3;
+  /* An AI nation's voyage count is the DS:0x9418 census (port_bugs.md #1823). */
+  col1.stuff.ship_counts[1] = 3;
   uint32_t seed = 1;
   for (;; ++seed) {
     dos_rng_seed(&rng, seed);

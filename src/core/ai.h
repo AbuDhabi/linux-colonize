@@ -134,9 +134,13 @@ int ai_indian_village_alarm_tier(
   const ColonizeCol1Save* col1, const ColonizeCol1Tribe* village, int nation
 );
 
-/* FUN_521d_0a60 entry: wipe + restamp the DS:0x9faa coarse plane for this Euro nation. */
+/* FUN_521d_0a60 entry: wipe + restamp the DS:0x9faa coarse plane for this Euro nation.
+ * Units stamp only on the FUN_281f_0302 inset (raw 87555); `map` NULL skips that test. */
 void ai_coarse_fog_euro_restamp(
-  const ColonizeUnitPool* units, const ColonizeColonyPool* colonies, int nation_id
+  const ColonizeUnitPool* units,
+  const ColonizeColonyPool* colonies,
+  const ColonizeWorldMap* map,
+  int nation_id
 );
 
 /* DS:0x9faa explore-index byte == 0 at (x,y): the 20e6 far-probe +8 test. */

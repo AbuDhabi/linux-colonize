@@ -4,10 +4,10 @@
 {"type":"key_up","t_ms":1048,"frame":3,"keycode":32,"mod":0}
 {"type":"key_down","t_ms":1704,"frame":44,"keycode":13,"mod":0}
 {"type":"key_up","t_ms":1752,"frame":47,"keycode":13,"mod":0}
-{"type":"key_down","t_ms":2024,"frame":64,"keycode":1073741905,"mod":0}
-{"type":"key_up","t_ms":2072,"frame":67,"keycode":1073741905,"mod":0}
-{"type":"key_down","t_ms":2248,"frame":78,"keycode":13,"mod":0}
-{"type":"key_up","t_ms":2296,"frame":81,"keycode":13,"mod":0}
+{"type":"key_down","t_ms":2024,"frame":64,"keycode":13,"mod":0}
+{"type":"key_up","t_ms":2072,"frame":67,"keycode":13,"mod":0}
+{"type":"key_down","t_ms":2344,"frame":84,"keycode":1073741905,"mod":0}
+{"type":"key_up","t_ms":2392,"frame":87,"keycode":1073741905,"mod":0}
 {"type":"key_down","t_ms":2568,"frame":98,"keycode":13,"mod":0}
 {"type":"key_up","t_ms":2616,"frame":101,"keycode":13,"mod":0}
 {"type":"key_down","t_ms":2888,"frame":118,"keycode":13,"mod":0}

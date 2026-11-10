@@ -188,17 +188,17 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_land_roles(struct ai_euro_act_ctx*
    * for good after its first park.
    */
   if (!treasure_routed && ai_euro_is_wagon_kind(ukind)) {
-    (void)ai_euro_try_wagon_haul(ctx, nation_id, u);
+    const int haul = ai_euro_try_wagon_haul(ctx, nation_id, u);
     /* (The wagon Europe-export feeder — a thin OpenCol-only arm — was retired
      * 2026-09-07b: DOS's 457e origin walk owns every off-errand wagon beat,
      * so wagons never fed the coastal export leg in DOS. Surplus reaches
      * Europe through the ships-only 4393 pickup queue.) */
     /* The wagon 47b9 destroy lives inside the origin walk now (the haul beat
      * above owns the whole 457e wagon arm) — stop touching a despawned unit. */
-    if (!u->active) {
-      return AI_EURO_ACT_RETURN;
+    if (!u->active || haul == 2) {
+      return AI_EURO_ACT_RETURN; /* 2: the errand's adjacency trade already ran 5a78 + the step */
     }
-    /* Every wagon band exit is 20e6's LAB_5a78 (OVL14 0x5a98-0x5b57: the
+    /* Every other wagon band exit is 20e6's LAB_5a78 (OVL14 0x5a98-0x5b57: the
      * 0/10 -> 5 demotion, the peace 5 -> 0 drop, the goal-is-own-tile
      * exhaust) and then FUN_521d_5b66's dispatch: a 0x0b / 0x0c course is
      * walked by FUN_479b_0972 (DOSBox independence-seed-100 3->4: Bahia's

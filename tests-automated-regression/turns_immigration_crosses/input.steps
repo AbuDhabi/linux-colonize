@@ -11,10 +11,10 @@ key space                  # end turn 108
 wait 30
 key Return                 # Colonization Help: Time Scale
 wait 6
+key Return                 # price of Cigars rises to 11 (@PRICEUP inside 5e52, before the immigration pick, #1821)
+wait 6
 key Down                   # Brewster pick ("Religious unrest in France..."): row 1 Master Distiller
 key Return                 # pick it: the Distiller joins the Europe dock
 wait 6
 key Return                 # Sons of Liberty in Quebec up to 60%
-wait 6
-key Return                 # price of Cigars rises to 11
 wait 6

@@ -16,7 +16,7 @@ bool popup_msg_is_directive(const char* line) {
 
 /*
  * DOS-LITERAL FUN_6f74_32a4 (raw 117285-117390) parser state for stored line i: every blank
- * line before it adds 1 (blank_before carries the run; the loader keeps one per run), then an
+ * line before it adds 1 (blank_before carries the run length, leading blanks included), then an
  * '@' line (strupr'd) sets it: OPTIONS / PROMPT -> 2, TEXT -> 1, SMALLFONT, Y*, X*, WIDTH*,
  * LENGTH*, CHECKBOX*, DEFAULT* leave it, anything else -> 3. 1 = body, 2 = choice rows,
  * >= 3 = the parser has stopped (port_bugs.md #1769).

@@ -7356,7 +7356,9 @@ static int case_factory_input_colony_total(void) {
     return 1;
   }
 
-  /* Scenario 3: scenario 1's worker, only the factory owned. */
+  /* Scenario 3: scenario 1's worker, only the factory owned: 1d4c's tier is
+   * the owned count (039e == 1 -> house row, 3 + 1 = 4 coats; #1692) and the
+   * input gets no discount. */
   memset(c, 0, sizeof(*c));
   c->id = 0;
   c->has_building[0] = true; /* 039e == 1: no discount */
@@ -7371,10 +7373,10 @@ static int case_factory_input_colony_total(void) {
   c->stock[COLONIZE_CARGO_FURS] = 100;
   memset(&delta, 0, sizeof(delta));
   colony_craft_one_colony(&pool, c, &delta, 1);
-  if (delta.goods[COLONIZE_CARGO_COATS] != 10 || delta.goods[COLONIZE_CARGO_FURS] != -10) {
+  if (delta.goods[COLONIZE_CARGO_COATS] != 4 || delta.goods[COLONIZE_CARGO_FURS] != -4) {
     fprintf(
       stderr,
-      "factory without the chain: coats=%d furs=%d expected +10/-10 (039e <= 2)\n",
+      "factory without the chain: coats=%d furs=%d expected +4/-4 (039e == 1)\n",
       delta.goods[COLONIZE_CARGO_COATS],
       delta.goods[COLONIZE_CARGO_FURS]
     );
@@ -7401,13 +7403,17 @@ static int case_armory_flat_input(void) {
   pool.building_types[1].hammers = 0;
   snprintf(pool.building_types[2].name, sizeof(pool.building_types[2].name), "Blacksmith's House");
   snprintf(pool.building_types[3].name, sizeof(pool.building_types[3].name), "Blacksmith's Shop");
-  pool.building_type_count = 4;
+  snprintf(pool.building_types[4].name, sizeof(pool.building_types[4].name), "Armory");
+  snprintf(pool.building_types[5].name, sizeof(pool.building_types[5].name), "Magazine");
+  pool.building_type_count = 6;
 
   /* Scenario 1: one Master Gunsmith at an Arsenal (18 muskets), ample tools
-   * — input is 1:1, not the factory (18*2)/3 = 12. */
+   * — input is 1:1, not the factory (18*2)/3 = 12. The whole chain is owned:
+   * 1d4c's tier is the owned count (port_bugs.md #1692). */
   ColonizeColony* c = &pool.colonies[0];
   memset(c, 0, sizeof(*c));
   c->id = 0;
+  c->has_building[0] = c->has_building[4] = c->has_building[5] = true; /* 039e == 3 */
   c->active = true;
   c->population = 1;
   c->colonist_count = 1;
@@ -7440,6 +7446,7 @@ static int case_armory_flat_input(void) {
    * rescale would have given 9 - (4*3)/2 = 3. */
   memset(c, 0, sizeof(*c));
   c->id = 0;
+  c->has_building[0] = c->has_building[4] = c->has_building[5] = true;
   c->active = true;
   c->population = 1;
   c->colonist_count = 1;
@@ -8010,7 +8017,9 @@ static int case_frigate_before_merc_roll(void) {
 
 /* The accept arm's draws (the FUN_291f_0aee voyage roll, raw 58419, and the
  * 3dc8 tea-party roulette, raw 64176) come before the 2244 merc roll (raw
- * 6418, its 1-in-21 draw always taken): the EOT still draws after the answer. */
+ * 6418, its 1-in-21 draw always taken). The roll follows the 6416 autosave,
+ * so the caller runs it after the processor (game_finish_end_turn, turn_end;
+ * #1821). */
 static int case_frigate_accept_draws_before_merc_roll(void) {
   ColonizeColony* col = eotd_setup(TURN_PROC_KING, 1600, 8);
   EotDialogFx* g = &g_eotd;
@@ -8028,6 +8037,7 @@ static int case_frigate_accept_draws_before_merc_roll(void) {
     fprintf(stderr, "frigate accept: no @KINGFRIGATE offer was queued\n");
     return 1;
   }
+  ai_king_peacetime_merc_offer(&g->ctx);
   const unsigned long end = dos_rng_draw_count();
   if (g->eu.bound_ships != 1 || !g->eu.bound[0].royal_gift ||
       g->draws_after_answer <= g->draws_before_answer || end <= g->draws_after_answer) {

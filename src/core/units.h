@@ -412,9 +412,21 @@ bool units_is_missionary(const ColonizeUnitPool* pool, const ColonizeUnit* u);
 
 
 /*
+ * DOS FUN_1427_0d38 tile-chain membership: an on-map unit at (x,y), or a
+ * passenger of an on-map ship there. DOS riders stay in the ship's tile chain
+ * at the ship's coordinates (FUN_1427_12f6/10be move the ship and its
+ * sentried riders together through the (-2,-2) transit chain, 02ca relinks
+ * them at the destination); the port keeps them in the ship's cargo list,
+ * off units_is_on_map (port_bugs.md #1494 / #1642).
+ */
+bool units_in_tile_chain(const ColonizeUnitPool* pool, const ColonizeUnit* u, int x, int y);
+int units_tile_chain_count(const ColonizeUnitPool* pool, int x, int y);
+
+/*
  * Tile-stack iterator (theme M): *slot is the pool index to resume from (start
- * at 0). Returns the next active, on-map unit standing on (x,y) — aboard
- * passengers are excluded, matching DOS parking them at (-2,-2) — or NULL.
+ * at 0). Returns the next active, on-map unit standing on (x,y), or NULL.
+ * Aboard passengers are excluded; that is the port's own stack model, NOT
+ * the DOS tile chain (which holds them: units_in_tile_chain).
  */
 ColonizeUnit* units_next_on_tile(ColonizeUnitPool* pool, int x, int y, int* slot);
 const ColonizeUnit* units_next_on_tile_const(
@@ -422,7 +434,7 @@ const ColonizeUnit* units_next_on_tile_const(
 );
 /* Active, on-map, not-aboard units standing on (x,y). */
 int units_count_at(const ColonizeUnitPool* pool, int x, int y);
-/* FUN_1427_0d38 opcode 0xa: land units with attack > 1 standing on (x,y). */
+/* FUN_1427_0d38 opcode 0xa: land units with attack > 1 in the (x,y) tile chain (riders included). */
 int units_military_count_at(const ColonizeUnitPool* pool, int x, int y);
 /*
  * FUN_13f1_02f8 sight radius: 1; Galleon/Privateer/Frigate 2; de Soto (FF 7)

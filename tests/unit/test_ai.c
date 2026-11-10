@@ -3106,7 +3106,7 @@ static int case_coarse_fog_reset(void) {
   units.units[0].x = 8;
   units.units[0].y = 8;
   units_pool_sync(&units);
-  ai_coarse_fog_euro_restamp(&units, NULL, 0);
+  ai_coarse_fog_euro_restamp(&units, NULL, NULL, 0);
   if (ai_coarse_fog_explore_unseen(8, 8)) {
     fprintf(stderr, "coarse fog restamp did not mark (8,8)\n");
     return 1;
@@ -3688,6 +3688,25 @@ static int case_tribe_txt_init_new_game_matches_dos(void) {
   col1_save_free(&turn1);
   fprintf(stderr, "init_new_game tribe_txt: +7..+9 ok %d/%d, silver ok %d/8, alarms ok %d/32\n",
           bytes_ok, n, silver_ok, alarm_ok);
+  /* FUN_75c2_235c raw 121612-121646: starter records in nation order 0..3,
+   * ship first, though Spain's were spawned before the AI fleets (#1798). */
+  int last_nation = -1;
+  for (int i = 0; i < units_slot_end(&units); ++i) {
+    const ColonizeUnit* u = &units.units[i];
+    if (!u->active || u->nation_id >= 4) {
+      continue;
+    }
+    if (u->nation_id < last_nation || (u->nation_id != last_nation && u->aboard_ship_id >= 0)) {
+      fprintf(stderr, "init_new_game: record %d nation %d after %d (aboard %d)\n", i,
+              u->nation_id, last_nation, u->aboard_ship_id);
+      rc = 1;
+    }
+    last_nation = u->nation_id;
+  }
+  if (units_slot_end(&units) <= 0 || units.units[0].nation_id != 0) {
+    fprintf(stderr, "init_new_game: first record is not England's\n");
+    rc = 1;
+  }
 done:
   units_set_occupancy_map(NULL);
   colonies_set_occupancy_map(NULL);

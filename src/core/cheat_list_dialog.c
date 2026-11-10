@@ -578,6 +578,15 @@ static void cheat_list_cancel(CheatListDialog* dlg) {
     dlg->result_id = -2;
     dlg->result_mask = 0;
     dlg->result_label[0] = '\0';
+  } else if (dlg->kind == CHEAT_LIST_KIND_CREATE_UNIT) {
+    /* FUN_2b5a_2866: Esc on @FOREIGN stores DS:0x5394 (0x23B5A-0x23B68) and
+     * Esc on @FOREIGN2 means Rebel (0x23B6A-0x23B89), both back to the list;
+     * game_apply_cheat_create_unit reads -1 per stage (#1752). */
+    dlg->has_result = true;
+    dlg->result_kind = CHEAT_LIST_KIND_CREATE_UNIT;
+    dlg->result_id = -1;
+    dlg->result_mask = 0;
+    dlg->result_label[0] = '\0';
   }
   cheat_list_close(dlg);
 }

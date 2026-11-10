@@ -823,6 +823,35 @@ static bool new_game_pick_key(NewGameWizard* ng, ColonizeKey k, bool nation) {
 static int s_press_phase = -1;
 static bool s_press_on_selected;
 
+/* FUN_6f74_2580 held-button arm (raw 116705-116758), which FUN_1acb_0056 also runs on the
+ * release poll (DS:0x7f6 stays set): a press arms the release; the bar follows the row
+ * under the pointer and leaving the box clears it. Returns the row under the pointer, -1
+ * on the box but off every row (bVar4: the release arm is skipped), -2 off the box, -3
+ * when no armed button event is under way. */
+static int new_game_track_list_bar(NewGameWizard* ng, const ColonizeInputState* input) {
+  if (input->mouse_left_clicked || input->mouse_right_clicked) {
+    s_press_phase = ng->phase;
+  }
+  if (s_press_phase != (int)ng->phase || ng->line_h <= 0 ||
+      !(input->mouse_left_down || input->mouse_right_down || input->mouse_left_clicked ||
+        input->mouse_right_clicked || input->mouse_left_released ||
+        input->mouse_right_released)) {
+    return -3;
+  }
+  const int mx = input->mouse_x;
+  const int my = input->mouse_y;
+  if (mx < ng->dialog_x || my < ng->dialog_y || mx >= ng->dialog_x + ng->dialog_w ||
+      my >= ng->dialog_y + ng->dialog_h) {
+    ng->selection = -1;
+    return -2;
+  }
+  const int idx = popup_row_at_y(ng->list_y0, ng->line_h, ng->option_count, my);
+  if (idx >= 0) {
+    ng->selection = idx;
+  }
+  return idx;
+}
+
 /*
  * LABELS.TXT @MISC, addressed relative to the "Land Mass" anchor the
  * CUSTOMIZE labels already key off (row 144 in the shipped file):
@@ -1051,7 +1080,14 @@ bool new_game_handle_input(NewGameWizard* ng, const ColonizeInputState* input) {
       case TEXT_EDIT_ACTION_NONE:
         break;
     }
-    if (input->mouse_left_clicked) {
+    /* FUN_291f_0120's box runs FUN_6f74_2580: a release anywhere (either button) accepts
+     * (raw 117037-117054, #1724); the press only arms it. */
+    if (input->mouse_left_clicked || input->mouse_right_clicked) {
+      s_press_phase = ng->phase;
+    }
+    if (s_press_phase == (int)ng->phase &&
+        (input->mouse_left_released || input->mouse_right_released)) {
+      s_press_phase = -1;
       new_game_advance_cinematic(ng);
       return true;
     }
@@ -1060,7 +1096,8 @@ bool new_game_handle_input(NewGameWizard* ng, const ColonizeInputState* input) {
 
   /* @MULTI checkbox box through FUN_6f74_2580: Up / Down wrap, Space or a click on a row
    * toggles it (raw 116856-116862, 117050-117058), Enter, Esc or a click away closes. Either
-   * mouse button (the release arm, raw 117036-117060, does not test it). */
+   * mouse button (the release arm, raw 117036-117060, does not test it). The bar follows the
+   * row under the pointer; the release over a row toggles it, off the box closes (#1724). */
   if (ng->phase == NEW_GAME_PHASE_MULTI) {
     if (popup_list_key_step(input->last_key, &ng->selection, ng->option_count, 0)) {
       return true;
@@ -1071,15 +1108,16 @@ bool new_game_handle_input(NewGameWizard* ng, const ColonizeInputState* input) {
     } else if (input->last_key == COLONIZE_KEY_ENTER || input->last_key == COLONIZE_KEY_ESCAPE) {
       new_game_finish_multi(ng);
       return true;
-    } else if (input->mouse_left_clicked || input->mouse_right_clicked) {
-      const int mx = input->mouse_x;
-      const int my = input->mouse_y;
-      if (mx < ng->dialog_x || my < ng->dialog_y || mx >= ng->dialog_x + ng->dialog_w ||
-          my >= ng->dialog_y + ng->dialog_h) {
-        new_game_finish_multi(ng);
-        return true;
+    } else {
+      const int at = new_game_track_list_bar(ng, input);
+      if (at > -3 && (input->mouse_left_released || input->mouse_right_released)) {
+        s_press_phase = -1;
+        if (at == -2) {
+          new_game_finish_multi(ng);
+          return true;
+        }
+        row = at; /* -1 (bVar4): nothing */
       }
-      row = popup_row_at_y(ng->list_y0, ng->line_h, ng->option_count, my);
     }
     if (row >= 0 && row < ng->option_count) {
       ng->selection = row;
@@ -1108,22 +1146,14 @@ bool new_game_handle_input(NewGameWizard* ng, const ColonizeInputState* input) {
     new_game_activate_list(ng);
     return true;
   }
-  if ((input->mouse_left_clicked || input->mouse_right_clicked) && ng->option_count > 0 &&
-      ng->line_h > 0) { /* either button: FUN_6f74_2580 raw 117036-117060 */
-    const int mx = input->mouse_x;
-    const int my = input->mouse_y;
-    if (mx >= ng->dialog_x && my >= ng->dialog_y && mx < ng->dialog_x + ng->dialog_w &&
-        my < ng->dialog_y + ng->dialog_h) {
-      const int rel = my - ng->list_y0;
-      if (rel >= 0) {
-        const int idx = rel / ng->line_h;
-        if (idx >= 0 && idx < ng->option_count) {
-          ng->selection = idx;
-          new_game_activate_list(ng);
-        }
-      }
+  /* Either button: FUN_6f74_2580 bars the row under the pointer and the release over a
+   * row (raw 117036-117060, #1724) picks it; elsewhere it stays open. */
+  const int at = new_game_track_list_bar(ng, input);
+  if (at > -3 && (input->mouse_left_released || input->mouse_right_released)) {
+    s_press_phase = -1;
+    if (at >= 0) {
+      new_game_activate_list(ng);
     }
-    return true;
   }
   return true;
 }

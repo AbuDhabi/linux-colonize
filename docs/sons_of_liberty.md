@@ -52,13 +52,14 @@ a colony founded this turn read 100% until its first end of turn.)
 
 **`FUN_364b_0688` Phase C, non-WoI arm (raw 57349-57355).** After the colony's
 SoL% is read (`local_8e = FUN_281f_0c86()`), the colony's bells figure takes a
-Tory penalty *unless* this is the rebel's own colony during the WoI:
+Tory penalty *unless* the colony belongs to the Crown during the WoI
+(DS:0x53d2 is the Crown nation, not the rebel):
 
 ```
-if (!(0x5382 & 1) || colony.nation_id != DS:0x53d2) {   /* not the rebel's own colony */
+if (!(0x5382 & 1) || colony.nation_id != DS:0x53d2) {   /* not a Crown colony */
     if (bells < colony.pop)  bells += sol% / -0x14;     /* i.e. bells -= sol% / 20 */
 } else {
-    bells = -(bells >> 1);                              /* WoI, rebel's own colony */
+    bells = -(bells >> 1);                              /* WoI, Crown-held colony */
 }
 ```
 

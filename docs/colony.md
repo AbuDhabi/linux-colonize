@@ -96,7 +96,9 @@ clear bit, redraw, set bit, redraw — and only then pushes event 0x54
 colonies_try_complete_building (never for Warehouse Expansion or Capitol
 Expansion, FUN_364b_0114 raw 56965-56967) for human/no-save colonies only
 (DOS resets 0x34a at the end of the colony tick, so an AI colony never keeps it,
-port_bugs.md #1733), consumed on colony-screen open.
+port_bugs.md #1733), consumed on colony-screen open. The game loop's popup
+service (game_service_popup_queue) drops it once the colony has no queued
+colony message and no zoom elected, so only a zoom answer shows it.
 
 ## ColonizeColony.food_shortfall_latch
 
@@ -255,7 +257,8 @@ buildability filter (raw 13688, building id 7) and the 20e6 delivery pick
 
 ## colonies_reveal_founded_w
 
-FUN_364b_1dd6 founding tail: for each nation 0..3 that owns FF 6 (Coronado —
+FUN_364b_1ba8 founding tail (raw 58118-58124; `LAB_364b_1dd6` is a label
+inside it, not a function): for each nation 0..3 that owns FF 6 (Coronado —
 `FUN_15eb_3960(nation, 6)`), call FUN_13f1_00a6 on the new colony, revealing
 the ±5 square around it for that nation and seeding pop_on_map=1 /
 fort_on_map=0 on every colony inside it that nation has not observed yet.

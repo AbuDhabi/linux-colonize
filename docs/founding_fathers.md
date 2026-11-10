@@ -32,7 +32,7 @@ into the 5 `@FATHERS` categories the game itself uses.
 
 Election mechanics (Congress debate, century-weighted pick, bells
 threshold `FUN_4345_0982`, apply dispatch `FUN_4345_0342`) are **Done** —
-see `founding_fathers.c` header comment and `founding_fathers_tick`. Not
+see `founding_fathers.c` header comment, `founding_fathers_try_elect` (AI loop in `turn_colony.c`, human in `founding_fathers_tick_human_elect`). Not
 re-tabulated per-row here; only per-effect wiring is.
 
 **The bell pool (port_bugs.md #933, 2026-09-24).** COL1 nation `+0xc`

@@ -1168,8 +1168,9 @@ int ai_contact_try_village_reparations(ColonizeTurnContext* ctx, int nation_id) 
       int armed_on_tile = 0;
       for (int ui = 0; ui < units_slot_end(ctx->units); ++ui) {
         const ColonizeUnit* gu = &ctx->units->units[ui];
-        if (!gu->active || gu->x != c->x || gu->y != c->y || gu->aboard_ship_id >= 0 ||
-            units_is_sea(ctx->units, gu->id)) {
+        /* 0d38 opcode 0xa walks the tile chain, docked-ship riders included
+         * (port_bugs.md #1642). */
+        if (!units_in_tile_chain(ctx->units, gu, c->x, c->y) || units_is_sea(ctx->units, gu->id)) {
           continue;
         }
         const ColonizeUnitType* gt = units_type(ctx->units, gu->type_index);

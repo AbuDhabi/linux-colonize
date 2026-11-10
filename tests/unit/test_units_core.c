@@ -5161,6 +5161,24 @@ static int case_enter_probe_matrix(void) {
         fprintf(stderr, "enter-probe unarmed naval bounce expected got %d\n", (int)unarmed_r);
         return 1;
       }
+      /* port_bugs.md #1778: at peace too (FUN_4720_015c raw 76036-76043 sets
+       * reason 7 before 465b's peace stop): @SHIPCOMBAT, not a silent bump. */
+      {
+        static ColonizeCol1Save peace;
+        col1_save_init(&peace);
+        peace.player[0].control = 1;
+        ai_diplo_write(&peace, 0, 1, AI_DIPLO_PEACE);
+        ai_diplo_write(&peace, 1, 0, AI_DIPLO_PEACE);
+        peace.nation[0].treaty_timer[1] = 5;
+        const ColonizeEnterReason peace_r = units_enter_probe_w(
+          &(ColonizeWorld){.units = &pool, .map = &map, .col1 = &peace, .col1_ok = true},
+          ua->type_index, wx2, wy2, a);
+        if (peace_r != COLONIZE_ENTER_BOUNCE_FOREIGN) {
+          fprintf(stderr, "enter-probe unarmed naval at peace: expected bounce-foreign got %d\n",
+                  (int)peace_r);
+          return 1;
+        }
+      }
       pool.types[caravel_t].attack = 99;
       pool.types[caravel_t].defense = 1;
       /* Real Caravels carry guns 0 (@UNIT col 9) — a gunless victor can only

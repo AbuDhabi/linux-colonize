@@ -930,9 +930,17 @@ void ai_king_do_declare(ColonizeTurnContext* ctx, int human) {
    * SoL>49 trigger never fired, so the King borrows an EMPTY slot instead of
    * inheriting a live nation's colonies and ships (port_bugs.md follow-up). */
   ai_king_succession(ctx);
-  /* raw 74722: FUN_281f_04ac(3) right after the succession check, taken on
+  /* raw 74742: FUN_281f_04ac(3) right after the succession check, taken on
    * every declaration (port_bugs.md #1659). */
   sound_set_bgm(3);
+  /* raw 74743: thunk_FUN_2a1f_009a -> FUN_43f7_160a, the signing cinematic, before the
+   * 0188 @SEIZURE notices and the @INDEPENDENCE letter (#1665). game_loop plays it when
+   * this cue is presented. */
+  if (ai_king_human_popups(ctx)) {
+    (void)ai_popup_enqueue_ok_ctx(
+      ctx->ai_popups, AI_POPUP_TAG_DECLARATION_SIGNING, human, -1, 0, NULL, ""
+    );
+  }
   ai_king_set_independence(ctx->col1, 1); /* WoI: market_demand_pool_raw[0] if not already */
   ai_king_write_rival_nation_slots(ctx->col1, human);
   /* FUN_43f7_2564 raw 75238-75240 writes nothing here: its @DECLARE (0x1397)

@@ -1476,45 +1476,16 @@ bool game_colony_drag_drop(
     }
     if (hit.kind == COLONY_HIT_CARGO_SLOT ||
         (hit.kind == COLONY_HIT_NONE && my >= COLONY_CARGO_STRIP_Y)) {
-      if (csv->transport_unit_id >= 0 && game->units_ok && shift) {
-        /* Shift+drag: @HOWMUCH2 amount entry instead of the whole hold. */
-        const ColonizeUnit* tu = units_get_const(&game->units, csv->transport_unit_id);
-        const int hold = drag->index;
-        if (tu && hold >= 0 && hold < COLONIZE_UNIT_CARGO_MAX &&
-            tu->hold_goods_amount[hold] > 0 && tu->hold_goods_amount[hold] < 255) {
-          const int ctype = tu->hold_goods_type[hold];
-          const int max_amt = tu->hold_goods_amount[hold];
-          char prompt[AI_POPUP_BODY_LEN];
-          PopupMsgTokens tok;
-          memset(&tok, 0, sizeof(tok));
-          tok.string0 = (game->europe_ok && ctype >= 0 && ctype < game->europe.cargo_count)
-                          ? game->europe.cargo[ctype].name
-                          : "";
-          tok.string1 = units_display_name(&game->units, tu);
-          tok.string2 = colony->name[0] ? colony->name : "";
-          tok.number0 = max_amt;
-          tok.has_number0 = true;
-          popup_msg_fill(
-            &game->messages, "HOWMUCH2", &tok, "", prompt,
-            sizeof(prompt)
-          );
-          howmuch_open(
-            &game->howmuch,
-            HOWMUCH_KIND_UNLOAD,
-            prompt,
-            howmuch_amount_label(&game->messages, "HOWMUCH2", ""),
-            max_amt,
-            max_amt,
-            ctype,
-            hold
-          );
-        }
-        game_ui_drag_clear(game);
-        return true;
+      /* FUN_2f2b_60dc raw 52824-52829: the release on the warehouse runs
+       * FUN_2f2b_4da6(ship, DS:0xa88d = the dragged hold's cargo, Shift) (#1735). */
+      const ColonizeUnit* tu = game->units_ok
+                                 ? units_get_const(&game->units, csv->transport_unit_id)
+                                 : NULL;
+      if (tu && drag->index >= 0 && drag->index < COLONIZE_UNIT_CARGO_MAX) {
+        game_colony_unload_cargo(game, colony, tu->hold_goods_type[drag->index], shift);
       }
-      if (csv->transport_unit_id >= 0 && game->units_ok) {
-        game_colony_unload_hold(game, csv->transport_unit_id, drag->index, NULL);
-      }
+      game_ui_drag_clear(game);
+      return true;
     }
   } else if (kind == UI_DRAG_COLONY_COLONIST || kind == UI_DRAG_COLONY_OUTSIDE) {
     /* No transport target here on purpose: DOS FUN_2f2b_628a takes a drop on
@@ -1738,17 +1709,11 @@ bool game_europe_drag_drop(ColonizeGameState* game, int mx, int my, bool shift) 
 }
 
 /*
- * Church-or-Cathedral bless gate, the same test colony.c's
- * colonies_has_church_or_cathedral runs for the inside-colonist twin of this
- * list. DOS asks only for the Church bit (FUN_15eb_3454's Missionary arm:
- * `FUN_15eb_038e(0x25)`, building-catalog index 0x25 = Church, 0x26 =
- * Cathedral — the indices confirmed with the Stable/Printing Press ones in
- * docs/building_production.md), which is sufficient there because a
- * completed upgrade only ever SETS its own bit (FUN_364b_0114 →
- * FUN_281f_0bbe(building, 1), never a clear) and Church is Cathedral's
- * prerequisite, so a Cathedral colony still has the Church bit. The
- * disjunction is the same thing for any reachable colony and survives a
- * bridged save that carries only the upgrade.
+ * Bless gate: colonies_eject_row_offered, the same test the inside-colonist twin of this
+ * list runs. DOS asks only for the exact Church bit (FUN_15eb_3454's Missionary arm,
+ * raw 13567: `FUN_15eb_038e(0x25)`, 0x25 = Church, 0x26 = Cathedral), so a colony whose
+ * Church burned under its Cathedral (raid burn, FUN_5fef_0f14) offers no Missionary row
+ * to a non-Jesuit (port_bugs.md #1695).
  */
 
 bool game_colony_apply_outside_role(
@@ -1895,10 +1860,12 @@ void game_colony_unload_all_cargo(ColonizeGameState* game, int unit_id) {
     if (game_colony_unload_ask(game, unit_id, first_loaded_hold, 0, 1 << 20)) {
       return;
     }
+    const int ctype = tu->hold_goods_type[first_loaded_hold];
     const int moved = game_colony_unload_hold_commit(game, unit_id, first_loaded_hold, 0, NULL);
     if (moved <= 0) {
       break; /* non-zero return: stop the whole loop */
     }
+    game_colony_unload_bar(game, ctype, moved); /* each pass is FUN_2f2b_4da6 (#1735) */
   }
 }
 

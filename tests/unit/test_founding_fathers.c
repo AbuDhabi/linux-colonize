@@ -30,9 +30,26 @@
 #define TEST_NAME "unit_founding_fathers"
 #include "../common/test_fail.h"
 
+/* The AI elect loop production runs per nation at the end of its colony pass
+ * (turn_colony.c, port_bugs.md #934); founding_fathers_tick, its old
+ * test-only twin, was deleted (port_bugs.md #1703). */
+static void ff_ai_elect(ColonizeTurnContext* ctx) {
+  if (!ctx || !ctx->col1_ok || !ctx->col1) {
+    return;
+  }
+  for (int n = 0; n < (int)COLONIZE_COL1_NATION_COUNT; ++n) {
+    if (n == ctx->human_nation || ctx->col1->player[n].control != 1) {
+      continue;
+    }
+    int guard = (int)COLONIZE_COL1_FF_COUNT;
+    while (guard-- > 0 && founding_fathers_try_elect(ctx, n)) {
+    }
+  }
+}
+
 static void ff_tick(ColonizeTurnContext* ctx) {
   /* port_bugs.md #933: nation+0xc (liberty_bells_pool) IS the pool — no seeding. */
-  founding_fathers_tick(ctx);
+  ff_ai_elect(ctx);
   /* port_bugs.md #434: human election moved to TURN_PROC_FINISH's own call. */
   founding_fathers_tick_human_elect(ctx);
 }
@@ -1007,7 +1024,7 @@ int main(void) {
     hctx.human_nation = -1;
     hctx.col1 = &hcol1;
     hctx.col1_ok = true;
-    founding_fathers_tick(&hctx);
+    ff_ai_elect(&hctx);
     if (!founding_fathers_nation_has(&hcol1, 1, FF_WILLIAM_BREWSTER)) {
       return fail("no-human run must elect AI Fathers");
     }
@@ -1042,7 +1059,7 @@ int main(void) {
     jctx.col1 = &jcol1;
     jctx.col1_ok = true;
     jctx.units = &jun;
-    founding_fathers_tick(&jctx);
+    ff_ai_elect(&jctx);
     if (!founding_fathers_nation_has(&jcol1, 1, FF_JOHN_PAUL_JONES)) {
       return fail("Jones AI elect");
     }
@@ -1708,8 +1725,7 @@ int main(void) {
      * instead (FUN_15eb, raw ~11312) — exercised by the "immediate grant"
      * case right below (colony.c join path) and by the turn.c EOT-birth
      * admit path. There is no per-turn re-sweep site in the decomp; the
-     * old test here covered a port invention that has been removed
-     * (founding_fathers.c founding_fathers_tick).
+     * old test here covered a port invention that has been removed.
      */
     {
       ColonizeColony* future = &colonies.colonies[1];

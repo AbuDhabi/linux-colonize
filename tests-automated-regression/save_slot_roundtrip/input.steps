@@ -1,7 +1,7 @@
 # Save / load round trip through the GAME menu (map_found_colony's input.sav, France Spring 1599). The harness
 # points save_dir at its own out dir (build/<preset>/regression_out/<name>/), so COLONY02.SAV never touches
 # COLONIZE/ or port_saves/. Save Slot dialog: 8 rows (slots 0-7), bar on slot 0; Load dialog: 10 rows (0-9),
-# bar on the first occupied slot; empty rows cannot be confirmed (save_load_can_confirm).
+# bar on the first occupied slot; confirming an empty row closes the dialog without loading.
 click 22 3               # GAME menu
 click 40 61              # Save Game: "Select Save Slot"
 wait 2
@@ -20,7 +20,10 @@ wait 10
 click 22 3               # GAME menu
 click 40 69              # Load Game: "Select Game To Load", bar on COLONY02
 wait 2
-click 100 70             # row 0 (EMPTY): not loadable, the dialog stays
+click 100 70             # row 0 (EMPTY): the dialog closes without loading (FUN_7562_04e8, port_bugs.md #1809)
+wait 2
+click 22 3               # GAME menu
+click 40 69              # Load Game again
 wait 2
 click 100 86             # row 2: COLONY02.SAV loads (Preacher back on (44,22))
 wait 6

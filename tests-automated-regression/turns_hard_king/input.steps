@@ -59,9 +59,12 @@ wait 3
 shot
 key space                # end turn 108
 wait 30
-# 52 presses (nested in the AI turn): five landings again, the Tories march into Montreal and Port au Prince,
+# 53 presses (nested in the AI turn): five landings again, the Tories march into Montreal and Port au Prince,
 # combat and captures near Quebec / Guadeloupe / Port au Prince, the Man-O-War takes 14 Sugar + 10 Furs and sinks a Caravel
+# (then "Tories defeat Rebel Caravel near Montreal": naval fights show @EUROPELOSE, port_bugs.md #1793)
 # (port_bugs.md #1455: with no crown colony, home_dist stays 9999, so the crown's attacks move and Quebec holds)
+key Return
+wait 10
 key Return
 wait 10
 key Return

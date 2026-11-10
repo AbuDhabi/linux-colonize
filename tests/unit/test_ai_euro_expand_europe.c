@@ -666,6 +666,11 @@ static int unit_ship_europe_export_load_silver(void) {
     fx_map_free(&map);
     return fail("ship-export-load colony should be coastal");
   }
+  /* A sea channel to the High Seas: the scored Go To fallback no longer lets
+   * a ship cross land (FUN_6662_0f74 raw 104680-104696, port_bugs.md #1803). */
+  for (int x = 3; x < 14; ++x) {
+    map.terrain[5 * 16 + x] = 25;
+  }
   for (int y = 0; y < 16; ++y) {
     map.terrain[y * 16 + 14] = 26; /* T_HIGH_SEAS */
     map.terrain[y * 16 + 15] = 26;
@@ -794,6 +799,11 @@ static int unit_galleon_europe_export_load_silver(void) {
     fx_map_free(&map);
     return fail("galleon-export-load colony should be coastal");
   }
+  /* A sea channel to the High Seas: the scored Go To fallback no longer lets
+   * a ship cross land (FUN_6662_0f74 raw 104680-104696, port_bugs.md #1803). */
+  for (int x = 3; x < 14; ++x) {
+    map.terrain[5 * 16 + x] = 25;
+  }
   for (int y = 0; y < 16; ++y) {
     map.terrain[y * 16 + 14] = 26; /* T_HIGH_SEAS */
     map.terrain[y * 16 + 15] = 26;
@@ -921,6 +931,11 @@ static int unit_merchantman_europe_export_load_silver(void) {
   if (!map_tile_is_coastal(&map, 4, 4)) {
     fx_map_free(&map);
     return fail("mm-export-load colony should be coastal");
+  }
+  /* A sea channel to the High Seas: the scored Go To fallback no longer lets
+   * a ship cross land (FUN_6662_0f74 raw 104680-104696, port_bugs.md #1803). */
+  for (int x = 3; x < 14; ++x) {
+    map.terrain[5 * 16 + x] = 25;
   }
   for (int y = 0; y < 16; ++y) {
     map.terrain[y * 16 + 14] = 26; /* T_HIGH_SEAS */

@@ -551,7 +551,7 @@ static const char* game_foreign_trade_leader2(const ColonizeGameState* game, int
     }
     idx++;
   }
-  return ai_diplo_rival_name(&game->col1, nation);
+  return ""; /* FUN_5bfb_102a raw 97105-97125: no typed fallback (#1633) */
 }
 
 /* A plain GAME.TXT refusal popup (raw 98924-98936 all land here). */

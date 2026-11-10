@@ -605,9 +605,9 @@ static int unit_building_hover_label(void) {
   memset(pixels_on, 0, sizeof(pixels_on));
 
   if (rc == 0) {
-    view.hover_building_row = -1;
+    view.hover_cat_plus1 = 0;
     colony_screen_blit_buildings(&view, &pool, &col, &units, NULL, &font, false, &fb_off);
-    view.hover_building_row = town_hall;
+    view.hover_cat_plus1 = COLONY_CAT_TOWN_HALL + 1;
     colony_screen_blit_buildings(&view, &pool, &col, &units, NULL, &font, false, &fb_on);
 
     int changed = 0;
@@ -645,7 +645,6 @@ static int unit_building_hover_label(void) {
       &view, &col, COLONY_VIEWPORT_X + xs[13] + colony_screen_class_box[cls][0] / 2,
       COLONY_VIEWPORT_Y + ys[13] + colony_screen_class_box[cls][1] / 2
     );
-    view.hover_building_row = -1;
     memset(pixels_on, 0, sizeof(pixels_on));
     colony_screen_blit_buildings(&view, &pool, &col, &units, NULL, &font, false, &fb_on);
     if (view.hover_cat_plus1 != 14 || memcmp(pixels_on, pixels_off, sizeof(pixels_on)) == 0) {

@@ -412,7 +412,8 @@ struct ColonizeGameState {
   bool debug_show_colony_sites; /* CHEAT Show Colony Sites: ai_goals_best_found_tile overlay */
   uint16_t debug_flags_mask; /* CHEAT Debug Info Flags (DEBUG.TXT @OPTIONS, DS:0x894);
                                * separate from Col1 GAME.TXT movement options. */
-  int cheat_create_stage; /* CHEAT Create Unit: 0=main @CREATE/@CREATE2, 1=@CSHIP, 2=@FOREIGN (owner pick) */
+  int cheat_create_stage; /* CHEAT Create Unit: 0=main @CREATE/@CREATE2, 1=@CSHIP,
+                           * 2=@FOREIGN (owner pick), 3=@FOREIGN2 */
   int cheat_create_pending_nation; /* Foreign Unit stage: nation picked at @FOREIGN */
   int cheat_unlock_step;   /* 0=expect W, 1=I, 2=N for Alt-WIN */
   /*
@@ -641,12 +642,6 @@ void game_colony_open_load_prompt(
   ColonizeGameState* game, const ColonizeColony* colony, int cargo
 );
 void game_colony_present_now(ColonizeGameState* game, AiPopupTag tag);
-void game_colony_unload_hold(
-  ColonizeGameState* game,
-  int unit_id,
-  int hold,
-  const char* empty_msg
-);
 /* port_bugs.md #784: the DOS @WAREHOUSEFULL gate (thunk_FUN_1000_9784) and the
  * transfer it guards, split so "Unload all cargo" can drive them per hold.
  * amount <= 0 or >= the hold means the whole hold. */

@@ -43,6 +43,7 @@ typedef struct OptionsDialog {
    * none; the stock checklists have none in DOS) and its last drawn rect. */
   char ok_label[OPTIONS_DIALOG_LABEL_LEN];
   int ok_x, ok_y, ok_w, ok_h;
+  bool press_seen; /* a button went down while open; its release acts (#1724) */
 
   bool has_result;
   bool result_cancelled;

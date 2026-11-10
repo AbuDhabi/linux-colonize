@@ -47,6 +47,7 @@ typedef struct NameEntryDialog {
   int width;                        /* the section's @width (0 = none), taken at open */
   int mss;                          /* DS:0x1f5e MSS figure the prompt latches (-1 = bare), taken at open */
   TextEditState edit;
+  bool press_seen; /* a button went down off the field while open; its release accepts */
 
   bool has_result;
   bool result_cancelled;

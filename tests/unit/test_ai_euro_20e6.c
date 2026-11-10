@@ -401,16 +401,21 @@ static int unit_tile_chain_counts_passengers(void) {
   const int ship_id = units_spawn(&f.units, 2, 14, 8);
   const int pax_id = units_spawn_allow_stack(&f.units, 0, 14, 8);
   (void)units_spawn_allow_stack(&f.units, 0, 14, 8);
-  if (ship_id < 0 || pax_id < 0 || !units_board_stacked(&f.units, pax_id, ship_id)) {
+  const int sol_id = units_spawn_allow_stack(&f.units, 1, 14, 8);
+  if (ship_id < 0 || pax_id < 0 || sol_id < 0 || !units_board_stacked(&f.units, pax_id, ship_id) ||
+      !units_board_stacked(&f.units, sol_id, ship_id)) {
     fixture_free(&f);
     return fail("spawn/board");
   }
-  const int chain = ai_euro_tile_chain_count(&f.units, 14, 8);
+  const int chain = units_tile_chain_count(&f.units, 14, 8);
   const int on_map = units_count_at(&f.units, 14, 8);
+  /* 0d38 opcode 0xa counts the Soldier riding the ship (#1642). */
+  const int military = units_military_count_at(&f.units, 14, 8);
   fixture_free(&f);
-  if (chain != 3 || on_map != 2) {
-    fprintf(stderr, "chain=%d (want 3) on_map=%d (want 2)\n", chain, on_map);
-    return fail("tile chain must count the ship's passenger");
+  if (chain != 4 || on_map != 2 || military != 1) {
+    fprintf(stderr, "chain=%d (want 4) on_map=%d (want 2) military=%d (want 1)\n", chain, on_map,
+            military);
+    return fail("tile chain must count the ship's passengers");
   }
   return 0;
 }
@@ -528,7 +533,7 @@ static int unit_ring_hop_coarse_mask_ignores_unit_bit(void) {
   }
   u->nation_id = nation;
   u->type_index = 13; /* ship: FUN_281f_0b28 false, coarse stamp 1 */
-  ai_coarse_fog_euro_restamp(&f.units, &f.colonies, nation);
+  ai_coarse_fog_euro_restamp(&f.units, &f.colonies, &f.map, nation);
   if (ai_coarse_fog_explore_unseen(8, 8) || !ai_coarse_fog_ring_hop_open(8, 8)) {
     fixture_free(&f);
     return fail("unit bit must block far probe but allow ring hop");
@@ -542,14 +547,14 @@ static int unit_ring_hop_coarse_mask_ignores_unit_bit(void) {
   pax->nation_id = nation;
   pax->type_index = 1;
   pax->aboard_ship_id = uid;
-  ai_coarse_fog_euro_restamp(&f.units, &f.colonies, nation);
+  ai_coarse_fog_euro_restamp(&f.units, &f.colonies, &f.map, nation);
   if (ai_coarse_fog_ring_hop_open(8, 8)) {
     fixture_free(&f);
     return fail("aboard profession unit must contribute its DOS coarse stamp");
   }
   units_despawn(&f.units, pax_id);
   u->type_index = 1; /* Soldier: profession slot, coarse stamp 5 */
-  ai_coarse_fog_euro_restamp(&f.units, &f.colonies, nation);
+  ai_coarse_fog_euro_restamp(&f.units, &f.colonies, &f.map, nation);
   if (ai_coarse_fog_ring_hop_open(8, 8)) {
     fixture_free(&f);
     return fail("profession-carrying unit must block ring hop");
@@ -559,10 +564,18 @@ static int unit_ring_hop_coarse_mask_ignores_unit_bit(void) {
   f.colonies.colonies[0].nation_id = nation;
   f.colonies.colonies[0].x = 9;
   f.colonies.colonies[0].y = 9;
-  ai_coarse_fog_euro_restamp(&f.units, &f.colonies, nation);
+  ai_coarse_fog_euro_restamp(&f.units, &f.colonies, &f.map, nation);
   if (ai_coarse_fog_ring_hop_open(8, 8)) {
     fixture_free(&f);
     return fail("colony bit must block ring hop");
+  }
+  /* raw 87555: a unit off the FUN_281f_0302 inset stamps nothing (#1634). */
+  u->x = 0;
+  u->y = 4;
+  ai_coarse_fog_euro_restamp(&f.units, &f.colonies, &f.map, nation);
+  if (!ai_coarse_fog_explore_unseen(0, 4)) {
+    fixture_free(&f);
+    return fail("rim unit must not stamp the coarse plane");
   }
   fixture_free(&f);
   return 0;
@@ -4294,6 +4307,8 @@ static int unit_stance_counts_native_village_population(void) {
   f.col1.tribe = &village;
   f.col1.head.tribe_count = 1;
   f.col1.indian[0].euro_diplo[1] |= COL1_INDIAN_WAR_BIT;
+  /* The stance reads the Euro-side byte, 0a38(euro, tribe+4) (#1618). */
+  ai_diplo_write(&f.col1, 1, 4, (uint8_t)(ai_diplo_read(&f.col1, 1, 4) | COL1_INDIAN_WAR_BIT));
   const int cid = map_continent_id_at(&f.map, 4, 4);
   seed_census(&f, 1);
   ai_euro_refresh_continent_stance(&f.ctx, 1);
@@ -4524,6 +4539,8 @@ static int unit_missionary_adjacent_village_visits_once(void) {
   f.col1.tribe = t;
   f.col1.head.tribe_count = 1;
   f.col1.indian[0].euro_diplo[0] |= COL1_INDIAN_MET_BIT;
+  /* The incite gate reads the Euro-side byte, 0a38(euro, tribe+4) (#1618). */
+  ai_diplo_write(&f.col1, 0, 4, (uint8_t)(ai_diplo_read(&f.col1, 0, 4) | COL1_INDIAN_MET_BIT));
   const int uid = units_spawn(&f.units, 3, 8, 8);
   ColonizeUnit* u = units_get(&f.units, uid);
   if (!u) { free(t); f.col1.tribe = NULL; fixture_free(&f); return fail("visit spawn"); }

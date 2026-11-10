@@ -86,14 +86,15 @@ static int unit_build_ai_flags_wants_construction(void) {
     return fail("expected LABOR join from build_ai_flags wants_construction");
   }
 
-  /* clear_construction drops bit7 */
+  /* clear_construction keeps bit7: FUN_2f2b_5a68 raw 52664-52667 never
+   * touches +0x1d; that clear is the 5952 cascade's (port_bugs.md #1683). */
   c->build_ai_flags = COLONIZE_BUILD_AI_WANTS_CONSTRUCTION;
   c->building_in_production = 0;
   colonies_clear_construction(&colonies, c->id);
-  if ((c->build_ai_flags & COLONIZE_BUILD_AI_WANTS_CONSTRUCTION) != 0 ||
+  if ((c->build_ai_flags & COLONIZE_BUILD_AI_WANTS_CONSTRUCTION) == 0 ||
       c->building_in_production != -1) {
     fx_map_free(&map);
-    return fail("expected clear_construction to drop wants_construction bit");
+    return fail("expected clear_construction to keep wants_construction bit");
   }
 
   fx_map_free(&map);

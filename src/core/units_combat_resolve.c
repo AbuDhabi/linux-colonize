@@ -947,13 +947,16 @@ int units_coastal_fort_attack_strength(
     return 0;
   }
   int arty = 0;
-  int tile_cursor = 0;
   /* DOS-LITERAL raw 57053-57057: the chain walk counts EVERY unit on the tile
    * with type byte 0x0b; there is no nation test and no damaged-bit test. The
    * port-side `u->nation_id != colony->nation_id` filter was removed
-   * 2026-09-23 (port_bugs.md #764). */
-  for (const ColonizeUnit* u = units_next_on_tile_const(units, colony->x, colony->y, &tile_cursor);
-       u != NULL; u = units_next_on_tile_const(units, colony->x, colony->y, &tile_cursor)) {
+   * 2026-09-23 (port_bugs.md #764). The chain holds Artillery aboard a
+   * docked ship too (port_bugs.md #1642). */
+  for (int i = 0; i < units_slot_end(units); ++i) {
+    const ColonizeUnit* u = &units->units[i];
+    if (!units_in_tile_chain(units, u, colony->x, colony->y)) {
+      continue;
+    }
     const ColonizeUnitType* t = units_type(units, u->type_index);
     if (!t) {
       continue;
@@ -1590,13 +1593,15 @@ void units_sentry_wake_scan(
     if (!mover_in_colony && !nb_settlement && map_tile_is_water(map, nx, ny) != dest_water) {
       continue;
     }
-    int slot = 0;
-    for (ColonizeUnit* f = units_next_on_tile(pool, nx, ny, &slot); f != NULL;
-         f = units_next_on_tile(pool, nx, ny, &slot)) {
-      if (f->orders != UNITS_ORDER_SENTRY) {
+    /* FUN_281f_02e4 chain walk: riders of a ship on (nx,ny) are in it, and
+     * DOS reads the rider's own tile (= the ship's) through 0768, so a rider
+     * on a ship docked in a colony wakes (port_bugs.md #1642). */
+    for (int si = 0; si < units_slot_end(pool); ++si) {
+      ColonizeUnit* f = &pool->units[si];
+      if (!units_in_tile_chain(pool, f, nx, ny) || f->orders != UNITS_ORDER_SENTRY) {
         continue;
       }
-      if (!units_is_sea(pool, f->id) && map_tile_is_water(map, f->x, f->y)) {
+      if (!units_is_sea(pool, f->id) && map_tile_is_water(map, nx, ny)) {
         continue; /* land unit on water: riding in a hold (raw 98635-98638) */
       }
       /* This automatic wake writes only +0x314c in DOS (raw 98640); so does

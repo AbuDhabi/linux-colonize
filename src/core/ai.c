@@ -129,13 +129,21 @@ static void ai_coarse_fog_mark_tribe(int x, int y) {
  * mapgen tribe marks forever (2026-08-28 fix).
  */
 void ai_coarse_fog_euro_restamp(
-  const ColonizeUnitPool* units, const ColonizeColonyPool* colonies, int nation_id
+  const ColonizeUnitPool* units,
+  const ColonizeColonyPool* colonies,
+  const ColonizeWorldMap* map,
+  int nation_id
 ) {
   ai_coarse_fog_reset();
   if (units) {
     for (int i = 0; i < units_slot_end(units); ++i) {
       const ColonizeUnit* u = &units->units[i];
       if (!u->active || u->nation_id != nation_id || units_coords_in_europe_park(u->x, u->y)) {
+        continue;
+      }
+      /* raw 87555: the unit stamp sits under FUN_281f_0302 (rim units skip);
+       * the colony stamp below has no such test (raw 87599). */
+      if (map && !map_coords_inset(map, u->x, u->y)) {
         continue;
       }
       const int ix = ai_coarse_fog_explore_index(u->x, u->y);
@@ -1171,6 +1179,29 @@ static void ai_fix_human_nation_ids(ColonizeUnitPool* units, int human_nation) {
   }
 }
 
+/* FUN_75c2_235c (raw 121612-121646) creates the starter records in nation
+ * order 0..3, ship, Pioneer, Soldier each. The human's three came first
+ * (units_new_world_start, before ai_init_new_game), so a stable sort by nation
+ * puts them in their slot (#1798); ids are unchanged, only units_dos_index /
+ * the save record order move. */
+static void ai_starters_nation_order(ColonizeUnitPool* units) {
+  if (!units) {
+    return;
+  }
+  units_pool_compact(units);
+  const int n = units_slot_end(units);
+  for (int i = 1; i < n; ++i) {
+    const ColonizeUnit key = units->units[i];
+    int j = i - 1;
+    while (j >= 0 && units->units[j].nation_id > key.nation_id) {
+      units->units[j + 1] = units->units[j];
+      --j;
+    }
+    units->units[j + 1] = key;
+  }
+  units_pool_sync(units);
+}
+
 bool ai_init_new_game(const AiNewGameParams* params, char* err, size_t err_size) {
   if (!params || !params->col1 || !params->col1_ok || !params->map || !params->units) {
     if (err && err_size) {
@@ -1266,6 +1297,7 @@ bool ai_init_new_game(const AiNewGameParams* params, char* err, size_t err_size)
       diag_warn("ai: failed to spawn fleet for nation %d", n);
     }
   }
+  ai_starters_nation_order(params->units);
 
   ColonizeCol1Tribe* tribes = NULL;
   int count = 0;
@@ -1481,8 +1513,8 @@ void ai_euro_nation_turn(ColonizeTurnContext* ctx, int nation_id) {
   );
   /* FUN_43f7_2244 used to be called here as an AI "peacetime gift"; its DOS
    * caller FUN_281f_0668 is in the HUMAN arm of the year loop (raw 6418),
-   * so it moved to turn.c's TURN_PROC_KING tail as the @MERCENARIES offer
-   * (ai_king_peacetime_merc_offer, 2026-09-15). */
+   * so it is the @MERCENARIES offer (ai_king_peacetime_merc_offer), run after
+   * the 6416 autosave by game_finish_end_turn / turn_end (#1821). */
 
   if (!ctx->map) {
     return;

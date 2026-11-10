@@ -19,6 +19,8 @@ key Return               # Rebel colonists CAPTURED by the Tory (nested pump)
 wait 10
 key Return               # Tories defeat Rebel Colonists near Guadeloupe (nested pump)
 wait 10
+key Return               # Tory Cavalry routed, demoted to Regulars (nested pump; AI-vs-AI fight the human sees, #1791)
+wait 10
 key Return               # nested pump
 wait 10
 key Return               # Rebel colonists CAPTURED by the Tory (nested pump)

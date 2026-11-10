@@ -206,7 +206,7 @@ void colonies_reveal_founded_w(
     return;
   }
   /*
-   * FUN_364b_1dd6: `for n in 0..3: if FUN_15eb_3960(n, 6) then
+   * FUN_364b_1ba8 raw 58118-58124: `for n in 0..3: if FUN_15eb_3960(n, 6) then
    * FUN_13f1_00a6(new_colony, n)`. Gated on Coronado per nation — every
    * Coronado owner sees around the new colony, not just its founder.
    */
@@ -821,8 +821,9 @@ int colonies_nearest_tribe_on(
   for (uint16_t i = 0; i < col1->head.tribe_count; ++i) {
     const ColonizeCol1Tribe* t = &col1->tribe[i];
     if (continent >= 0 && map) {
-      const int tc = map_continent_id_at(map, (int)t->x, (int)t->y);
-      if (tc >= 0 && tc != continent) {
+      /* 0722 = FUN_137f_02a0 reads -1 off water / off-map, and -1 != param_4
+       * skips the village too (raw 80966-80971, port_bugs.md #1641). */
+      if (map_continent_id_at(map, (int)t->x, (int)t->y) != continent) {
         continue;
       }
     }

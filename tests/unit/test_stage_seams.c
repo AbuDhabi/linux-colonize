@@ -1185,6 +1185,8 @@ static int test_human_lcr_count_change_skips_contact(void) {
   for (int seed = 1; seed < 400 && rc == 0 && (!seen_changed || !seen_same || !seen_foy); ++seed) {
     game.world_map.layer2[3 * 8 + 3] &= (uint8_t)~MAP_LAYER2_LCR_CONSUMED;
     memset(&game.col1.indian[0], 0, sizeof(game.col1.indian[0]));
+    /* The welcome reads the Euro-side byte 0a38(euro, tribe+4) (#1618). */
+    ai_diplo_write(&game.col1, 0, 4, 0);
     ai_popup_init(&game.ai_popups);
     /* The explorer walks onto the rumour, so the move's own 3180 halves
      * (units_sentry_wake_scan) run too. */

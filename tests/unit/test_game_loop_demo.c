@@ -172,6 +172,30 @@ out:
   return rc;
 }
 
+/* FUN_130d_0290 raw 6459: the year-end checks are skipped under autoplay
+ * (DS:0x826) or the demo (DS:0x828); the sim sees either as ctx.autoplay (#1820). */
+static int demo_ctx_autoplay(void) {
+  ColonizeGameState* game = demo_loaded(false);
+  if (!game) {
+    return TR_SKIP;
+  }
+  int rc = 0;
+  ColonizeTurnContext ctx;
+  game_fill_turn_context(game, &ctx);
+  CHECK(!ctx.autoplay);
+  game->autoplay = true;
+  game_fill_turn_context(game, &ctx);
+  CHECK(ctx.autoplay);
+  game->autoplay = false;
+  game->demo = true;
+  game_fill_turn_context(game, &ctx);
+  CHECK(ctx.autoplay);
+  game->demo = false;
+out:
+  demo_cleanup(game);
+  return rc;
+}
+
 /*
  * CHEAT None + @SETAUTO Yes outside the demo: every Euro control byte 1, autoplay on.
  * The day runs on its own (6d8e watch: the view nation's units, cursor moves and
@@ -593,6 +617,9 @@ static int demo_after_new_campaign_forked(void) {
 static int europe_routeloop_forked(void) {
   return run_forked(europe_routeloop);
 }
+static int demo_ctx_autoplay_forked(void) {
+  return run_forked(demo_ctx_autoplay);
+}
 
 static const TestCase k_cases[] = {
   {"demo_filter_passthrough", demo_filter_passthrough_forked},
@@ -605,6 +632,7 @@ static const TestCase k_cases[] = {
   {"demo_watch_hook", demo_watch_hook_forked},
   {"demo_after_new_campaign", demo_after_new_campaign_forked},
   {"europe_routeloop", europe_routeloop_forked},
+  {"demo_ctx_autoplay", demo_ctx_autoplay_forked},
 };
 
 TEST_MAIN(k_cases)

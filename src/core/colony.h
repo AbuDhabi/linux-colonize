@@ -300,7 +300,7 @@ int colonies_found(
   int horses
 );
 
-/* FUN_364b_1dd6 founding tail / Coronado reveal (see docs/colony.md#colonies_reveal_founded_w) */
+/* FUN_364b_1ba8 raw 58118-58124 founding tail / Coronado reveal (see docs/colony.md#colonies_reveal_founded_w) */
 void colonies_reveal_founded_w(
   const ColonizeWorld* w,
   int colony_id
