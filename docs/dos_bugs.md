@@ -594,3 +594,17 @@ live map (DS:0x180/0x182); with none it accepts any size, including 0.
 (LOADNOT) for W or H 0 with no live map; the parser and the bridge refuse an empty
 map too. With a live map it gives LOADSIZE as DOS does.
 **Status:** done (user 2026-11-08, port_bugs.md #1599 / #1608).
+
+### DB-95 — Deleting a trade route rewrites the remembered route of idle transports (port_bugs.md #1720)
+**DOS:** a wagon or ship keeps its last route and stop in +0x17 after it leaves the
+route. FUN_647e_1486 (raw 103175-103189) walks every unit whose type has hold capacity
+(type*0xe + 0x5237 != 0) with no orders test: route == slot gets route 0 and stop 0
+(0862 / 08b2), with the orders cleared only if they are 2; route > slot gets route - 1.
+The stale route also becomes the Begin-route picker's default row (FUN_291f_08ec).
+
+**Port:** a unit holds a route only while its orders are 2 (`units_clear_orders` drops
+it; the col1_bridge capture writes 0 for transports off a route), so
+`game_do_trade_delete_slot` (`src/core/game_dialogs.c`) touches only units on routes,
+and Begin preselects a route only for a unit already on one (port_bugs.md #1718 /
+#1719). Saves differ in the +0x17 nibble of idle transports. Goldens pass without it.
+**Status:** done (user 2026-11-10; port already differed).

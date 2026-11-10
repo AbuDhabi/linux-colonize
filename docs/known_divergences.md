@@ -143,6 +143,15 @@ self could not be settled from the decomp.
 with layer3 0 therefore fall back to the plain 8-neighbour water test. On a real
 map this matters only if a water tile carries region 0.
 
+### #1771 — Sidebar redraw does not re-sort the tile chain
+DOS re-links (re-sorts) the cursor tile's unit chain through FUN_1427_04d6 via
+FUN_281f_07ea on every sidebar redraw (49dd raw 78700-78701, View Pieces included),
+so later chain walks see the sorted order. The port draws the sidebar in the same
+order (`map_panel_collect_stack`: rank, then newest arrival first) but sorts the
+chain itself only in `turn_idle_human_activate` (turn.c), because a render path must
+not mutate the unit pool (`units_tile_stack_sort_at` mutates it). Goldens pass
+without it (user 2026-11-10).
+
 ## Blocked on a live DOS capture
 
 Static reading cannot settle these. Each names exactly what to capture. Do not

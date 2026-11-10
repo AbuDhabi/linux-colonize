@@ -257,3 +257,22 @@ Damaged Artillery".
 **Port:** `pedia_article_unit` (`src/core/pedia.c`) formats "%s (%s %s %s)" and
 closes the bracket.
 **Status:** done (user 2026-11-08).
+
+### DB-93 — The encyclopedia unit page is blank when the unit pool is full (port_bugs.md #1767)
+**DOS:** FUN_6cb2_07e6 (raw 110451) starts the unit article by creating a temporary
+unit (FUN_2a1f_01ca(0, -6, -6, DS:0x5398)) and draws nothing when that fails, so with
+every unit slot taken the page stays blank.
+
+**Port:** `pedia_article_unit` (`src/core/pedia.c`) needs no temporary unit and always
+draws the page.
+**Status:** done (user 2026-11-10; port already differed).
+
+### DB-94 — @TUTORIAL4 names a random goods type for a colonist in a building
+**DOS:** the colony-screen bring-up FUN_2f2b_6cd4 (raw 56026-56070) fills @TUTORIAL4
+%STRING1 from colonist 0's plot via FUN_281f_0d30 -> FUN_15eb_1646, which leaves the
+x/y outputs unwritten when the colonist works in a building, so the "other cargo" scan
+reads whatever tile the stack junk points at.
+
+**Port:** `game_tutorial_colony_opened` (`src/core/game_tutorial.c`) keeps Food when
+colonist 0 has no plot.
+**Status:** done (user 2026-11-10; port already differed).
