@@ -3,6 +3,94 @@
 Player-facing changes. Bracketed numbers are [docs/port_bugs.md](docs/port_bugs.md) row ids (closed
 rows live in [docs/archive/bugs_closed.md](docs/archive/bugs_closed.md)).
 
+## 1.1.5 — 2026-11-10
+
+Covers `1.1` (2026-11-06) to 2026-11-10: 77 commits, 382 bug rows
+resolved, mostly from a DOS-fidelity audit. Not exhaustive.
+
+### New
+
+- Mods: GAME > Mods for New Games checklist on the title menu. Each mod
+  is stored per campaign; all are off by default except the Go To fix.
+  Former `divergences` QoL options (Plan Pioneer, scout/ship auto-explore,
+  hard King, current vision) moved here. Also new: construction queue
+  (Shift-click), native wagon loot, raid scalps, building population
+  floor and colony ABANDON button, Royal mercy tax cut, late Founding
+  Fathers, Town Hall tiers, building upkeep, King's Audience chamber
+  (VIEW menu), tribe mood reports, computer scouts spying, AI treaty
+  cancel notices. Extra text lives in `data/mods/`.
+- Construction picker shows, in grey, projects only a queued one unlocks
+  (Drydock behind Docks).
+- Unit slide and combat lunge animate like DOS (16 one-pixel steps).
+- Faster map rendering.
+
+### Divergences (DOS bugs no longer reproduced)
+
+- A ship Go To no longer bounces between two tiles forever. [1576]
+- More DOS bugs documented and kept out (Esc at scout/trade prompts
+  acting as a choice, Warehouse Expansion tools drain, ...). [1521] [1563]
+  [1602] [1608] [1615] [1625] [1649] [1670] [1720] [1727] [1728] [1748]
+  [1764] [1767]
+
+### Gameplay
+
+- European AI follows DOS more closely: colony jobs, pioneers,
+  missionaries, scouts, Europe trade, ship plans, landings. [1455] [1456]
+  [1479] [1494]-[1498] [1585] [1600] [1621]-[1629] [1647]-[1657]
+  [1667]-[1669] [1837] [1842]
+- Native contact and diplomacy: village trade, Speak With Chief, Live
+  Among the Natives, missions, incite, land claims. [1459] [1460] [1473]
+  [1480]-[1482] [1501]-[1514] [1594] [1616]-[1620] [1630] [1635]-[1641]
+  [1644] [1680] [1694]
+- King and WoI: REF landing tiles, intervention, Continental Army, the
+  Declare gate, Tory uprisings; free-Frigate offer restored. [1454] [1457]
+  [1458] [1471] [1472] [1500] [1593] [1646] [1658] [1660] [1662]-[1664]
+  [1666]
+- Combat: fort fire target, Revere militia, capture plunder, raid damage
+  to ships. [1483]-[1486] [1524] [1681] [1791] [1792] [1794] [1817] [1839]
+- Movement and ships: map Load/Unload Cargo work, Sentry/Fortify keep a
+  Go To, boarding with two ships on a tile, DOS hold order. [1452] [1493]
+  [1574] [1588] [1589] [1606] [1730] [1778] [1780]-[1783] [1803]-[1805]
+  [1838] [1840] [1841]
+- B no longer founds colonies with Converts, artillery, wagons or
+  treasure; H no longer sails ships to Europe. [1453] [1476] [1496] [1527]
+  [1529] [1648]
+- Colonies: births not capped at 32 colonists, burnt Church/Schoolhouse
+  workers become Carpenters, Founding Father elections, warnings repeat
+  as in DOS. [1461] [1462] [1475] [1516]-[1520] [1523] [1557] [1591] [1683]
+  [1684] [1692]-[1696] [1700]-[1702] [1733] [1777] [1821] [1822]
+- Europe: dock order, Fountain of Youth cancel recruits nobody, manual
+  Sail drops the trade route, voyage length and boycott cost. [1463] [1477]
+  [1492] [1525] [1587] [1677] [1679] [1707] [1709] [1722] [1815] [1823]
+- Trade routes: correct High Seas tile for Europe stops, no stop
+  serviced with 0 moves, stop deletion. [1469] [1682] [1718] [1719] [1721]
+  [1746] [1750] [1753]
+- Map generation and custom maps follow DOS. [1466] [1540] [1541] [1559]
+  [1645] [1673] [1674] [1762] [1763]
+- Saves: zoom kept, holds and tools written as DOS, loading accepts what
+  DOS accepts. [1572] [1575] [1599] [1601] [1798] [1809] [1810]
+- Score uses DOS 16-bit math. [1598] [1807] [1808]
+
+### User Interface
+
+- Europe: dragging goods to the market sells the right hold; ship-to-ship
+  transfer in the harbor. [1550] [1704]-[1706] [1731] [1732] [1739]-[1742]
+- Map sidebar, colony screen, reports and map drawing match DOS. [1467]
+  [1468] [1488] [1530] [1542]-[1549] [1554] [1568] [1569] [1595]-[1597]
+  [1675] [1676] [1686]-[1691] [1697] [1698] [1710]-[1717] [1735]-[1738]
+  [1770]-[1773] [1775] [1785] [1786] [1799]-[1802] [1806] [1829] [1830]
+  [1832]-[1835]
+- Input: either mouse button confirms dialogs, Esc keeps option toggles,
+  Enter opens colonies. [1474] [1526] [1539] [1562] [1566] [1582] [1672]
+  [1724] [1743] [1745] [1755] [1757] [1758] [1812] [1828] [1843]
+- Popup order and wording, cinematics, music cues, Cheat menu and MAPEDIT
+  follow DOS. [1464] [1465] [1487] [1489] [1491] [1499] [1503]-[1505]
+  [1522] [1531]-[1538] [1551]-[1556] [1564] [1565] [1567] [1573] [1583]
+  [1590] [1603] [1609]-[1614] [1617] [1619] [1620] [1632] [1633] [1640]
+  [1659] [1661] [1665] [1671] [1678] [1702] [1752] [1754] [1756]
+  [1759] [1760] [1768] [1769] [1774] [1779] [1793] [1811] [1814] [1816]
+  [1824]-[1827]
+
 ## 1.1 — 2026-11-06
 
 Covers `1.0` (2026-11-01) to 2026-11-06: 247 commits, 85 bug rows
