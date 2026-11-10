@@ -105,9 +105,11 @@
  *   endturn                     confirm the End of Turn prompt (error while a unit waits); like `auto`,
  *                               closes an open colony screen first (nothing ends a turn under it)
  *   world                       whole map, one char a tile
- *   fog [N]                     land tiles not yet seen: count, then up to N (default 20) of them,
+ *   fog [N [X Y R]]             land tiles not yet seen: count, then up to N (default 20) of them,
  *                               grouped by 8x8 block ("FOG x0,y0 n"), to aim scouts at; the first
- *                               40 tiles also print as "FOGTILE x,y"
+ *                               40 tiles (with X Y R: every tile within R of X,Y) also print as
+ *                               "FOGTILE x,y cont C" (C = continent id; land Go To stays on its own,
+ *                               printed for X,Y as "FOG continent at")
  *   rumours                     list seen rumour tiles with terrain (h hill, m mountain)
  *   plan X Y clear|plow|road    VIEW Plan Pioneer toggle on tile X,Y (mods.pioneer_plan;
  *                               clear cycles Clear -> Clear+Plow -> none); ORDERS Automate (`key q`)
@@ -324,7 +326,9 @@ bool platform_poll_input(ColonizePlatform* p, ColonizeInputState* out) {
       tap(SDLK_RETURN, -1, 0);
       /* c18: a nested message (@SNEAK / @DECLAREWAR) used to vanish with no text. */
       printf("NESTED: Return pressed in a modal loop%s%s | %s\n", want >= 0 ? " on " : "",
-             want >= 0 ? pop->current.choices[want] : "", pop ? pop->current.body : "");
+             want >= 0 ? pop->current.choices[want] : "",
+             /* C22: a closed popup keeps its last body (a stale mercenary offer echoed at a combat). */
+             pop && pop->open ? pop->current.body : "(no popup open)");
     }
   }
   out->text_input_len = 0;
@@ -582,7 +586,14 @@ static void print_new_log(void) {
     for (int i = 0; i < pop->current.choice_count; ++i) {
       printf(" [%d] %s", i, pop->current.choices[i]);
     }
-    printf(" (sel %d)\n", pop->selection);
+    printf(" (sel %d)", pop->selection);
+    if (pop->current.tag == AI_POPUP_TAG_FORTIFY_TREATY) {
+      /* C22-T13: the bare Cancel/Break Treaty rows never said who asked. */
+      const ColonizeUnit* fu = units_get(&g_game->units, pop->current.nation_a);
+      printf(" -- unit %d fortifying at (%d,%d) next to treaty partner %d's colony", pop->current.nation_a,
+             fu ? fu->x : -1, fu ? fu->y : -1, pop->current.nation_b);
+    }
+    printf("\n");
   }
   static bool list_shown;
   if (!g_game->cheat_list.open && !(g_game->in_europe && g_game->europe.menu != EUROPE_MENU_NONE)) {
@@ -658,6 +669,9 @@ static void print_status(void) {
   }
   /* Popups waiting behind a screen (Europe, colony) block `sail` and keys, but show
    * nothing: name them. */
+  if (g->ai_popups.open && g->ai_popups.current.choice_count == 0) {
+    printf("STATUS message popup %d (Return closes): %s\n", game_ai_popup_tag(g), g->ai_popups.current.body);
+  }
   for (int i = 0; !g->ai_popups.open && i < g->ai_popups.queue_count; ++i) {
     printf("STATUS queued popup %d: %s\n", (int)g->ai_popups.queue[i].tag, g->ai_popups.queue[i].body);
   }
@@ -843,6 +857,10 @@ static void print_colonies(void) {
            b >= 0 && b < g_game->colonies.building_type_count ? g_game->colonies.building_types[b].name
            : b >= 0 ? "unit" : "-",
            c->hammers, colony_prod_sol_percent(&g_game->col1, c), pv.food_net, pv.bells, pv.crosses, pv.hammers);
+    for (int q = 0; q < c->build_queue_count; ++q) {
+      printf("%s%d", q ? " " : "  queue ", c->build_queue[q]);
+      printf(q + 1 == c->build_queue_count ? "\n" : "");
+    }
     static const char* const k_cargo[COLONIZE_CARGO_COUNT] = {
       "food", "sugar", "tobacco", "cotton", "furs", "lumber", "ore", "silver",
       "horses", "rum", "cigars", "cloth", "coats", "tradegoods", "tools", "muskets"};
@@ -1163,6 +1181,20 @@ static bool choose_list_row(int n, bool* ok) {
 
 /* Answer the open choice popup with row N: arrow keys to the row, then
  * Return (a bare Return takes whatever row is highlighted). False = game quit. */
+/* Plain message popups (no rows) left up after a batch (price notice, gift, mission
+ * founded: already echoed as LOG) block activate / field / work / build (C22 T5):
+ * Return each away, as a player reading them would. Questions stay up. */
+static bool close_message_popups(void) {
+  bool ok = true;
+  for (int tries = 0; ok && tries < 8 && g_game->ai_popups.open && g_game->ai_popups.current.choice_count == 0;
+       ++tries) {
+    tap(SDLK_RETURN, -1, 0);
+    ok = flush_frames(10);
+  }
+  print_new_log();
+  return ok;
+}
+
 static bool choose_popup_row(int a1) {
   bool ok = true;
   const AiPopupState* pop = &g_game->ai_popups;
@@ -1308,6 +1340,12 @@ static bool command(char* line) {
       print_new_log();
       fflush(stdout);
       return ok;
+    }
+    /* C22-T12: a stray Escape answered the King's treasure offer with its No row. */
+    if (code == SDLK_ESCAPE && !g_game->in_europe && g_game->ai_popups.open &&
+        g_game->ai_popups.current.choice_count >= 2) {
+      printf("ERR Escape refused: a CHOICES popup is open (Escape picks its cancel row); answer with `choose N`\n");
+      return true;
     }
     /* Escape on the bare main map asks @DOSYES (default Yes, C2-B1); the
      * driver's next Return would quit the program. Always refused there; an
@@ -1534,6 +1572,7 @@ static bool command(char* line) {
     }
     g_at = g_p.frame;
     print_new_log();
+    ok = ok && close_message_popups();
     if (g_game->ai_popups.open || game_screen_owns_display(g_game) || game_modal_open(g_game)) {
       printf("ERR activate %d: %s first (screen %s, popup tag %d); keys SKIPPED until activate/status/sync\n", a1,
              off_map_reason(g_game) ? off_map_reason(g_game) : "popup open", g_game->log_screen,
@@ -1573,7 +1612,13 @@ static bool command(char* line) {
       units_get(&g_game->units, a1)->automated = false;
     }
     const ColonizeWorld w = game_world(g_game);
-    if (!units_set_goto_w(&w, a1, a2, atoi(argv[3]))) {
+    const int gty = atoi(argv[3]);
+    if (a2 < 1 || gty < 1 || a2 >= (int)g_game->world_map.width - 1 || gty >= (int)g_game->world_map.height - 1) {
+      /* C22-O5: a border-row target (y 71) was accepted and the ship just sat there. */
+      printf("ERR goto refused (%d,%d is off the playable map)\n", a2, gty);
+      return true;
+    }
+    if (!units_set_goto_w(&w, a1, a2, gty)) {
       /* A seen tile the unit cannot enter: land for a ship, water for a land unit,
        * or a tile held by another nation's units or colony. */
       printf("ERR goto refused (tile not enterable for this unit, or held by another nation)\n");
@@ -1779,6 +1824,9 @@ static bool command(char* line) {
         g_game->colonies.colonies[a1].nation_id != g_game->human_nation) {
       printf("ERR no colony %d of yours\n", a1);
       return true;
+    }
+    if (game_ai_popup_tag(g_game) >= 0) {
+      ok = close_message_popups();
     }
     if (game_ai_popup_tag(g_game) >= 0) {
       /* C17: a second `field` onto native land queued another @INDIANLAND under the
@@ -2008,6 +2056,14 @@ static bool command(char* line) {
       printf("ERR no colony %d of yours\n", a1);
       return true;
     }
+    if (game_ai_popup_tag(g_game) >= 0) {
+      ok = close_message_popups();
+    }
+    if (game_ai_popup_tag(g_game) >= 0) {
+      /* C22: the build Escape answered an open village popup (scout lost its visit). */
+      printf("ERR %s: popup tag %d is open; answer it with `choose` first\n", op, game_ai_popup_tag(g_game));
+      return true;
+    }
     /* The build menu lists only FUN_15eb_3650's available rows (no owned building,
      * no cut row 10/11/0x1e): refuse anything else, as a click could not pick it. */
     const ColonizeColony* bc = &g_game->colonies.colonies[a1];
@@ -2056,8 +2112,12 @@ static bool command(char* line) {
     } else {
       game_colony_commit_construction(g_game, a2);
     }
-    printf("BUILD %s now %d\n", g_game->colonies.colonies[a1].name,
+    printf("BUILD %s now %d", g_game->colonies.colonies[a1].name,
            g_game->colonies.colonies[a1].building_in_production);
+    for (int q = 0; q < g_game->colonies.colonies[a1].build_queue_count; ++q) {
+      printf("%s%d", q ? " " : " queue ", g_game->colonies.colonies[a1].build_queue[q]);
+    }
+    printf("\n");
     ok = flush_frames(2);
     /* Leave the screen this command opened (it used to stay up and stall `auto`). */
     if (ok && !was_in && g_game->in_colony && !g_game->ai_popups.open) {
@@ -2071,6 +2131,13 @@ static bool command(char* line) {
     if (a1 < 0 || a1 >= COLONIZE_COLONIES_MAX || !g_game->colonies.colonies[a1].active ||
         g_game->colonies.colonies[a1].nation_id != g_game->human_nation) {
       printf("ERR no colony %d of yours\n", a1);
+      return true;
+    }
+    if (game_ai_popup_tag(g_game) >= 0) {
+      ok = close_message_popups();
+    }
+    if (game_ai_popup_tag(g_game) >= 0) {
+      printf("ERR %s: popup tag %d is open; answer it with `choose` first\n", op, game_ai_popup_tag(g_game));
       return true;
     }
     const bool was_in = g_game->in_colony;
@@ -2136,8 +2203,10 @@ static bool command(char* line) {
           continue;
         }
         ++total;
-        if (total <= 40) {
-          printf("FOGTILE %d,%d\n", x, y);
+        /* `fog N X Y R`: list the tiles within R of X,Y instead of the first 40 (C22). */
+        const bool near = argc > 4 && abs(x - a2) <= atoi(argv[4]) && abs(y - atoi(argv[3])) <= atoi(argv[4]);
+        if (argc > 4 ? near : total <= 40) {
+          printf("FOGTILE %d,%d cont %d\n", x, y, map_continent_id_at(m, x, y));
         }
         if (y / 8 < 32 && x / 8 < 32) {
           ++blocks[y / 8][x / 8];
@@ -2145,6 +2214,10 @@ static bool command(char* line) {
       }
     }
     printf("FOG %d unseen land tiles\n", total);
+    if (argc > 4) {
+      /* Land Go To only reaches its own continent (a refused route spends the turn's moves). */
+      printf("FOG continent at %d,%d: %d\n", a2, atoi(argv[3]), map_continent_id_at(m, a2, atoi(argv[3])));
+    }
     int shown = 0;
     const int limit = argc > 1 ? a1 : 20;
     for (int by = 0; by < 32 && shown < limit; ++by) {
