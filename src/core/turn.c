@@ -46,7 +46,7 @@ static void turn_set_active_nation(ColonizeTurnContext* ctx, int nation_id) {
 /*
  * FUN_3844_00f2 per-unit fog reveal (281f_07a0 → 13f1_02f8) for every unit of
  * the nation, human and AI alike. No colony reveal here: DOS colonies only
- * reveal once, ±5 at founding (colonies_reveal_founded).
+ * reveal once, ±5 at founding (colonies_reveal_founded_w).
  * Cite: nation_eot.c unit walk; game_loop human fog.
  */
 static void turn_reveal_fog_for_nation(ColonizeTurnContext* ctx, int nation_id) {

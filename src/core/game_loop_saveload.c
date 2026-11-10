@@ -792,7 +792,8 @@ bool game_names_row(
  * DOS FUN_41f2_0b70 exploits screen text: GAME.TXT @EXPLOITS (%NUMBER0 =
  * rating, %STRING0 = nation name) + the first tier+1 @SCORE rows split at
  * the comma (category / named thing, %STRING0 = leader's surname — DOS
- * strchr(name, ' ') + 1, whole name when no space). SCORE<tier+1>.SS frame.
+ * FUN_1d1d_0d1a = strrchr(name, ' '), raw 72523: the space is kept; whole name when
+ * no space). SCORE<tier+1>.SS frame.
  */
 /* Leader and nation of DS:0x5398 (FUN_41f2_0b70 raw 72499 / 72523-72525,
  * FUN_41f2_14a8 raw 72743-72744): in hot-seat the fixed power's, whoever
@@ -813,8 +814,10 @@ static void game_build_exploits(ColonizeGameState* game, const ColonizeScoreBrea
   ColonizeExploitsView* ex = &game->exploits;
   memset(ex, 0, sizeof(*ex));
   const char* leader = game_fixed_leader(game);
-  const char* surname = strchr(leader, ' ');
-  surname = surname ? surname + 1 : leader;
+  const char* surname = strrchr(leader, ' '); /* DOS-LITERAL FUN_41f2_0b70 raw 72523 */
+  if (!surname) {
+    surname = leader;
+  }
   char nation_name[64];
   snprintf(nation_name, sizeof(nation_name), "%s", new_game_nation_name(game_fixed_human(game)));
 
