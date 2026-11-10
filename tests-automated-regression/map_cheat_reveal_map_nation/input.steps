@@ -4,7 +4,11 @@
 key w alt
 key i alt
 key n alt
-key F4 shift
+key F4 shift             # bar on Complete Map (#1661)
+key Up
+key Up
+key Up
+key Up
 key Return               # English (row 1)
 wait 2
 shot

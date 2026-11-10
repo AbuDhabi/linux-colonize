@@ -225,29 +225,11 @@ static void unit_chrome_draw_impl(
     ss_blit_sprite(sheet, sprite_index, fb, sprite_x, icon_y);
   }
 
-  /*
-   * Center the glyph's ink (not the full advance cell) in the outline rect.
-   * FONTTINY '-' is a 3×1 dash in a 4×6 cell; cell-centering looked off.
-   */
   const uint8_t ink =
     letter_override >= 0 ? (uint8_t)letter_override : unit_chrome_letter_color(nation_id, orders_index);
-  int ink_x0 = 0;
-  int ink_y0 = 0;
-  int ink_x1 = text_w - 1;
-  int ink_y1 = font_h - 1;
-  if (!font_glyph_ink_bounds(
-        font, (unsigned char)letter_buf[0], &ink_x0, &ink_y0, &ink_x1, &ink_y1
-      )) {
-    ink_x0 = 0;
-    ink_y0 = 0;
-    ink_x1 = text_w > 0 ? text_w - 1 : 0;
-    ink_y1 = font_h > 0 ? font_h - 1 : 0;
-  }
-  const int ink_h = ink_y1 - ink_y0 + 1;
-  /* DOS 112b:0749..0758: FUN_1c11_000c pen x = box x + 2 (local_4 + 2 INC INC), cell origin, not ink-centred. */
-  const int tx = box_x + 2;
-  const int ty = box_y + (box_h - ink_h) / 2 - ink_y0;
-  font_draw_text(font, fb, tx, ty, letter_buf, ink);
+  /* DOS 112b:074a..0758: FUN_1c11_000c pen at (box x + 2, box y + 2), the cell origin, not
+   * ink-centred (port_bugs.md #1786; same pixels for every FONTTINY badge glyph). */
+  font_draw_text(font, fb, box_x + 2, box_y + 2, letter_buf, ink);
 }
 
 
@@ -270,7 +252,8 @@ static void unit_chrome_blit_unit_colored_shadow(
   bool damaged,
   int fill_override,
   int letter_override,
-  int shadow_color
+  int shadow_color,
+  int fit_w
 ) {
   if (!fb || !sheet || sprite_index < 0 || sprite_index >= sheet->sprite_count) {
     return;
@@ -278,6 +261,15 @@ static void unit_chrome_blit_unit_colored_shadow(
   const ColonizeSprite* sp = &sheet->sprites[sprite_index];
   const int iw = sp->width > 0 ? sp->width : 16;
   const int ih = sp->height > 0 ? sp->height : 16;
+  /* FUN_112b_01ba raw 2185-2187: a chrome (box + sprite) narrower than the caller's
+   * param_2 moves right by half the slack, box, silhouette and sprite alike
+   * (port_bugs.md #1786; DOS Europe dock shot: a Pioneer sits 1 px right). */
+  {
+    const int span = unit_chrome_lay_w(font, nation_id, orders_index) + iw;
+    if (span < fit_w) {
+      x += (fit_w - span) >> 1;
+    }
+  }
 
   /* Orders box at tile origin; sprite (+ silhouette) shifted right. */
   const int shadow_x =
@@ -325,11 +317,12 @@ static void unit_chrome_blit_unit_colored(
   bool show_stack,
   bool damaged,
   int fill_override,
-  int letter_override
+  int letter_override,
+  int fit_w
 ) {
   unit_chrome_blit_unit_colored_shadow(
     fb, font, sheet, sprite_index, x, y, display_type_index, nation_id, orders_index, show_stack,
-    damaged, fill_override, letter_override, 0
+    damaged, fill_override, letter_override, 0, fit_w
   );
 }
 
@@ -347,6 +340,27 @@ void unit_chrome_blit_unit_for_palette(
   bool show_stack,
   bool damaged,
   const ColonizePalette* active_palette
+) {
+  unit_chrome_blit_unit_for_palette_fit(
+    fb, font, sheet, sprite_index, x, y, display_type_index, nation_id, orders_index, show_stack,
+    damaged, active_palette, 0
+  );
+}
+
+void unit_chrome_blit_unit_for_palette_fit(
+  ColonizeFramebuffer8* fb,
+  const ColonizeFont* font,
+  const ColonizeSpriteSheet* sheet,
+  int sprite_index,
+  int x,
+  int y,
+  int display_type_index,
+  int nation_id,
+  int orders_index,
+  bool show_stack,
+  bool damaged,
+  const ColonizePalette* active_palette,
+  int fit_w
 ) {
   int fill_override = -1;
   int letter_override = -1;
@@ -388,7 +402,7 @@ void unit_chrome_blit_unit_for_palette(
   }
   unit_chrome_blit_unit_colored(
     fb, font, sheet, sprite_index, x, y, display_type_index, nation_id, orders_index, show_stack,
-    damaged, fill_override, letter_override
+    damaged, fill_override, letter_override, fit_w
   );
 }
 
@@ -424,7 +438,7 @@ void unit_chrome_blit(
     default:
       unit_chrome_blit_unit_colored_shadow(
         fb, font, sheet, sprite_index, x, y, display_type_index, nation_id, orders_index, show_stack,
-        damaged, fill_override, letter_override, shadow_color
+        damaged, fill_override, letter_override, shadow_color, 0
       );
       return;
   }

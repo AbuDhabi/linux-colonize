@@ -472,7 +472,15 @@ void game_tutorial_colony_refresh(ColonizeGameState* game) {
   const ColonizeWorld w = game_world(game);
   ColonizeColonyPreview p;
   colony_preview_compute_w(&w, col, &p);
-  if (p.food_produced >= p.food_consumed) {
+  /* 0x8e32 is 1f72's gross, which has no AI food subsidy (difficulty >> 1, added by
+   * FUN_364b_0688 at EOT only); the preview folds it in (port_bugs.md #1836). */
+  int gross = p.food_produced;
+  if (col->nation_id >= 0 && col->nation_id < (int)COLONIZE_COL1_NATION_COUNT &&
+      game->col1.player[col->nation_id].control != 0) {
+    const int diff = (int)game->col1.head.difficulty;
+    gross -= (diff < 0 ? 0 : (diff > 4 ? 4 : diff)) >> 1;
+  }
+  if (gross >= p.food_consumed) {
     return;
   }
   PopupMsgTokens tok;

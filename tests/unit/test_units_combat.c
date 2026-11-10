@@ -3273,6 +3273,83 @@ static int unit_village_loot_spawn_failure_silent(void) {
   return 0;
 }
 
+/*
+ * port_bugs.md #1817 — FUN_5bfb_3180 raw 98510-98521 / 98594-98600: the fort
+ * branch gates on local_46, the nation of the unit heading the colony tile's
+ * chain (06be's settlement owner only when the tile is empty), not on the
+ * colony owner. The mover's own hull docked in the foreign Fort colony stops
+ * the slow; a third nation's hull there makes the treaty test read that
+ * nation.
+ */
+static int unit_ship_slow_fort_gate_chain_head(void) {
+  ColonizeWorldMap map;
+  if (!fx_map_alloc(&map, 16, 16, 25, false)) {
+    return 1;
+  }
+  map.terrain[5 * map.width + 4] = 1; /* land: the colony tile west of the mover */
+  ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
+  units.type_count = 1;
+  snprintf(units.types[0].name, sizeof(units.types[0].name), "Frigate");
+  units.types[0].movement = 5;
+  units.types[0].domain = COLONIZE_UNIT_DOMAIN_SEA;
+  ColonizeColonyPool colonies;
+  fx_colonies_init(&colonies);
+  snprintf(colonies.building_types[0].name, sizeof(colonies.building_types[0].name), "Stockade");
+  snprintf(colonies.building_types[1].name, sizeof(colonies.building_types[1].name), "Fort");
+  snprintf(colonies.building_types[2].name, sizeof(colonies.building_types[2].name), "Fortress");
+  colonies.building_type_count = 3;
+  ColonizeColony* col = fx_colony_add(&colonies, 1, 4, 5, 1);
+  col->has_building[1] = true; /* Fort */
+  ColonizeCol1Save col1;
+  col1_save_init(&col1);
+  memset(col1.nation, 0, sizeof(col1.nation));
+  memset(col1.head.nation_relation, 0, sizeof(col1.head.nation_relation));
+  for (int i = 0; i < 4; ++i) {
+    col1.player[i].control = 1;
+  }
+  units_set_native_fallout_context(&col1, &map);
+  units_set_combat_popups(NULL, NULL);
+  const int own_id = units_spawn_allow_stack(&units, 0, 5, 5);
+  const int docked_id = units_spawn_allow_stack(&units, 0, 4, 5);
+  ColonizeUnit* own = units_get(&units, own_id);
+  ColonizeUnit* docked = units_get(&units, docked_id);
+  int rc = 0;
+  if (!own || !docked) {
+    rc = 1;
+    goto out;
+  }
+  own->nation_id = 0;
+  docked->nation_id = 0;
+  const int full = 5 * UNITS_MP_PER_TILE;
+  ColonizeWorld w = fx_world(&units, &colonies, &map, NULL, NULL, NULL);
+  own->moves = full;
+  units_ship_slow_scan_w(&w, own_id);
+  if (own->moves != full) {
+    fprintf(stderr, "1817: own hull heads the colony chain, slowed to %d\n", own->moves);
+    rc = 1;
+  }
+  docked->nation_id = 2;
+  ai_diplo_or_both(&col1, 0, 2, AI_DIPLO_PEACE);
+  own->moves = full;
+  units_ship_slow_scan_w(&w, own_id);
+  if (own->moves != full) {
+    fprintf(stderr, "1817: treaty with the chain head's nation, slowed to %d\n", own->moves);
+    rc = 1;
+  }
+  ai_diplo_clear_both(&col1, 0, 2, AI_DIPLO_PEACE);
+  own->moves = full;
+  units_ship_slow_scan_w(&w, own_id);
+  if (own->moves != full - 2) {
+    fprintf(stderr, "1817: foreign chain head, Fort left %d (want %d)\n", own->moves, full - 2);
+    rc = 1;
+  }
+out:
+  units_set_native_fallout_context(NULL, NULL);
+  fx_map_free(&map);
+  return rc;
+}
+
 static const TestCase k_cases[] = {
   {"unit_village_loot_spawn_failure_silent", unit_village_loot_spawn_failure_silent},
   {"unit_royal_loss_tax_cut", unit_royal_loss_tax_cut},
@@ -3304,5 +3381,6 @@ static const TestCase k_cases[] = {
   {"unit_tb33_spanish_tech1_bound", unit_tb33_spanish_tech1_bound},
   {"unit_tb34_sink_decrements_ship_count", unit_tb34_sink_decrements_ship_count},
   {"unit_lcr_burial3_treasure_fizzles_in", unit_lcr_burial3_treasure_fizzles_in},
+  {"unit_ship_slow_fort_gate_chain_head", unit_ship_slow_fort_gate_chain_head},
 };
 TEST_MAIN_WRAPPED(k_cases, diag_init(0, NULL), diag_shutdown())

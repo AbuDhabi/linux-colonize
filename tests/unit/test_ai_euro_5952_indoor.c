@@ -300,7 +300,7 @@ static int case_expert_pass_seats_master_carpenter(void) {
   memset(&ctx, 0, sizeof ctx);
   ctx.colonies = &pool;
   bool placed[1] = {false};
-  ai_euro_5952_indoor_expert_pass(&ctx, c, placed, 1);
+  ai_euro_5952_indoor_expert_pass(&ctx, c, placed, 1, 0);
   if (!placed[0] || c->colonists[0].building_type < 0 ||
       colonies_building_occupation(&pool, c->colonists[0].building_type) !=
         COLONIZE_PROF_CARPENTER) {
@@ -309,9 +309,55 @@ static int case_expert_pass_seats_master_carpenter(void) {
   c->colonists[0].building_type = -1;
   c->stock[COLONIZE_CARGO_LUMBER] = 0; /* no lumber stock or production */
   placed[0] = false;
-  ai_euro_5952_indoor_expert_pass(&ctx, c, placed, 1);
+  ai_euro_5952_indoor_expert_pass(&ctx, c, placed, 1, 0);
   if (placed[0]) {
     return fail("no lumber at all leaves the Carpenter to the scored pass");
+  }
+  return 0;
+}
+
+/* port_bugs.md #1624: the 5952 seats go through FUN_1000_8e26 =
+ * FUN_15eb_1068, which has no @MORETHANTHREE validator (thunk_FUN_1000_9808
+ * is the colony screen's), and the carpenter arm's seat is not in local_e4.
+ * Three Carpenters seated, one of them by the arm: local_e4[0xd] is 2, so a
+ * fourth Master Carpenter is seated. The human path still refuses him. */
+static int case_expert_pass_fourth_carpenter_uncapped(void) {
+  ColonizeColonyPool pool;
+  colonies_init(&pool);
+  snprintf(pool.building_types[0].name, sizeof(pool.building_types[0].name), "Carpenter's Shop");
+  pool.building_types[0].row_plus1 = COLONY_BUILDING_CARPENTERS_SHOP + 1;
+  pool.building_type_count = 1;
+  ColonizeColony* c = &pool.colonies[0];
+  c->id = 0;
+  c->active = true;
+  c->nation_id = 1;
+  c->population = 4;
+  c->colonist_count = 4;
+  c->building_in_production = -1;
+  pool.colony_count = 1;
+  pool.next_id = 1;
+  const int shop = colonies_building_row(&pool, COLONY_BUILDING_CARPENTERS_SHOP);
+  if (shop < 0) {
+    return fail("catalog has no Carpenter's Shop row");
+  }
+  c->has_building[shop] = true;
+  c->stock[COLONIZE_CARGO_LUMBER] = 60;
+  for (int i = 0; i < 4; ++i) {
+    c->colonists[i].active = true;
+    c->colonists[i].profession = COLONIZE_PROF_CARPENTER;
+    c->colonists[i].building_type = i < 3 ? shop : -1;
+    c->colonists[i].field_job = -1;
+  }
+  if (colonies_assign_workplace(&pool, 0, 3, shop)) {
+    return fail("human seat must refuse a fourth Carpenter (@MORETHANTHREE)");
+  }
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof ctx);
+  ctx.colonies = &pool;
+  bool placed[4] = {true, true, true, false};
+  ai_euro_5952_indoor_expert_pass(&ctx, c, placed, 4, 1);
+  if (!placed[3] || c->colonists[3].building_type != shop) {
+    return fail("AI 8e26 seat must take a fourth Carpenter (no 9808 cap)");
   }
   return 0;
 }
@@ -351,7 +397,7 @@ static int case_expert_demotion_updates_prof_cache(void) {
   t.ctx = &ctx;
   t.col = c;
   ai_euro_colony_tick_unseat_all(&t);
-  ai_euro_5952_indoor_expert_pass(&ctx, c, t.placed, t.n);
+  ai_euro_5952_indoor_expert_pass(&ctx, c, t.placed, t.n, 0);
   if (c->colonists[0].profession != COLONIZE_PROF_FREE_COLONIST) {
     ai_euro_colony_tick_prof_cache_clear();
     return fail("first Master Carpenter must be demoted (wants construction, 2 carpenters)");
@@ -479,7 +525,7 @@ static int case_expert_pass_tools_supply_nets_unmet_ore(void) {
     memset(&ctx, 0, sizeof ctx);
     ctx.colonies = &pool;
     bool placed[3] = {false, true, true};
-    ai_euro_5952_indoor_expert_pass(&ctx, c, placed, 3);
+    ai_euro_5952_indoor_expert_pass(&ctx, c, placed, 3, 0);
     if (ore == 0 && placed[0]) {
       return fail("ore-starved tools supply must keep the Gunsmith out of the Armory");
     }
@@ -570,6 +616,7 @@ static int case_paine_bonus_reads_tax_unsigned(void) {
 static const TestCase k_cases[] = {
   {"expert_pass_seats_master_carpenter", case_expert_pass_seats_master_carpenter},
   {"fallback_job", case_fallback_job},
+  {"expert_pass_fourth_carpenter_uncapped", case_expert_pass_fourth_carpenter_uncapped},
   {"price_plain_cargo", case_price_plain_cargo},
   {"price_tools_plus4_and_double", case_price_tools_plus4_and_double},
   {"price_minus8_row_first_eight", case_price_minus8_row_first_eight},

@@ -5025,6 +5025,7 @@ static int case_europe_pass_after_tax_audience(void) {
   col1.player[3].control = 1;
   col1.head.difficulty = 2; /* interval 18 at 1492 */
   col1.nation[0].tax_rate = 20;
+  col1.stuff.colony_counts[0] = 1; /* 5be8 census gate (#1658) */
   EuropeScreen eu;
   memset(&eu, 0, sizeof(eu));
   eu.tax_percent = 20;
@@ -7770,6 +7771,7 @@ static ColonizeColony* eotd_setup(ColonizeTurnProcStep start, uint16_t year, uin
   col->population = 4;
   snprintf(col->name, sizeof(col->name), "Jamestown");
   g->pool.colony_count = 1;
+  g->col1.stuff.colony_counts[0] = 1; /* 5be8 census gate (#1658) */
   g->col1.player[0].control = 0;
   for (int n = 1; n < 4; ++n) {
     g->col1.player[n].control = 1;

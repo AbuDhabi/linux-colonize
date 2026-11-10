@@ -172,6 +172,11 @@ typedef struct MapMenuBar {
    * is @COLORS hilite gold, not the basic green the titles use. */
   uint8_t message_color;
   int picked_id; /* user_id of the item a MAP_MENU_ACTION_USER pick chose */
+  /* MAPEDIT only: @COLORS basic/hilite/grey/select from NAMES.TXT in place of the
+   * baked COLONIZE_COL_* inks (FUN_1000_2516 copies them to DS:0x61c-0x630,
+   * port_bugs.md #1774). VICEROY bakes them, so the game leaves this false. */
+  bool inks_set;
+  uint8_t ink_basic, ink_hilite, ink_grey, ink_select;
 } MapMenuBar;
 
 /*

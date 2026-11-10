@@ -136,13 +136,15 @@ static bool game_service_woodcut(ColonizeGameState* game, const ColonizeInputSta
 }
 
 /*
- * DOS status line (port_bugs.md #369). FUN_1009_00b4 is a BLOCKING call: it holds
- * whatever was running until the line's dwell expires or the player presses
- * anything, then clears the strip and lets the next one through. Same shape
- * here — while a line is up, the map's top strip shows it instead of the
- * pull-down titles and the turn pipeline does not advance. Returns true while
- * the strip is owned and `hold` is set; without `hold` the line just plays
- * out on its dwell and input is left alone.
+ * DOS status line (port_bugs.md #369). FUN_1009_00b4 is a BLOCKING call: the
+ * next line's flush holds whatever was running until the shown line's dwell
+ * expires or the player presses anything, then clears the strip and lets the
+ * next one through. Same shape here — while a line is up, the map's top strip
+ * shows it instead of the pull-down titles, and while another line waits
+ * behind it the turn pipeline does not advance. The last line of a run holds
+ * nothing (DOS arms it and moves on, #1607). Returns true while the strip
+ * blocks and `hold` is set; without `hold` the line just plays out on its
+ * dwell and input is left alone.
  */
 static bool game_service_bar_message(
   ColonizeGameState* game, const ColonizeInputState* input, bool hold
@@ -1737,10 +1739,8 @@ static GameUpdateStep game_colony_screen_mouse_click(
       if (csv->multi_mode == COLONY_MULTI_UNITS) {
         csv->focus = COLONY_FOCUS_UNITS; /* 59a0: any press in the pane */
       }
-      if (csv->multi_mode == COLONY_MULTI_PRODUCTION) {
-        csv->show_production_numbers = !csv->show_production_numbers;
-        game->col1.stuff.ui_toggle_336 = csv->show_production_numbers ? 1 : 0;
-      } else if (csv->multi_mode == COLONY_MULTI_CONSTRUCTION) {
+      /* Production: the badge toggle waits for the release (2f2b:609e, below). */
+      if (csv->multi_mode == COLONY_MULTI_CONSTRUCTION) {
         {
           ColoniesBuildableOpts bopts = game_colony_buildable_opts(game);
           colony_screen_open_construction(
@@ -1776,8 +1776,8 @@ static GameUpdateStep game_colony_screen_mouse_click(
     }
     case COLONY_HIT_AREA_INTERIOR:
       /* FUN_2f2b_47bc treats the area view's centre as an inner cell: focus and
-       * cursor move there on the press (#1284); the badge toggle waits for the
-       * release (2f2b:609e, game_update_colony_screen, #1724). */
+       * cursor move there on the press (#1284). No badge toggle here: 2f2b:609e
+       * belongs to the Production pane (#1725). */
       csv->focus = COLONY_FOCUS_AREA;
       csv->area_dx = 0;
       csv->area_dy = 0;
@@ -2625,22 +2625,15 @@ COLONIZE_INTERNAL GameUpdateStep game_update_colony_screen(ColonizeGameState* ga
       return GAME_UPDATE_RETURN_TRUE;
     }
 
-    /* DS:0xb98 Infiltrate view (port_bugs.md #1382): look only. DOS's colony
-     * key and click handlers skip their work while it is set (FUN_2f2b_6372
-     * raw 55185, the FUN_2f2b_2f3e loop raw 49762). Escape (no sub-panel can
-     * be open here) and the exit button leave; a tab press still switches. */
+    /* DS:0xb98 Infiltrate view (port_bugs.md #1382, #1712): look only. DOS never
+     * enters the colony input loop: FUN_2f2b_6cd4 at 2f2b:6d6f, with DS:0xb98 set,
+     * calls FUN_281f_03c0 (= FUN_1262_0060, any key or mouse button) and jumps to
+     * LAB_2f2b_7054 (the RETF). So any key or click leaves, as the exit button does. */
     if (csv->spy_view) {
-      if (input->last_key == COLONIZE_KEY_ESCAPE) {
-        return game_colony_screen_keys(game, input, colony, csv, cmap);
-      }
-      if (input->mouse_left_clicked && colony) {
-        const ColonyScreenHitResult hit = colony_screen_hit_test(
-          csv, &game->colonies, colony, game->units_ok ? &game->units : NULL, input->mouse_x,
-          input->mouse_y
-        );
-        if (hit.kind == COLONY_HIT_EXIT || hit.kind == COLONY_HIT_MULTI_BTN) {
-          return game_colony_screen_mouse_click(game, input, colony, csv, cmap);
-        }
+      if (colonize_input_any_key_or_click(input)) {
+        game_ui_drag_clear(game);
+        game->in_colony = false;
+        game->colony_view_id = -1;
       }
       return GAME_UPDATE_RETURN_TRUE;
     }
@@ -2695,14 +2688,18 @@ COLONIZE_INTERNAL GameUpdateStep game_update_colony_screen(ColonizeGameState* ga
       game_colony_drag_drop(game, colony, cmap, input->mouse_x, input->mouse_y, input->shift_held);
       return GAME_UPDATE_RETURN_TRUE;
     }
-    /* 2f2b:609e: the release (DS:0x7f4) over the area view's centre flips the badge
-     * numbers DS:0x336 (#1724; the press only moves the focus). */
-    if (input->mouse_left_released && colony && game_colony_bare(csv)) {
+    /* 2f2b:609e flips the badge numbers DS:0x336 on the release (DS:0x7f4). Its only
+     * caller is the multi-pane dispatcher 2f2b:60b6 (FUN_2f2b_628a area 4, jump table
+     * cs:635a), case DS:0x337 == 0 (Production); the area view (area 1, FUN_2f2b_47bc)
+     * never reaches it. DOSBox 2026-11-10: a click on the area centre left 0x336 alone, a
+     * click on the Production pane flipped it on the release (#1725). */
+    if (input->mouse_left_released && colony && game_colony_bare(csv) &&
+        csv->multi_mode == COLONY_MULTI_PRODUCTION) {
       const ColonyScreenHitResult hit = colony_screen_hit_test(
         csv, &game->colonies, colony, game->units_ok ? &game->units : NULL, input->mouse_x,
         input->mouse_y
       );
-      if (hit.kind == COLONY_HIT_AREA_INTERIOR) {
+      if (hit.kind == COLONY_HIT_MULTI_PANE) {
         csv->show_production_numbers = !csv->show_production_numbers;
         game->col1.stuff.ui_toggle_336 = csv->show_production_numbers ? 1 : 0;
       }
@@ -3460,6 +3457,10 @@ COLONIZE_INTERNAL GameUpdateStep game_update_debug_atlas_screen(ColonizeGameStat
 
 /* Title menu input. */
 COLONIZE_INTERNAL GameUpdateStep game_update_title_menu(ColonizeGameState* game, const ColonizeInputState* input) {
+  static bool s_armed; /* ponytail: one title menu per process; a game field if that changes */
+  if (!game->in_menu) {
+    s_armed = false;
+  }
   if (game->in_menu) {
     if (!game->ai_popups.open && !game->ai_popups.has_result) {
       ai_popup_try_present_next(&game->ai_popups);
@@ -3468,11 +3469,12 @@ COLONIZE_INTERNAL GameUpdateStep game_update_title_menu(ColonizeGameState* game,
       /* Early modal gate should have consumed; keep status refresh only. */
       return GAME_UPDATE_RETURN_TRUE;
     }
+    /* FUN_75c2_2778 (ND 0x75C64-0x75C70): a @BEGINMENU result below 1 (Esc) jumps to the
+     * 5f8d exit with [bp-0xe2] = 1, and the caller (raw 122123) then skips the game and
+     * the program ends: no confirm. DOSBox 2026-11-10: Esc at the title dropped to C:\> (#1745). */
     if (input->last_key == COLONIZE_KEY_ESCAPE) {
-      game_enqueue_yes_no(
-        game, GAME_MAP_CONFIRM_TITLE_EXIT, -1, "DOS", "", NULL
-      );
-      return GAME_UPDATE_RETURN_TRUE;
+      game->elapsed_ms = UINT32_MAX;
+      return GAME_UPDATE_RETURN_FALSE;
     }
     /* @BEGINMENU (FUN_281f_03fe at ND 0x75C64) shows through FUN_6f74_2580: Up / Down wrap. */
     if (!popup_list_key_step(input->last_key, &game->menu_selection, game->menu_option_count, 0) &&
@@ -3483,27 +3485,50 @@ COLONIZE_INTERNAL GameUpdateStep game_update_title_menu(ColonizeGameState* game,
       }
     }
 
-    /* Mouse: hover selects; click activates (same pattern as Pick Music). */
+    /* Mouse, FUN_6f74_2580: a bare hover never moves the bar; while either button is held
+     * (press, hold and the release poll, raw 116705-116758) the bar follows the row under
+     * the pointer, and the release over a row picks it (raw 117036-117060). DOSBox
+     * 2026-11-10: hover left the bar, press+drag moved it, the release on LOAD opened the
+     * load list (#1745). `s_armed` keeps the release of a press made on the screen before
+     * from picking a row. */
+    const bool released = input->mouse_left_released || input->mouse_right_released;
+    if (input->mouse_left_clicked || input->mouse_right_clicked) {
+      s_armed = true;
+    }
     BeginMenuLayout menu_layout;
-    if (begin_menu_compute_layout(game, 320, 200, &menu_layout)) {
+    if (s_armed && (released || input->mouse_left_clicked || input->mouse_right_clicked ||
+                    input->mouse_left_down || input->mouse_right_down) &&
+        begin_menu_compute_layout(game, 320, 200, &menu_layout)) {
       const int hit =
         begin_menu_option_at_xy(&menu_layout, input->mouse_x, input->mouse_y);
       if (hit >= 0) {
         game->menu_selection = hit;
-        if (input->mouse_left_clicked) {
+        if (released) {
+          s_armed = false;
           activate_menu_selection(game);
           if (game->elapsed_ms == UINT32_MAX) {
             return GAME_UPDATE_RETURN_FALSE;
           }
         }
+      } else if (input->mouse_x < menu_layout.dialog_x ||
+                 input->mouse_x >= menu_layout.dialog_x + menu_layout.dialog_w ||
+                 input->mouse_y < menu_layout.dialog_y ||
+                 input->mouse_y >= menu_layout.dialog_y + menu_layout.dialog_h) {
+        /* DOSBox 2026-11-10: a press outside the box clears the bar without closing the
+         * menu; Down then bars row 0 and Enter picks it (#1843). */
+        game->menu_selection = -1;
       }
+    }
+    if (released) {
+      s_armed = false;
     }
 
     /* Skip when activation above left the title menu (e.g. Hall of Fame,
      * Customize/America/New World, LOAD dialog): that screen owns its own
      * status now, and game_update runs every frame so this would otherwise
      * clobber it one frame later even though in_menu is already false. */
-    if (game->in_menu && game->menu_option_count > 0 && !game->ai_popups.open) {
+    if (game->in_menu && game->menu_option_count > 0 && !game->ai_popups.open &&
+        game->menu_selection >= 0 && game->menu_selection < game->menu_option_count) {
       snprintf(
         game->status,
         sizeof(game->status),
@@ -4163,6 +4188,17 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
   }
 
   game_europe_view_service(game); /* a foreign Europe visit that closed elsewhere */
+  /* FUN_1009_00b4(0) on entry and exit of the colony screen (FUN_2f2b_6cd4 raw 56005 /
+   * 56161) and the Europe screen (FUN_38fd_55b6 raw 68136 / 68239) clears the status
+   * line, so a map line never carries onto either screen or back (#1607). The flush's
+   * own FUN_1009_0036 wait (at most 0x1e ticks, broken by any key or button) is skipped. */
+  {
+    const uint8_t bar_screen = game->in_colony ? 1u : (game->in_europe ? 2u : 0u);
+    if (game->ai_popups.bar_screen != bar_screen) {
+      ai_popup_bar_clear(&game->ai_popups);
+      game->ai_popups.bar_screen = bar_screen;
+    }
+  }
   step = game_update_services(game, input, dt_ms);
   if (step != GAME_UPDATE_CONTINUE) {
     return step == GAME_UPDATE_RETURN_TRUE;

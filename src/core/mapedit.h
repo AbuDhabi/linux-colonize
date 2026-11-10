@@ -62,6 +62,9 @@ typedef struct MapEditor {
   char terrain_names[29][24]; /* @UNFORESTED 0-7, @FORESTED 8-15 (and 16-23), @OTHER 24-28 */
   char other_names[5][24];    /* @OTHER_NAMES: Forest, River, Major River, Minor River, Unexplored */
   uint8_t minimap_color[29];  /* FUN_1b56_006c: centre pixel of each class's sprite */
+  /* NAMES.TXT @COLORS (FUN_1000_2336 -> DS:0x92-0x97, 0x99-0x9b): basic, hilite, grey, enhance,
+   * shadow, select, border0-2; the DS start bytes are the stock values. */
+  uint8_t colors[9];
 
   ColonizeWorldMap map;
   bool map_ok;
@@ -81,7 +84,7 @@ typedef struct MapEditor {
   bool coast_protect; /* DS:0x4e */
 
   bool palette_open;
-  int palette_idx; /* DS:0x1ce, 1-based hotspot */
+  int palette_idx; /* DS:0x1ce, 1-based hotspot the palette arrows step from (FUN_1000_1226) */
   bool continents_open;
 
   MapMenuBar menu;
@@ -100,6 +103,7 @@ typedef struct MapEditor {
    * buttons are up) and DS:0x720 right flag latched at the press. */
   bool mouse_held, mouse_right;
   uint32_t clock_ms;
+  uint32_t blink_ms; /* cursor phase (DS:0x6972 / 0x4ea0), restarted by each FUN_1000_2124 pass */
   bool quit;
   int exit_code; /* DS:0x62 */
   uint8_t* exe;  /* COLONIZE/MAPEDIT.EXE: its wording lives only in its data segment */
@@ -109,7 +113,7 @@ typedef struct MapEditor {
 typedef struct MapEditOptions {
   const char* data_dir;
   bool force_new;        /* -c */
-  const char* map_file;  /* -m:file */
+  const char* map_file;  /* -m:file; "" for an M with no ':' (DS:0x4c set, empty DS:0x4a18) */
 } MapEditOptions;
 
 /* MAPEDIT.EXE data-segment strings (DS base = file offset 0x17470). */

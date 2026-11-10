@@ -745,12 +745,12 @@ static void ai_contact_live_among_natives_body(
 );
 
 /*
- * AI visit: thunk_FUN_1000_a618's skill pick reseeds the GLOBAL stream from
- * the village record (FUN_1000_86ba, OVL13 0x36b8) and the visit's later rolls
- * draw from it; the visit then reseeds from the timer word twice (0x381b,
- * 0x392d -> FUN_281f_04ca(DS:0x83a6)). DOSBox 1594: a captured French
- * Colonist's visit drew 6302, 12091 and left the next unit's 20e6 starting
- * at 365. The human path keeps its popup-driven flow.
+ * thunk_FUN_1000_a618's skill pick reseeds the GLOBAL stream from the village
+ * record (FUN_1000_86ba, OVL13 0x36b8); the visit then reseeds from the timer
+ * word twice (0x381b, 0x392d -> FUN_281f_04ca(DS:0x83a6)), the second right
+ * before the rand(1,1000) slow roll and never after it (port_bugs.md #1639;
+ * both reseeds live in the body). DOSBox 1594: a captured French Colonist's
+ * visit drew 6302, 12091 and left the next unit's 20e6 starting at 365.
  */
 void ai_contact_live_among_natives(
   ColonizeTurnContext* ctx,
@@ -763,9 +763,6 @@ void ai_contact_live_among_natives(
     return;
   }
   ai_contact_live_among_natives_body(ctx, e, nation_id, u, t);
-  if (!ai_contact_euro_is_human(ctx, e) && ctx->rng) {
-    dos_rng_seed(ctx->rng, ai_turn_seed(ctx));
-  }
 }
 
 static void ai_contact_live_among_natives_body(
@@ -842,6 +839,11 @@ static void ai_contact_live_among_natives_body(
       section = "LEARNALREADY";
     } else {
       int slow = 0;
+      /* DOS-LITERAL OVL13:0x3924: FUN_1000_86ba(DS:0x83a6) again, so the slow
+       * roll and whatever follows the visit run on the fresh turn seed. */
+      if (ctx->rng) {
+        dos_rng_seed(ctx->rng, ai_turn_seed(ctx));
+      }
       if (band > 0) {
         const int roll = dos_rng_range(rng, 1, 1000);
         if (roll < 200 * (int)ctx->col1->head.difficulty + 100) {

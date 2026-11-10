@@ -3,7 +3,8 @@
  *
  * FUN_1000_28d8 argv (mapedit.c 2332-2416): a "-" or "/" argument is a cluster of
  * upper-cased switches, C = force a new map (DS:0x54), M:file = edit that file
- * (DS:0x4a18); "?" prints the usage. Port extras: --data-dir DIR, --scale N.
+ * (DS:0x4a18); "?" prints the usage; anything else is skipped. Port extras: --data-dir DIR,
+ * --scale N.
  */
 
 #include <ctype.h>
@@ -62,17 +63,17 @@ int main(int argc, char** argv) {
         const int c = toupper((unsigned char)*p);
         if (c == 'C') {
           opt.force_new = true;
-        } else if (c == 'M' && p[1] == ':') {
-          snprintf(file_buf, sizeof file_buf, "%s", p + 2);
+        } else if (c == 'M') {
+          /* FUN_1000_2872 (raw 0x28ae): M scans on for ':' and takes the rest as the name;
+           * either way it sets DS:0x4c and ends the cluster. */
+          const char* colon = strchr(p, ':');
+          snprintf(file_buf, sizeof file_buf, "%s", colon ? colon + 1 : "");
           opt.map_file = file_buf;
           break;
         }
       }
-    } else {
-      fprintf(stderr, "Unknown argument: %s\n", a);
-      diag_shutdown();
-      return 2;
     }
+    /* Any other argument is skipped (FUN_1000_28d8). */
   }
 
   static MapEditor ed;

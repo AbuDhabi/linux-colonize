@@ -639,6 +639,45 @@ static int test_tutorial16_food_short(void) {
   return rc;
 }
 
+/* @TUTORIAL16 tests 1f72's gross (0x8e32), which has no AI food subsidy: an
+ * AI-controlled colony whose gross is short by no more than difficulty >> 1 still
+ * fires though the subsidised preview is fed (port_bugs.md #1836). */
+static int test_tutorial16_ignores_ai_subsidy(void) {
+  FX_OPEN(g);
+  ColonizeWorld w = game_world(g);
+  ColonizeColonyPreview p;
+  ColonizeColony* c = NULL;
+  g->col1.head.difficulty = 4; /* subsidy 4 >> 1 = 2; the centre-tile bonus also reads it */
+  for (int pop = 1; pop <= 8 && !c; ++pop) {
+    ColonizeColony* t = fx_colony(g, 4 + 3 * pop, 20, pop);
+    colony_preview_compute_w(&w, t, &p);
+    const int short_by = p.food_consumed - p.food_produced;
+    if (short_by >= 1 && short_by <= 2) {
+      c = t;
+    }
+  }
+  if (!c) {
+    fx_free(g);
+    return fail("fixture: no colony one or two food short");
+  }
+  g->in_colony = true;
+  g->colony_view_id = c->id;
+  g->col1.player[c->nation_id].control = 1;
+  w = game_world(g);
+  colony_preview_compute_w(&w, c, &p);
+  int rc = 0;
+  if (p.food_produced < p.food_consumed) {
+    rc = fail("fixture: the AI subsidy must cover the shortfall in the preview");
+  }
+  game_tutorial_colony_refresh(g);
+  PopupMsgTokens tok = no_tok();
+  if (rc == 0 && (!g->col1.head.tut1.nr16 || !queued_last_is(g, "TUTORIAL16", &tok))) {
+    rc = fail("TUTORIAL16 tests the gross without the AI subsidy");
+  }
+  fx_free(g);
+  return rc;
+}
+
 /* @TUTORIAL17: the European Status bring-up; tut1.nr17. */
 static int test_tutorial17_europe_open(void) {
   FX_OPEN(g);
@@ -758,6 +797,7 @@ static const TestCase k_cases[] = {
     {"test_tutorial12_ship_in_port", test_tutorial12_ship_in_port},
     {"test_tutorial7_stockade_hint", test_tutorial7_stockade_hint},
     {"test_tutorial16_food_short", test_tutorial16_food_short},
+    {"test_tutorial16_ignores_ai_subsidy", test_tutorial16_ignores_ai_subsidy},
     {"test_tutorial17_europe_open", test_tutorial17_europe_open},
     {"test_tutorial18_cannot_afford", test_tutorial18_cannot_afford},
     {"test_latches_round_trip_save", test_latches_round_trip_save},

@@ -581,12 +581,6 @@ void turn_run_ai_nation_eot(ColonizeTurnContext* ctx, ColonizeTurnResult* out, i
     }
     nat->current_crosses = (uint16_t)cur;
   }
-  if (control == 1) {
-    /* port_bugs.md #934: keep electing while the pool clears the new threshold. */
-    int guard = (int)COLONIZE_COL1_FF_COUNT;
-    while (guard-- > 0 && founding_fathers_try_elect(ctx, n)) {
-    }
-  }
 }
 
 /*

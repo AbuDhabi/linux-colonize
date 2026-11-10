@@ -862,14 +862,30 @@ void colony_screen_blit_buildings(
   const int slot_oy = COLONY_VIEWPORT_Y;
   int slot_x[32];
   int slot_y[32];
+  int slot_of_cat[32];
   colony_screen_assign_slot_positions_ex(
-    colony, slot_x, slot_y, NULL, colony_screen_layout_seed(view)
+    colony, slot_x, slot_y, slot_of_cat, colony_screen_layout_seed(view)
   );
-  /* Pass 1: every building sprite first. Badges/worker strips/production
-   * counters go in a second pass so an overlapping neighbour's sprite can
-   * never blit over another slot's counters (player-reported: resource
-   * counters rendered under buildings). */
-  for (int i = 0; i < colony_screen_building_slot_count; ++i) {
+  /* FUN_2f2b_171c raw 48380-48390: one pass over the DS:0x266 slots in slot
+   * order, each FUN_2f2b_14d4 call drawing its sprite and then its badges and
+   * workers, so a later slot's sprite can cover an earlier slot's counters
+   * (port_bugs.md #1689; the port had drawn every sprite first). */
+  int cat_at_slot[COLONY_DOS_SLOT_COUNT];
+  for (int s = 0; s < COLONY_DOS_SLOT_COUNT; ++s) {
+    cat_at_slot[s] = -1;
+  }
+  for (int c = 0; c < colony_screen_building_slot_count; ++c) {
+    if (slot_of_cat[c] >= 0 && slot_of_cat[c] < COLONY_DOS_SLOT_COUNT) {
+      cat_at_slot[slot_of_cat[c]] = c;
+    }
+  }
+  for (int s = 0; s < COLONY_DOS_SLOT_COUNT; ++s) {
+    const int i = cat_at_slot[s];
+    if (i < 0) {
+      continue;
+    }
+    const ColonyBuildingSlot* slot = &colony_screen_building_slots[i];
+    const int built = colony_screen_category_built(pool, colony, i);
     const int drawn_sprite = colony_screen_category_sprite(pool, colony, i, view->town_hall_art);
     if (drawn_sprite < 0) {
       continue;
@@ -879,14 +895,6 @@ void colony_screen_blit_buildings(
       colony_screen_debug_building_rect(
         view, framebuffer, drawn_sprite, slot_ox + slot_x[i], slot_oy + slot_y[i]
       );
-    }
-  }
-  for (int i = 0; i < colony_screen_building_slot_count; ++i) {
-    const ColonyBuildingSlot* slot = &colony_screen_building_slots[i];
-    const int built = colony_screen_category_built(pool, colony, i);
-    const int drawn_sprite = colony_screen_category_sprite(pool, colony, i, view->town_hall_art);
-    if (drawn_sprite < 0) {
-      continue;
     }
 
     /*
@@ -1283,9 +1291,10 @@ void colony_screen_draw_transports(
       row, damaged, type->defense, (int)u->col1_counter16, true
     );
     const int badge_orders = repair_badge >= 0 ? repair_badge : u->orders;
-    unit_chrome_blit_unit_for_palette(
+    /* 2f2b:2758 passes param_2 16 (port_bugs.md #1786). */
+    unit_chrome_blit_unit_for_palette_fit(
       framebuffer, font, &view->icons, type->icon_sprite, x, y, row, u->nation_id, badge_orders,
-      false, damaged, (view->frame_ok && view->frame.has_palette) ? &view->frame.palette : NULL
+      false, damaged, (view->frame_ok && view->frame.has_palette) ? &view->frame.palette : NULL, 16
     );
     if (selected) {
       colony_screen_draw_selection_box(framebuffer, x - 1, y - 1, 18, 18, sel_ink);

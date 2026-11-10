@@ -414,8 +414,9 @@ static void europe_cash_treasure_passengers(
  * colonist already waiting, while a created one goes to slot 0
  * (europe_dock_insert_front). port_bugs.md #999.
  *
- * Order among the arrivals is boarding order: 03d0 walks the lane newest to
- * oldest and each push-to-back reverses that again.
+ * 03a0 re-links at the tail, so the arrivals keep 03d0's head->tail walk order;
+ * the caller hands the slots in that order (europe_tick_voyages, #1679). The
+ * slots are pushed in slot order.
  */
 void europe_disembark_passengers_to_dock(
   EuropeScreen* eu,

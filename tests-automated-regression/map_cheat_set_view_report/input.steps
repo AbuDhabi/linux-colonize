@@ -9,11 +9,7 @@
 key w alt
 key i alt
 key n alt                # CHEAT unlocked
-key F4 shift             # Reveal Map
-key Down
-key Down
-key Down
-key Down
+key F4 shift             # Reveal Map (bar on Complete Map, #1661)
 key Return               # Complete Map
 wait 2
 key F2                   # @SETREPORT, French highlighted
@@ -28,9 +24,10 @@ key Return
 wait 20
 key F4 shift             # Reveal Map
 wait 2
-key Down
-key Down
-key Return               # Spanish Map
+key Up
+key Up
+key Up
+key Return               # Spanish Map (from No Special View)
 wait 2
 key F2                   # no pick: Spain's report
 wait 20

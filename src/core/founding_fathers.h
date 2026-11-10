@@ -26,9 +26,9 @@
  * that want "bells" for SoL fallback / boycott-refusal / score read the pool
  * directly, exactly as DOS does.
  *
- * AI Euro nations (player.control==1) elect at the end of their colony pass
- * (turn_colony.c); the human's runs in founding_fathers_tick_human_elect.
- * Both loop while the pool still clears the next threshold (port_bugs.md #934).
+ * Every nation elects only from its colonies' FUN_4345_0a22 calls (sole call
+ * site FUN_364b_0688 raw 57231, turn_colony.c): no end-of-pass elect loop
+ * (port_bugs.md #1701; DOSBox 1538->1539).
  *
  * Effects follow Colonization.pdf + docs/fandom_col1994.md (+ NAMES/decomp).
  * "Rough" means incomplete UI/wiring — not invented gold/crosses stand-ins.
@@ -216,11 +216,6 @@ bool founding_fathers_revere_should_auto_arm(
   bool colony_has_soldier_defender,
   int muskets_stock
 );
-
-/* port_bugs.md #434: the human's Congress election check, run in TURN_PROC_FINISH
- * (start of the player's turn) — DOS puts it in the human's own 3844_00f2
- * pass, right before Move Pieces. */
-void founding_fathers_tick_human_elect(ColonizeTurnContext* ctx);
 
 /*
  * La Salle immediate hook: call right when a colonist is admitted to `col`

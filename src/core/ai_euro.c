@@ -480,6 +480,8 @@ int ai_euro_unload_pax_at(
    * port spells spent 0 for a parked passenger as aboard_moves -1. */
   pax->moves = 0;
   pax->aboard_moves = -1;
+  /* FUN_465b_0000 raw 75764: 075e is read before the landfall's arrival stamp. */
+  const bool rumour = ctx->map && map_tile_has_rumour(ctx->map, dest_x, dest_y);
   if (!units_unload_passenger_w(&uw, ship->id, pax->id, dest_x, dest_y)) {
     return 0;
   }
@@ -503,7 +505,7 @@ int ai_euro_unload_pax_at(
    * before the contact scan; any change of the unit count (DS:0x539c, raw
    * 75450 / 75792: survivors, Treasure, Fountain recruits, a vanished
    * explorer) skips the rest of the move, the 3180 scan below included. */
-  if (ctx->map && map_tile_has_rumour(ctx->map, pax->x, pax->y)) {
+  if (rumour) {
     /* europe stays NULL as before: an AI LCR credits the save, never the
      * human-bound EuropeScreen (gold / Fountain of Youth recruit pool). */
     ColonizeWorld lw = world_from_turn_ctx(ctx);

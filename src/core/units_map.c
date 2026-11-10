@@ -65,6 +65,31 @@ int units_tile_chain_count(const ColonizeUnitPool* pool, int x, int y) {
   return n;
 }
 
+/* DOS FUN_281f_07e0 + 02e4 over the whole (x,y) chain, ship riders included
+ * at their own stamps (port_bugs.md #1642). Same order as units_tile_head_id_at
+ * + units_tile_chain_next_id: latest arrival first, lower slot on a tie. */
+int units_tile_chain_ids(const ColonizeUnitPool* pool, int x, int y, int* ids, int max) {
+  int slots[COLONIZE_UNITS_MAX];
+  int n = 0;
+  for (int i = 0; pool && i < units_slot_end(pool) && n < COLONIZE_UNITS_MAX; ++i) {
+    const ColonizeUnit* u = &pool->units[i];
+    if (!units_in_tile_chain(pool, u, x, y)) {
+      continue;
+    }
+    int b = n++;
+    while (b > 0 && pool->units[slots[b - 1]].tile_stack_order < u->tile_stack_order) {
+      slots[b] = slots[b - 1];
+      --b;
+    }
+    slots[b] = i;
+  }
+  const int out = n < max ? n : max;
+  for (int k = 0; k < out; ++k) {
+    ids[k] = pool->units[slots[k]].id;
+  }
+  return out;
+}
+
 /*
  * Tile-stack walk (theme M): on-map units only. Passengers live in their
  * ship's cargo list in the port, so a bare `active` test would let them
@@ -1289,8 +1314,9 @@ static int units_tile_has_on_map_unit(const ColonizeUnitPool* pool, int x, int y
  * FUN_1427_02ca: when a unit is alone on a tile, stamp layer3 owner (nation).
  * Indians skip when the tribe bit is set (FUN_137f_0598). Leaving a tile
  * (FUN_1427_023a) clears presence only — owner nibble stays claimed.
+ * Returns the id of the unit whose nation was stamped, else -1.
  */
-void units_claim_tile_owner_from_stack(
+int units_claim_tile_owner_from_stack(
   ColonizeUnitPool* pool,
   ColonizeWorldMap* map,
   int x,
@@ -1298,22 +1324,24 @@ void units_claim_tile_owner_from_stack(
   int except_id
 ) {
   if (!pool || !map || !map->layer3) {
-    return;
+    return -1;
   }
   if (x < 0 || y < 0 || x >= map->width || y >= map->height) {
-    return;
+    return -1;
   }
   int nation = -1;
+  int stamp_id = -1;
   int slot = 0;
   for (const ColonizeUnit* u = units_next_on_tile_const(pool, x, y, &slot); u != NULL;
        u = units_next_on_tile_const(pool, x, y, &slot)) {
     if (u->id != except_id) {
       nation = u->nation_id;
+      stamp_id = u->id;
       break;
     }
   }
   if (nation < 0) {
-    return;
+    return -1;
   }
   if (map->layer2) {
     const int i = y * map->width + x;
@@ -1323,10 +1351,37 @@ void units_claim_tile_owner_from_stack(
      * temp defender for an empty village stamped England on the village). */
     if ((map->layer2[i] & MAP_OCCUPANCY_HAS_CITY) != 0 &&
         (nation > 3 || (map->layer3[i] >> 4) >= 4)) {
-      return;
+      return -1;
     }
   }
+  /* FUN_1427_02ca (raw ~7500): a native arriving on a rumour tile skips the 0228 stamp,
+   * so it leaves the rumour standing (port_bugs.md #1832). */
+  if (nation > 3 && map_dos_0598_rumour_tile(map, x, y)) {
+    return -1;
+  }
   map_set_owner_nibble(map, x, y, nation);
+  return stamp_id;
+}
+
+/* Id of the unit the last units_occupancy_refresh_tile stamped onto an empty
+ * tile, -1 after any other refresh (port_bugs.md #1840). */
+static int s_units_fresh_claim_id = -1;
+
+bool units_owner_claim_pending(const ColonizeUnit* unit) {
+  return unit && unit->id == s_units_fresh_claim_id;
+}
+
+/* FUN_1427_023a then 02ca on the unit's own tile (an unlink / relink in place):
+ * the unlink clears the presence bit when the unit stood alone, so the relink
+ * stamps its current nation; with company on the tile neither stamps. */
+void units_occupancy_relink_in_place(ColonizeUnitPool* pool, const ColonizeUnit* unit) {
+  if (!pool || !unit || !units_occupancy_map || !units_is_on_map(unit) ||
+      unit->aboard_ship_id >= 0 || unit->x >= 200 || unit->y >= 200 ||
+      units_tile_has_on_map_unit(pool, unit->x, unit->y, unit->id)) {
+    return;
+  }
+  map_occupancy_set_layer2(units_occupancy_map, unit->x, unit->y, MAP_OCCUPANCY_HAS_UNIT, false);
+  units_occupancy_refresh_tile(pool, unit->x, unit->y, -1);
 }
 
 void units_occupancy_notify_moved(ColonizeUnitPool* pool, int old_x, int old_y, int new_x, int new_y) {
@@ -1391,15 +1446,23 @@ void units_occupancy_refresh_tile(ColonizeUnitPool* pool, int x, int y, int exce
   if (!units_occupancy_map || !pool) {
     return;
   }
+  /* FUN_1427_02ca (raw 7478-7509) stamps the owner nibble only when the tile
+   * was empty before the arrival (1427_005c() < 0: presence bit clear, 137f_0314);
+   * 023a (leaving, raw 7446-7474) never stamps. The presence bit still holds the
+   * pre-arrival state here. A spawn links before its nation is set, so
+   * units_set_nation completes the stamp via units_owner_claim_pending. */
+  const ColonizeWorldMap* map = units_occupancy_map;
+  const bool was_present =
+    map->layer2 && x >= 0 && y >= 0 && x < map->width && y < map->height &&
+    (map->layer2[y * map->width + x] & MAP_OCCUPANCY_HAS_UNIT) != 0;
   const int present = units_tile_has_on_map_unit(pool, x, y, except_id);
   map_occupancy_set_layer2(
     units_occupancy_map, x, y, MAP_OCCUPANCY_HAS_UNIT, present != 0
   );
-  /* port_bugs.md #1840 (open): DOS 02ca stamps only an empty tile, but gating
-   * the restamp on the pre-move presence bit drifts golden_idle_continuous
-   * (9 saves, a Brave's vis byte); the restamp still covers something else. */
-  if (present) {
-    units_claim_tile_owner_from_stack(pool, units_occupancy_map, x, y, except_id);
+  s_units_fresh_claim_id = -1;
+  if (present && !was_present) {
+    s_units_fresh_claim_id =
+      units_claim_tile_owner_from_stack(pool, units_occupancy_map, x, y, except_id);
   }
 }
 

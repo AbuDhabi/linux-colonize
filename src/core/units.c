@@ -783,9 +783,11 @@ void units_set_nation(ColonizeUnit* unit, int nation_id) {
   }
   /*
    * Spawn sets nation after units_spawn_allow_stack already refreshed occupancy
-   * with nation 0 — restamp owner now (FUN_1427_02ca).
+   * with nation 0 — restamp owner now, only when the spawn's FUN_1427_02ca link
+   * found the tile empty (port_bugs.md #1840).
    */
-  if (units_occupancy_map && units_is_on_map(unit) && unit->x < 200 && unit->y < 200) {
+  if (units_occupancy_map && units_is_on_map(unit) && unit->x < 200 && unit->y < 200 &&
+      units_owner_claim_pending(unit)) {
     if (nation_id > 3 && units_occupancy_map->layer2) {
       const int i = unit->y * units_occupancy_map->width + unit->x;
       if (i >= 0 && (size_t)i < units_occupancy_map->tile_count &&
@@ -931,6 +933,7 @@ int units_tick_ship_build_ready(
   if (!pool || nation_id < 0 || nation_id > 3) {
     return 0;
   }
+  (void)colonies; /* the colony test is not DOS's (raw 58340) */
   if (want_europe_open) {
     *want_europe_open = 0;
   }
@@ -973,12 +976,13 @@ int units_tick_ship_build_ready(
     if (u->col1_counter16 < 255) {
       u->col1_counter16++;
     }
-    int on_colony = 0;
-    if (colonies && colonies_id_at(colonies, u->x, u->y) >= 0) {
-      on_colony = 1;
-      if (u->col1_counter16 < 255) {
-        u->col1_counter16++;
-      }
+    /* DOS-LITERAL FUN_3844_00f2 raw 58340-58344: the second +1 is gated on
+     * FUN_281f_0302 = FUN_137f_000a (the hull's xy inside the map), not on a
+     * colony; the same test picks the Europe auto-open below (raw 58365-58368).
+     * A hull in Europe sits on the off-map park (port_bugs.md #1789). */
+    const int on_map = u->x >= 1 && u->y >= 1 && !units_coords_in_europe_park(u->x, u->y);
+    if (on_map && u->col1_counter16 < 255) {
+      u->col1_counter16++;
     }
     if (u->col1_counter16 < threshold) {
       continue;
@@ -990,7 +994,7 @@ int units_tick_ship_build_ready(
     (void)human_nation;
     (void)status;
     (void)status_size;
-    if (!on_colony && want_europe_open) {
+    if (!on_map && want_europe_open) {
       *want_europe_open = 1;
     }
   }

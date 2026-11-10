@@ -127,6 +127,10 @@ static int ensure_map(void) {
     g_map_ready = -1;
     return 1;
   }
+  /* New game's FUN_6ba1_10be: every owner nibble 0xf (rumours draw only there, #1832). */
+  for (size_t i = 0; i < g_map.tile_count; ++i) {
+    g_map.layer3[i] = (uint8_t)(g_map.layer3[i] | 0xf0u);
+  }
   g_map_ready = 1;
   atexit(free_g_map);
   return 0;
@@ -175,7 +179,7 @@ static int case_amer2_fixtures(void) {
     {4, 20, 8, 0, {0}},
     {8, 14, 8, 0, {0}}, /* scrub; its rumour moved to (9,15) — see #98 below */
     {9, 15, 3, 2, {46, 103}}, /* river + lost-city rumour */
-    {1, 0, 0, 2, {64, 92}},
+    {1, 0, 3, 1, {92}}, /* row 0 is drawn by its class like any row (#1833) */
     {1, 2, 0, 1, {73}},
     {16, 2, 0, 1, {70}},
     {4, 18, 5, 1, {64}},
@@ -226,7 +230,7 @@ static int case_coast_overlays(void) {
       {33, 6, 2},
       {8, 26, 1},
       {19, 25, 5},
-      {0, 0, 0}, /* coastal: land to the E on tundra row → underlayer 0 */
+      {0, 0, 3}, /* coastal: prairie (1,0) to the E, no row-0 tundra case (#1833) */
       {29, 0, -1}, /* open ocean */
     };
     if (ensure_map() != 0) {
@@ -408,6 +412,19 @@ static int case_resources_rumours(void) {
   }
   if (bad_gems != 0) {
     fprintf(stderr, "minerals/gems (95) on unexpected terrain (%d tiles)\n", bad_gems);
+    return 1;
+  }
+  /* #1832: (9,15)'s rumour draws only while its owner nibble is 0xf (FUN_137f_0598). */
+  if (!map_tile_rumour_drawn(&g_map, 9, 15)) {
+    fprintf(stderr, "(9,15) rumour not drawn on an unowned tile\n");
+    return 1;
+  }
+  const uint8_t l3 = g_map.layer3[15 * g_map.width + 9];
+  map_set_owner_nibble(&g_map, 9, 15, 2);
+  const bool drawn = map_tile_rumour_drawn(&g_map, 9, 15);
+  g_map.layer3[15 * g_map.width + 9] = l3;
+  if (drawn) {
+    fprintf(stderr, "(9,15) rumour still drawn under owner nibble 2\n");
     return 1;
   }
   return 0;

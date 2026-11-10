@@ -200,8 +200,22 @@ void ai_popup_bar_mark_passive(AiPopupState* st) {
   }
 }
 
+/*
+ * Only a line with another queued behind it holds the caller. DOS blocks in FUN_1009_0036,
+ * which runs from the NEXT line's flush (FUN_1009_00b4) or arm (FUN_1009_0244); arming a
+ * line returns at once. The last line of a run therefore never holds the turn: it stays on
+ * the strip until FUN_1009_0270 retires it at its deadline (map loop 2b5a_3802 raw ~46352)
+ * or a later flush cuts it to min(deadline, now + 0x1e) (#1607).
+ */
 bool ai_popup_bar_blocks(const AiPopupState* st) {
-  return st && st->bar_msg_count > 0 && !st->bar_msg_passive[0];
+  return st && st->bar_msg_count > 1 && !st->bar_msg_passive[0];
+}
+
+void ai_popup_bar_clear(AiPopupState* st) {
+  if (st) {
+    st->bar_msg_count = 0;
+    st->bar_msg_until_ms = 0;
+  }
 }
 
 bool ai_popup_bar_service(AiPopupState* st, uint32_t now_ms, bool dismiss) {

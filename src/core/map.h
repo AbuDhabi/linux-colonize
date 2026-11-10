@@ -383,6 +383,16 @@ int map_tile_layer_cmds(
   ColonizeMapLayerCmd* out,
   int max
 );
+/* Same, at VIEW zoom tier `zoom` (DS:0x184, 0..3): roads unjoined above 1, hills above 2. */
+int map_tile_layer_cmds_zoom(
+  const ColonizeWorldMap* map,
+  int x,
+  int y,
+  int terrain_peel_phase,
+  int zoom,
+  ColonizeMapLayerCmd* out,
+  int max
+);
 
 /* MAPEDIT land-land edge blends (FUN_1a47_06da): PHYS0 104+q then neighbour TERRAIN fill. */
 int map_land_transition_count(const ColonizeWorldMap* map, int x, int y);
@@ -453,10 +463,15 @@ int map_resource_type_for_yield(const ColonizeWorldMap* map, int x, int y);
  * class comes from map_dos_terr_class_at (FUN_13e4_003a).
  */
 int map_dos_resource_at(const ColonizeWorldMap* map, int x, int y);
+/* FUN_281f_075e / FUN_137f_0598: hash hit, owner nibble 0xf (no visitor yet),
+ * not consumed. A mover's arrival stamps the nibble, so LCR callers read it
+ * BEFORE the move (FUN_465b_0000 raw 75764). */
 bool map_tile_has_rumour(const ColonizeWorldMap* map, int x, int y);
+/* The rumour as drawn (map art, sidebar): same test as map_tile_has_rumour. */
+bool map_tile_rumour_drawn(const ColonizeWorldMap* map, int x, int y);
 /* FUN_137f_0598: DOS rumour-tile test used by the Indian move scorer (owner nibble unset + hash). */
 bool map_dos_0598_rumour_tile(const ColonizeWorldMap* map, int x, int y);
-/* Mark procedural lost-city rumour at (x,y) as explored/consumed. Returns false if none. */
+/* Mark the rumour at (x,y) consumed (no rumour re-test). False only off the map / no layer2. */
 bool map_clear_rumour(ColonizeWorldMap* map, int x, int y);
 /* True when terrain byte has a river (major or minor). */
 bool map_tile_has_river(const ColonizeWorldMap* map, int x, int y);

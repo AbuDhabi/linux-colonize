@@ -1003,11 +1003,15 @@ void colony_screen_draw_area_overlays(
       const int icon = (c->field_job == COLONIZE_JOB_FISHERMAN)
                          ? COLONY_ICON_FISH
                          : (COLONY_CARGO_ICON_BASE + cargo);
-      if (view->icons_ok && icon >= 0 && icon < view->icons.sprite_count) {
-        const ColonizeSprite* sp = &view->icons.sprites[icon];
-        /* asm 2f2b:0e08-0e57: the icon at x + (0x10 - w) / 2, y + 1, then ICONS #64
-         * (id 0x41) at the tile origin. */
-        ss_blit_sprite(&view->icons, icon, framebuffer, tile_x + ((16 - sp->width) >> 1), tile_y + 1);
+      const int cargo_icon = COLONY_CARGO_ICON_BASE + cargo;
+      if (view->icons_ok && icon >= 0 && icon < view->icons.sprite_count &&
+          cargo_icon < view->icons.sprite_count) {
+        /* asm 2f2b:0e08-0e57: the icon at x + (0x10 - w) / 2, y + 1, w = the CARGO
+         * icon's width ([0x83e] + cargo*12 + 0x152) even when the fish 0x3a is
+         * drawn (port_bugs.md #1715; equal widths in the stock ICONS.SS), then
+         * ICONS #64 (id 0x41) at the tile origin. */
+        const int w = view->icons.sprites[cargo_icon].width;
+        ss_blit_sprite(&view->icons, icon, framebuffer, tile_x + ((16 - w) >> 1), tile_y + 1);
         if (64 < view->icons.sprite_count) {
           ss_blit_sprite(&view->icons, 64, framebuffer, tile_x, tile_y);
         }

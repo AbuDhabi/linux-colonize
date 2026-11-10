@@ -517,9 +517,9 @@ static void game_blit_unit_in_viewport(
       display_type_index, nation_id, orders_index, show_stack, damaged, 0, white
     );
   } else {
-    unit_chrome_blit_unit_for_palette(
+    unit_chrome_blit_unit_for_palette_fit(
       &view, font, sheet, sprite_index, x, y - MAP_MENU_BAR_H, display_type_index, nation_id,
-      orders_index, show_stack, damaged, active_palette
+      orders_index, show_stack, damaged, active_palette, 16
     );
   }
   for (int row = 0; row < view_h; ++row) {
@@ -2505,8 +2505,9 @@ COLONIZE_INTERNAL void game_render_map_composite(
             }
             continue;
           }
-          ncmd = map_tile_layer_cmds(
-            &game->world_map, mx, my, game->terrain_peel_phase, cmds, MAP_LAYER_CMDS_MAX
+          ncmd = map_tile_layer_cmds_zoom(
+            &game->world_map, mx, my, game->terrain_peel_phase, map_zoom, cmds,
+            MAP_LAYER_CMDS_MAX
           );
           base_sprite = ncmd > 0 ? cmds[0].sprite : -1;
         } else {

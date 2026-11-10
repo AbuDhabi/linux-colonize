@@ -41,17 +41,17 @@ static void ff_ai_elect(ColonizeTurnContext* ctx) {
     if (n == ctx->human_nation || ctx->col1->player[n].control != 1) {
       continue;
     }
-    int guard = (int)COLONIZE_COL1_FF_COUNT;
-    while (guard-- > 0 && founding_fathers_try_elect(ctx, n)) {
-    }
+    (void)founding_fathers_try_elect(ctx, n); /* one colony's FUN_4345_0a22 */
   }
 }
 
 static void ff_tick(ColonizeTurnContext* ctx) {
   /* port_bugs.md #933: nation+0xc (liberty_bells_pool) IS the pool — no seeding. */
   ff_ai_elect(ctx);
-  /* port_bugs.md #434: human election moved to TURN_PROC_FINISH's own call. */
-  founding_fathers_tick_human_elect(ctx);
+  /* The human's own colony 0a22 (DOS has no end-of-turn elect pass, #1701). */
+  if (ctx->human_nation >= 0) {
+    (void)founding_fathers_try_elect(ctx, ctx->human_nation);
+  }
 }
 
 static void seed_unclaimed(ColonizeCol1Save* col1) {
@@ -890,10 +890,13 @@ int main(void) {
   if (nat->next_founding_father != -1) {
     return fail("next_founding_father not cleared to -1 after elect");
   }
-  nat->liberty_bells_last_turn = 2;
-  if (founding_fathers_try_elect(&ctx, 0) || nat->next_founding_father != -1) {
-    return fail("zero bell pool re-nominated after election");
+  /* port_bugs.md #1701: the next colony's 0a22 (asm 4345:0a3c-0a4f) re-runs the
+   * 06d2 debate whenever next < 0, pool 0 or not (DOSBox 1538->1539: Dutch
+   * pool 0, next -1 -> next 22 at the first colony). */
+  if (founding_fathers_try_elect(&ctx, 0) || nat->next_founding_father < 0) {
+    return fail("#1701: a 0a22 call with next < 0 must re-nominate even at pool 0");
   }
+  nat->next_founding_father = -1;
   /* DOS-LITERAL FUN_4345_0a22 raw 73370: the pool word is zeroed on elect
      (surplus over the threshold is discarded), port_bugs.md #933. */
   if (nat->liberty_bells_pool != 0) {
@@ -3084,6 +3087,7 @@ int main(void) {
      * coordinate bias on 2026-09-09 (smell_audit #98), moving every seed-100
      * rumour one tile SE. Scrub keeps the AMER2 fixture's terrain class. */
     lmap.terrain[15 * 20 + 9] = 0x08;
+    lmap.layer3[15 * 20 + 9] = 0xf0u; /* nobody visited (FUN_137f_0598) */
     ColonizeUnitPool upool;
     memset(&upool, 0, sizeof(upool));
     units_reset(&upool);
@@ -3514,7 +3518,7 @@ int main(void) {
     zctx.ai_popups = &zpop;
     zctx.europe = &zeu;
 
-    founding_fathers_tick_human_elect(&zctx);
+    (void)founding_fathers_try_elect(&zctx, zctx.human_nation);
     if (znat->founding_father_count == 0) {
       return fail("funded pool must elect");
     }
@@ -3532,7 +3536,7 @@ int main(void) {
     const unsigned zneed = founding_fathers_bells_needed(&zc, 0);
     const unsigned zcount = znat->founding_father_count;
     dos_buggy_behavior_set(false);
-    founding_fathers_tick_human_elect(&zctx);
+    (void)founding_fathers_try_elect(&zctx, zctx.human_nation);
     dos_buggy_behavior_set(true);
     if (znat->founding_father_count != zcount + 1u) {
       return fail("TB-58: funded pool must elect");

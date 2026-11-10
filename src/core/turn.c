@@ -1061,9 +1061,6 @@ COLONIZE_INTERNAL void turn_step_finish_colony_loop(ColonizeTurnProcessor* proc,
         /* 00f2 tail FUN_291f_0a66 -> FUN_43f7_2424 (raw 58392) -> 2022. */
         ai_king_human_2022_beat(ctx);
       }
-      /* port_bugs.md #434: the human's FF election lands here — start of the
-       * player's turn, with the production chrome — not in SETUP. */
-      founding_fathers_tick_human_elect(ctx);
       turn_prod_only_nation = -1;
       turn_prod_only_set = false;
       /* port_bugs.md #394/404/407: yield here so the production popups queued

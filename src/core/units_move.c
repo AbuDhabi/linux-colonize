@@ -997,11 +997,12 @@ COLONIZE_INTERNAL UnitsMoveStatus units_move_commit_step(units_move_ctx* c) {
     units_465b_07d6_human_or(pool, unit, c->col1);
   }
 
-  /* Moving cancels sentry / fortify; Go-To cleared only on arrival elsewhere. */
-  if (unit->orders == UNITS_ORDER_SENTRY || unit->orders == UNITS_ORDER_FORTIFY ||
-      unit->orders == UNITS_ORDER_FORTIFIED) {
-    unit->orders = UNITS_ORDER_NONE;
-  }
+  /* DOS-LITERAL FUN_465b_0000 (port_bugs.md #1841): the plain-move commit
+   * writes no +0x314c on the mover. bVar5 = true (raw 75830) skips 0bd1's
+   * order clear, 0916 / 040c / 0362 write no orders, and the raw 75708 Sentry
+   * loop starts behind the 08e4 chain head. Movers reach here already awake:
+   * the human's units_wake (FUN_2b5a_1b5a raw 42717/42781) and the AI's own
+   * order writes. */
 
   /* FUN_281f_075e (= FUN_137f_0598), raw 75763: read before the arrival
    * stamps the destination's layer3 nibble. */
@@ -1058,6 +1059,12 @@ COLONIZE_INTERNAL UnitsMoveStatus units_move_commit_step(units_move_ctx* c) {
   }
   units_occupancy_refresh_tile(pool, ox, oy, unit_id);
   units_occupancy_refresh_tile(pool, dest_x, dest_y, -1);
+  if (c->reason == COLONIZE_ENTER_COMBAT_NAVAL) {
+    /* FUN_5fef_1b0e raw 100900-100901: the 0948 advance is followed by an
+     * unconditional 0704 owner stamp (the colony capture's is
+     * units_capture_claim_ring's). port_bugs.md #1840. */
+    map_set_owner_nibble(units_occupancy_map, dest_x, dest_y, unit->nation_id);
+  }
   /* 1b0e's winner advance (colony capture, naval win) is a 0948 relink:
    * the mask rides along (DOSBox independence 7->8: the crown MoW sinking
    * a Dutch Frigate keeps the French bit from the tile it attacked from). */
@@ -1096,8 +1103,11 @@ COLONIZE_INTERNAL UnitsMoveStatus units_move_rumour(units_move_ctx* c) {
    * resolve it in game_loop_orders (popups); this is the AI walk. DOSBox
    * 1499 -> 1501: a French Soldier walking onto (45,55) found burial mounds.
    */
+  g_units_rumour_step_id = -1;
   if (c->dest_rumour && c->unit->nation_id >= 0 && c->unit->nation_id < 4 &&
-      !units_combat_human_involved(c->col1, c->unit->nation_id, -1)) {
+      units_combat_human_involved(c->col1, c->unit->nation_id, -1)) {
+    g_units_rumour_step_id = c->unit_id; /* game_after_unit_tail rolls it */
+  } else if (c->dest_rumour && c->unit->nation_id >= 0 && c->unit->nation_id < 4) {
     ColonizeWorld lw = *c->w;
     if (!lw.col1) {
       lw.col1 = c->col1; /* == g_units_ff_col1 here (w->col1 was NULL) */
@@ -1257,8 +1267,7 @@ COLONIZE_INTERNAL UnitsMoveStatus units_move_finish(units_move_ctx* c) {
      * A human mover's LCR (raw 75788-75792) is still unrolled here
      * (game_after_unit_tail resolves it behind its popups); a count change
      * skips 3180, so the wake waits for units_465b_deferred_wake. */
-    if (c->unit && units_combat_human_involved(c->col1, c->unit->nation_id, -1) &&
-        map_tile_has_rumour(map, c->unit->x, c->unit->y)) {
+    if (c->unit && c->unit_id == g_units_rumour_step_id) {
       g_units_wake_deferred_id = unit_id;
     } else {
       units_sentry_wake_scan(pool, map, colonies, unit_id);
@@ -1385,6 +1394,13 @@ bool units_try_move_w(
 
 bool g_units_465b_settled = false;
 int g_units_wake_deferred_id = -1;
+int g_units_rumour_step_id = -1;
+
+bool units_take_rumour_step(int unit_id) {
+  const bool due = unit_id >= 0 && unit_id == g_units_rumour_step_id;
+  g_units_rumour_step_id = -1;
+  return due;
+}
 
 void units_465b_deferred_wake(
   ColonizeUnitPool* pool, const ColonizeWorldMap* map, const ColonizeColonyPool* colonies,

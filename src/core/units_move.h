@@ -141,6 +141,11 @@ extern bool g_units_465b_settled;
  * units_465b_deferred_wake runs it when `run` (the LCR left the unit count
  * alone, raw 75792) and always clears it. */
 extern int g_units_wake_deferred_id;
+/* The human mover whose last 465b step (or landfall) read FUN_281f_075e true
+ * before its arrival stamp (raw 75764): its LCR waits for the step tail
+ * (-1 = none). units_take_rumour_step answers for `unit_id` and clears it. */
+extern int g_units_rumour_step_id;
+bool units_take_rumour_step(int unit_id);
 void units_465b_deferred_wake(
   ColonizeUnitPool* pool, const ColonizeWorldMap* map, const ColonizeColonyPool* colonies,
   int unit_id, bool run

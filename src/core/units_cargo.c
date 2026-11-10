@@ -496,8 +496,8 @@ bool units_board(ColonizeUnitPool* pool, int land_unit_id, int ship_id) {
  * destination chain's head, the receiving ship, is woken if sentried
  * (+0x314c 1 -> 0) and made active (FUN_281f_086c) only when FUN_281f_0966 =
  * FUN_1427_1330 passes (raw 8741-8762: on the map, the moving nation's, not
- * sentried or fortified, MP left). units_board hands the focus over
- * unconditionally (`handed`: the mover had it), so give it back to the
+ * sentried or fortified, not damaged, MP left). units_board hands the focus
+ * over unconditionally (`handed`: the mover had it), so give it back to the
  * passenger when the gate fails; DOS leaves the sentried mover active and
  * moves on from it.
  * The woken hull is the tile head (FUN_281f_07e0 -> FUN_281f_08e4 =
@@ -517,11 +517,88 @@ void units_465b_board_wake_focus(
   if (ship->orders == UNITS_ORDER_SENTRY) {
     ship->orders = UNITS_ORDER_NONE;
   }
-  if (handed && pool->selected_id == ship_id) {
-    const bool gate =
-      units_is_on_map(ship) && ship->orders != UNITS_ORDER_FORTIFIED && ship->moves > 0;
-    pool->selected_id = gate ? ship->id : land_unit_id;
+  /* asm 465b:0884-0898: AX = the head, 0966 = 1330 tests it and 086c (08ea)
+   * writes DS:0x5392 = head whoever had the focus (port_bugs.md #1783): a
+   * Go To or AI boarder hands the focus to the hull too. 1330's nation test
+   * (== DS:0x5394) holds: the head is the mover's nation (015c), moving in
+   * its own turn. Gate fail: DOS 0x5392 stays the mover, so undo
+   * units_board's hand-off. */
+  const bool gate = units_is_on_map(ship) && ship->orders != UNITS_ORDER_FORTIFIED &&
+                    ((ship->col1_flags15 & 0x80u) == 0 || ship->type_index == 0x0b) &&
+                    ship->moves > 0;
+  if (gate) {
+    pool->selected_id = ship->id;
+  } else if (handed && pool->selected_id == ship_id) {
+    pool->selected_id = land_unit_id;
   }
+}
+
+/*
+ * DOS-LITERAL FUN_4720_0006(head, size, 0) (raw 75870-75936), 015c's boarding
+ * gate (raw 75988-75995, port_bugs.md #1781). DOS riders belong to no hull:
+ * every hull of the destination chain gets room = 0x5237[type] - +0x3150, every
+ * non-ship of the chain with size < 99 is first-fitted into them in chain
+ * order (one that fits nowhere refuses the board), then the first hull left
+ * with room >= size takes the boarder. Chain order = the tile stamps
+ * (units_tile_chain_next_id: latest first, lower slot on a tie); riders keep
+ * theirs in the port's chain model (units_tile_stack_sort_at / _ship_relink).
+ */
+static bool units_4720_0006_fits(
+  const ColonizeUnitPool* pool, int x, int y, int nation_id, int need_space
+) {
+  /* chain[] in chain order; hulls[] = its hulls, as the first 02ee walk. */
+  int chain[COLONIZE_UNITS_MAX];
+  int cn = 0;
+  for (int i = 0; i < units_slot_end(pool); ++i) {
+    const ColonizeUnit* u = &pool->units[i];
+    if (units_in_tile_chain(pool, u, x, y) && u->nation_id == nation_id) {
+      int b = cn++;
+      while (b > 0 && pool->units[chain[b - 1]].tile_stack_order < u->tile_stack_order) {
+        chain[b] = chain[b - 1];
+        b--;
+      }
+      chain[b] = i;
+    }
+  }
+  int hulls[COLONIZE_UNITS_MAX];
+  int hn = 0;
+  for (int k = 0; k < cn; ++k) {
+    if (units_is_sea(pool, pool->units[chain[k]].id)) {
+      hulls[hn++] = chain[k];
+    }
+  }
+  int room[COLONIZE_UNITS_MAX];
+  for (int k = 0; k < hn; ++k) {
+    const ColonizeUnit* h = &pool->units[hulls[k]];
+    int goods = 0;
+    const int holds = units_goods_hold_count(pool, h->id);
+    for (int i = 0; i < holds && i < COLONIZE_UNIT_CARGO_MAX; ++i) {
+      goods += units_unit_hold_amount(h, i) > 0;
+    }
+    room[k] = units_ship_capacity(pool, h->id) - goods;
+  }
+  for (int k = 0; k < cn; ++k) {
+    const ColonizeUnit* p = &pool->units[chain[k]];
+    const ColonizeUnitType* t = units_type(pool, p->type_index);
+    const int size = (t && t->space > 0) ? t->space : 1;
+    if (units_is_sea(pool, p->id) || size >= 99) {
+      continue;
+    }
+    int f = 0;
+    while (f < hn && room[f] < size) {
+      ++f;
+    }
+    if (f == hn) {
+      return false; /* raw 75926-75928: return local_48 = 0 */
+    }
+    room[f] -= size;
+  }
+  for (int k = 0; k < hn; ++k) {
+    if (need_space <= room[k]) {
+      return true;
+    }
+  }
+  return false;
 }
 
 int units_find_boardable_ship(
@@ -532,6 +609,9 @@ int units_find_boardable_ship(
   }
   if (need_space < 1) {
     need_space = 1;
+  }
+  if (!units_4720_0006_fits(pool, x, y, nation_id, need_space)) {
+    return -1;
   }
   for (int i = 0; i < units_slot_end(pool); ++i) {
     const ColonizeUnit* ship = &pool->units[i];
@@ -1068,9 +1148,31 @@ bool units_cargo_can_landfall(const ColonizeUnitPool* pool, int unit_id) {
   return true;
 }
 
-int units_first_landfall_cargo(const ColonizeUnitPool* pool, int ship_id) {
+int units_first_landfall_cargo(ColonizeUnitPool* pool, int ship_id) {
   const ColonizeUnit* ship = units_get_const(pool, ship_id);
-  if (!ship || ship->cargo_count <= 0) {
+  if (!ship || !units_is_sea(pool, ship_id)) {
+    return -1;
+  }
+  /*
+   * port_bugs.md #1782: 015c's FUN_281f_0916(mover) (raw 75967) is
+   * FUN_1427_12f6 -> FUN_1427_10be for a hull, so the walk below runs over the
+   * hull's fresh pickup (the -2 chain), not over a standing manifest: at sea
+   * that takes other hulls' riders too (TB-2), sorted by 04d6. 10be sentries
+   * every rider it takes (raw 8676); 049e's "Make Landfall" wakes them.
+   */
+  if (units_is_on_map(ship)) {
+    (void)units_ship_departure_pickup(
+      pool, units_occupancy_map ? units_occupancy_map : g_units_fallout_map,
+      ship_id, ship->x, ship->y
+    );
+    for (int i = 0; i < ship->cargo_count; ++i) {
+      ColonizeUnit* pax = units_get(pool, ship->cargo_ids[i]);
+      if (pax) {
+        pax->orders = UNITS_ORDER_SENTRY;
+      }
+    }
+  }
+  if (ship->cargo_count <= 0) {
     return -1;
   }
   /*

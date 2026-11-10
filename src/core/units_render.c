@@ -161,7 +161,7 @@ void units_render_on_map(
       );
       continue;
     }
-    unit_chrome_blit_unit_for_palette(
+    unit_chrome_blit_unit_for_palette_fit(
       framebuffer,
       font,
       nation_sheet,
@@ -173,7 +173,8 @@ void units_render_on_map(
       badge_orders,
       stacked,
       damaged,
-      active_palette
+      active_palette,
+      tile_w
     );
   }
 }

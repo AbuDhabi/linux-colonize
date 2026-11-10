@@ -339,8 +339,8 @@ enum {
 /* Held while more lines are queued behind this one (DOS's now + 30 ticks). */
 #define AI_POPUP_BAR_MSG_MS 500u
 /*
- * Held by the last line of a run: nothing composes behind it, so it lives out
- * the full armed deadline. Every DOS arm passes 0x78 ticks on the 60.877 Hz
+ * Dwell of the last line of a run: nothing composes behind it, so it lives out
+ * the full armed deadline (shown, not held). Every DOS arm passes 0x78 ticks on the 60.877 Hz
  * clock (FUN_291f_07b0 / FUN_38fd_19d8) = 1971 ms.
  */
 #define AI_POPUP_BAR_MSG_LAST_MS 1971u
@@ -416,6 +416,9 @@ typedef struct AiPopupState {
   bool bar_msg_passive[AI_POPUP_BAR_MSG_MAX];
   int bar_msg_count;       /* [0] is the one on screen */
   uint32_t bar_msg_until_ms; /* dwell deadline; 0 = not started yet */
+  /* Screen the ring was last serviced under (game_update): 0 map, 1 colony,
+   * 2 Europe. A change is DOS's screen entry/exit flush (#1607). */
+  uint8_t bar_screen;
 
   int dialog_x;
   int dialog_y;
@@ -446,15 +449,18 @@ uint8_t ai_popup_bar_message_color(const AiPopupState* st);
 /*
  * Advance the strip: start the dwell on a freshly-shown line, retire it when
  * the dwell expires or `dismiss` (any key / mouse button, DOS FUN_1009_0036).
- * Returns true while a line still owns the strip — the caller holds the turn
- * pipeline for exactly that long, the way DOS's blocking wait does.
+ * Returns true while a line still owns the strip; whether that holds the turn
+ * pipeline is ai_popup_bar_blocks.
  */
 bool ai_popup_bar_service(AiPopupState* st, uint32_t now_ms, bool dismiss);
 /* Mark every queued line passive (bar_msg_passive): the colony and Europe
  * screens call this as they service the strip. */
 void ai_popup_bar_mark_passive(AiPopupState* st);
-/* A line owns the strip AND is a blocking wait (not passive). */
+/* A line owns the strip AND is a blocking wait: not passive, and another line
+ * waits behind it (the last line of a run never holds, #1607). */
 bool ai_popup_bar_blocks(const AiPopupState* st);
+/* FUN_1009_00b4 with nothing composed after it: drop every queued line. */
+void ai_popup_bar_clear(AiPopupState* st);
 
 void ai_popup_init(AiPopupState* st);
 void ai_popup_clear(AiPopupState* st);

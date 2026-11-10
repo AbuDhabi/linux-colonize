@@ -95,7 +95,9 @@ Port: a ring on `AiPopupState` (`ai_popup_enqueue_bar_message` /
 pull-down titles, and `game_service_bar_message` holding the turn pipeline
 while a line is up (parked, not ticked, while any screen covers the map).
 Dwell follows DOS's `min(deadline, now + 30 ticks)`: a line with more behind it
-holds ~0.5 s, the last of a run lives out the full 0x78 ticks (1971 ms).
+holds ~0.5 s; the last of a run is shown for up to 0x78 ticks (1971 ms) but
+holds nothing (DOS arms it and moves on), and entering or leaving the colony or
+Europe screen clears the strip (#1607).
 
 Users:
 
@@ -466,7 +468,7 @@ fragment. Related sections are listed in the first column.
 | Fence unit jobs | Second click or Enter on the selected fence unit | Done | `FUN_2f2b_44d4` / `FUN_2f2b_6372` push 0 open `FUN_2f2b_348c` param 0: the full jobs list (colony jobs, then the leave-as roles); a colony of 32 keeps the leave-as list (port_bugs.md #1435) |
 | `@ABANDON` / `@ABANDON2` | Last colonist leave | Done | Yes/No confirm from GAME.TXT |
 | `@KEEPSTOCKADE` | Stockade min pop | Done | OK from `@KEEPSTOCKADE` |
-| `@MORETHANTHREE` | Assign 4th colonist to a full building | Done | `colonies_assign_workplace` caps at `COLONIZE_BUILDING_MAX_WORKERS` (3); `colonies_emit_more_than_three_chrome` OK. Was previously misdocumented as a `@KEEPSTOCKADE` alias — the two sections are unrelated |
+| `@MORETHANTHREE` | Assign 4th colonist to a full building | Done | `colonies_assign_workplace` caps at `COLONIZE_BUILDING_MAX_WORKERS` (3); `colonies_emit_more_than_three_chrome` OK. AI colony-tick seats (`colonies_seat_workplace_15eb_1068`) bypass the cap, as DOS 8e26 -> 15eb_1068 does (#1624). Was previously misdocumented as a `@KEEPSTOCKADE` alias — the two sections are unrelated |
 | `@COLONY` / `@RENAMECOLONY` | Found / rename | Done | Name entry after found (`@COLONY` wears the MSS5 nun, `479b:0823`); rename (bare, DOS latches nothing) = click colony title bar (DOS zone 10; no key, #1737) |
 | `@LANDHO` | Human move with land in the destination 3x3, `named_new_world` clear (`FUN_4720_049e` tail) | Done | Name New World (`colony_region`); the field opens on the live `player[turn].country_name` (DOS passes that buffer, so `@default=America` is dead; a new game stores NAMES `@COLONYNAME` there). Text-entry layout: `popup_field_frame` (port_bugs.md #1181); MSS0 admiral (`2b5a:0028`, #1183) |
 | `@HOWMUCH1`… | Cargo amount | Done | [`howmuch_dialog.c`](../src/core/howmuch_dialog.c) (`=` colony / Europe **L**) |
@@ -587,7 +589,7 @@ Cycling rotates the map's water palette (settings.md); Tutorial Hints gates the
 
 | Popup | When | Status | Port |
 |-------|------|--------|------|
-| `@SETVIEW` Reveal Map | DEBUG → Reveal | Done (Esc resets; 5 rows unless a view is active) | [`cheat_list_dialog.c`](../src/core/cheat_list_dialog.c) |
+| `@SETVIEW` Reveal Map | DEBUG → Reveal | Done (Esc resets; 6 rows, bar on row 6 while a view is active, else row 5) | [`cheat_list_dialog.c`](../src/core/cheat_list_dialog.c) |
 | Kill Indians tribe list | CHEAT Shift-F6 | Done (non-extinct tribes only, DOS case 0x67; port_bugs.md #1173) | Same + `units_destroy_tribe_nation_w` |
 | `@SETHUMAN` Set Human | CHEAT Shift-F5 | Done; "None" → `@SETAUTO` Done ([demo.md](demo.md)) | `game_cheat_set_human` / `game_set_all_ai` (`game_loop_saveload.c`) |
 | `@FORCED` | CHEAT Shift-F7, last stage | Done | `game_cheat_advance_revolution` (`game_loop_menus.c`) |

@@ -934,11 +934,12 @@ static void colony_screen_draw_dock_orders_popup(
   if (sprite >= 0) {
     /* FUN_112b_01ba draws the orders letter in FONTTINY (DS:0x89e, raw 2171-2173,
      * 2304) whatever the box font is (port_bugs.md #1226). */
-    unit_chrome_blit_unit_for_palette(
+    /* 6f74:214e passes param_2 16 (port_bugs.md #1786). */
+    unit_chrome_blit_unit_for_palette_fit(
       framebuffer, screen_font, &view->icons, sprite, view->dock_orders_rect.x + 5,
       view->dock_orders_rect.y + 6, units_display_type_index(units, u->id), u->nation_id,
       u->orders, false, (u->col1_flags15 & 0x80u) != 0,
-      (view->frame_ok && view->frame.has_palette) ? &view->frame.palette : NULL
+      (view->frame_ok && view->frame.has_palette) ? &view->frame.palette : NULL, 16
     );
   }
   for (int i = 0; i < rows; ++i) {
@@ -1411,8 +1412,8 @@ COLONIZE_INTERNAL bool colony_screen_hit_area_tiles(ColonyScreenHitCtx* a) {
     if (dx != 0 || dy != 0) {
       return true; /* MOD_TOWN_HALL_TIERS 5x5 corner: never a plot, swallow the click */
     }
-    /* Centre tile (not assignable): DOS's click-to-toggle-numbers spot
-     * (2f2b:609e flips DS:0x336 and refreshes; port_bugs.md). */
+    /* Centre tile: an inner cell (focus only); the badge toggle is the Production pane
+     * (2f2b:609e, #1725). */
     a->hit.kind = COLONY_HIT_AREA_INTERIOR;
     return true;
   }

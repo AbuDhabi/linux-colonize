@@ -59,6 +59,10 @@ enum {
   ME_ID_HELP2 = 0x52, ME_ID_HELP3 = 0x53, ME_ID_HELP4 = 0x54, ME_ID_ABOUT = 0x5f
 };
 
+/* ed->colors slots (NAMES.TXT @COLORS order). */
+enum { ME_COL_BASIC, ME_COL_HILITE, ME_COL_GREY, ME_COL_ENHANCE, ME_COL_SHADOW, ME_COL_SELECT,
+       ME_COL_BORDER0, ME_COL_BORDER1, ME_COL_BORDER2 };
+
 static bool me_is_water(int t) {
   return t == 0x19 || t == 0x1a;
 }
@@ -179,6 +183,25 @@ static void me_load_names(MapEditor* ed) {
       me_record_name(other->lines[i], ed->other_names[row++], sizeof(ed->other_names[0]));
     }
   }
+  /* @COLORS: nine numbers into DS:0x92-0x97 and 0x99-0x9b; a missing section keeps the DS start
+   * bytes (44 95 08 80 2f 8a / 86 80 8a, the stock values). */
+  const uint8_t k_start[9] = {COLONIZE_COL_BASIC, COLONIZE_COL_HILITE, COLONIZE_COL_GREY,
+                              COLONIZE_COL_ENHANCE, COLONIZE_COL_SHADOW, COLONIZE_COL_SELECT,
+                              COLONIZE_COL_BORDER0, COLONIZE_COL_BORDER1, COLONIZE_COL_BORDER2};
+  memcpy(ed->colors, k_start, sizeof ed->colors);
+  const ColonizeMsgSection* cols = ed->names_txt_ok ? assets_msg_find(&ed->names_txt, "COLORS") : NULL;
+  for (int i = 0; cols && i < cols->line_count; ++i) {
+    if (cols->lines[i][0] == '\0' || cols->lines[i][0] == ';') {
+      continue;
+    }
+    const char* p = cols->lines[i];
+    for (int c = 0; c < 9 && *p; ++c) {
+      char* end = NULL;
+      ed->colors[c] = (uint8_t)strtol(p, &end, 10);
+      p = *end ? end + 1 : end;
+    }
+    break;
+  }
 }
 
 static uint8_t me_sprite_centre(const ColonizeSpriteSheet* sheet, int idx) {
@@ -266,40 +289,53 @@ void mapedit_fix_loaded(ColonizeWorldMap* map) {
   }
 }
 
-/* FUN_19f9_0170: version must be 4 and W*H at most 12000 (FUN_19f9_012c). */
-static bool me_load(MapEditor* ed, const char* name) {
+/* FUN_19f9_0170: version must be 4 and W*H at most 12000 (FUN_19f9_012c). Returns DS:0x4a4:
+ * 0 loaded, 1 open, 2 header, 3 version, 9999 too big, 4-6 terrain / layer 2 / layer 3 read. */
+static int me_load(MapEditor* ed, const char* name) {
+  /* 0170 forces ".MP" onto DS:0x4a18 itself before it opens it, so -m:AMER2 opens AMER2.MP. */
+  char forced[MAPEDIT_NAME_LEN];
+  me_force_mp(name, forced, sizeof forced);
   char path[640];
-  me_map_path(ed, name, path, sizeof(path));
+  me_map_path(ed, forced, path, sizeof(path));
   FILE* f = fopen(path, "rb");
-  uint8_t hdr[COLONIZE_MAP_HEADER_SIZE];
-  const bool hdr_ok = f && fread(hdr, 1, sizeof hdr, f) == sizeof hdr;
-  if (f) {
-    fclose(f);
+  if (!f) {
+    return 1;
   }
+  uint8_t hdr[COLONIZE_MAP_HEADER_SIZE];
+  const bool hdr_ok = fread(hdr, 1, sizeof hdr, f) == sizeof hdr;
+  long len = -1;
+  if (fseek(f, 0, SEEK_END) == 0) {
+    len = ftell(f);
+  }
+  fclose(f);
   if (!hdr_ok) {
-    return false;
+    return 2;
   }
   const int w = hdr[0] | (hdr[1] << 8);
   const int h = hdr[2] | (hdr[3] << 8);
   const int ver = hdr[4] | (hdr[5] << 8);
-  if (ver != MAP_MP_VERSION || w <= 0 || h <= 0 || w > 255 || h > 255 ||
-      w * h > MAPEDIT_UNDO_BYTES) {
-    return false;
+  if (ver != MAP_MP_VERSION) {
+    return 3;
+  }
+  if (w <= 0 || h <= 0 || w > 255 || h > 255 || w * h > MAPEDIT_UNDO_BYTES) {
+    return 9999;
   }
   ColonizeWorldMap m;
   memset(&m, 0, sizeof m);
   char err[256];
   if (!map_load_mp(path, &m, err, sizeof err)) {
-    return false;
+    /* The first plane the file runs out in. */
+    const long planes = len > COLONIZE_MAP_HEADER_SIZE ? (len - COLONIZE_MAP_HEADER_SIZE) / (w * h) : 0;
+    return 4 + (planes < 2 ? (int)planes : 2);
   }
   map_free(&ed->map);
   ed->map = m;
   ed->map.specials_off = true;
   ed->map_ok = true;
   ed->undo_valid = false;
-  me_force_mp(name, ed->file_name, sizeof ed->file_name);
+  str_copy_trunc(ed->file_name, sizeof ed->file_name, forced);
   mapedit_fix_loaded(&ed->map);
-  return true;
+  return 0;
 }
 
 static bool me_save(MapEditor* ed) {
@@ -426,7 +462,6 @@ static void me_move_cursor(MapEditor* ed, int dx, int dy) {
   (void)me_keep_in_view(ed, ed->cur_x, ed->cur_y);
   ed->cur_x = nx;
   ed->cur_y = ny;
-  ed->clock_ms = 0; /* the redraw shows the cursor at once */
 }
 
 /* FUN_1000_1582. */
@@ -500,6 +535,38 @@ static void me_hotspot(int idx, int* row, int* col) {
   }
 }
 
+/* FUN_1000_0e14: the swatch framed for the brush. A land swatch on DS:0x56 == row*8+col with
+ * DS:0x58 == 0, Arctic on 0x56 == 0x18 and 0x58 == 0, Ocean / Sea Lane on 0x56 alone, the
+ * features on 0x58 == 0xc0 / 0x40 / 0xa0 / 0x20. */
+static bool me_palette_framed(const MapEditor* ed, int idx) {
+  static const uint8_t k_feature_or[] = {0xc0, 0x40, 0xa0, 0x20};
+  if (idx <= 16) {
+    return ed->brush_type == idx - 1 && ed->brush_or == 0;
+  }
+  switch (idx) {
+  case 17: return ed->brush_type == 0x18 && ed->brush_or == 0;
+  case 18: return ed->brush_type == 0x19;
+  case 19: return ed->brush_type == 0x1a;
+  default: return ed->brush_or == k_feature_or[idx - 20];
+  }
+}
+
+/* FUN_1000_0d2a / 0d9e (raw 0xd6b): drawing a framed special swatch (17-23) sets DS:0x1ce to
+ * it; a framed land swatch leaves 0x1ce alone. Runs wherever DOS draws the palette (0e14):
+ * on opening it and on each brush change. */
+static void me_palette_sync(MapEditor* ed) {
+  for (int idx = 17; idx <= 23; ++idx) {
+    if (me_palette_framed(ed, idx)) {
+      ed->palette_idx = idx;
+    }
+  }
+}
+
+static void me_palette_open(MapEditor* ed) {
+  ed->palette_open = true; /* FUN_1000_1226 */
+  me_palette_sync(ed);
+}
+
 void mapedit_palette_pick(MapEditor* ed, int idx) {
   if (!ed || idx < 1 || idx > 23) {
     return;
@@ -526,11 +593,15 @@ void mapedit_palette_pick(MapEditor* ed, int idx) {
     default: return;
     }
   }
-  ed->brush_type = type;
-  ed->brush_and = and_mask;
-  ed->brush_or = or_bits;
-  ed->brush_feature = feature;
-  ed->palette_idx = idx;
+  /* FUN_1000_10cc redraws (0e14) only when the brush changes; DS:0x1ce is not written here. */
+  if (ed->brush_type != type || ed->brush_and != and_mask || ed->brush_or != or_bits ||
+      ed->brush_feature != feature) {
+    ed->brush_type = type;
+    ed->brush_and = and_mask;
+    ed->brush_or = or_bits;
+    ed->brush_feature = feature;
+    me_palette_sync(ed);
+  }
 }
 
 /* DOS-LITERAL FUN_1000_1226 (mapedit.c 959-991): the arrows walk the hotspot index. */
@@ -558,7 +629,8 @@ void mapedit_palette_key(MapEditor* ed, ColonizeKey key) {
   if (i < 0) {
     i += 8;
   }
-  mapedit_palette_pick(ed, i + 1);
+  ed->palette_idx = i + 1;
+  mapedit_palette_pick(ed, ed->palette_idx);
 }
 
 /* ===================== Find Continents (FUN_19c4_0002) ===================== */
@@ -832,7 +904,7 @@ static void me_menu_action(MapEditor* ed, int id) {
     break;
   }
   case ME_ID_TILES:
-    ed->palette_open = true;
+    me_palette_open(ed);
     break;
   case ME_ID_FILL:
     ed->fill_radius = (ed->fill_radius + 1) % 3;
@@ -875,16 +947,19 @@ static void me_popup_result(MapEditor* ed) {
     if (why == MAPEDIT_PENDING_PICK_START) {
       if (file < 0) {
         me_name_entry(ed, "NEWNAME", NAME_ENTRY_KIND_MAP_NEW, MAPEDIT_NAME_NEW_START, me_str(ed, MAPEDIT_DS_UNTITLED));
-      } else if (me_load(ed, ed->pick_names[file])) {
-        me_recenter_new(ed);
       } else {
-        ed->exit_code = 1; /* the load error ends the program (DS:0x4a4) */
-        ed->quit = true;
+        const int rc = me_load(ed, ed->pick_names[file]);
+        if (rc == 0) {
+          me_recenter_new(ed);
+        } else {
+          ed->exit_code = rc; /* FUN_1000_247a: the load error ends the program, DS:0x62 = DS:0x4a4 */
+          ed->quit = true;
+        }
       }
       return;
     }
     if (file >= 0) {
-      if (me_load(ed, ed->pick_names[file])) {
+      if (me_load(ed, ed->pick_names[file]) == 0) {
         me_recenter_new(ed);
       } else {
         me_popup(ed, "ERROR", MAPEDIT_PENDING_INFO);
@@ -932,8 +1007,10 @@ static void me_name_result(MapEditor* ed) {
   ed->name_entry.has_result = false;
   const MapEditNameFor why = ed->name_for;
   ed->name_for = MAPEDIT_NAME_NONE;
+  /* FUN_133d_258e: Enter on the text box returns 0 whatever it holds, so an empty answer goes
+   * ahead and FUN_1c04_005c makes it ".MP" (FUN_1000_15fc, FUN_1000_17e0 case 0x13). */
   if (why == MAPEDIT_NAME_SAVEAS) {
-    if (!cancelled && name[0]) {
+    if (!cancelled) {
       me_force_mp(name, ed->file_name, sizeof ed->file_name);
       if (!me_save(ed)) {
         me_popup(ed, "ERROR", MAPEDIT_PENDING_INFO);
@@ -941,7 +1018,7 @@ static void me_name_result(MapEditor* ed) {
     }
     return;
   }
-  if (cancelled || !name[0]) {
+  if (cancelled) {
     if (why == MAPEDIT_NAME_NEW_START) {
       ed->quit = true; /* FUN_1000_247a: no map, no editor */
     } else {
@@ -1044,7 +1121,7 @@ static void me_mouse(MapEditor* ed, const ColonizeInputState* in) {
       me_center(ed, x, y);
     }
   } else if (ed->press_region == 3 && release) {
-    ed->palette_open = true;
+    me_palette_open(ed);
   }
   if (release && !any) {
     ed->press_region = -1;
@@ -1066,27 +1143,28 @@ static int me_palette_hit(int x, int y) {
   return 0;
 }
 
-/* FUN_1000_1226: arrows pick at once, a click picks and closes, any other key closes. */
+/* FUN_1000_1226: arrows pick at once, any other key closes; then FUN_1000_11ee picks under the
+ * mouse while DS:0x732 is set (a button held, or the release frame DS:0x730) and closes on the
+ * release. A held button keeps the palette open over a key. */
 static void me_palette_input(MapEditor* ed, const ColonizeInputState* in) {
+  bool stay = true;
   if (in->last_key == COLONIZE_KEY_UP || in->last_key == COLONIZE_KEY_DOWN ||
       in->last_key == COLONIZE_KEY_LEFT || in->last_key == COLONIZE_KEY_RIGHT ||
       in->last_key == COLONIZE_KEY_KP8 || in->last_key == COLONIZE_KEY_KP2 ||
       in->last_key == COLONIZE_KEY_KP4 || in->last_key == COLONIZE_KEY_KP6) {
     mapedit_palette_key(ed, in->last_key);
-    return;
+  } else if (in->last_key != COLONIZE_KEY_NONE || in->text_input_len > 0) { /* any key (port_bugs.md #1309) */
+    stay = false;
   }
-  if (in->last_key != COLONIZE_KEY_NONE || in->text_input_len > 0) { /* any key (port_bugs.md #1309) */
-    ed->palette_open = false;
-    return;
-  }
-  const bool any = in->mouse_left_down || in->mouse_right_down;
-  if (any) {
+  const bool release = in->mouse_left_released || in->mouse_right_released;
+  if (in->mouse_left_down || in->mouse_right_down || release) {
     const int idx = me_palette_hit(in->mouse_x, in->mouse_y);
     if (idx > 0) {
       mapedit_palette_pick(ed, idx);
     }
+    stay = !release;
   }
-  if (in->mouse_left_released || in->mouse_right_released) {
+  if (!stay) {
     ed->palette_open = false;
     ed->mouse_held = ed->mouse_right = false;
     ed->press_region = -1;
@@ -1167,6 +1245,7 @@ bool mapedit_update(MapEditor* ed, ColonizePlatform* platform, const ColonizeInp
     return false;
   }
   ed->clock_ms += dt_ms;
+  ed->blink_ms += dt_ms;
   ai_popup_set_now_ms(ed->clock_ms);
   if (platform && ed->cursor_ok && !ed->cursor_built && ed->cursor.sprite_count > 0) {
     const ColonizeSprite* s = &ed->cursor.sprites[0];
@@ -1206,8 +1285,10 @@ bool mapedit_update(MapEditor* ed, ColonizePlatform* platform, const ColonizeInp
     return !ed->quit;
   }
   if (ed->continents_open) {
-    if (colonize_input_any_key_or_click(in) || in->text_input_len > 0) {
-      ed->continents_open = false; /* FUN_1000_0060: any key, mapped or not (port_bugs.md #1309) */
+    /* FUN_1000_0060: any key, mapped or not (port_bugs.md #1309), or a button release (DS:0x730). */
+    if (in->last_key != COLONIZE_KEY_NONE || in->text_input_len > 0 || in->mouse_left_released ||
+        in->mouse_right_released) {
+      ed->continents_open = false;
     }
     return true;
   }
@@ -1222,7 +1303,10 @@ bool mapedit_update(MapEditor* ed, ColonizePlatform* platform, const ColonizeInp
   if (menu_was_open && in->last_key == COLONIZE_KEY_ESCAPE) {
     return true;
   }
+  /* Each key or menu pick returns from FUN_1000_2124; the next pass clears DS:0x6972 and calls
+   * FUN_1000_1310: the cursor shows at once, the next toggle 20 ticks on. */
   if (act == MAP_MENU_ACTION_USER) {
+    ed->blink_ms = 0;
     me_menu_action(ed, ed->menu.picked_id);
     return !ed->quit;
   }
@@ -1230,6 +1314,7 @@ bool mapedit_update(MapEditor* ed, ColonizePlatform* platform, const ColonizeInp
     return true;
   }
   if (in->last_key != COLONIZE_KEY_NONE || in->text_input_len > 0) {
+    ed->blink_ms = 0;
     me_keys(ed, in);
   } else if (!map_menu_hit_ui(&ed->menu, in->mouse_x, in->mouse_y) || ed->press_region >= 0) {
     me_mouse(ed, in);
@@ -1301,7 +1386,7 @@ static void me_render_view(const MapEditor* ed, ColonizeFramebuffer8* fb) {
     }
   }
   /* FUN_1000_1310: ICONS sprite 0x13 + level (1-based), blinking. */
-  if (ed->icons_ok && (ed->clock_ms % (2 * ME_BLINK_MS)) < ME_BLINK_MS &&
+  if (ed->icons_ok && (ed->blink_ms % (2 * ME_BLINK_MS)) < ME_BLINK_MS &&
       ed->cur_x >= v.left && ed->cur_x < v.left + v.vis_w && ed->cur_y >= v.top &&
       ed->cur_y < v.top + v.vis_h) {
     ss_blit_sprite(&ed->icons, 0x13 + ed->level - 1, fb, (ed->cur_x - v.left + v.off_x) * v.tile,
@@ -1351,7 +1436,7 @@ static void me_render_side(const MapEditor* ed, ColonizeFramebuffer8* fb) {
   }
   const ColonizeFont* f = &ed->font_tiny;
   const int fh = f->max_height;
-  const uint8_t ink = COLONIZE_COL_BASIC;
+  const uint8_t ink = ed->colors[ME_COL_BASIC];
   char line[64];
   int y = ME_TEXT_Y;
   const int x = ME_TEXT_X;
@@ -1456,7 +1541,7 @@ static void me_render_palette(const MapEditor* ed, ColonizeFramebuffer8* fb) {
       static const int k_spr[] = {4, 0x14, 0x24, 0x34};
       ss_blit_sprite(&ed->phys0, k_spr[col - 3] - 1, fb, sx, sy);
     }
-    if (idx == ed->palette_idx) {
+    if (me_palette_framed(ed, idx)) {
       fb_rect_outline(fb, sx - 1, sy - 1, 18, 18, 0xf, 0xf);
     }
   }
@@ -1471,7 +1556,7 @@ static void me_render_palette(const MapEditor* ed, ColonizeFramebuffer8* fb) {
       snprintf(line, sizeof line, "(%s%s%s)", (bt >= 0 && bt < 29) ? ed->terrain_names[bt] : "",
                (bt > 7 && bt < 0x18) ? " " : "", (bt > 7 && bt < 0x18) ? ed->other_names[0] : "");
     }
-    font_draw_text(&ed->font_tiny, fb, 0xa0, 10, line, COLONIZE_COL_BASIC);
+    font_draw_text(&ed->font_tiny, fb, 0xa0, 10, line, ed->colors[ME_COL_BASIC]);
   }
 }
 
@@ -1480,35 +1565,49 @@ void mapedit_render(MapEditor* ed, ColonizeFramebuffer8* fb) {
     return;
   }
   fb_fill_rect(fb, 0, 0, fb->width, fb->height, 0);
+  /* The dialog inks FUN_1000_0018 copies from @COLORS (DS:0x540-0x552). */
   ColonizePopupColors cols;
   popup_colors_from_ui(&cols);
+  cols.mid = ed->colors[ME_COL_BORDER0];
+  cols.light = ed->colors[ME_COL_BORDER1];
+  cols.dark = ed->colors[ME_COL_BORDER2];
+  cols.enhance = ed->colors[ME_COL_ENHANCE];
+  cols.shadow = ed->colors[ME_COL_SHADOW];
   if (ed->map_ok) {
     if (ed->palette_open) {
       me_render_palette(ed, fb);
-    } else if (ed->continents_open) {
-      /* FUN_1000_1670: layer 3, low nibble, water 0, one pixel a tile at the origin. */
-      for (int y = 0; y < ed->map.height; ++y) {
-        for (int x = 0; x < ed->map.width; ++x) {
-          const int i = y * ed->map.width + x;
-          const int t = ed->map.terrain[i] & 0x1f;
-          fb_put(fb, x, y, me_is_water(t) ? 0 : (uint8_t)(ed->map.layer3[i] & 0xf));
-        }
-      }
     } else {
       me_render_view(ed, fb);
       me_render_side(ed, fb);
+      ed->menu.inks_set = true;
+      ed->menu.ink_basic = ed->colors[ME_COL_BASIC];
+      ed->menu.ink_hilite = ed->colors[ME_COL_HILITE];
+      ed->menu.ink_grey = ed->colors[ME_COL_GREY];
+      ed->menu.ink_select = ed->colors[ME_COL_SELECT];
       map_menu_render(&ed->menu, ed->font_tiny_ok ? &ed->font_tiny : NULL,
                       ed->woodtile_ok ? &ed->woodtile : NULL, fb);
+      /* FUN_1000_1670: the @CONTINENTS warnings come first, over the editor; then layer 3 (low
+       * nibble, water 0) is copied one pixel a tile onto the shown screen at the origin, the
+       * editor still around it (DS:0x3b1c). */
+      if (ed->continents_open && !ai_popup_busy(&ed->popups)) {
+        for (int y = 0; y < ed->map.height; ++y) {
+          for (int x = 0; x < ed->map.width; ++x) {
+            const int i = y * ed->map.width + x;
+            const int t = ed->map.terrain[i] & 0x1f;
+            fb_put(fb, x, y, me_is_water(t) ? 0 : (uint8_t)(ed->map.layer3[i] & 0xf));
+          }
+        }
+      }
     }
   }
   const ColonizeFont* dlg = ed->font_intr_ok ? &ed->font_intr : (ed->font_tiny_ok ? &ed->font_tiny : NULL);
   const ColonizeFont* popup_font = (ed->popup_small && ed->font_tiny_ok) ? &ed->font_tiny : dlg;
   ai_popup_render(&ed->popups, popup_font, ed->font_tiny_ok ? &ed->font_tiny : NULL,
-                  ed->woodtile_ok ? &ed->woodtile : NULL, &cols, COLONIZE_COL_BASIC,
-                  COLONIZE_COL_HILITE, COLONIZE_COL_SELECT, fb);
+                  ed->woodtile_ok ? &ed->woodtile : NULL, &cols, ed->colors[ME_COL_BASIC],
+                  ed->colors[ME_COL_HILITE], ed->colors[ME_COL_SELECT], fb);
   if (ed->name_entry.open) {
     name_entry_render(&ed->name_entry, dlg, ed->woodtile_ok ? &ed->woodtile : NULL, &cols,
-                      COLONIZE_COL_BASIC, COLONIZE_COL_SELECT, fb);
+                      ed->colors[ME_COL_BASIC], ed->colors[ME_COL_SELECT], fb);
   }
 }
 
@@ -1536,9 +1635,17 @@ bool mapedit_init(MapEditor* ed, const MapEditOptions* opt) {
   ed->mapedit_txt_ok = me_load_txt(ed, "MAPEDIT.TXT", &ed->mapedit_txt);
   ed->mapmenu_txt_ok = me_load_txt(ed, "MAPMENU.TXT", &ed->mapmenu_txt);
   ed->names_txt_ok = me_load_txt(ed, "NAMES.TXT", &ed->names_txt);
-  if (!ed->terrain_ok || !ed->phys0_ok) {
-    ed->exit_code = ed->terrain_ok ? 0x18 : 0x321; /* FUN_1000_2516 error codes */
-    return false;
+  /* FUN_1000_2516 (raw 0x25e4-0x2707) and FUN_18f9_0b0e (TERRAIN, raw 0xb53): the first file
+   * that fails to load ends the program with its code. */
+  const struct { bool ok; int code; } k_need[] = {
+    {ed->font_intr_ok, 0x15}, {ed->font_tiny_ok, 0x16}, {ed->terrain_ok, 0x322},
+    {ed->cursor_ok, 0x17}, {ed->phys0_ok, 0x18}, {ed->icons_ok, 0x19}, {ed->woodtile_ok, 0x1b}
+  };
+  for (size_t i = 0; i < sizeof k_need / sizeof k_need[0]; ++i) {
+    if (!k_need[i].ok) {
+      ed->exit_code = k_need[i].code;
+      return false;
+    }
   }
   me_load_names(ed);
   me_build_minimap_colors(ed);
@@ -1550,15 +1657,17 @@ bool mapedit_init(MapEditor* ed, const MapEditOptions* opt) {
   ed->brush_and = 0x40;
   ed->palette_idx = 1; /* DS:0x1ce */
   ed->press_region = -1;
-  /* FUN_1000_247a. */
-  if (opt && opt->map_file && opt->map_file[0]) {
-    if (!me_load(ed, opt->map_file)) {
-      ed->exit_code = 1;
+  /* FUN_1000_247a: -c (DS:0x54) wins over -m (DS:0x4c); a failed load ends the program with
+   * its code (DS:0x62 = DS:0x4a4). */
+  if (opt && opt->force_new) {
+    me_name_entry(ed, "NEWNAME", NAME_ENTRY_KIND_MAP_NEW, MAPEDIT_NAME_NEW_START, me_str(ed, MAPEDIT_DS_UNTITLED));
+  } else if (opt && opt->map_file) {
+    const int rc = me_load(ed, opt->map_file);
+    if (rc != 0) {
+      ed->exit_code = rc;
       return false;
     }
     me_recenter_new(ed);
-  } else if (opt && opt->force_new) {
-    me_name_entry(ed, "NEWNAME", NAME_ENTRY_KIND_MAP_NEW, MAPEDIT_NAME_NEW_START, me_str(ed, MAPEDIT_DS_UNTITLED));
   } else {
     me_open_picker(ed, "MAPTOEDIT", MAPEDIT_PENDING_PICK_START, true);
   }

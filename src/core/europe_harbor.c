@@ -145,6 +145,24 @@ int europe_harbor_repair_tick(EuropeScreen* eu, const ColonizeUnitPool* units, i
     }
     n++;
   }
+  /* port_bugs.md #1709: FUN_3844_00f2 walks the unit RECORDS from the last down (raw
+   * 58326-58330) and the caller raises @REFIT from out[] last first, so hand out[] in
+   * ascending record order, not harbor (chain) order. A hull read from a save knows its
+   * record (col1_src_plus1); one made this session sorts after them in slot order.
+   * ponytail: a hull damaged this session really keeps its map record; slot order
+   * stands in until the pool tracks record rank. */
+  const int m = out ? (n < max ? n : max) : 0;
+  for (int a = 1; a < m; ++a) {
+    const int v = out[a];
+    const int kv = eu->harbor[v].col1_src_plus1 > 0 ? eu->harbor[v].col1_src_plus1 : INT_MAX;
+    int b = a - 1;
+    while (b >= 0 && (eu->harbor[out[b]].col1_src_plus1 > 0 ? eu->harbor[out[b]].col1_src_plus1
+                                                              : INT_MAX) > kv) {
+      out[b + 1] = out[b];
+      --b;
+    }
+    out[b + 1] = v;
+  }
   return n;
 }
 
@@ -638,6 +656,21 @@ void europe_tick_voyages(EuropeScreen* eu, const ColonizeUnitPool* units) {
           break;
         }
       }
+    }
+    /* Slots hold the passengers in DOS chain tail-to-head order (the map's cargo_ids and
+     * the lane import both read the chain from the hull outward, J-prev first), and 03d0
+     * walks the lane head->tail appending each to the dock's tail: so the passenger
+     * nearest the hull docks first, the last slot first. DOSBox 2026-11-10: a Caravel
+     * sailed with chain [hull, Colonist, Dragoon] (cargo_ids Dragoon, Colonist) kept that
+     * chain on 247/243/239 and docked the Colonist ahead of the Dragoon (port_bugs.md #1679). */
+    for (int a = 0, b = ship.cargo_count - 1; a < b; ++a, --b) {
+      int t;
+      t = ship.cargo_types[a], ship.cargo_types[a] = ship.cargo_types[b], ship.cargo_types[b] = t;
+      t = ship.cargo_professions[a], ship.cargo_professions[a] = ship.cargo_professions[b],
+      ship.cargo_professions[b] = t;
+      t = ship.cargo_treasure_gold[a], ship.cargo_treasure_gold[a] = ship.cargo_treasure_gold[b],
+      ship.cargo_treasure_gold[b] = t;
+      t = ship.cargo_tools[a], ship.cargo_tools[a] = ship.cargo_tools[b], ship.cargo_tools[b] = t;
     }
     europe_disembark_passengers_to_dock(eu, &ship, units);
     eu->harbor[eu->harbor_ships++] = ship;

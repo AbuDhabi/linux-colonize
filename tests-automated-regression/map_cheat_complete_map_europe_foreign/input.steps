@@ -8,11 +8,7 @@
 key w alt
 key i alt
 key n alt
-key F4 shift             # Reveal Map (@SETVIEW): English, French, Spanish, Dutch, Complete Map
-key Down
-key Down
-key Down
-key Down
+key F4 shift             # Reveal Map (@SETVIEW): English, French, Spanish, Dutch, Complete Map; bar on Complete Map (#1661)
 key Return               # Complete Map
 wait 2
 key e                    # @SETEUROPE pick, La Rochelle (row 2) highlighted

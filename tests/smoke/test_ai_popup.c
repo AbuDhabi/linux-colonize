@@ -1161,6 +1161,31 @@ static int case_sheet_palette_merge_block_only(void) {
   return 0;
 }
 
+/* #1607: only a line with another behind it blocks (DOS waits in the NEXT line's
+ * FUN_1009_0036); the last line of a run is shown but holds nothing. */
+static int case_bar_last_line_does_not_block(void) {
+  AiPopupState st;
+  ai_popup_init(&st);
+  (void)ai_popup_enqueue_bar_message(&st, "one");
+  (void)ai_popup_enqueue_bar_message(&st, "two");
+  if (!ai_popup_bar_blocks(&st)) {
+    return fail("a line with another queued behind it must block");
+  }
+  (void)ai_popup_bar_service(&st, 1000, false);
+  (void)ai_popup_bar_service(&st, 1000, true); /* retire "one" */
+  if (!ai_popup_bar_message(&st) || strcmp(ai_popup_bar_message(&st), "two") != 0) {
+    return fail("second line not up");
+  }
+  if (ai_popup_bar_blocks(&st)) {
+    return fail("the last line of a run must not block");
+  }
+  ai_popup_bar_clear(&st);
+  if (ai_popup_bar_message(&st) || st.bar_msg_until_ms != 0) {
+    return fail("bar_clear left a line");
+  }
+  return 0;
+}
+
 static const TestCase k_cases[] = {
     {"case_sheet_palette_merge_block_only", case_sheet_palette_merge_block_only},
     {"case_fresh_idle", case_fresh_idle},
@@ -1184,6 +1209,7 @@ static const TestCase k_cases[] = {
     {"case_help_footer_is_dos", case_help_footer_is_dos},
     {"case_dos_wrap_and_width", case_dos_wrap_and_width},
     {"case_camera_on_present", case_camera_on_present},
+    {"case_bar_last_line_does_not_block", case_bar_last_line_does_not_block},
 };
 
 TEST_MAIN(k_cases)

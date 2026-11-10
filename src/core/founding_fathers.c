@@ -25,7 +25,7 @@
  *  - Candidate availability, century band & weighted category picks (ff_available_to .. ff_pick_strongest_category)
  *  - WOI bell pool, debate popups & next-candidate bookkeeping (consume_woi_bell_pool .. ensure_next_candidate)
  *  - Per-father election effects & apply_effect dispatcher (effect_coronado_reveal .. apply_effect)
- *  - Election commit, popup results & per-turn tick (elect_commit .. tick_human_elect)
+ *  - Election commit, popup results & per-turn tick (elect_commit .. try_elect)
  *
  * FF election (FUN_4345_0a22 / 0982 / 0342).
  * head.founding_father[i]: -1 unclaimed; 0..3 = owning European nation.
@@ -1517,17 +1517,12 @@ bool founding_fathers_try_elect(ColonizeTurnContext* ctx, int nation_id) {
   ColonizeCol1Nation* nat = &col1->nation[nation_id];
 
   /*
-   * FUN_4345_0a22 order: after any liberty bells exist, ensure a locked-in
-   * candidate (debate if next < 0), then elect only when bells >= threshold
-   * and next >= 0. Wiki: choice after first bells, then accumulate to join.
+   * DOS-LITERAL FUN_4345_0a22 (asm 4345:0a3c-0a4f): every call (one per
+   * colony) debates while next < 0, pool 0 or not (port_bugs.md #1701;
+   * DOSBox 1538->1539: Dutch pool 0, next -1 -> 06d2 -> next 22), then
+   * elects when the pool reaches the threshold and next >= 0.
    */
   const unsigned pool = founding_fathers_bells_pool(col1, nation_id);
-  /* After an election clears the pool, later colony checks in this same
-   * nation turn must leave next_founding_father at -1. The turn's already
-   * produced bells remain in +0xe, but DOS 1538→1539 does not re-debate. */
-  if (pool == 0u) {
-    return false;
-  }
 
   /* Peacetime only — WoI bell spend runs from turn.c (ai_king hook). */
   if (col1->head.game_options.woi) {
@@ -1607,22 +1602,3 @@ void founding_fathers_apply_popup_result(ColonizeTurnContext* ctx, AiPopupState*
   }
 }
 
-void founding_fathers_tick_human_elect(ColonizeTurnContext* ctx) {
-  if (!ctx || !ctx->col1_ok || !ctx->col1) {
-    return;
-  }
-  if (ctx->human_nation < 0 || ctx->human_nation >= (int)COLONIZE_COL1_NATION_COUNT) {
-    return;
-  }
-  /*
-   * port_bugs.md #934: DOS calls FUN_4345_0a22 once per COLONY (sole call site
-   * FUN_364b_0688, raw 57231), so the threshold can be crossed more than once
-   * in a turn. The per-colony accrual + elect test lives in turn_colony.c;
-   * this is the human's final pass, and it keeps electing while the pool is
-   * still above the (now higher) threshold and a candidate is locked in.
-   */
-  int guard = (int)COLONIZE_COL1_FF_COUNT;
-  while (guard-- > 0 && founding_fathers_try_elect(ctx, ctx->human_nation)) {
-    /* loop */
-  }
-}

@@ -152,6 +152,15 @@ chain itself only in `turn_idle_human_activate` (turn.c), because a render path 
 not mutate the unit pool (`units_tile_stack_sort_at` mutates it). Goldens pass
 without it (user 2026-11-10).
 
+### #1781 — Boarding at sea with several hulls refuses some boards DOS packs
+DOS FUN_4720_0006 (raw 75870-75936) first-fits every rider in the tile chain into
+the hulls before it tests room. The port applies that refusal
+(`units_4720_0006_fits`, units_cargo.c), but it still assigns the boarder to a
+hull by per-hull manifest. A board that DOS packing allows but no single hull's
+manifest has room for is therefore refused. Example: an empty Caravel on top of
+a Galleon carrying a Colonist, with a Treasure boarding. Matching DOS would mean
+moving riders between hulls.
+
 ## Blocked on a live DOS capture
 
 Static reading cannot settle these. Each names exactly what to capture. Do not

@@ -896,8 +896,11 @@ static void col1_bridge_sync_map_density(ColonizeCol1Save* save, const ColonizeW
       }
     }
 
-    /* Offshore suppress: water with no inset land neighbour in 20-ring. */
-    if (blank_density && col1_mask_is_water_mp(map->terrain[i])) {
+    /* Offshore suppress: water carrying a prime resource (FUN_684c_08c0 raw
+     * 107099-107124 gate FUN_281f_0718 = FUN_137f_04b0 != -1, #1673) with no
+     * inset land neighbour in the 20-ring. Same gate as map_gen.c. */
+    if (blank_density && col1_mask_is_water_mp(map->terrain[i]) &&
+        map_dos_resource_at(map, x, y) != -1) {
       int has_land = 0;
       for (int k = 0; k < 20; ++k) {
         const int nx = x + MAP_RING20_DX[k];

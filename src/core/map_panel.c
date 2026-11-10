@@ -1350,7 +1350,7 @@ static void map_panel_draw_stack_row(
   const int sprite = units_map_sprite(units, u->id);
   int x = MAP_PANEL_TEXT_X;
   if (icons && sprite >= 0) {
-    unit_chrome_blit_unit_for_palette(
+    unit_chrome_blit_unit_for_palette_fit(
       fb,
       font,
       icons,
@@ -1364,7 +1364,8 @@ static void map_panel_draw_stack_row(
       /* DOS's 4th badge arm is Artillery + damaged (+0x3148 bit7), not
        * "aboard a ship" — unit_chrome_corner_for_type. */
       (u->col1_flags15 & 0x80u) != 0,
-      active_palette
+      active_palette,
+      16
     );
   }
   (void)stack_n;
@@ -1650,7 +1651,7 @@ COLONIZE_INTERNAL void map_panel_render_selected_block(MapPanelRenderCtx* c) {
   const int icon_y = c->text_y;
   const int sel_sprite = units_map_sprite(units, selected->id);
   if (icons && sel_sprite >= 0) {
-    unit_chrome_blit_unit_for_palette(
+    unit_chrome_blit_unit_for_palette_fit(
       framebuffer,
       font,
       icons,
@@ -1662,7 +1663,8 @@ COLONIZE_INTERNAL void map_panel_render_selected_block(MapPanelRenderCtx* c) {
       unit_chrome_unit_badge_index(selected, selected->orders),
       false,
       (selected->col1_flags15 & 0x80u) != 0,
-      active_palette
+      active_palette,
+      16
     );
   }
 
@@ -1823,7 +1825,7 @@ COLONIZE_INTERNAL void map_panel_render_tile_details(MapPanelRenderCtx* c) {
           map_panel_draw_line(font, framebuffer, text_x, &c->text_y, line_h, y_limit, line, MAP_PANEL_COL_TEXT);
         }
       }
-      if (map_tile_has_rumour(map, info_x, info_y)) {
+      if (map_tile_rumour_drawn(map, info_x, info_y)) {
         map_panel_parenthesized(
           line, sizeof(line), map_panel_section_line(labels, "MISC", 15)
         );
@@ -1866,7 +1868,11 @@ COLONIZE_INTERNAL void map_panel_render_holds(MapPanelRenderCtx* c) {
       map_panel_draw_cargo_icons(
         selected, col1, icons, framebuffer, text_x + label_w + 1, c->text_y, panel_right
       );
-      c->text_y += MAP_PANEL_ROW_H;
+      /* FUN_49dd_0424 raw 79031: advance by the ICONS 0x17 sprite height (DS:0x83e
+       * +0x154) + 1, the same pitch as the colony goods row (#1775). */
+      c->text_y += icons->sprite_count > MAP_PANEL_CARGO_ICON_BASE
+                     ? icons->sprites[MAP_PANEL_CARGO_ICON_BASE].height + 1
+                     : MAP_PANEL_ROW_H;
     }
   }
 }
@@ -2190,7 +2196,7 @@ COLONIZE_INTERNAL void map_panel_render_stack(MapPanelRenderCtx* c) {
       if (visible && c->text_y + MAP_PANEL_ROW_H <= y_limit) {
         const int sprite = units_map_sprite(units, top->id);
         if (icons && sprite >= 0) {
-          unit_chrome_blit_unit_for_palette(
+          unit_chrome_blit_unit_for_palette_fit(
             framebuffer,
             font,
             icons,
@@ -2202,7 +2208,8 @@ COLONIZE_INTERNAL void map_panel_render_stack(MapPanelRenderCtx* c) {
             unit_chrome_unit_badge_index(top, top->orders),
             stack_n > 1,
             (top->col1_flags15 & 0x80u) != 0,
-            active_palette
+            active_palette,
+            16
           );
         }
         /*

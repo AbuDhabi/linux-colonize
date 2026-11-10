@@ -1158,6 +1158,7 @@ static int test_human_lcr_count_change_skips_contact(void) {
   for (int n = 1; n < 4; ++n) {
     game.col1.player[n].control = 1;
   }
+  game.world_map.layer3[3 * 8 + 3] = 0xf0u; /* nobody visited (FUN_137f_0598) */
   for (uint16_t s = 1; s < 512 && !map_tile_has_rumour(&game.world_map, 3, 3); ++s) {
     game.world_map.prime_resource_seed = s;
   }
@@ -1184,6 +1185,7 @@ static int test_human_lcr_count_change_skips_contact(void) {
   int rc = map_tile_has_rumour(&game.world_map, 3, 3) ? 0 : fail("no rumour at (3,3)");
   for (int seed = 1; seed < 400 && rc == 0 && (!seen_changed || !seen_same || !seen_foy); ++seed) {
     game.world_map.layer2[3 * 8 + 3] &= (uint8_t)~MAP_LAYER2_LCR_CONSUMED;
+    game.world_map.layer3[3 * 8 + 3] |= 0xf0u; /* the last trial's arrival stamped it */
     memset(&game.col1.indian[0], 0, sizeof(game.col1.indian[0]));
     /* The welcome reads the Euro-side byte 0a38(euro, tribe+4) (#1618). */
     ai_diplo_write(&game.col1, 0, 4, 0);
@@ -3858,11 +3860,19 @@ static int test_map_cursor_refuses_rim(void) {
 static int test_bar_screen_lines_do_not_block_map(void) {
   static AiPopupState st;
   ai_popup_clear(&st);
-  (void)ai_popup_enqueue_bar_message(&st, "100 Horses moved to Wagon Train");
   int rc = 0;
-  if (!ai_popup_bar_blocks(&st)) {
-    rc = fail("bar passive: a fresh line blocks");
+  /* #1607: the last line of a run is shown but holds nothing (FUN_1009_0244
+   * arms and returns); only a line queued behind it makes the strip wait. */
+  (void)ai_popup_enqueue_bar_message(&st, "First line");
+  if (ai_popup_bar_blocks(&st)) {
+    rc = fail("bar: a lone fresh line blocks");
   }
+  (void)ai_popup_enqueue_bar_message(&st, "Second line");
+  if (rc == 0 && !ai_popup_bar_blocks(&st)) {
+    rc = fail("bar: a line with another behind it does not block");
+  }
+  ai_popup_clear(&st);
+  (void)ai_popup_enqueue_bar_message(&st, "100 Horses moved to Wagon Train");
   ai_popup_bar_mark_passive(&st);
   (void)ai_popup_enqueue_bar_message(&st, "Map line");
   if (rc == 0 && (ai_popup_bar_blocks(&st) || ai_popup_bar_message(&st) == NULL)) {
@@ -3870,8 +3880,8 @@ static int test_bar_screen_lines_do_not_block_map(void) {
   }
   (void)ai_popup_bar_service(&st, 1000, false);
   (void)ai_popup_bar_service(&st, 1000, true);
-  if (rc == 0 && !ai_popup_bar_blocks(&st)) {
-    rc = fail("bar passive: the map line behind it blocks");
+  if (rc == 0 && ai_popup_bar_blocks(&st)) {
+    rc = fail("bar passive: the map line, now last, blocks");
   }
   ai_popup_clear(&st);
   return rc;

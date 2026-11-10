@@ -92,6 +92,11 @@ static int fx_open(void) {
     assets_msg_free(&names);
     return 1;
   }
+  /* New-game setup (ai_init_new_game, FUN_6ba1_10be) leaves every owner nibble
+   * 0xf; rumours need it (FUN_137f_0598, #1832). */
+  for (size_t i = 0; map.layer3 && i < map.tile_count; ++i) {
+    map.layer3[i] = (uint8_t)(map.layer3[i] | 0xf0u);
+  }
 
   units_new_world_start(&pool, &map, 39, 10, 0, 0);
   if (pool.unit_count < 3 || pool.selected_id < 0) {
@@ -3882,6 +3887,7 @@ static int case_lcr_clear_desoto(void) {
       return 1;
     }
     memcpy(lmap.terrain, map.terrain, n);
+    memset(lmap.layer3, 0xf0, n); /* nobody visited (FUN_137f_0598) */
     if (!map_tile_has_rumour(&lmap, 9, 15)) {
       fprintf(stderr, "LCR fresh map (9,15) expected rumour\n");
       map_free(&lmap);
@@ -4085,6 +4091,7 @@ static int case_lcr_count_change_skips_3180(void) {
   for (int seed = 1; seed < 400 && rc == 0 && (!seen_changed || !seen_same); ++seed) {
     /* Re-arm the rumour: the last explorer's sight stamped its owner nibble. */
     map.layer2[ti] &= (uint8_t)~MAP_LAYER2_LCR_CONSUMED;
+    map.layer3[ti] |= 0xf0u; /* nobody visited */
     map.layer3[ti] = (uint8_t)(0xf0u | (map.layer3[ti] & 0x0fu));
     ColonizeUnit* foe = units_get(&pool, units_spawn_allow_stack(&pool, colonist, foe_x, foe_y));
     ColonizeUnit* u = units_get(&pool, units_spawn_allow_stack(&pool, colonist, from_x, from_y));
@@ -4265,6 +4272,7 @@ static int case_lcr_case_matrix(void) {
       return 1;
     }
     map.layer2[ry2 * map.width + rx2] &= (uint8_t)~MAP_LAYER2_LCR_CONSUMED;
+    map.layer3[ry2 * map.width + rx2] |= 0xf0u; /* nobody visited */
     ColonizeDosRng rng2;
     dos_rng_seed(&rng2, trespass_seed);
     const int sc2 = units_spawn_allow_stack(&pool, case5_ti, rx2, ry2);
@@ -4363,6 +4371,7 @@ static int case_lcr_case5_latch(void) {
         units_despawn(&pool, uid);
       }
       map.layer2[rty * map.width + rtx] &= (uint8_t)~MAP_LAYER2_LCR_CONSUMED;
+      map.layer3[rty * map.width + rtx] |= 0xf0u; /* nobody visited */
     }
     if (vanished[0] != vanished[1] || gold_delta[0] != gold_delta[1] ||
         colonist_delta[0] != colonist_delta[1]) {
@@ -4484,6 +4493,7 @@ static int case_lcr_outcome_dispatch(void) {
         }
         /* Re-arm for the next pass over the same tile set (test-only). */
         map.layer2[y * map.width + x] &= (uint8_t)~MAP_LAYER2_LCR_CONSUMED;
+        map.layer3[y * map.width + x] |= 0xf0u; /* nobody visited */
         }
       }
     }
@@ -4614,6 +4624,7 @@ static int case_lcr_fountain_ai(void) {
             units_despawn(&pool, sid);
           }
           map.layer2[y * map.width + x] &= (uint8_t)~MAP_LAYER2_LCR_CONSUMED;
+          map.layer3[y * map.width + x] |= 0xf0u; /* nobody visited */
         }
       }
     }
@@ -4630,6 +4641,7 @@ static int case_lcr_fountain_ai(void) {
       units_lcr_counters_import(foy_lcr);
       arng.state = foy_state;
       map.layer2[foy_y * map.width + foy_x] &= (uint8_t)~MAP_LAYER2_LCR_CONSUMED;
+      map.layer3[foy_y * map.width + foy_x] |= 0xf0u; /* nobody visited */
       const int sid = units_spawn_allow_stack(&pool, scout_ti, foy_x, foy_y);
       ColonizeUnit* su = units_get(&pool, sid);
       if (!su) {
@@ -4794,6 +4806,7 @@ static int case_lcr_burial_trespass(void) {
               units_despawn(&pool, sid);
             }
             map.layer2[y * map.width + x] &= (uint8_t)~MAP_LAYER2_LCR_CONSUMED;
+            map.layer3[y * map.width + x] |= 0xf0u; /* nobody visited */
           }
         }
       }
@@ -4912,6 +4925,7 @@ static int case_lcr_trespass_village_index(void) {
               units_despawn(&pool, sid);
             }
             map.layer2[y * map.width + x] &= (uint8_t)~MAP_LAYER2_LCR_CONSUMED;
+            map.layer3[y * map.width + x] |= 0xf0u; /* nobody visited */
           }
         }
       }

@@ -256,6 +256,9 @@ static int sp_00(void) {
   c->colony_flags |= COLONIZE_COLONY_FLAG_COASTAL;
   snprintf(c->name, sizeof(c->name), "Jamestown");
   colonies.colony_count = 1;
+  /* The 5be8 audience gate reads the DS:0x9298 census byte, not the pool
+   * (port_bugs.md #1658): seed it for the one English colony. */
+  col1.stuff.colony_counts[0] = 1;
 
   memset(&europe, 0, sizeof(europe));
   europe.tax_percent = 0;
@@ -395,6 +398,19 @@ static int sp_02(void) {
     ctx.rng = NULL;
     if (col1.nation[0].tax_rate != 90) {
       return fail("tax_rate>85 should skip the audience roll entirely");
+    }
+    /* port_bugs.md #1658: 5be8 raw 68435 gates on the DS:0x9298 census byte
+     * alone; a live colony with a 0 byte gets no audience (seed 1 would cut). */
+    col1.nation[0].tax_rate = 50;
+    europe.tax_percent = 50;
+    col1.stuff.colony_counts[0] = 0;
+    dos_rng_seed(&gate_rng, 1u);
+    ctx.rng = &gate_rng;
+    ai_king_nation_turn(&ctx);
+    ctx.rng = NULL;
+    col1.stuff.colony_counts[0] = 1;
+    if (col1.nation[0].tax_rate != 50) {
+      return fail("#1658: a 0 colony_counts byte must skip the audience");
     }
     col1.head.game_options.woi = 0;
     ai_king_latch_set(&col1, 0, 0);
@@ -898,9 +914,15 @@ static int sp_12(void) {
   col1.head.hotseat_woi_redirect_pending = 0x80;
   col1.head.human_player = 0;
 
-  /* DOS declares only from the menu (FUN_43f7_2564 has no per-turn caller). */
+  /* DOS declares only from the menu (FUN_43f7_2564 has no per-turn caller).
+   * The 0218 rank (ships*3 + colonies*2 + census) picks the crown; a blank
+   * census keeps France (1), as this block expects, so the audience-gate
+   * byte seeded at fixture init is held at 0 across the declaration. */
+  const uint8_t cc0 = col1.stuff.colony_counts[0];
+  col1.stuff.colony_counts[0] = 0;
   ai_king_menu_declare_independence(&ctx);
   ai_king_nation_turn(&ctx);
+  col1.stuff.colony_counts[0] = cc0;
   if ((col1.head.hotseat_woi_redirect_pending & 0x80u) != 0 || col1.head.human_player != 0) {
     return fail("@MULTIREV accept should clear the hot-seat bit and keep DS:0x5398 = mover");
   }
@@ -3694,6 +3716,7 @@ static int case_tb36_declare_seen_mask(void) {
       map.seen[15 * 16 + 15] = 0x20; /* crown only */
       map.seen[15 * 16 + 13] = 0x13; /* human + low nibble */
       dos_buggy_behavior_set(false);
+      col1.stuff.colony_counts[0] = 0; /* blank 0218 rank keeps crown 1 (see sp_12) */
       ai_king_do_declare(&ctx, 0);
       dos_buggy_behavior_set(true);
       if (col1.head.crown_nation_id != 1) {

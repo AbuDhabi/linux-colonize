@@ -1063,13 +1063,15 @@ void ai_contact_enqueue_village_meet(
     AiContactUnitClass cls;
     ai_contact_classify_unit(ctx->units, u, &cls);
     /*
-     * DOS-LITERAL FUN_4d56_4528 overlay 13 (asm 0x486b..0x4ad0): the @ACTIONS
-     * CHOICE is built by walking the ten fixed rows in order and enabling each
-     * (FUN_1000_8212(row) + LAB_1000_9365), so the visible order is always
-     * 1 Trade, 2 Enter Hostile, 3 Mission, 4 Heresy, 5 Live Among, 6 Chief,
-     * 7 Incite, 8 Demand, 9 Attack, 10 Cancel — never the order the port used
-     * to emit them in (port_bugs.md #501; indian_actions_menu.md "Row enabling").
-     * `ai_contact_action_label` takes the 0-based row, so rows are 0..9 here.
+     * DOS-LITERAL FUN_4d56_4528 overlay 13 (asm 0x486b..0x4ad0): each enabled
+     * row is FUN_1000_8212(text) + LAB_1000_9365 = FUN_6f74_0a00, which links
+     * the new option at the TAIL of the dialog list (raw 115344-115355), so
+     * the visible order is the call order (port_bugs.md #1637; #501 assumed
+     * fixed row order): 1|2, 6 (Scout), 9 when attack > 1 (OVL13::0048db,
+     * latches [bp-0x5e]), then under PEACE either 3|4, 7 (Missionary) or
+     * 5, 8, then 9 for attack != 0 unless latched (OVL13::004a85, also the
+     * no-peace target of 00493f), then 10. A peaceful Soldier sees Attack /
+     * Demand / Cancel. `ai_contact_action_label` takes the 0-based row.
      */
     if ((cls.is_wagon || cls.is_ship) && alarm < 0x4b) {
       AI_CONTACT_MENU_ADD(0, AI_CONTACT_CHOICE_TRADE); /* row 1 */
@@ -1077,30 +1079,30 @@ void ai_contact_enqueue_village_meet(
     if ((cls.is_wagon || cls.is_ship) && alarm >= 0x4b) {
       AI_CONTACT_MENU_ADD(1, AI_CONTACT_CHOICE_ENTER_HOSTILE); /* row 2 */
     }
+    if (cls.is_scout) {
+      AI_CONTACT_MENU_ADD(5, AI_CONTACT_CHOICE_CHIEF); /* row 6 */
+    }
+    const int attack_early = !cls.is_ship && cls.attack > 1;
+    if (attack_early) {
+      AI_CONTACT_MENU_ADD(8, AI_CONTACT_CHOICE_ATTACK_VILLAGE); /* row 9, 0048db */
+    }
     if (peace && cls.is_missionary && foreign_owner < 0) {
       AI_CONTACT_MENU_ADD(2, AI_CONTACT_CHOICE_MISSION); /* row 3 */
     }
     if (peace && cls.is_missionary && foreign_owner >= 0 && foreign_owner != e) {
       AI_CONTACT_MENU_ADD(3, AI_CONTACT_CHOICE_HERESY); /* row 4 */
     }
-    if (peace && !cls.is_missionary && cls.can_live_among) {
-      AI_CONTACT_MENU_ADD(4, AI_CONTACT_CHOICE_TEACH); /* row 5 */
-    }
-    if (cls.is_scout) {
-      AI_CONTACT_MENU_ADD(5, AI_CONTACT_CHOICE_CHIEF); /* row 6 */
-    }
     if (peace && cls.is_missionary) {
       AI_CONTACT_MENU_ADD(6, AI_CONTACT_CHOICE_INCITE); /* row 7 */
+    }
+    if (peace && !cls.is_missionary && cls.can_live_among) {
+      AI_CONTACT_MENU_ADD(4, AI_CONTACT_CHOICE_TEACH); /* row 5 */
     }
     if (peace && !cls.is_missionary && cls.attack != 0 && !cls.is_ship) {
       AI_CONTACT_MENU_ADD(7, AI_CONTACT_CHOICE_DEMAND); /* row 8 */
     }
-    /* row 9: land unit with attack != 0. DOS adds it early for attack > 1
-     * and again at OVL13::004a85 for attack != 0 — that label is also the
-     * no-peace jump target (OVL13::00493f), so the second add is not
-     * peace-gated and the two collapse to attack != 0. */
-    if (!cls.is_ship && cls.attack != 0) {
-      AI_CONTACT_MENU_ADD(8, AI_CONTACT_CHOICE_ATTACK_VILLAGE);
+    if (!attack_early && !cls.is_ship && cls.attack != 0) {
+      AI_CONTACT_MENU_ADD(8, AI_CONTACT_CHOICE_ATTACK_VILLAGE); /* row 9, 004a85 */
     }
   } else {
     AI_CONTACT_MENU_ADD(0, AI_CONTACT_CHOICE_TRADE);

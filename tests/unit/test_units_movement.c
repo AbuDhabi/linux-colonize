@@ -2155,6 +2155,77 @@ static int unit_goto_native_wait_mod(void) {
   return rc;
 }
 
+/*
+ * port_bugs.md #1841 — FUN_465b_0000's plain-move commit writes no +0x314c on
+ * the mover (bVar5 = true at raw 75830 skips 0bd1's clear): a Fortify unit
+ * keeps its order across the step.
+ * port_bugs.md #1840 — FUN_1427_02ca (raw 7478-7509) stamps the owner nibble
+ * only on an arrival onto an empty tile; 023a (raw 7446-7474) never stamps, so
+ * a tile whose nibble differs from its occupants keeps it through arrivals and
+ * departures.
+ */
+static int unit_465b_step_keeps_orders_and_owner_nibble(void) {
+  int rc = 0;
+  ColonizeUnitPool pool;
+  memset(&pool, 0, sizeof(pool));
+  pool.type_count = 1;
+  snprintf(pool.types[0].name, sizeof(pool.types[0].name), "Soldiers");
+  pool.types[0].movement = 4;
+  pool.types[0].attack = 2;
+  pool.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  char err[128];
+  if (!map_alloc(&map, 8, 8, err, sizeof(err))) {
+    fprintf(stderr, "1840/1841: map_alloc failed: %s\n", err);
+    return 1;
+  }
+  for (int i = 0; i < 8 * 8; ++i) {
+    map.terrain[i] = 1; /* plains */
+  }
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
+  units_set_occupancy_map(&map);
+  const int a_id = units_spawn_allow_stack(&pool, 0, 3, 3);
+  const int b_id = units_spawn_allow_stack(&pool, 0, 5, 3);
+  ColonizeUnit* a = units_get(&pool, a_id);
+  ColonizeUnit* b = units_get(&pool, b_id);
+  if (!a || !b) {
+    rc = 1;
+    goto out;
+  }
+  a->nation_id = 0;
+  b->nation_id = 0;
+  map_set_owner_nibble(&map, 5, 3, 2); /* stale foreign stamp under B */
+  a->orders = UNITS_ORDER_FORTIFY;
+  a->moves = 12;
+  const ColonizeWorld w = {.units = &pool, .colonies = &colonies, .map = &map};
+  if (!units_try_move_w(&w, a_id, 4, 3) || units_get(&pool, a_id)->orders != UNITS_ORDER_FORTIFY) {
+    fprintf(stderr, "1841: Fortify mover lost its order (orders %d)\n", units_get(&pool, a_id)->orders);
+    rc = 1;
+  }
+  if (units_tile_owner_nibble(&map, 4, 3) != 0) {
+    fprintf(stderr, "1840: arrival on an empty tile must stamp (nibble %d)\n",
+            units_tile_owner_nibble(&map, 4, 3));
+    rc = 1;
+  }
+  if (!units_try_move_w(&w, a_id, 5, 3) || units_tile_owner_nibble(&map, 5, 3) != 2) {
+    fprintf(stderr, "1840: arrival on an occupied tile restamped (nibble %d)\n",
+            units_tile_owner_nibble(&map, 5, 3));
+    rc = 1;
+  }
+  if (!units_try_move_w(&w, a_id, 4, 3) || units_tile_owner_nibble(&map, 5, 3) != 2) {
+    fprintf(stderr, "1840: departure restamped the tile left behind (nibble %d)\n",
+            units_tile_owner_nibble(&map, 5, 3));
+    rc = 1;
+  }
+out:
+  units_set_occupancy_map(NULL);
+  map_free(&map);
+  return rc;
+}
+
 static const TestCase k_cases[] = {
   {"unit_order_name_table", unit_order_name_table},
   {"unit_far_bfs_next_step", unit_far_bfs_next_step},
@@ -2181,5 +2252,6 @@ static const TestCase k_cases[] = {
   {"unit_move_stage_seam_1107", unit_move_stage_seam_1107},
   {"unit_board_wakes_foreign_sentry", unit_board_wakes_foreign_sentry},
   {"unit_465b_board_settles_hull_resentries", unit_465b_board_settles_hull_resentries},
+  {"unit_465b_step_keeps_orders_and_owner_nibble", unit_465b_step_keeps_orders_and_owner_nibble},
 };
 TEST_MAIN_WRAPPED(k_cases, diag_init(0, NULL), diag_shutdown())

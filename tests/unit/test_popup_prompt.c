@@ -842,11 +842,11 @@ static int case_units_present_chrome_is_fonttiny(void) {
         rc = 1;
         break;
       }
-      unit_chrome_blit_unit_for_palette(
+      unit_chrome_blit_unit_for_palette_fit(
         &fb, &tiny, &icons, sprite, dlg.dialog_x + 5, dlg.dialog_y + 5 + 16 * i,
         units_display_type_index(&pool, u->id), u->nation_id,
         unit_chrome_plan_badge_index(u->nation_id, u->col1_ai_plan, u->orders, u->orders), false,
-        false, NULL
+        false, NULL, 16
       );
     }
     if (memcmp(a, b, sizeof(a)) != 0) {

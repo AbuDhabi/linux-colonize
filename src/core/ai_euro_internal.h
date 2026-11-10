@@ -398,7 +398,7 @@ int ai_euro_move_scoring_gate(ColonizeTurnContext* ctx, ColonizeUnit* u, int nat
 /* FUN_5952_035e indoor-expert pass (OVL15 0x1cb2-0x1e65), ahead of the scored
  * indoor pass: seats unplaced indoor experts in their own job. */
 void ai_euro_5952_indoor_expert_pass(
-  ColonizeTurnContext* ctx, ColonizeColony* col, bool* placed, int n
+  ColonizeTurnContext* ctx, ColonizeColony* col, bool* placed, int n, int carpenter_arm_seats
 );
 /* FUN_5952_035e LAB_5952_178f: real 28c8 seat of the bad winner, then
  * 169c + 1068(slot, 0x12). */
@@ -578,8 +578,9 @@ COLONIZE_INTERNAL void ai_euro_5952_set_ring1_threat(int colony_id, int ring1);
  * [BP+0xff62] (port_bugs.md #586): non-zero means the cascade started Docks for
  * that colony this tick, which suppresses ARM 2's expert purchase.
  */
-/* DS:0x8d72 list (FUN_15eb_09c0): non-ship units on the colony tile, latest
- * arrival first. Returns the count; ids gets unit ids. */
+/* DS:0x8d72 list (FUN_15eb_09c0): units with a DS:0x30e job on the colony
+ * tile chain, ship riders included, latest arrival first. Returns the count;
+ * ids gets unit ids. */
 COLONIZE_INTERNAL int ai_euro_5952_tile_stack(
   const ColonizeTurnContext* ctx, const ColonizeColony* c, int* ids, int max
 );
@@ -592,6 +593,11 @@ COLONIZE_INTERNAL void ai_euro_5952_seed_horses(
 );
 
 COLONIZE_INTERNAL int ai_euro_5952_docks_started(int colony_id);
+/* FUN_1000_8e26 = FUN_15eb_1068 seat (colony_workers.c): colonies_assign_workplace
+ * without the thunk_FUN_1000_9808 validator (no @MORETHANTHREE). AI tick only. */
+bool colonies_seat_workplace_15eb_1068(
+  ColonizeColonyPool* pool, int colony_id, int colonist_index, int building_type
+);
 /* FUN_5952_035e's field-placement section (raw 94551-94620), port_bugs.md #585. */
 COLONIZE_INTERNAL void ai_euro_colony_tick_28c8_reassign(
   ColonizeTurnContext* ctx, int nation_id

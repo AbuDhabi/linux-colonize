@@ -104,7 +104,11 @@ extern ColonizeUnitsPopupPumpFn g_units_popup_pump;
 extern void* g_units_popup_pump_user;
 extern ColonizeUnitsRaidRepelledFn g_units_raid_repelled;
 extern int g_units_revere_muskets_latch;
-void units_claim_tile_owner_from_stack( ColonizeUnitPool* pool, ColonizeWorldMap* map, int x, int y, int except_id );
+int units_claim_tile_owner_from_stack( ColonizeUnitPool* pool, ColonizeWorldMap* map, int x, int y, int except_id );
+/* port_bugs.md #1840: true while `unit` is the one whose arrival last stamped an
+ * empty tile (FUN_1427_02ca); units_set_nation stamps the real nation only then. */
+bool units_owner_claim_pending(const ColonizeUnit* unit);
+void units_occupancy_relink_in_place(ColonizeUnitPool* pool, const ColonizeUnit* unit);
 void units_combat_maybe_present_analysis( const ColonizeCol1Save* col1, const ColonizeCombatEngagement* eng, int atk_nation, int def_nation );
 void units_combat_pump_popups(void);
 ColonizeCombatStrengthCtx units_combat_strength_ctx(const ColonizeCol1Save* col1);
@@ -240,5 +244,10 @@ bool units_adjacent(int ax, int ay, int bx, int by);
 
 /* --- owned by units_cargo.c --- */
 int units_spawn_aboard(ColonizeUnitPool* pool, int type_index, ColonizeUnit* ship);
+
+/* --- owned by units_map.c --- */
+/* DOS 07e0/02e4 tile-chain walk with ship riders (units_in_tile_chain), in
+ * chain order: fills ids[], returns the count (at most max). */
+int units_tile_chain_ids(const ColonizeUnitPool* pool, int x, int y, int* ids, int max);
 
 #endif /* COLONIZE_CORE_UNITS_INTERNAL_H */

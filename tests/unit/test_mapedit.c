@@ -313,7 +313,86 @@ out:
   return rc;
 }
 
+static void mouse_step(int x, int y, bool down, bool released) {
+  ColonizeInputState in;
+  memset(&in, 0, sizeof in);
+  in.mouse_x = x;
+  in.mouse_y = y;
+  in.mouse_left_down = down;
+  in.mouse_left_released = released;
+  (void)mapedit_update(&g_ed, NULL, &in, 16);
+}
+
+/* port_bugs.md #1609-#1614: -m without ".MP", -c over -m, load codes, DS:0x1ce kept by the
+ * framed special swatch only, the release-frame palette pick, Find Continents ends on a
+ * release, the cursor phase restarts on a key. */
+static int case_audit_rows(void) {
+  struct stat st;
+  if (stat("COLONIZE/AMER2.MP", &st) != 0 || stat("COLONIZE/MAPEDIT.TXT", &st) != 0) {
+    printf("SKIP audit_rows\n");
+    return TR_SKIP;
+  }
+  int rc = 1;
+  MapEditOptions opt = {.data_dir = "COLONIZE", .force_new = true, .map_file = "AMER2"};
+  if (!mapedit_init(&g_ed, &opt) || g_ed.map_ok || !g_ed.name_entry.open) {
+    fprintf(stderr, "-c -m: map_ok %d\n", g_ed.map_ok);
+    goto out;
+  }
+  mapedit_free(&g_ed);
+  opt.force_new = false;
+  opt.map_file = "";
+  if (mapedit_init(&g_ed, &opt) || g_ed.exit_code != 1) {
+    fprintf(stderr, "-m empty: exit %d\n", g_ed.exit_code);
+    goto out;
+  }
+  mapedit_free(&g_ed);
+  opt.map_file = "AMER2";
+  if (!mapedit_init(&g_ed, &opt) || !g_ed.map_ok || strcmp(g_ed.file_name, "AMER2.MP") != 0) {
+    fprintf(stderr, "-m:AMER2: %s\n", g_ed.file_name);
+    goto out;
+  }
+  /* Panel click opens the palette on the Ocean brush: 0x1ce = 18. */
+  mouse_step(280, 150, true, false);
+  mouse_step(280, 150, false, true);
+  if (!g_ed.palette_open || g_ed.palette_idx != 18) {
+    fprintf(stderr, "palette open %d idx %d\n", g_ed.palette_open, g_ed.palette_idx);
+    goto out;
+  }
+  (void)step(COLONIZE_KEY_UP, 0); /* 18 - 8 = 10: land type 9 */
+  if (g_ed.palette_idx != 10 || g_ed.brush_type != 9) {
+    fprintf(stderr, "up: idx %d type %d\n", g_ed.palette_idx, g_ed.brush_type);
+    goto out;
+  }
+  /* A click whose press and release share a frame picks Plains (hotspot 3) and closes; a land
+   * pick leaves 0x1ce alone. */
+  mouse_step(2 * 0x11 + 5, 5, false, true);
+  if (g_ed.palette_open || g_ed.brush_type != 2 || g_ed.palette_idx != 10) {
+    fprintf(stderr, "release pick: open %d type %d idx %d\n", g_ed.palette_open, g_ed.brush_type,
+            g_ed.palette_idx);
+    goto out;
+  }
+  g_ed.continents_open = true;
+  mouse_step(100, 100, true, false);
+  if (!g_ed.continents_open) {
+    fprintf(stderr, "continents closed on a press\n");
+    goto out;
+  }
+  mouse_step(100, 100, false, true);
+  if (g_ed.continents_open) {
+    fprintf(stderr, "continents stayed open on the release\n");
+    goto out;
+  }
+  g_ed.blink_ms = 1500;
+  (void)step(COLONIZE_KEY_SPACE, ' ');
+  rc = g_ed.blink_ms == 0 ? 0 : 1;
+  if (rc) fprintf(stderr, "blink %u\n", (unsigned)g_ed.blink_ms);
+out:
+  mapedit_free(&g_ed);
+  return rc;
+}
+
 static const TestCase k_cases[] = {
+    {"audit_rows", case_audit_rows},
     {"flow", case_flow},
     {"dialog_guards", case_dialog_guards},
     {"paint_rules", case_paint_rules},

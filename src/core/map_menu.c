@@ -1459,6 +1459,19 @@ void map_menu_set_message(MapMenuBar* bar, const char* text, uint8_t color) {
   bar->hover_item = -1;
 }
 
+static uint8_t mm_ink(const MapMenuBar* bar, int stock) {
+  if (!bar->inks_set) {
+    return (uint8_t)stock;
+  }
+  switch (stock) {
+    case COLONIZE_COL_BASIC: return bar->ink_basic;
+    case COLONIZE_COL_HILITE: return bar->ink_hilite;
+    case COLONIZE_COL_GREY: return bar->ink_grey;
+    case COLONIZE_COL_SELECT: return bar->ink_select;
+    default: return (uint8_t)stock;
+  }
+}
+
 void map_menu_render(
   MapMenuBar* bar,
   const ColonizeFont* font,
@@ -1504,9 +1517,9 @@ void map_menu_render(
       continue;
     }
     const uint8_t color =
-      (i == bar->open_index) ? MAP_MENU_COL_TITLE_ACTIVE : MAP_MENU_COL_TITLE;
+      (i == bar->open_index) ? mm_ink(bar, MAP_MENU_COL_TITLE_ACTIVE) : mm_ink(bar, MAP_MENU_COL_TITLE);
     font_draw_text_hotkey(
-      font, framebuffer, menu->title_x + 2, 1, menu->title, color, MAP_MENU_COL_HOTKEY
+      font, framebuffer, menu->title_x + 2, 1, menu->title, color, mm_ink(bar, MAP_MENU_COL_HOTKEY)
     );
   }
 
@@ -1540,17 +1553,17 @@ void map_menu_render(
     const int iy = dy + 2 + vis_row * item_h;
     if (open->items[i].separator) {
       const int mid = iy + item_h / 2;
-      fb_hline(framebuffer, mid, dx + 4, dx + dw - 5, MAP_MENU_COL_RULE_ITEM);
+      fb_hline(framebuffer, mid, dx + 4, dx + dw - 5, mm_ink(bar, MAP_MENU_COL_RULE_ITEM));
       continue;
     }
     if (i == bar->hover_item && open->items[i].enabled) {
       /* port_bugs.md: hover fill sat 1px too low vs. its label row. */
-      fb_fill_rect(framebuffer, dx + 1, iy - 1, dw - 2, item_h, MAP_MENU_COL_HOVER);
+      fb_fill_rect(framebuffer, dx + 1, iy - 1, dw - 2, item_h, mm_ink(bar, MAP_MENU_COL_HOVER));
     }
     const uint8_t color =
-      open->items[i].enabled ? MAP_MENU_COL_ITEM : MAP_MENU_COL_ITEM_DISABLED;
+      open->items[i].enabled ? mm_ink(bar, MAP_MENU_COL_ITEM) : mm_ink(bar, MAP_MENU_COL_ITEM_DISABLED);
     font_draw_text_hotkey(
-      font, framebuffer, dx + 4, iy, open->items[i].label, color, MAP_MENU_COL_HOTKEY
+      font, framebuffer, dx + 4, iy, open->items[i].label, color, mm_ink(bar, MAP_MENU_COL_HOTKEY)
     );
   }
 }

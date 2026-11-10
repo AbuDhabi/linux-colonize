@@ -1401,13 +1401,29 @@ void units_ship_slow_scan_w(
     if (nx < 0 || ny < 0 || nx >= map->width || ny >= map->height) {
       continue;
     }
-    /* Branch A: foreign ship stack on an adjacent water tile. */
-    const int top = units_id_at(pool, nx, ny);
+    /* DOS-LITERAL FUN_5bfb_3180 raw 98510-98521 (port_bugs.md #1817): local_44 =
+     * 07e0 chain head, local_46 = its nation, else the settlement owner
+     * local_42 = 06be; both branches need local_46 >= 0 and != the mover's
+     * nation, and test the treaty against local_46 (98526, 98597). */
+    const int top = units_tile_head_id_at(pool, nx, ny);
     const ColonizeUnit* topu = top >= 0 ? units_get_const(pool, top) : NULL;
-    if (mover_on_water && topu && topu->active && topu->nation_id != u->nation_id &&
-        map_tile_is_water(map, nx, ny) &&
-        units_ship_slow_gate(col1, u->nation_id, topu->nation_id, mover_kind)) {
-      const int other_nation = topu->nation_id;
+    if (topu && !topu->active) {
+      topu = NULL;
+    }
+    const int cid = colonies ? colonies_id_at(colonies, nx, ny) : -1;
+    const ColonizeColony* col = cid >= 0 ? colonies_get(colonies, cid) : NULL;
+    if (col && !col->active) {
+      col = NULL;
+    }
+    const ColonizeCol1Tribe* ntribe = col1 ? col1_save_tribe_at(col1, nx, ny) : NULL;
+    const int settle_owner = col ? col->nation_id : ntribe ? (int)ntribe->nation_id : -1;
+    const int other_nation = topu ? topu->nation_id : settle_owner;
+    if (other_nation < 0 || other_nation == u->nation_id ||
+        !units_ship_slow_gate(col1, u->nation_id, other_nation, mover_kind)) {
+      continue;
+    }
+    /* Branch A: foreign ship stack on an adjacent water tile. */
+    if (mover_on_water && topu && map_tile_is_water(map, nx, ny)) {
       /*
        * DOS-LITERAL FUN_5bfb_3180 raw 98530-98588: the inner walk is the
        * TILE CHAIN (`local_44 = FUN_281f_02e4(...)`) filtered only on type
@@ -1455,11 +1471,8 @@ void units_ship_slow_scan_w(
         }
       }
     }
-    /* Branch B: foreign colony with a Fort / Fortress. */
-    const int cid = colonies ? colonies_id_at(colonies, nx, ny) : -1;
-    const ColonizeColony* col = cid >= 0 ? colonies_get(colonies, cid) : NULL;
-    if (col && col->active && col->nation_id != u->nation_id && u->moves > 0 &&
-        units_ship_slow_gate(col1, u->nation_id, col->nation_id, mover_kind)) {
+    /* Branch B: adjacent colony with a Fort / Fortress (98593-98600). */
+    if (col && u->moves > 0) {
       const unsigned fbits = colonies_fort_bits(colonies, col);
       const int drain = (fbits & COLONY_FORT_BIT_FORTRESS) ? 50 : (fbits & COLONY_FORT_BIT_FORT) ? 2 : 0;
       const char* bname = drain > 0 ? units_fort_fire_name(colonies, col) : NULL;
@@ -1473,7 +1486,7 @@ void units_ship_slow_scan_w(
           diag_info("SHIPSLOW unit %d by %s %s drain %d -> %d", unit_id, col->name, bname, drain, u->moves);
         }
         if (mover_human) {
-          units_ship_slow_popup(pool, u, "SHIPSLOW", col->nation_id, bname, NULL);
+          units_ship_slow_popup(pool, u, "SHIPSLOW", other_nation, bname, NULL); /* local_4 */
         }
       }
     }
@@ -1935,9 +1948,9 @@ int units_colony_plunder_stock_sum(const ColonizeColony* col) {
  *
  * `0228`'s own @SEIZURE arm cannot fire from here: it needs a native
  * settlement on the tile (`FUN_137f_0392`), which the `06d2` gate has already
- * excluded. The centre tile's own stamp (raw 100901) is not repeated — the
- * captor's step onto the colony square already ran it through
- * units_occupancy_refresh_tile → units_claim_tile_owner_from_stack.
+ * excluded. The centre tile's own stamp (raw 100901, right after the 0948
+ * relink) is made here too: the captor's step onto an occupied colony square
+ * does not stamp it (FUN_1427_02ca stamps only an empty tile, port_bugs.md #1840).
  *
  * NOT gated on DOS's `param_4` (the animate/interactive flag): this is map
  * state, and an AI capture stamps the ring exactly the same way.
@@ -1946,6 +1959,7 @@ void units_capture_claim_ring(ColonizeWorldMap* map, int x, int y, int new_owner
   if (!map || !map->layer2 || !map->layer3) {
     return;
   }
+  map_set_owner_nibble(map, x, y, new_owner); /* raw 100901 */
   for (int d = 0; d < 8; ++d) {
     const int tx = x + MAP_DIR8_DX[d];
     const int ty = y + MAP_DIR8_DY[d];

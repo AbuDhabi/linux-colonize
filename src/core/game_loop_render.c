@@ -1294,7 +1294,7 @@ static void render_europe_holds_and_dock(
         if (dtype < 0) {
           dtype = 0;
         }
-        unit_chrome_blit_unit_for_palette(
+        unit_chrome_blit_unit_for_palette_fit(
           framebuffer,
           font,
           &game->unit_icons,
@@ -1306,7 +1306,8 @@ static void render_europe_holds_and_dock(
           orders,
           stacked,
           false,
-          (game->europe_ok && game->europe.background.has_palette) ? &game->europe.background.palette : NULL
+          (game->europe_ok && game->europe.background.has_palette) ? &game->europe.background.palette : NULL,
+          16
         );
         if (eu->menu == EUROPE_MENU_DOCK && eu->menu_dock_index == i) {
           int fx = 0;

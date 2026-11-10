@@ -3,14 +3,13 @@ key i alt
 key n alt
 key F4 shift
 shot
-key Down
+key Up
+key Up
+key Up
 key Return
 shot
 key F4 shift
-key Down
-key Down
-key Down
-key Down
+key Up
 shot
 key Return
 shot

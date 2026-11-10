@@ -1782,7 +1782,7 @@ static GameMenuActionStatus game_menu_action_view(ColonizeGameState* game, MapMe
       /* Deselect whatever's controlled (if anything) and drop into the
        * blinking tile cursor at its current spot — matches a right-click,
        * just without needing a target tile. */
-      game_enter_view_pieces(game, game->map_cursor_x, game->map_cursor_y);
+      game_enter_view_pieces_in_place(game, game->map_cursor_x, game->map_cursor_y);
       return GAME_MENU_ACTION_DONE;
     case MAP_MENU_ACTION_MOVE_PIECES: {
       /* Hand control to the control-queue unit at/after the current

@@ -47,7 +47,6 @@
 #define PHYS0_ROAD_ISOLATED 80 /* no road/tribe-connected 8-neigh */
 #define PHYS0_ROAD_DIR0 81     /* +d for MAPEDIT 8-walk d=0..7 (N..NW) */
 #define PHYS0_PLOWED 149
-#define PHYS0_TUNDRA_CANOPY 64 /* isolated forest canopy on y=0 */
 #define PHYS0_LAND_TRANSITION_BASE 104 /* MAPEDIT 0x69+q − 1; N/E/S/W colour-0 masks */
 #define PHYS0_RESOURCE_BASE 89 /* MAPEDIT 0x5a + type − 1 */
 #define PHYS0_RUMOUR 103 /* MAPEDIT 0x68 − 1 */
@@ -78,7 +77,6 @@ static const int mapedit_resource_type_by_terrain[29] = {
 };
 
 /* Map row y == 0 (a coordinate, not a terrain index): the tundra/ice fringe. */
-#define MAP_TUNDRA_ROW 0
 
 static int map_decode_terrain_index(uint8_t terrain_byte) {
   /* FreeCol ColonizationMapLoader: bits 0-4 are terrain index 0-26. */
@@ -661,9 +659,10 @@ static bool map_procedural_rumour_at(const ColonizeWorldMap* map, int x, int y) 
   if (map_is_ocean_index(idx) || idx == 24) {
     return false;
   }
-  const uint8_t layer2 = map->layer2 ? map->layer2[y * map->width + x] : 0;
-  /* FUN_12ab_0204 / 0540: no rumour on settlement tiles. */
-  if ((layer2 & 2u) != 0) {
+  /* FUN_12ab_0540 / FUN_137f_0598: the layer3 owner nibble must be unset
+   * (FUN_12ab_0204 / FUN_137f_0200 < 0). Any owner (a village's tribe, a
+   * visitor's arrival stamp, a colony's claim) is the rumour gone (#1832). */
+  if (((map_get_layer3(map, x, y) >> MAP_L3_OWNER_SHIFT) & MAP_L3_OWNER_MASK) != 0x0f) {
     return false;
   }
   /* No +1, for the same reason map_resource_type_at_ex dropped it (see there,
@@ -705,6 +704,14 @@ static bool map_has_rumour_at(const ColonizeWorldMap* map, int x, int y) {
     return false;
   }
   return map_procedural_rumour_at(map, x, y);
+}
+
+/*
+ * The rumour as drawn: VICEROY's map (FUN_6ba1_0938 raw 109655 via FUN_281f_075e)
+ * and sidebar (FUN_49dd_0424 raw 79004) ask the same FUN_137f_0598 as gameplay.
+ */
+bool map_tile_rumour_drawn(const ColonizeWorldMap* map, int x, int y) {
+  return map_has_rumour_at(map, x, y);
 }
 
 static int phys0_river_sprite(uint8_t terrain_byte, uint8_t mask) {
@@ -1316,10 +1323,6 @@ int map_terrain_sprite_at(const ColonizeWorldMap* map, int x, int y) {
   const uint8_t terrain_byte = map_get_terrain(map, x, y);
   const int terrain_index = map_decode_terrain_index(terrain_byte);
 
-  if (y == MAP_TUNDRA_ROW && !map_is_ocean_index(terrain_index) && terrain_index < 25) {
-    return 0;
-  }
-
   if (map_is_forest_index(terrain_index)) {
     const int forest_type = map_forest_type(terrain_index);
     if (forest_type == 1) {
@@ -1348,9 +1351,8 @@ int map_phys0_forest_sprite_at(const ColonizeWorldMap* map, int x, int y) {
     return phys0_connectivity_sprite(PHYS0_FOREST_BASE, mask);
   }
 
-  if (y == MAP_TUNDRA_ROW) {
-    return (int)PHYS0_TUNDRA_CANOPY;
-  }
+  /* No row-0 case: FUN_6ba1_0938 / MAPEDIT FUN_1a47_0932 have no y test and draw
+   * the canopy (041e / 0418) for forest classes only (#1833). */
   return -1;
 }
 
@@ -1537,7 +1539,7 @@ int map_phys0_overlay_count(const ColonizeWorldMap* map, int x, int y) {
     ++count;
   }
   if (!map_is_ocean_index(map_decode_terrain_index(terrain_byte)) &&
-      map_has_rumour_at(map, x, y)) {
+      map_tile_rumour_drawn(map, x, y)) {
     ++count;
   }
 
@@ -1591,7 +1593,7 @@ int map_phys0_overlay_sprite_at(const ColonizeWorldMap* map, int x, int y, int l
   }
 
   if (!map_is_ocean_index(map_decode_terrain_index(terrain_byte)) &&
-      map_has_rumour_at(map, x, y)) {
+      map_tile_rumour_drawn(map, x, y)) {
     if (layer == feature_layer) {
       return PHYS0_RUMOUR;
     }
@@ -1655,7 +1657,7 @@ ColonizeMapOverlayKind map_phys0_overlay_kind_at(
   }
 
   if (!map_is_ocean_index(map_decode_terrain_index(terrain_byte)) &&
-      map_has_rumour_at(map, x, y)) {
+      map_tile_rumour_drawn(map, x, y)) {
     if (layer == feature_layer) {
       return MAP_OVERLAY_KIND_RUMOUR;
     }
@@ -1712,7 +1714,7 @@ void map_phys0_overlay_offset_at(
     ++feature_layer;
   }
   if (!map_is_ocean_index(map_decode_terrain_index(terrain_byte)) &&
-      map_has_rumour_at(map, x, y)) {
+      map_tile_rumour_drawn(map, x, y)) {
     ++feature_layer;
   }
 
@@ -1739,9 +1741,9 @@ bool map_clear_rumour(ColonizeWorldMap* map, int x, int y) {
   if (!map_in_bounds(map, x, y) || !map->layer2) {
     return false;
   }
-  if (!map_procedural_rumour_at(map, x, y)) {
-    return false;
-  }
+  /* No rumour re-test: the mover's arrival stamp has already cleared the
+   * owner nibble map_procedural_rumour_at wants (the caller read FUN_281f_075e
+   * before the move, FUN_465b_0000 raw 75764). */
   map->layer2[y * map->width + x] =
     (uint8_t)(map->layer2[y * map->width + x] | MAP_LAYER2_LCR_CONSUMED);
   return true;
@@ -1755,6 +1757,14 @@ bool map_clear_rumour(ColonizeWorldMap* map, int x, int y) {
 void map_set_owner_nibble(ColonizeWorldMap* map, int x, int y, int nation_or_ff) {
   if (!map_in_bounds(map, x, y) || !map->layer3) {
     return;
+  }
+  /* FUN_137f_0228 raw 6711-6718: a European nibble (< 4) written onto a native
+   * village (FUN_137f_0392 >= 0) first raises DOS's internal error report (DS:0x1cc
+   * "Illegal entry into village", read from memory at 237e:01cc, via FUN_7a65_00e2 /
+   * 6f74_36ca) and then writes anyway. An assert, not game text: logged only (#1834). */
+  if (nation_or_ff >= 0 && nation_or_ff < 4 &&
+      map_tile_layer2_owner(map, x, y, MAP_OCCUPANCY_HAS_CITY) >= 4) {
+    diag_warn("map: European owner nibble %d written onto village tile (%d,%d)", nation_or_ff, x, y);
   }
   const size_t i = (size_t)y * (size_t)map->width + (size_t)x;
   const uint8_t low = (uint8_t)(map->layer3[i] & MAP_L3_CONTINENT_MASK);
@@ -2191,6 +2201,24 @@ int map_tile_layer_cmds(
   ColonizeMapLayerCmd* out,
   int max
 ) {
+  return map_tile_layer_cmds_zoom(map, x, y, terrain_peel_phase, 0, out, max);
+}
+
+/*
+ * FUN_6ba1_0938's connectivity helpers return mask 0 when the zoom word DS:0x184
+ * exceeds the DX the caller passes (asm 6ba1:0bb8 area, #1835): roads 04e4 DX=1,
+ * hills 0374 DX=2, forest 041e / river 0314 DX=3 (never above, zoom is 0..3). So
+ * zoom 2+ draws a road tile as the isolated stub and zoom 3 a hill unjoined.
+ */
+int map_tile_layer_cmds_zoom(
+  const ColonizeWorldMap* map,
+  int x,
+  int y,
+  int terrain_peel_phase,
+  int zoom,
+  ColonizeMapLayerCmd* out,
+  int max
+) {
   if (!map || !out || max <= 0) {
     return 0;
   }
@@ -2207,7 +2235,8 @@ int map_tile_layer_cmds(
 
   /* MAPEDIT: land transitions before forest (FUN_1a47_06da); a coastal ocean tile takes
    * them over its underlayer (map_edge_walk). */
-  {
+  /* FUN_6ba1_0938 raw 109622-109625: FUN_6ba1_06e0 (the blends) runs at zoom 0 only. */
+  if (zoom == 0) {
     const int transitions = map_land_transition_count(map, x, y);
     for (int ti = 0; ti < transitions; ++ti) {
       const int mask = map_land_transition_mask_sprite_at(map, x, y, ti);
@@ -2253,6 +2282,13 @@ int map_tile_layer_cmds(
     const int from = (pass == 0) ? 0 : coast_layers;
     const int to = (pass == 0) ? coast_end : layers;
     for (int layer = from; layer < to; ++layer) {
+      /* FUN_6ba1_0938 raw 109648: resource and rumour need DS:0x184 == 0. */
+      if (zoom != 0) {
+        const ColonizeMapOverlayKind kind = map_phys0_overlay_kind_at(map, x, y, layer);
+        if (kind == MAP_OVERLAY_KIND_RESOURCE || kind == MAP_OVERLAY_KIND_RUMOUR) {
+          continue;
+        }
+      }
       if (terrain_peel_phase >= 2) {
         const ColonizeMapOverlayKind kind = map_phys0_overlay_kind_at(map, x, y, layer);
         if (kind == MAP_OVERLAY_KIND_RESOURCE || kind == MAP_OVERLAY_KIND_RUMOUR) {
@@ -2262,7 +2298,11 @@ int map_tile_layer_cmds(
           continue;
         }
       }
-      const int overlay = map_phys0_overlay_sprite_at(map, x, y, layer);
+      const int overlay =
+        (zoom > 2 && (map_phys0_overlay_kind_at(map, x, y, layer) == MAP_OVERLAY_KIND_HILL ||
+                      map_phys0_overlay_kind_at(map, x, y, layer) == MAP_OVERLAY_KIND_MOUNTAIN))
+          ? phys0_hill_mountain_sprite(map_get_terrain(map, x, y), 0)
+          : map_phys0_overlay_sprite_at(map, x, y, layer);
       if (overlay < 0) {
         continue;
       }
@@ -2278,9 +2318,11 @@ int map_tile_layer_cmds(
    * villages only, so a colony tile's special is already in the overlay list above
    * (port_bugs.md #1829). */
   /* Hidden Terrain phase 2+: roads aren't in the exempt set. */
-  const int road_n = (terrain_peel_phase >= 2) ? 0 : map_phys0_road_layer_count(map, x, y);
+  const int road_n = (terrain_peel_phase >= 2) ? 0
+                     : (zoom > 1)                ? (map_tile_has_road_art(map, x, y) ? 1 : 0)
+                                                 : map_phys0_road_layer_count(map, x, y);
   for (int ri = 0; ri < road_n; ++ri) {
-    const int road = map_phys0_road_layer_sprite_at(map, x, y, ri);
+    const int road = zoom > 1 ? PHYS0_ROAD_ISOLATED : map_phys0_road_layer_sprite_at(map, x, y, ri);
     if (road >= 0) {
       map_layer_push(out, max, &n, MAP_LAYER_SHEET_PHYS0, 0, road, 0, 0);
     }

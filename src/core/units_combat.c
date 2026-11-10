@@ -1130,6 +1130,8 @@ static void units_capture_to_winner(
    * 0894 flips its flag, 0844 links it on the winner's tile (local_12/14 =
    * the winner's x/y). The flag change therefore never restamps the tile the
    * loser left: DOSBox 1594/1595, that tile keeps the Dutch owner nibble. */
+  const int lose_x = lose->x;
+  const int lose_y = lose->y;
   units_capture_relocate_to_winner(pool, lose, win);
   /* 0894 = FUN_1427_0d1e writes only the +0x3147 nation nibble; the vis
    * nibble is left as is (the captor tile's stamp after a step, the old
@@ -1137,6 +1139,11 @@ static void units_capture_to_winner(
   const uint8_t vis = lose->col1_vis_mask;
   units_set_nation(lose, win->nation_id);
   lose->col1_vis_mask = vis;
+  if (lose->x == lose_x && lose->y == lose_y) {
+    /* Captured in place (colony tile): 0812 + 0844 relink it on its own tile,
+     * so 02ca stamps the captor's nation when it stood alone (port_bugs.md #1840). */
+    units_occupancy_relink_in_place(pool, lose);
+  }
   lose->orders = UNITS_ORDER_NONE;
   /*
    * DOS-LITERAL FUN_5fef_0352 raw 99393-99399: the capture arm writes the
@@ -3861,9 +3868,9 @@ bool units_resolve_lcr_rumour_w(
   if (!u || !u->active || !map || !units_is_on_map(u)) {
     return false;
   }
-  if (!map_tile_has_rumour(map, u->x, u->y)) {
-    return false;
-  }
+  /* FUN_65dd_0004 tests no rumour: its callers read FUN_281f_075e before the
+   * move (FUN_465b_0000 raw 75764, 75788), since the arrival stamp clears the
+   * owner nibble the test wants (#1832). */
   if (!map_clear_rumour(map, u->x, u->y)) {
     return false;
   }

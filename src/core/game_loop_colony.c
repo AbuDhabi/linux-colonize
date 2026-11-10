@@ -1127,7 +1127,10 @@ void game_colony_open_jobs(
   if (csv->selected_colonist < 0 && csv->selected_outside_unit >= 0) {
     /* A fence unit. FUN_2f2b_348c prologue 2f2b:349f-34be: `pop <= sel && pop >= 0x20`
      * forces param 1, the leave-as list, in a full colony. A type with no DS:0x30e job
-     * (no profession slot) cannot be admitted either; it keeps the leave-as list. */
+     * never reaches 348c in DOS: FUN_15eb_08e6 keeps it off the fence, so 0x8d7c cannot
+     * name it (DOSBox 2026-11-10, port_bugs.md #1734: a fortified Artillery beside a
+     * Pioneer and a Dragoon was not in the fence walk). Only the port's Units Present
+     * roster can select one here; it gets the leave-as list. */
     const ColonizeUnit* u =
       game->units_ok ? units_get_const(&game->units, csv->selected_outside_unit) : NULL;
     if (!u || !colony) {

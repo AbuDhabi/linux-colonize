@@ -13,6 +13,7 @@
 
 #include "core/ai_popup.h"
 #include "core/ai_euro.h"
+#include "core/ai_euro_internal.h"
 #include "core/col1_save.h"
 #include "core/dos_buggy.h"
 #include "core/dos_rng.h"
@@ -247,11 +248,36 @@ int colonies_job_workplace_building(
   return best;
 }
 
+static bool colonies_assign_workplace_impl(
+  ColonizeColonyPool* pool, int colony_id, int colonist_index, int building_type,
+  bool validate
+);
+
 bool colonies_assign_workplace(
   ColonizeColonyPool* pool,
   int colony_id,
   int colonist_index,
   int building_type
+) {
+  return colonies_assign_workplace_impl(pool, colony_id, colonist_index, building_type, true);
+}
+
+/*
+ * DOS FUN_1000_8e26 -> FUN_15eb_1068 (raw 11204-11334), the AI colony tick's
+ * seat: it writes the occupation (FUN_15eb_0fea only tells slot ranges from
+ * job ranges) and never runs the thunk_FUN_1000_9808 validator, so no
+ * @MORETHANTHREE / faculty / @NOTEACHER gate. The FUN_5952_035e callers do
+ * their own local_e4 counting (port_bugs.md #1624).
+ */
+bool colonies_seat_workplace_15eb_1068(
+  ColonizeColonyPool* pool, int colony_id, int colonist_index, int building_type
+) {
+  return colonies_assign_workplace_impl(pool, colony_id, colonist_index, building_type, false);
+}
+
+static bool colonies_assign_workplace_impl(
+  ColonizeColonyPool* pool, int colony_id, int colonist_index, int building_type,
+  bool validate
 ) {
   ColonizeColony* col = colonies_get_mut(pool, colony_id);
   if (!col || !pool) {
@@ -283,7 +309,7 @@ bool colonies_assign_workplace(
   const int occupation = colonies_building_occupation(pool, building_type);
   const int cur_occupation =
     (c->building_type >= 0) ? colonies_building_occupation(pool, c->building_type) : -1;
-  if (occupation >= 0 && occupation != cur_occupation) {
+  if (validate && occupation >= 0 && occupation != cur_occupation) {
     if (occupation == COLONIES_JOB_TEACHER) {
       /* overlays.c:60459-60472: faculty cap = the best school OWNED —
        * University 3 (@UNIV3), College 2 (@COLLEGE2), Schoolhouse 1
@@ -650,7 +676,11 @@ static int colonies_admit_unit_seat_w(
   if (!col || !units || !unit || !unit->active) {
     return -1;
   }
-  if (!units_is_on_map(unit) || unit->x != col->x || unit->y != col->y) {
+  /* FUN_15eb_1068's outside slot is FUN_15eb_0924's tile-chain entry, which
+   * holds a docked ship's riders; FUN_1427_0824 then deletes the unit, which
+   * in DOS is the whole unboard (no hull link). units_despawn drops it from
+   * the hold (port_bugs.md #1642). */
+  if (!units_in_tile_chain(units, unit, col->x, col->y)) {
     return -1;
   }
   if (unit->nation_id != col->nation_id) {

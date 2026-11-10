@@ -172,7 +172,50 @@ static int case_exactly_199_blocks(void) {
   return rc;
 }
 
+/* port_bugs.md #1642: DS:0x8d72 (FUN_15eb_09c0 over 1427_005c/004a) is the
+ * x/y tile chain, so a docked ship's sentried rider is in it, and the
+ * Colonist case takes him in: FUN_15eb_1068's outside slot (FUN_15eb_0924)
+ * ends in FUN_1427_0824, which in DOS is the whole unboard. */
+static int case_absorb_takes_docked_rider(void) {
+  Fx f;
+  if (fx_build(&f) != 0) {
+    return 1;
+  }
+  int rc = 0;
+  const int ship_t = units_kind_type_index(&f.units, UNITS_KIND_CARAVEL);
+  const int col_t = units_kind_type_index(&f.units, UNITS_KIND_COLONIST);
+  const int ship_id = units_spawn_allow_stack(&f.units, ship_t, 8, 8);
+  const int pax_id = units_spawn_allow_stack(&f.units, col_t, 8, 8);
+  ColonizeUnit* ship = units_get(&f.units, ship_id);
+  ColonizeUnit* pax = units_get(&f.units, pax_id);
+  if (!ship || !pax) {
+    fx_done(&f);
+    return fail("spawn ship / rider");
+  }
+  ship->nation_id = NATION;
+  pax->nation_id = NATION;
+  if (!units_board_stacked_restore(&f.units, pax_id, ship_id) || pax->aboard_ship_id != ship_id) {
+    fx_done(&f);
+    return fail("board rider");
+  }
+  int ids[8];
+  if (ai_euro_5952_tile_stack(&f.ctx, f.col, ids, 8) != 1 || ids[0] != pax_id) {
+    rc = fail("the 8d72 list must hold the rider and not the hull");
+  }
+  f.col->ai_flags = COLONIZE_COLONY_AI_NEEDS_COLONISTS;
+  (void)run_tick(&f, 0);
+  if ((int)f.col->population != 4) {
+    rc = fail("the docked rider must be absorbed");
+  }
+  if (units_get(&f.units, pax_id) || ship->cargo_count != 0 || !units_get(&f.units, ship_id)) {
+    rc = fail("absorption must take the rider out of the hold and keep the ship");
+  }
+  fx_done(&f);
+  return rc;
+}
+
 static const TestCase k_cases[] = {
+  {"case_absorb_takes_docked_rider", case_absorb_takes_docked_rider},
   {"case_surplus_banks_one_lot", case_surplus_banks_one_lot},
   {"case_garrison_need_blocks_bank", case_garrison_need_blocks_bank},
   {"case_full_bank_blocks", case_full_bank_blocks},

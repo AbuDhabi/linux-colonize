@@ -1150,7 +1150,9 @@ static int case_europe_workflow(void) {
     europe_free(&eu);
     return 1;
   }
-  if (eu.dock_count != 2 || eu.dock[0].profession != 21 || eu.dock[1].profession != 20 ||
+  /* Last slot first: slots run DOS chain tail->head and 03d0 docks head->tail
+   * (DOSBox 2026-11-10, port_bugs.md #1679). */
+  if (eu.dock_count != 2 || eu.dock[0].profession != 20 || eu.dock[1].profession != 21 ||
       !eu.dock[0].sentry || !eu.dock[1].sentry) {
     fprintf(
       stderr,
@@ -2868,6 +2870,44 @@ static int case_europe_dragoon_roll_and_caption(void) {
   return 0;
 }
 
+/* port_bugs.md #1709: FUN_3844_00f2 walks records last down; out[] runs ascending
+ * record order (the caller raises @REFIT last first), not harbor slot order. */
+static int case_europe_refit_record_order(void) {
+  ColonizeMsgCatalog names;
+  ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
+  memset(&names, 0, sizeof(names));
+  units_reset(&units);
+  if (!assets_msg_load_file(&names, "COLONIZE/NAMES.TXT") || !units_load_types(&units, &names)) {
+    fprintf(stderr, "refit order: load NAMES/units failed\n");
+    assets_msg_free(&names);
+    return 1;
+  }
+  EuropeScreen* eu = (EuropeScreen*)calloc(1, sizeof(*eu));
+  int rc = 1;
+  const int frig = units_kind_type_index(&units, UNITS_KIND_FRIGATE);
+  if (eu && frig >= 0) {
+    const int src[3] = {9, 0, 3}; /* slot 1 made this session */
+    for (int k = 0; k < 3; ++k) {
+      EuropeHarborShip* s = &eu->harbor[eu->harbor_ships++];
+      s->type_index = frig;
+      s->damaged = true;
+      s->repair_counter = 200;
+      s->col1_src_plus1 = src[k];
+    }
+    int out[3] = {-1, -1, -1};
+    const int n = europe_harbor_repair_tick(eu, &units, out, 3);
+    rc = (n == 3 && out[0] == 2 && out[1] == 0 && out[2] == 1) ? 0 : 1;
+    if (rc) {
+      fprintf(stderr, "refit order: n %d out %d %d %d (want 3: 2 0 1)\n", n, out[0], out[1],
+              out[2]);
+    }
+  }
+  free(eu);
+  assets_msg_free(&names);
+  return rc;
+}
+
 /* port_bugs.md #669: a Continental disembarked in Europe keeps its @UNIT row on
  * the dock (DOS keeps +0x3146); it is not folded to Soldiers. */
 static int case_europe_dock_continental_row(void) {
@@ -4278,6 +4318,7 @@ static const TestCase k_cases[] = {
     {"case_europe_ship_own_exit_tile", case_europe_ship_own_exit_tile},
     {"case_europe_lanes_past_old_caps", case_europe_lanes_past_old_caps},
     {"case_europe_dock_continental_row", case_europe_dock_continental_row},
+    {"case_europe_refit_record_order", case_europe_refit_record_order},
     {"case_europe_dock_mirror_follows_row", case_europe_dock_mirror_follows_row},
     {"case_europe_brewster_mirror_one_roll", case_europe_brewster_mirror_one_roll},
     {"case_europe_reverse_transit_keeps_turns", case_europe_reverse_transit_keeps_turns},

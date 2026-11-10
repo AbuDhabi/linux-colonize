@@ -39,6 +39,8 @@
 #include "core/reports.h"
 #include "core/reports_names.h"
 #include "core/units.h"
+#include "core/combat_analysis.h"
+#include "core/units_internal.h"
 
 #include <limits.h>
 #include <stdio.h>
@@ -1540,11 +1542,15 @@ COLONIZE_INTERNAL int ai_euro_5952_tile_stack(
   /* DS:0x8d72 (FUN_15eb_09c0 raw 10014-10034) — the same predicate
    * ai_euro_5952_labor_demand counts `outside` with. 15eb_09c0/0924
    * enumerate 1427_005c + 004a's physical chain, starting at the latest
-   * arrival, rather than the unit array order. */
-  for (int id = units_tile_head_id_at(ctx->units, c->x, c->y); id >= 0 && n < max;
-       id = units_tile_chain_next_id(ctx->units, id)) {
-    if (units_type_has_profession_slot(ai_euro_20e6_dos_type(ctx->units, units_get_const(ctx->units, id)))) {
-      ids[n++] = id;
+   * arrival, rather than the unit array order. 005c matches x/y only, so the
+   * sentried riders of a docked ship are in it (port_bugs.md #1642). */
+  int chain[COLONIZE_UNITS_MAX];
+  const int cn = units_tile_chain_ids(ctx->units, c->x, c->y, chain, COLONIZE_UNITS_MAX);
+  for (int k = 0; k < cn && n < max; ++k) {
+    if (units_type_has_profession_slot(
+          ai_euro_20e6_dos_type(ctx->units, units_get_const(ctx->units, chain[k]))
+        )) {
+      ids[n++] = chain[k];
     }
   }
   return n;
@@ -2606,12 +2612,14 @@ COLONIZE_INTERNAL void ai_euro_colony_goals_colony_garrison(
       );
     }
     /* FUN_281f_07e0 + 02e4 (raw 87684-87760) walk the tile chain,
-     * latest arrival first, rather than the unit storage array. */
+     * latest arrival first, rather than the unit storage array. Riders of a
+     * docked ship are in it and only get the 'A' mark (port_bugs.md #1642). */
+    int stack_ids[COLONIZE_UNITS_MAX];
+    const int stack_n =
+      units_tile_chain_ids(ctx->units, c->x, c->y, stack_ids, COLONIZE_UNITS_MAX);
     ColonizeUnit* stack[COLONIZE_UNITS_MAX];
-    int stack_n = 0;
-    for (int id = units_tile_head_id_at(ctx->units, c->x, c->y); id >= 0;
-         id = units_tile_chain_next_id(ctx->units, id)) {
-      stack[stack_n++] = units_get(ctx->units, id);
+    for (int k = 0; k < stack_n; ++k) {
+      stack[k] = units_get(ctx->units, stack_ids[k]);
     }
     /* Five admission passes in DOS preference order. */
     static const int k_adm_type[5] = {0x0b, 0x01, 0x01, 0x04, 0x04};
@@ -2619,8 +2627,9 @@ COLONIZE_INTERNAL void ai_euro_colony_goals_colony_garrison(
     for (int pass = 0; pass < 5 && c->labor_shortage > 0; ++pass) {
       for (int si = 0; si < stack_n && c->labor_shortage > 0; ++si) {
         ColonizeUnit* gu = stack[si];
-        if (!gu->active || gu->nation_id != nation_id || gu->x != c->x ||
-            gu->y != c->y || gu->id < 0 || gu->id >= COLONIZE_UNITS_MAX) {
+        if (!gu->active || gu->nation_id != nation_id ||
+            !units_in_tile_chain(ctx->units, gu, c->x, c->y) || gu->id < 0 ||
+            gu->id >= COLONIZE_UNITS_MAX) {
           continue;
         }
         if (ai_euro_20e6_dos_type(ctx->units, gu) != k_adm_type[pass]) {

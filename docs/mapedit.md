@@ -9,8 +9,10 @@ STATUS: ported 2026-10-27 as the separate executable `opencol-mapedit`
 opencol-mapedit [--data-dir DIR] [--scale N] [-c | -m:FILE.MP | ?]
 ```
 
-`-c` forces a new map, `-m:file` edits that file, `?` prints the usage
-(`FUN_1000_28d8` / `27f6`). Maps live in the data directory, as in DOS (the
+`-c` forces a new map and wins over `-m`; `-m:file` edits that file (".MP" is forced
+onto the name before it is opened; `M` takes everything after the next ':' and ends the
+switch cluster, and `M` with no ':' still asks for a load, which then fails); `?` prints the
+usage; other arguments are skipped (`FUN_1000_28d8` / `2872` / `27f6`). Maps live in the data directory, as in DOS (the
 game's own `AMER2.MP` sits there).
 
 MAPEDIT's own wording (the panel lines, "(More)", "UNTITLED.MP", the banner and usage,
@@ -21,11 +23,13 @@ come from MAPEDIT.TXT / MAPMENU.TXT, terrain names from NAMES.TXT.
 
 ## Flow
 
-- **Start** (`FUN_1000_247a`): with neither switch, the `@MAPTOEDIT` file
+- **Start** (`FUN_1000_2516` / `247a`): the first of FONTINTR, FONTTINY, TERRAIN, CURSOR,
+  PHYS0, ICONS, WOODTILE that fails to load ends the program with code 0x15, 0x16, 0x322,
+  0x17, 0x18, 0x19, 0x1b. With neither switch, the `@MAPTOEDIT` file
   picker. ESC, or no `*.MP` file, starts a new map; a load failure ends the
-  program.
+  program with the load's code (1 open, 2 header, 3 version, 9999 too big, 4-6 plane read).
 - **New map** (`FUN_1000_15fc`): `@NEWNAME`, max 20 chars, default
-  `UNTITLED.MP`. The name is forced to `.MP` and upper case (`FUN_1c04_005c`).
+  `UNTITLED.MP`; an empty answer goes ahead as `.MP` (so does an empty `@SAVEAS`). The name is forced to `.MP` and upper case (`FUN_1c04_005c`).
   The map is always 58x72 ocean with zero layers 2 / 3 and starts dirty;
   `@XS` / `@YS` are never used.
 - **Load** (`FUN_19f9_0170`): the version word must be 4 and W*H ≤ 12000.
@@ -49,7 +53,7 @@ come from MAPEDIT.TXT / MAPMENU.TXT, terrain names from NAMES.TXT.
 | Minimap | wood frame (241, 8, 79x41), 56x39 tiles at (252, 9) | `FUN_1b56_03b4`; colour = centre pixel of each class's sprite |
 | Panel | wood (241, 50, 79x150), FONTTINY from (242, 51) | `FUN_1000_094e`: Size, Curs, Terrain at cursor, Selected swatch + name + Shift help, Fill radius, Coast Protect |
 | Cursor | ICONS.SS 0x13 + zoom (1-based), blinking every 20 BIOS ticks | `FUN_1000_1310` |
-| Palette | full screen, swatches at (col*17+1, row*17+1), specials at y 0x30 | `FUN_1000_0e14` |
+| Palette | full screen, swatches at (col*17+1, row*17+1), specials at y 0x30; the frame follows the brush | `FUN_1000_0e14` |
 
 The compositor is the game's MAPEDIT one (`map_tile_layer_cmds`), with two
 editor switches:
@@ -88,20 +92,24 @@ editor switches:
   - minimap release: centre there;
   - panel click: the palette.
 - **Palette keys** (`FUN_1000_1226`): ported literally, including the odd
-  edges (index 8 goes down a row on Up, 16 goes up on Down).
+  edges (index 8 goes down a row on Up, 16 goes up on Down). They step from DS:0x1ce,
+  which only the arrows and a framed Arctic / Ocean / Sea Lane / feature swatch write
+  (a land pick by mouse leaves it), so on opening over the Ocean brush they step from Ocean.
+- **Palette mouse** (`FUN_1000_11ee`): picks under the pointer while a button is held and on
+  the release frame, then closes.
 - **Find Continents** (`FUN_19c4_0002`, ported literally; differs from the
   game's `map_gen_assign_continents`):
   - layers 2 / 3 are not cleared first and nothing is ORed in;
   - a remapped size entry of 0 gives id 0;
   - more than 15 land masses / oceans gives `@CONTINENTS1` / `2`;
-  - the result shows one pixel a tile at the origin (low nibble, water 0)
-    until a key or click.
+  - after the warnings, the result shows one pixel a tile at the origin over the
+    editor (low nibble, water 0) until a key or a button release.
 
 ## Divergences
 
 - The file picker lists `*.MP` sorted by name; DOS shows findfirst
   (directory) order.
-- Panel text uses the @COLORS basic ink. DOS draws through the font's slot 0
+- Panel text uses the @COLORS basic ink (NAMES.TXT, as DOS reads it into DS:0x92). DOS draws through the font's slot 0
   (`FUN_1d6a_0006(0)`), whose colour was not traced.
 - The minimap view box and the Find Continents picture use reconstructed
   coordinates (DOS's blit arguments are lost in the decomp). The view box is

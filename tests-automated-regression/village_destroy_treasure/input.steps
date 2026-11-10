@@ -13,9 +13,8 @@
 # subjugated-convert roll misses both times. The capital's fall clamps the French alarm 18 -> 15, which clears the 0x04
 # attack bit both ways again (euro_diplo / relation_by_indian back to 96; ai_diplo_indian_capital_surrender).
 # RNG: the combat, convert and treasure rolls come from the game stream; the outcomes are what this RNG state gives.
-key KP_8     # Dragoon 125 at (43,24) steps into camp 31: village menu Demand Tribute / Attack Village / Cancel Action ("wave to you happily")
-key Down
-key Return   # Attack Village
+key KP_8     # Dragoon 125 at (43,24) steps into camp 31: village menu Attack Village / Demand Tribute / Cancel Action ("wave to you happily")
+key Return   # Attack Village (row 1, #1637)
 wait 3
 key Return   # combat analysis box
 wait 3
@@ -24,8 +23,7 @@ wait 3
 key Return   # @LOOT2 "French burn Tupi Camp! Natives flee in panic!" (tribe tech 0, non-Spanish roll missed: no treasure); Dragoon 131 at (45,25) is next
 wait 3
 key KP_3     # Dragoon 131 steps into the capital (46,26): village menu again
-key Down
-key Return   # Attack Village
+key Return   # Attack Village (row 1, #1637)
 wait 3
 key Return   # combat analysis box
 wait 3

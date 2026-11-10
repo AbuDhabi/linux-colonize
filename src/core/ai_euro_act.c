@@ -737,6 +737,19 @@ void ai_euro_goal_walk_479b(ColonizeTurnContext* ctx, ColonizeUnit* u) {
   }
   u->last_dir = dir;
   if (!ok) {
+    /* A Euro miss with an inset goal ends in 0f74's own FUN_281f_0934 (the
+     * scored-fallback exits, raw 104738/104746; OVL20 0x1541/0x1575), so the
+     * unit is spent before 0972 clears the order (port_bugs.md #1842,
+     * DOSBox: England's Caravel at Port Royal is exhausted by the 0x1575
+     * call, so the drain never re-runs its 20e6). Off-inset goals and
+     * Indian flood misses leave through LAB_1599 unspent, and so do a unit
+     * at its goal (raw 104550) and an adjacent goal's 059c miss (raw
+     * 104562-104563): the drain re-acts those. */
+    if (u->nation_id >= 0 && u->nation_id <= 3 && ctx->map &&
+        map_coords_inset(ctx->map, u->goto_x, u->goto_y) &&
+        (abs(u->x - u->goto_x) > 1 || abs(u->y - u->goto_y) > 1)) {
+      units_mp_exhaust(ctx->units, u);
+    }
     u->orders = UNITS_ORDER_NONE; /* FUN_2a1f_0210 found no direction */
     /* mods.scout_spying: no path to its colony, so a spy Scout drops 'S'
      * instead of being re-aimed at it every turn (the kept course). */

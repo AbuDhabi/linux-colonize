@@ -121,19 +121,13 @@ static int ai_king_audience_roll(
   ColonizeCol1Save* col1 = ctx->col1;
   ColonizeCol1Nation* nat = &col1->nation[human];
   /*
-   * DOS's first gate: colony_counts[audience nation] != 0. The census mirror
-   * is refreshed per nation at its EOT (turn.c → col1_stuff_census_4962_w),
-   * but a synthetic fixture can leave the whole window blank, so a zero row
-   * falls back to the live colony count before the early-out bites.
+   * DOS-LITERAL FUN_38fd_5be8 raw 68434-68437: colony_counts[audience nation]
+   * (DS:0x9298) == 0 -> return 0. The byte is live: the 4962_0018 census and
+   * the founding bump (FUN_364b_1ba8 raw 58030, colonies_found) keep it, so
+   * there is no live-count fallback (port_bugs.md #1658).
    */
-  {
-    int owned = (int)col1->stuff.colony_counts[human];
-    if (owned == 0) {
-      owned = ai_king_human_colonies(ctx, human);
-    }
-    if (owned == 0) {
-      return 0;
-    }
+  if (col1->stuff.colony_counts[human] == 0) {
+    return 0;
   }
   const uint32_t turn = ctx->turn_number ? *ctx->turn_number : 0u;
   if (turn < 30) {

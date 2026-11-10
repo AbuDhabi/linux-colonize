@@ -145,6 +145,24 @@ void game_enter_view_pieces(ColonizeGameState* game, int x, int y) {
   }
 }
 
+/*
+ * V / VIEW "View Pieces": FUN_2b5a_0902 (raw 42105-42141) only sets 0x5390 and redraws the
+ * unit tile; the viewport stays put (DOSBox 2026-11-10: V with the active unit off-centre left
+ * 0x8328/0x832e and 0x17c/0x17e unchanged, #1755). The clicks do recentre (right-click in Move
+ * mode and a View-mode click both moved the centre to the tile), and Find Colony recentres
+ * through FUN_281f_0e08 -> FUN_1984_029e, so those keep game_enter_view_pieces.
+ */
+void game_enter_view_pieces_in_place(ColonizeGameState* game, int x, int y) {
+  if (!game) {
+    return;
+  }
+  const int vx = game->map_view_x;
+  const int vy = game->map_view_y;
+  game_enter_view_pieces(game, x, y);
+  game->map_view_x = vx;
+  game->map_view_y = vy;
+}
+
 /* On-map, or awake passenger (orders cleared) with moves remaining. */
 bool game_unit_selectable(const ColonizeGameState* game, const ColonizeUnit* u) {
   if (!game || !u || !u->active || u->nation_id != game->human_nation || u->moves <= 0) {
@@ -310,6 +328,8 @@ COLONIZE_INTERNAL GameMoveStep game_move_passenger_unload(
       game_report_enter_reason(game, sid, COLONIZE_ENTER_NO_MP);
       return GAME_MOVE_RETURN_FALSE;
     }
+    /* FUN_465b_0000 raw 75764: the landfall reads 075e before its arrival stamp. */
+    const bool rumour = game->world_map_ok && map_tile_has_rumour(&game->world_map, dest_x, dest_y);
     if (!units_unload_passenger_w(&w, ship_id, sid, dest_x, dest_y)) {
       /*
        * port_bugs.md #721: DOS FUN_4720_015c reason 9 (viceroy_unpacked_2.c raw
@@ -324,6 +344,7 @@ COLONIZE_INTERNAL GameMoveStep game_move_passenger_unload(
       return GAME_MOVE_RETURN_FALSE;
     }
     game->units.selected_id = sid;
+    g_units_rumour_step_id = rumour ? sid : -1;
     game_after_unit_step(game);
     return GAME_MOVE_RETURN_TRUE;
   }
@@ -499,9 +520,12 @@ COLONIZE_INTERNAL GameMoveStep game_move_sea_unit(
             )) {
           units_landfall_wake_tile(&game->units, sid);
           const ColonizeWorld w = game_world(game);
+          const bool rumour =
+            game->world_map_ok && map_tile_has_rumour(&game->world_map, dest_x, dest_y);
           if (!units_unload_passenger_w(&w, sid, pax_ready, dest_x, dest_y)) {
             return GAME_MOVE_RETURN_FALSE;
           }
+          g_units_rumour_step_id = rumour ? pax_ready : -1; /* raw 75764 */
           /*
            * port_bugs.md #716: landfall costs the SHIP nothing. DOS's reason 2/3
            * body (FUN_4720_049e, viceroy_ndisasm.asm 0x3FE30-0x3FE6A) takes
@@ -1286,7 +1310,8 @@ static void game_after_unit_tail(ColonizeGameState* game, bool stepped) {
    * player's answer, so its outcome has not changed the count yet
    * (docs/known_divergences.md). */
   bool lcr_count_changed = false;
-  if (game->world_map_ok && units_is_on_map(u) && map_tile_has_rumour(&game->world_map, u->x, u->y)) {
+  /* The step read FUN_281f_075e before its arrival stamp (raw 75764). */
+  if (units_take_rumour_step(u->id) && game->world_map_ok && units_is_on_map(u)) {
     const ColonizeWorld w = game_world(game);
     const int lcr_x = u->x;
     const int lcr_y = u->y;

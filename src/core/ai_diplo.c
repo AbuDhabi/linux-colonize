@@ -3079,15 +3079,16 @@ void ai_diplo_apply_popup_result(ColonizeTurnContext* ctx, const AiPopupState* p
   }
   if (popup->result_cancelled) {
     /*
-     * port_bugs.md #462: an Esc on any 153e talk popup left s_talk.active set, so
-     * every later encounter (adjacent step, Meet With Mayor) returned 0
-     * without a word until the process restarted. Esc ends the talk the same
-     * way the last stage does (DOS FUN_5bfb_153e has no abort path; a
-     * cancelled menu falls out of the dialog into the finish block).
+     * Esc on a 153e talk CHOICE (port_bugs.md #1636): FUN_6f74_2580 returns
+     * -1 on Esc in every arm (LAB_6f74_2b9a, raw 116781), and every 153e
+     * test is `local_a == N` (raw 97756..98363) except the @MILITARY list's
+     * `local_a < 1` -> LAB_5bfb_30ca (raw 98297), so Esc answers the
+     * stage as a non-match and the audience goes on (@WORTHY Esc ->
+     * @GIVECASH / WAR). Resuming with -1 keeps the #462 guarantee: every
+     * stage advances, so s_talk.active cannot wedge.
      */
-    if (popup->result_tag == AI_POPUP_TAG_DIPLO_TALK && s_talk.active && ctx->col1) {
-      s_talk.stage = AI_TALK_ST_DONE;
-      ai_talk_finish(ctx);
+    if (popup->result_tag == AI_POPUP_TAG_DIPLO_TALK && s_talk.active && popup->result_payload > 0) {
+      ai_talk_resume(ctx, popup->result_payload, -1);
     }
     return;
   }

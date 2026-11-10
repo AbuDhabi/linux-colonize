@@ -1296,6 +1296,31 @@ static void ai_euro_5952_expert_demote(const ColonizeColony* col, ColonizeColoni
 }
 
 /*
+ * local_e4 ([BP-0xe2]) of FUN_5952_035e: zeroed at OVL15 0x0bcc (25 words),
+ * bumped only by the indoor-expert seat (0x1e56) and the scored pass /
+ * fallback commit (0x218a). Every colonist was unassigned at raw 94561, so
+ * the live indoor roster is that count, except the carpenter arm's seat
+ * (raw 94731, asm 5952:1ac7-1be2), which has no local_e4 bump
+ * (port_bugs.md #1624).
+ */
+static void ai_euro_5952_local_e4_seed(
+  const ColonizeColonyPool* pool, const ColonizeColony* col, int carpenter_arm_seats,
+  int* placed_count
+) {
+  memset(placed_count, 0, sizeof(int) * (COLONIZE_PROF_TEACHER + 1));
+  for (int job = COLONIZE_PROF_DISTILLER; job <= COLONIZE_PROF_STATESMAN; ++job) {
+    const int* rows = colonies_building_chain_rows(ai_euro_5952_job_chain(job));
+    for (int i = 0; rows && i < 4 && rows[i] >= 0; ++i) {
+      const int idx = colonies_building_row(pool, (ColonizeBuildingRow)rows[i]);
+      if (idx >= 0) {
+        placed_count[job] += colonies_building_worker_count(col, idx);
+      }
+    }
+  }
+  placed_count[COLONIZE_PROF_CARPENTER] -= carpenter_arm_seats;
+}
+
+/*
  * DOS-LITERAL FUN_5952_035e indoor-expert pass, asm OVL15 0x1cb2-0x1e65 (the
  * decompile at raw 94766-94780 is a broken jump table). It runs between the
  * field-specialist restore and the scored indoor pass: every unplaced expert
@@ -1322,23 +1347,14 @@ static void ai_euro_5952_expert_demote(const ColonizeColony* col, ColonizeColoni
  * Statesman.
  */
 COLONIZE_INTERNAL void ai_euro_5952_indoor_expert_pass(
-  ColonizeTurnContext* ctx, ColonizeColony* col, bool* placed, int n
+  ColonizeTurnContext* ctx, ColonizeColony* col, bool* placed, int n, int carpenter_arm_seats
 ) {
   ColonizeColonyPool* pool = ctx->colonies;
   const ColonizeCol1Save* col1 = (ctx->col1_ok && ctx->col1) ? ctx->col1 : NULL;
   const ColonizeWorld world = world_from_turn_ctx(ctx);
   const bool woi = col1 && ai_king_independence_declared(col1);
   int placed_count[COLONIZE_PROF_TEACHER + 1];
-  memset(placed_count, 0, sizeof placed_count);
-  for (int job = COLONIZE_PROF_DISTILLER; job <= COLONIZE_PROF_STATESMAN; ++job) {
-    const int* rows = colonies_building_chain_rows(ai_euro_5952_job_chain(job));
-    for (int i = 0; rows && i < 4 && rows[i] >= 0; ++i) {
-      const int idx = colonies_building_row(pool, (ColonizeBuildingRow)rows[i]);
-      if (idx >= 0) {
-        placed_count[job] += colonies_building_worker_count(col, idx);
-      }
-    }
-  }
+  ai_euro_5952_local_e4_seed(pool, col, carpenter_arm_seats, placed_count);
   /* BP-0x4c / BP-0x46 = aiStack_68[0x0d] / [0x10], the tick-top census
    * (memset at OVL15 0xbb8, `INC [BP+SI-0x66]` at 0xc0b), decremented here.
    * The preacher cell is decremented in place: the build cascade's Church
@@ -1400,7 +1416,7 @@ COLONIZE_INTERNAL void ai_euro_5952_indoor_expert_pass(
     int workplace = -1;
     (void)ai_euro_5952_chain_owned(pool, col, ai_euro_5952_job_chain(prof), NULL, &workplace);
     ++placed_count[prof]; /* local_e4[job]++ follows the 8e26 seat */
-    if (workplace >= 0 && colonies_assign_workplace(pool, col->id, s, workplace)) {
+    if (workplace >= 0 && colonies_seat_workplace_15eb_1068(pool, col->id, s, workplace)) {
       placed[s] = true;
     }
   }
@@ -1426,27 +1442,17 @@ COLONIZE_INTERNAL void ai_euro_5952_indoor_expert_pass(
  */
 static void ai_euro_5952_indoor_pass(
   ColonizeTurnContext* ctx, ColonizeColony* col, bool* placed, int n, int improvement_owner,
-  int tory_weight
+  int tory_weight, int carpenter_arm_seats
 ) {
   ColonizeColonyPool* pool = ctx->colonies;
   const ColonizeCol1Save* col1 = (ctx->col1_ok && ctx->col1) ? ctx->col1 : NULL;
   const ColonizeWorld world = world_from_turn_ctx(ctx);
   const int owner = (col->nation_id >= 0 && col->nation_id < 4) ? col->nation_id : 0;
 
-  /* aiStack_e4 — per-@JOB count of this tick's placements. Every colonist was
-   * unassigned at raw 94561 and re-placed since, so the live roster IS that
-   * count. */
+  /* aiStack_e4 — per-@JOB count of this tick's placements: the live roster
+   * less the carpenter arm's seat (ai_euro_5952_local_e4_seed). */
   int placed_count[COLONIZE_PROF_TEACHER + 1];
-  memset(placed_count, 0, sizeof placed_count);
-  for (int job = COLONIZE_PROF_DISTILLER; job <= COLONIZE_PROF_STATESMAN; ++job) {
-    const int* rows = colonies_building_chain_rows(ai_euro_5952_job_chain(job));
-    for (int i = 0; rows && i < 4 && rows[i] >= 0; ++i) {
-      const int idx = colonies_building_row(pool, (ColonizeBuildingRow)rows[i]);
-      if (idx >= 0) {
-        placed_count[job] += colonies_building_worker_count(col, idx);
-      }
-    }
-  }
+  ai_euro_5952_local_e4_seed(pool, col, carpenter_arm_seats, placed_count);
 
   /*
    * DOS's `iStack_78`. It is a function-level local that the loop writes only
@@ -1611,7 +1617,9 @@ static void ai_euro_5952_indoor_pass(
     if (commit_job >= 0 && commit_job <= COLONIZE_PROF_TEACHER) {
       ++placed_count[commit_job];
     }
-    if (workplace >= 0 && colonies_assign_workplace(pool, col->id, s, workplace)) {
+    /* 8e26 = FUN_15eb_1068: no @MORETHANTHREE validator (port_bugs.md #1624);
+     * local_e4 above is DOS's only cap. */
+    if (workplace >= 0 && colonies_seat_workplace_15eb_1068(pool, col->id, s, workplace)) {
       placed[s] = true;
     }
     ai_euro_28c8_l32_mark(AI_28C8_L32_LEDGER); /* the slot's closing FUN_281f_0c04 */
@@ -1850,7 +1858,8 @@ COLONIZE_INTERNAL int ai_euro_5952_carpenter_pick(
  * first, so this arm sees the bought 100 lumber exactly as DOS does.
  * `iStack_ca` (raw 94733) is a counter nothing in the function ever reads.
  */
-static void ai_euro_5952_carpenter_arm(
+/* Returns the number of colonists it seated (none of them in local_e4). */
+static int ai_euro_5952_carpenter_arm(
   ColonizeTurnContext* ctx, ColonizeColony* col, bool* placed, int n
 ) {
   ColonizeColonyPool* pool = ctx->colonies;
@@ -1861,7 +1870,7 @@ static void ai_euro_5952_carpenter_arm(
 
   ai_euro_5952_ledgers(&world, pool, col, col1, gross, demand);
   if (col->stock[COLONIZE_CARGO_LUMBER] + gross[COLONIZE_CARGO_LUMBER] < 2) {
-    return; /* raw 94691 `if (1 < iStack_6a)` */
+    return 0; /* raw 94691 `if (1 < iStack_6a)` */
   }
 
   /* aiStack_68[0x0d]: Master Carpenters by profession, the tick-top snapshot
@@ -1873,8 +1882,9 @@ static void ai_euro_5952_carpenter_arm(
   int workplace = -1;
   (void)ai_euro_5952_chain_owned(pool, col, COLONIES_CHAIN_CARPENTER, NULL, &workplace);
   if (workplace < 0) {
-    return;
+    return 0;
   }
+  int seats = 0;
 
   for (int pass = 0; pass < 4; ++pass) {
     int from = 0;
@@ -1895,8 +1905,9 @@ static void ai_euro_5952_carpenter_arm(
         col->colonists[s].profession = (uint8_t)COLONIZE_PROF_CARPENTER;
       }
       /* raw 94731 `FUN_1000_8e26(slot, 0x0d)` = set job Carpenter. */
-      if (colonies_assign_workplace(pool, col->id, s, workplace)) {
+      if (colonies_seat_workplace_15eb_1068(pool, col->id, s, workplace)) {
         placed[s] = true;
+        ++seats;
         /* FUN_281f_0c04 — refresh the ledgers, which is what ends the loop. */
         ai_euro_5952_ledgers(&world, pool, col, col1, gross, demand);
         /* Its frame leaves 0x23ec in 28c8's local_32 again (DOSBox america
@@ -1908,6 +1919,7 @@ static void ai_euro_5952_carpenter_arm(
       }
     }
   }
+  return seats;
 }
 
 /*
@@ -2525,9 +2537,12 @@ COLONIZE_INTERNAL void ai_euro_5952_cascade_census(AiEuro5952Cascade* s) {
       ax += pdx;
       ay += pdy;
     }
+    /* The walk has no exit and no order test, and DOS riders sit in the
+     * tile chain, so Artillery aboard a ship on that tile counts too
+     * (port_bugs.md #1642). */
     for (int i = 0; ctx->units && i < units_slot_end(ctx->units); ++i) {
       const ColonizeUnit* u = &ctx->units->units[i];
-      if (u->active && units_is_on_map(u) && u->x == ax && u->y == ay &&
+      if (units_in_tile_chain(ctx->units, u, ax, ay) &&
           ai_euro_20e6_dos_type(ctx->units, u) == 0x0b) {
         ++arty_on_tile;
       }
@@ -3864,6 +3879,7 @@ static void ai_euro_colony_tick_run(
      * DOS raw 94690-94740 — the carpenter-staffing arm, inside the same
      * `(+0x1d & 0x80) == 0` block that seeds local_14 below.
      */
+    int carpenter_arm_seats = 0;
     if ((col->build_ai_flags & COLONIZE_BUILD_AI_WANTS_CONSTRUCTION) == 0) {
       /* raw 94659-94679 then 94680-94689, both ahead of the carpenter arm. */
       const bool lumber_placed = ai_euro_5952_forced_lumberjack(ctx, col, t.placed, n);
@@ -3872,7 +3888,7 @@ static void ai_euro_colony_tick_run(
         /* DS:0x538e — the port's turn counter is ctx->turn_number. */
         ctx->turn_number ? (int)*ctx->turn_number : 0, lumber_placed
       );
-      ai_euro_5952_carpenter_arm(ctx, col, t.placed, n);
+      carpenter_arm_seats = ai_euro_5952_carpenter_arm(ctx, col, t.placed, n);
     }
 
     /* DOS raw 94751 — see ai_euro_colony_tick_specialist_restore. */
@@ -3881,8 +3897,10 @@ static void ai_euro_colony_tick_run(
     /* DOS's own next arm is the indoor-workplace pass (raw 94784+). The
      * LAB_5952_17a9 leftovers election before it (raw 94627-94658) is dead
      * code in DOS (see ai_euro_5952_lumberjack_pick) and is not ported. */
-    ai_euro_5952_indoor_expert_pass(ctx, col, t.placed, n);
-    ai_euro_5952_indoor_pass(ctx, col, t.placed, n, t.improvement_owner, t.tory_weight);
+    ai_euro_5952_indoor_expert_pass(ctx, col, t.placed, n, carpenter_arm_seats);
+    ai_euro_5952_indoor_pass(
+      ctx, col, t.placed, n, t.improvement_owner, t.tory_weight, carpenter_arm_seats
+    );
     if (whole_tick) {
       ai_euro_5952_build_cascade_for_owner(ctx, col, t.improvement_owner);
     }

@@ -98,7 +98,10 @@ the tile is water (`FUN_1427_10be` asm 1427:11d4-1232, port_bugs.md #1780). Not
 reproduced: FUN_1427_10be's trade-route arm off a settlement tile (orders 2)
 runs FUN_1427_101c first, so every other hull on the tile picks before it, and
 the route hull gets a budget only if units are left over; the port gives it full
-room and lets it pick first.
+room and lets it pick first. The landfall pick re-runs the same pickup first
+(`units_first_landfall_cargo`: FUN_4720_015c's FUN_281f_0916 = FUN_1427_12f6 ->
+10be, raw 75967), so with two own hulls at sea one hull's Make Landfall can put
+another hull's rider ashore (port_bugs.md #1782).
 
 **Blocks removal:** boarding only the hull's own riders breaks
 `golden_idle_independence` from save 2, which depends on the DOS pickup order.

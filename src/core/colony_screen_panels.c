@@ -174,16 +174,17 @@ void colony_screen_draw_people(
     }
   }
   if (tory != 0) {
-    /* Tory flush to the right of the (widened) people band. */
-    colony_screen_blit_icon(
-      view, COLONY_ICON_CROWN, framebuffer, COLONY_PEOPLE_X + COLONY_PEOPLE_W - 14, sol_y
-    );
+    /* DOS asm 2f2b:1c51-1ca6: crown 0x7d at x = 0x75 - its width, the text
+     * (FUN_281f_0204 width) ending at the crown's x, one row down
+     * (port_bugs.md #1714; was 2 px left of DOS on recife_production.png). */
+    const int crown_x = 0x75 - (view->icons_ok && COLONY_ICON_CROWN < view->icons.sprite_count
+                                  ? view->icons.sprites[COLONY_ICON_CROWN].width
+                                  : 13);
+    colony_screen_blit_icon(view, COLONY_ICON_CROWN, framebuffer, crown_x, sol_y);
     if (font) {
       snprintf(buf, sizeof(buf), "%d%% (%d)", tory, tory_count);
       const int tw = font_text_width_skip(font, buf, FONT_SKIP_NONE);
-      font_draw_text(
-        font, framebuffer, COLONY_PEOPLE_X + COLONY_PEOPLE_W - 16 - tw, sol_y + 1, buf, ink
-      );
+      font_draw_text(font, framebuffer, crown_x - tw, sol_y + 1, buf, ink);
     }
   }
 
@@ -745,7 +746,8 @@ void colony_screen_draw_multifunction(
         }
         continue;
       }
-      unit_chrome_blit_unit_for_palette(
+      /* 2f2b:204a passes param_2 16 (port_bugs.md #1786). */
+      unit_chrome_blit_unit_for_palette_fit(
         framebuffer,
         font,
         &view->icons,
@@ -758,7 +760,8 @@ void colony_screen_draw_multifunction(
         false,
         /* Chrome's 4th arm = damaged Artillery (+0x3148 bit7), not aboard. */
         (u->col1_flags15 & 0x80u) != 0,
-        (view->frame_ok && view->frame.has_palette) ? &view->frame.palette : NULL
+        (view->frame_ok && view->frame.has_palette) ? &view->frame.palette : NULL,
+        16
       );
       /* FUN_2f2b_1e46 raw 48676: no box in the spy view (DS:0xb98). */
       if (!view->spy_view && view->multi_unit_selected_id == u->id) {

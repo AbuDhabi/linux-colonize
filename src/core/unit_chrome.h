@@ -198,6 +198,27 @@ void unit_chrome_blit_unit_for_palette(
   const ColonizePalette* active_palette
 );
 
+/* The same with DOS FUN_112b_01ba's param_2 (raw 2185-2187): when the orders box plus
+ * the sprite is narrower than `fit_w` the whole chrome moves right by half the slack.
+ * DOS passes 16 on the map tiles (DS:0x5ad4 at full zoom), the map sidebar, the colony
+ * Units / transport panes, the Europe dock and the 6f74 unit dialog; 0 or -1 (never
+ * shift) on the reports. The plain call above is fit_w 0. port_bugs.md #1786. */
+void unit_chrome_blit_unit_for_palette_fit(
+  ColonizeFramebuffer8* fb,
+  const ColonizeFont* font,
+  const ColonizeSpriteSheet* sheet,
+  int sprite_index,
+  int x,
+  int y,
+  int display_type_index,
+  int nation_id,
+  int orders_index,
+  bool show_stack,
+  bool damaged,
+  const ColonizePalette* active_palette,
+  int fit_w
+);
+
 /*
  * Every screen that blits a unit/colonist sprite standalone (not part of a
  * tile/building draw) does it in one of exactly three ways. Name the mode

@@ -241,6 +241,62 @@ static int unit_patrol_returns_to_colony(void) {
 }
 
 /*
+ * port_bugs.md #1656: the surplus recall arm (OVL14 0x4bc4-0x4c04) has no
+ * owner test, so a Soldier still bound (+0x314a) to a colony a rival took is
+ * recalled into it: plan 'W', goal = the colony, bit 0x04 cleared, quota -1.
+ */
+static int unit_surplus_recall_ignores_colony_owner(void) {
+  const int nation = 1;
+  Fixture f;
+  if (fixture_init(&f, nation) != 0) {
+    return 1;
+  }
+  ColonizeColony* lost = &f.colonies.colonies[0];
+  lost->id = 0;
+  lost->active = true;
+  lost->nation_id = 2; /* captured by a rival */
+  lost->x = 4;
+  lost->y = 4;
+  lost->population = 3;
+  lost->colonist_count = 3;
+  lost->stock[COLONIZE_CARGO_FOOD] = 60;
+  lost->building_in_production = -1;
+  lost->ai_flags |= COLONIZE_COLONY_AI_MILITARY_SURPLUS;
+  lost->garrison_quota = 1;
+  f.colonies.colony_count = 1;
+  f.colonies.next_id = 1;
+
+  const int sid = units_spawn(&f.units, 1, 10, 10);
+  ColonizeUnit* s = units_get(&f.units, sid);
+  if (!s) {
+    fixture_free(&f);
+    return fail("spawn soldier");
+  }
+  s->nation_id = nation;
+  s->moves = 1 * UNITS_MP_PER_TILE;
+  s->orders = 0;
+  s->col1_origin = 0;
+  seed_census(&f, nation);
+
+  ai_euro_dispatcher_turn(&f.ctx, nation);
+
+  s = units_get(&f.units, sid);
+  const int ok = s && s->active && s->col1_ai_plan == 0x57 &&
+                 (lost->ai_flags & COLONIZE_COLONY_AI_MILITARY_SURPLUS) == 0 &&
+                 lost->garrison_quota == 0;
+  if (!ok) {
+    if (s) {
+      fprintf(stderr, "pos=(%d,%d) orders=%d plan=%d goto=(%d,%d) flags=%x quota=%d\n", s->x, s->y,
+              s->orders, s->col1_ai_plan, s->goto_x, s->goto_y, lost->ai_flags, lost->garrison_quota);
+    }
+    fixture_free(&f);
+    return fail("bound soldier not recalled into the captured colony");
+  }
+  fixture_free(&f);
+  return 0;
+}
+
+/*
  * port_bugs.md #493: DOS re-enters FUN_521d_20e6 for a unit that already carries
  * a goto. The gate at raw 90551 is
  *   if (unit+0x3149 == 0 || unit+0x314c != 0x0b) call 20e6
@@ -2846,6 +2902,48 @@ static int goalwalk_setup(Fixture* f, int nation, int subject_orders, int subjec
   return uid;
 }
 
+/*
+ * port_bugs.md #1842: a Euro hull whose course has no first step (0f74's
+ * scored fallback finds no water neighbour, local_1c == 8) is spent by 0f74's
+ * own FUN_281f_0934 before 0972 clears the order (DOSBox: England's Caravel
+ * at Port Royal, OVL20 0x1575), so the drain does not re-run its 20e6.
+ */
+static int unit_goal_walk_miss_exhausts_hull(void) {
+  const int nation = 1;
+  Fixture f;
+  if (fixture_init(&f, nation) != 0) {
+    return 1;
+  }
+  for (int y = 0; y < 16; ++y) {
+    for (int x = 13; x < 16; ++x) {
+      f.map.terrain[y * 16 + x] = 25; /* MAP_OCEAN_INDEX */
+    }
+  }
+  f.map.terrain[4 * 16 + 4] = 25; /* a one-tile pond */
+  const int sid = units_spawn(&f.units, 2, 4, 4);
+  ColonizeUnit* s = units_get(&f.units, sid);
+  if (!s) {
+    fixture_free(&f);
+    return fail("spawn caravel");
+  }
+  s->nation_id = nation;
+  s->moves = 4 * UNITS_MP_PER_TILE;
+  ai_euro_set_goto(s, AI_EURO_ACT_GOAL, 14, 12);
+  ai_euro_goal_walk_479b(&f.ctx, s);
+  s = units_get(&f.units, sid);
+  const int ok = s && s->x == 4 && s->y == 4 && s->orders == UNITS_ORDER_NONE &&
+                 units_remaining_mp(&f.units, sid) <= 0;
+  if (!ok) {
+    if (s) {
+      fprintf(stderr, "pos=(%d,%d) orders=%d moves=%d\n", s->x, s->y, s->orders, s->moves);
+    }
+    fixture_free(&f);
+    return fail("pathless hull kept its moves");
+  }
+  fixture_free(&f);
+  return 0;
+}
+
 /* A unit bound at act_state 0x0b walks toward its OWN +0x314d/e. */
 static int unit_goal_walk_keeps_stored_goal(void) {
   const int nation = 1;
@@ -4736,6 +4834,8 @@ static const TestCase k_cases[] = {
     {"unit_treasure_dead_end_always_rewrites", unit_treasure_dead_end_always_rewrites},
     {"unit_wander_step_is_adjacent", unit_wander_step_is_adjacent},
     {"unit_patrol_returns_to_colony", unit_patrol_returns_to_colony},
+    {"unit_surplus_recall_ignores_colony_owner", unit_surplus_recall_ignores_colony_owner},
+    {"unit_goal_walk_miss_exhausts_hull", unit_goal_walk_miss_exhausts_hull},
     {"unit_stale_goto_rescored_at_full_mp", unit_stale_goto_rescored_at_full_mp},
     {"unit_scout_visits_village_at_war", unit_scout_visits_village_at_war},
     {"unit_ring_hop_commits_far_goto", unit_ring_hop_commits_far_goto},

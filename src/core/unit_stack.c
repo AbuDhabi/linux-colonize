@@ -412,7 +412,7 @@ void unit_stack_render(
        * port_bugs.md #1226: 01ba measures and draws the letter in FONTTINY (DS:0x89e,
        * raw 2171-2173, 2304), never the box's FONTINTR: FONTINTR's two-row '-' read as
        * a doubled dash and its taller cell grew the box. */
-      unit_chrome_blit_unit_for_palette(
+      unit_chrome_blit_unit_for_palette_fit(
         framebuffer,
         chrome_font,
         icons,
@@ -427,7 +427,8 @@ void unit_stack_render(
         (u->col1_flags15 & 0x80u) != 0,
         /* port_bugs.md: raw nation fill index goes pink for the Dutch under the
          * game palette — remap through the frame's real palette. */
-        active_palette
+        active_palette,
+        16
       );
     }
     char label[72];

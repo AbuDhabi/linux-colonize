@@ -6555,10 +6555,10 @@ static int sp_54(void) {
     }
 
     /*
-     * port_bugs.md #501: rows must come out in the DOS fixed order (1 Trade,
-     * 2 Enter Hostile, 3 Mission, 4 Heresy, 5 Live Among, 6 Chief, 7 Incite,
-     * 8 Demand, 9 Attack, 10 Cancel). A Soldier (attack 2, met) discriminates:
-     * the old builder emitted Attack Village before Demand Tribute.
+     * port_bugs.md #1637 (was #501): FUN_6f74_0a00 appends at the tail, so
+     * rows come out in 4528's call order; a Soldier (attack 2 > 1, at peace)
+     * gets row 9 at OVL13::0048db, before the PEACE rows: Attack, Demand,
+     * Cancel.
      */
     {
       const int sold_id = units_spawn_allow_stack(&units, 3, 6, 5);
@@ -6573,14 +6573,14 @@ static int sp_54(void) {
         return fail("menu: soldier meet should enqueue");
       }
       const AiPopupRequest* q = &pop_menu.queue[0];
-      if (q->choice_count != 3 || q->choice_ids[0] != 3 /* Demand */ ||
-          q->choice_ids[1] != AI_CONTACT_CHOICE_ATTACK ||
+      if (q->choice_count != 3 || q->choice_ids[0] != AI_CONTACT_CHOICE_ATTACK ||
+          q->choice_ids[1] != 3 /* Demand */ ||
           q->choice_ids[2] != 5 /* Cancel */) {
         fprintf(stderr, "unit_ai_contact: soldier rows %d: %d %d %d\n", q->choice_count,
                 q->choice_count > 0 ? q->choice_ids[0] : -1,
                 q->choice_count > 1 ? q->choice_ids[1] : -1,
                 q->choice_count > 2 ? q->choice_ids[2] : -1);
-        return fail("menu: DOS row order is Demand(8) then Attack(9) then Cancel(10)");
+        return fail("menu: DOS row order is Attack(9) then Demand(8) then Cancel(10)");
       }
       /* port_bugs.md #542: unmet tribe still gets the @ACTIONS menu (OVL13::00493f
        * jumps past rows 3-8 to the row-9 add) — no invented raid warn. */
@@ -6829,6 +6829,36 @@ static int sp_55(void) {
         }
         col1.indian[0].alarm_by_player[0] = saved_alarm;
         col1.indian[0].euro_diplo[0] = saved_diplo;
+      }
+      /* port_bugs.md #1639: an AI learner at alarm 25..49 — a618 reseeds
+       * (86ba(DS:0x83a6), OVL13:0x3924) BEFORE the rand(1,1000) slow roll and
+       * never after, so the stream leaves one draw past the turn seed. */
+      {
+        const uint8_t saved_alarm = col1.indian[0].alarm_by_player[1];
+        const uint8_t saved_diplo = col1.indian[0].euro_diplo[1];
+        ColonizeDosRng* saved_rng = ctx.rng;
+        ColonizeDosRng visit_rng;
+        dos_rng_seed(&visit_rng, 777u);
+        ctx.rng = &visit_rng;
+        col1.indian[0].alarm_by_player[1] = 30;
+        col1.indian[0].euro_diplo[1] |= (uint8_t)(COL1_INDIAN_MET_BIT | 0x40u);
+        col1.tribe[0].state.learned = 0;
+        colonist->nation_id = 1;
+        colonist->profession = UNITS_JOB_NONE;
+        ai_contact_live_among_natives(&ctx, 1, 4, colonist, &col1.tribe[0]);
+        ColonizeDosRng want;
+        dos_rng_seed(&want, ai_turn_seed(&ctx));
+        (void)dos_rng_range(&want, 1, 1000);
+        const bool ok = visit_rng.state == want.state;
+        ctx.rng = saved_rng;
+        colonist->nation_id = 0;
+        colonist->profession = UNITS_JOB_NONE;
+        col1.tribe[0].state.learned = 0;
+        col1.indian[0].alarm_by_player[1] = saved_alarm;
+        col1.indian[0].euro_diplo[1] = saved_diplo;
+        if (!ok) {
+          return fail("#1639: AI live-among must keep the slow-roll draw after the reseed");
+        }
       }
       units_despawn(&units, col_id);
     }

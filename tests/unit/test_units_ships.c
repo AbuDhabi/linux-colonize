@@ -1110,6 +1110,131 @@ static int unit_europe_sail_keeps_census(void) {
   return rc;
 }
 
+/* port_bugs.md #1789: FUN_3844_00f2 raw 58340 adds the second +1 when the
+ * damaged hull is inside the map (FUN_137f_000a), colony or not; only an
+ * off-map (Europe) hull ticks once and asks for the Europe screen. */
+static int unit_ship_repair_tick_on_map(void) {
+  static ColonizeUnitPool pool;
+  memset(&pool, 0, sizeof(pool));
+  pool.type_count = 0x0e;
+  pool.types[0x0d].domain = COLONIZE_UNIT_DOMAIN_SEA;
+  pool.types[0x0d].defense = 4;
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
+  const int sea = units_spawn_allow_stack(&pool, 0x0d, 12, 12); /* no colony */
+  const int park = units_spawn_allow_stack(&pool, 0x0d, 236, 236);
+  ColonizeUnit* a = units_get(&pool, sea);
+  ColonizeUnit* b = units_get(&pool, park);
+  if (!a || !b) {
+    return 1;
+  }
+  units_set_nation(a, 0);
+  units_set_nation(b, 0);
+  a->col1_flags15 = b->col1_flags15 = 0x80;
+  a->col1_counter16 = b->col1_counter16 = 0;
+  char st[64];
+  int want_eu = 0;
+  (void)units_tick_ship_build_ready(&pool, &colonies, 0, -1, st, sizeof(st), &want_eu);
+  if (a->col1_counter16 != 2 || b->col1_counter16 != 1) {
+    fprintf(stderr, "#1789: map hull +%d (want 2), parked hull +%d (want 1)\n",
+            a->col1_counter16, b->col1_counter16);
+    return 1;
+  }
+  (void)units_tick_ship_build_ready(&pool, &colonies, 0, -1, st, sizeof(st), &want_eu);
+  if (want_eu != 0) {
+    fprintf(stderr, "#1789: a map hull finishing off colony must not open Europe\n");
+    return 1;
+  }
+  a->col1_flags15 = 0;
+  b->col1_counter16 = 3;
+  (void)units_tick_ship_build_ready(&pool, &colonies, 0, -1, st, sizeof(st), &want_eu);
+  if (want_eu != 1) {
+    fprintf(stderr, "#1789: the parked hull's repair must open Europe\n");
+    return 1;
+  }
+  return 0;
+}
+
+/* port_bugs.md #1781/#1782/#1783: FUN_4720_0006 first-fit boarding gate,
+ * 015c's 10be pickup before the landfall pick, 465b's hull focus. */
+static int unit_4720_board_gate_and_landfall(void) {
+  ColonizeMsgCatalog names;
+  assets_msg_init(&names);
+  if (!assets_msg_load_file(&names, "COLONIZE/NAMES.TXT")) {
+    return 1;
+  }
+  static ColonizeUnitPool pool;
+  memset(&pool, 0, sizeof(pool));
+  if (!units_load_types(&pool, &names)) {
+    assets_msg_free(&names);
+    return 1;
+  }
+  const int galleon = units_find_type(&pool, "Galleon");
+  const int caravel = units_find_type(&pool, "Caravel");
+  const int colonist = units_find_type(&pool, "Colonists");
+  int rc = 0;
+  /* #1781: chain = empty Galleon (newest) over a Caravel carrying a Colonist.
+   * DOS packs the Colonist into the Galleon, so a Treasure (size 6) fits
+   * nowhere; the Caravel's manifest view left the Galleon free. */
+  const int g = units_spawn_allow_stack(&pool, galleon, 5, 5);
+  const int c = units_spawn_allow_stack(&pool, caravel, 5, 5);
+  const int p = units_spawn_allow_stack(&pool, colonist, 5, 5);
+  ColonizeUnit* cu = units_get(&pool, c);
+  ColonizeUnit* pu = units_get(&pool, p);
+  pu->aboard_ship_id = c;
+  pu->orders = UNITS_ORDER_SENTRY;
+  cu->cargo_ids[cu->cargo_count++] = p;
+  units_get(&pool, c)->tile_stack_order = 1;
+  pu->tile_stack_order = 2;
+  units_get(&pool, g)->tile_stack_order = 3;
+  if (units_find_boardable_ship(&pool, 5, 5, 0, 6) != -1) {
+    fprintf(stderr, "#1781: Galleon over Caravel+Colonist must refuse a Treasure\n");
+    rc = 1;
+  }
+  units_get(&pool, g)->tile_stack_order = 0; /* Caravel first: Colonist stays in it */
+  if (rc == 0 && units_find_boardable_ship(&pool, 5, 5, 0, 6) != g) {
+    fprintf(stderr, "#1781: Caravel+Colonist over Galleon must take a Treasure\n");
+    rc = 1;
+  }
+  /* #1782 (DOS-buggy, TB-2): an empty hull's landfall re-runs its 10be
+   * pickup, which takes the other hull's sentried riders. */
+  const int a = units_spawn_allow_stack(&pool, caravel, 8, 8);
+  const int b = units_spawn_allow_stack(&pool, caravel, 8, 8);
+  const int r = units_spawn_allow_stack(&pool, colonist, 8, 8);
+  ColonizeUnit* bu = units_get(&pool, b);
+  ColonizeUnit* ru = units_get(&pool, r);
+  ru->aboard_ship_id = b;
+  ru->orders = UNITS_ORDER_SENTRY;
+  bu->cargo_ids[bu->cargo_count++] = r;
+  dos_buggy_behavior_set(true);
+  if (rc == 0 && (units_first_landfall_cargo(&pool, a) != r || ru->aboard_ship_id != a)) {
+    fprintf(stderr, "#1782: landfall must pick the rider 10be hands hull A (aboard %d)\n",
+            ru->aboard_ship_id);
+    rc = 1;
+  }
+  /* #1783: 08ea makes the tile head (the woken hull) active whoever had the
+   * focus. */
+  const int head = units_tile_head_id_at(&pool, 8, 8);
+  ColonizeUnit* au = units_get(&pool, head);
+  au->moves = 3;
+  pool.selected_id = -1;
+  units_465b_board_wake_focus(&pool, r, a, false);
+  if (rc == 0 && pool.selected_id != head) {
+    fprintf(stderr, "#1783: hull with MP must take the focus (sel %d)\n", pool.selected_id);
+    rc = 1;
+  }
+  au->moves = 0;
+  pool.selected_id = -1;
+  units_465b_board_wake_focus(&pool, r, a, false);
+  if (rc == 0 && pool.selected_id != -1) {
+    fprintf(stderr, "#1783: spent hull must leave the focus alone\n");
+    rc = 1;
+  }
+  assets_msg_free(&names);
+  return rc;
+}
+
 static const TestCase k_cases[] = {
   {"unit_europe_transfer_at_dos_cap", unit_europe_transfer_at_dos_cap},
   {"unit_king_galleon_offer", unit_king_galleon_offer},
@@ -1125,5 +1250,7 @@ static const TestCase k_cases[] = {
   {"unit_tb2_departure_own_riders_only", unit_tb2_departure_own_riders_only},
   {"unit_repair_port_needs_drydock_bit", unit_repair_port_needs_drydock_bit},
   {"unit_europe_sail_keeps_census", unit_europe_sail_keeps_census},
+  {"unit_ship_repair_tick_on_map", unit_ship_repair_tick_on_map},
+  {"unit_4720_board_gate_and_landfall", unit_4720_board_gate_and_landfall},
 };
 TEST_MAIN_WRAPPED(k_cases, diag_init(0, NULL), diag_shutdown())

@@ -3255,12 +3255,15 @@ static bool game_apply_popup_voyage(ColonizeGameState* game) {
       ColonizeUnit* ship = units_get(&game->units, ship_id);
       /* choice 0 = Stay With Ships; 1 = Make Landfall (one passenger ashore). */
       if (ship && units_is_sea(&game->units, ship_id) && choice == 1) {
-        /* DOS 4720: prefer cargo with moves; sentry cargo still eligible. */
+        /* FUN_4720_015c: re-run the hull's 10be pickup, then the first rider with MP left. */
         const int pax_id = units_first_landfall_cargo(&game->units, ship_id);
         if (pax_id >= 0) {
           units_landfall_wake_tile(&game->units, ship_id);
         }
         const ColonizeWorld w = game_world(game);
+        /* FUN_465b raw 75764: the rumour test (075e) runs before the arrival stamp
+         * (port_bugs.md #1832). */
+        const bool rumour = map_tile_has_rumour(&game->world_map, dest_x, dest_y);
         if (pax_id >= 0 &&
             units_unload_passenger_w(&w, ship_id, pax_id, dest_x, dest_y)) {
           /* port_bugs.md: landfall costs the SHIP nothing — the passengers move,
@@ -3274,6 +3277,7 @@ static bool game_apply_popup_voyage(ColonizeGameState* game) {
             }
           }
           game->units.selected_id = pax_id;
+          g_units_rumour_step_id = rumour ? pax_id : -1;
           /* ndisasm 0x3FE56 -> jmp 0xff5c: the passenger's step commits via
            * 2a1f_0142 -> 465b_0000, 3180 tail included. */
           game_after_unit_step(game);

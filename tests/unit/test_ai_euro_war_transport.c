@@ -982,6 +982,7 @@ static int unit_unload_lcr_count_change_skips_3180(void) {
     return fail("lcr-unload alloc map");
   }
   map.terrain[4 * 8 + 2] = 25; /* ship tile at sea */
+  map.layer3[4 * 8 + 3] = 0xf0u; /* nobody visited (FUN_137f_0598) */
   for (uint16_t s = 1; s < 512 && !map_tile_has_rumour(&map, 3, 4); ++s) {
     map.prime_resource_seed = s;
   }
@@ -1006,6 +1007,7 @@ static int unit_unload_lcr_count_change_skips_3180(void) {
   int rc = 0;
   for (int seed = 1; seed < 400 && rc == 0 && (!seen_changed || !seen_same); ++seed) {
     map.layer2[4 * 8 + 3] &= (uint8_t)~MAP_LAYER2_LCR_CONSUMED;
+    map.layer3[4 * 8 + 3] |= 0xf0u;
     memset(col1.nation, 0, sizeof(col1.nation));
     ColonizeUnit* ship = units_get(&units, units_spawn(&units, 1, 2, 4));
     ColonizeUnit* pax = units_get(&units, units_spawn(&units, 0, 1, 4));

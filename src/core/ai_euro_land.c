@@ -1384,7 +1384,11 @@ static int ai_euro_20e6_surplus_recall_arm(
   }
   const int home = ai_euro_20e6_origin_get(u); /* +0x314a, −1 unbound */
   ColonizeColony* hc = home >= 0 ? colonies_get_mut(ctx->colonies, home) : NULL;
-  if (!hc || !hc->active || hc->nation_id != s->nation) {
+  /* No owner test (OVL14 0x4bc4-0x4c04, port_bugs.md #1656): a unit still
+   * bound to a colony a rival captured is recalled into it. `active` only
+   * guards a dead slot; DOS's colony delete (FUN_364b_1ba8 raw 58190-58200)
+   * unbinds such units first. */
+  if (!hc || !hc->active) {
     return 0;
   }
   if ((hc->ai_flags & COLONIZE_COLONY_AI_MILITARY_SURPLUS) == 0) {

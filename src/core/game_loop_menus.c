@@ -163,12 +163,13 @@ void game_open_cheat_setview(ColonizeGameState* game) {
       )) {
     return;
   }
-  /* DOS case 0x65 passes 5 rows (the "No Special View" row is dropped) unless
-   * a view is active: show_entire_map || fixed_nation_map_view >= 0. */
-  if (game->col1_ok && !game->col1.head.show_entire_map &&
-      game->col1.head.fixed_nation_map_view > 3 && game->cheat_list.option_count > 5) {
-    game->cheat_list.option_count = 5;
-  }
+  /* DOS case 0x65 (ndisasm 0x23C9E-0x23CCA) passes DX = the 1-based default row to
+   * FUN_6f74_36ca (6f74_32a4 `cmp [bp-0x2],[bp-0x16a]` at 0x366c bars that row): 6 (No
+   * Special View) while show_entire_map || (int16)fixed_nation_map_view >= 0, else 5
+   * (Complete Map). All six rows always show (DOSBox capture 2026-11-10, #1661). */
+  const bool view_on = game->col1_ok && (game->col1.head.show_entire_map != 0 ||
+                                         (int16_t)game->col1.head.fixed_nation_map_view >= 0);
+  cheat_list_set_selection(&game->cheat_list, view_on ? 5 : 4);
 }
 
 void game_open_cheat_kill_indians(ColonizeGameState* game) {

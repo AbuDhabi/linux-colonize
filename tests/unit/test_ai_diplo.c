@@ -923,7 +923,7 @@ static int case_marathon3_franklin_peace_gate(void) {
     ctx_e.human_nation = 0;
     ctx_e.status = status_e;
     ctx_e.status_size = sizeof(status_e);
-    founding_fathers_tick_human_elect(&ctx_e);
+    (void)founding_fathers_try_elect(&ctx_e, 0);
     if (!founding_fathers_nation_has(&fr3, 0, FF_BENJAMIN_FRANKLIN)) {
       return fail("M3R1 Franklin elect: should own Benjamin Franklin");
     }
@@ -1503,6 +1503,71 @@ static int case_153e_war_bit_survives_givecash_peace(void) {
     fprintf(stderr, "cash peace: human=0x%02x ai=0x%02x gold=%ld\n", e->nation[0].euro_relation[1],
             e->nation[1].euro_relation[0], (long)e->nation[0].gold);
     return fail("cash peace: @GIVECASH must pay, sign PEACE and keep 0x02");
+  }
+  return 0;
+}
+
+/*
+ * port_bugs.md #1636: Esc on a 153e CHOICE is FUN_6f74_2580's -1, which no
+ * `local_a == N` test matches. Same France as above: Esc at @WORTHY goes on to
+ * the @GIVECASH offer (raw 98002 else-arm), Esc there is a refusal (raw 98022)
+ * and DOS says WAR (raw 98039-98047). No gold moves, no PEACE, the talk ends.
+ */
+static int case_153e_esc_falls_through_1636(void) {
+  ai_diplo_talk_reset();
+  static TreatyFx f;
+  if (treaty_fx_init(&f) != 0) {
+    return 1;
+  }
+  ColonizeCol1Save* e = &f.col1;
+  e->nation[1].gold = 500;
+  e->stuff.colony_counts[1] = 1;
+  e->stuff.colony_counts_by_continent[1 * 16 + 1] = 1;
+  e->stuff.field_combat_strength_by_continent[0 * 16 + 1] = 10;
+  ai_diplo_write(e, 0, 1, AI_DIPLO_MET | AI_DIPLO_WAR);
+  ai_diplo_write(e, 1, 0, AI_DIPLO_MET);
+  if (!ai_diplo_153e_encounter(&f.ctx, 0, 1, f.unit_id, -1)) {
+    fx_map_free(&f.map);
+    return fail("esc: the audience must open");
+  }
+  int choices = 0, saw_cash = 0, saw_war = 0;
+  for (int guard = 0; guard < 12 && f.pop.queue_count > 0; ++guard) {
+    AiPopupRequest front = f.pop.queue[0];
+    memmove(&f.pop.queue[0], &f.pop.queue[1],
+            sizeof(f.pop.queue[0]) * (size_t)(f.pop.queue_count - 1));
+    f.pop.queue_count--;
+    if (test_body_is_section(front.body, "WARMEEK") || test_body_is_section(front.body, "WARMANLY")) {
+      saw_war = saw_cash; /* only the post-offer WAR counts */
+    }
+    if (front.kind != AI_POPUP_KIND_CHOICE) {
+      continue;
+    }
+    choices++;
+    if (strstr(front.body, "500")) {
+      saw_cash = 1;
+    }
+    f.pop.has_result = true;
+    f.pop.result_cancelled = true;
+    f.pop.result_tag = AI_POPUP_TAG_DIPLO_TALK;
+    f.pop.result_choice_id = -1;
+    f.pop.result_nation_a = 0;
+    f.pop.result_nation_b = 1;
+    f.pop.result_payload = front.payload;
+    ai_diplo_apply_popup_result(&f.ctx, &f.pop);
+    f.pop.has_result = false;
+  }
+  /* The talk must be over: a fresh audience opens again (#462). */
+  e->nation[1].treaty_timer[0] = 0;
+  const int reopened = ai_diplo_153e_encounter_forced(&f.ctx, 0, 1, f.unit_id, -1);
+  ai_diplo_talk_reset();
+  const bool peace = (e->nation[0].euro_relation[1] & AI_DIPLO_PEACE) ||
+                     (e->nation[1].euro_relation[0] & AI_DIPLO_PEACE);
+  const bool paid = e->nation[0].gold != 1000;
+  fx_map_free(&f.map);
+  if (choices < 2 || !saw_cash || !saw_war || peace || paid || !reopened) {
+    fprintf(stderr, "esc: choices=%d cash=%d war=%d peace=%d paid=%d reopened=%d\n", choices,
+            saw_cash, saw_war, peace, paid, reopened);
+    return fail("esc: @WORTHY Esc must reach @GIVECASH, whose Esc refuses with WAR");
   }
   return 0;
 }
@@ -2805,6 +2870,7 @@ static const TestCase k_cases[] = {
     {"case_153e_reads_census_rows", case_153e_reads_census_rows},
     {"case_153e_war_bit_survives_worthy_peace", case_153e_war_bit_survives_worthy_peace},
     {"case_153e_war_bit_survives_givecash_peace", case_153e_war_bit_survives_givecash_peace},
+    {"case_153e_esc_falls_through_1636", case_153e_esc_falls_through_1636},
     {"case_153e_sieges_takes_passengers", case_153e_sieges_takes_passengers},
     {"case_relation_writes_preserve_player_bytes", case_relation_writes_preserve_player_bytes},
     {"case_153e_talk_tokens_474", case_153e_talk_tokens_474},
