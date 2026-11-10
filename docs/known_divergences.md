@@ -161,6 +161,13 @@ manifest has room for is therefore refused. Example: an empty Caravel on top of
 a Galleon carrying a Colonist, with a Treasure boarding. Matching DOS would mean
 moving riders between hulls.
 
+### Fast Piece Slide waits 3 ticks a pixel
+DOS `FUN_112b_0eb6` (raw 2685, asm `112b:1084`) waits 8 ticks of the 608.77 Hz
+clock per pixel step with Fast Piece Slide on (10 off): ~197 vs ~246 ms a tile,
+too small to notice. The port waits 3 ticks (~74 ms a tile) when the option is
+on (user request 2026-11-10); `game_slide_total_ms`, shared by the move slide
+and the combat lunge. Option off stays DOS-literal.
+
 ## Blocked on a live DOS capture
 
 Static reading cannot settle these. Each names exactly what to capture. Do not
