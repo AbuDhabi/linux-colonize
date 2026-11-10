@@ -608,3 +608,15 @@ it; the col1_bridge capture writes 0 for transports off a route), so
 and Begin preselects a route only for a unit already on one (port_bugs.md #1718 /
 #1719). Saves differ in the +0x17 nibble of idle transports. Goldens pass without it.
 **Status:** done (user 2026-11-10; port already differed).
+
+### DB-100 — Map gen forest wander reads unset hill and mountain chances (port_bugs.md #1764)
+**DOS:** FUN_684c_08c0 first writes [bp-0x20] / [bp-0x26] at 106c / 106f, inside the
+base-type switch. If the first wander tile(s) already carry 0x80 or 0x20 (a mountain left
+by the latitude paint), the epilogue at 11de (`cmp/jz`) reads stack residue and draws
+rand(0, -5874), shifting the LCG for the rest of the map. DOSBox 2026-11-10 (NEW WORLD,
+VR_SOUND, seeds 100 and 777): the residue was 0xe90e / 0x9b89 both times. None of the
+four DOS map dumps hit it.
+
+**Port:** `forest_wander_pass` (`src/core/map_gen.c`) starts both chances at 0 and draws
+nothing.
+**Status:** done (user 2026-11-10; port already differed).

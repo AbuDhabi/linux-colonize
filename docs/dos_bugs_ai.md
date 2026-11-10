@@ -330,3 +330,25 @@ Not traced.
 shipless nation skips the hire tail (`ai_euro_5d04_nation_planning_structural`,
 `src/core/ai_euro_europe.c`).
 **Status:** done (user 2026-11-10; port already differed).
+
+### DB-98 — Wave-0 escort goal reads an unset local outside demo mode (port_bugs.md #1625)
+**DOS:** FUN_521d_6d8e's wave-0 escort upsert (OVL14 0x7184-0x7189) compares [BP-6]
+with DS:0x539c, but [BP-6] is written only in the demo branch (0x713a, under 0x70dc
+`cmp [0x826],0`). Outside demo it holds a stale stack word. DOSBox 2026-11-10 (VR_SOUND,
+turns_idle_1599_france base, 2 rounds, 75 stops at 0x7186): [BP-6] was always a nation
+index (0/3) and DS:0x539c a unit count (147-150), so the escort goal was never posted.
+
+**Port:** `ai_euro_dispatcher_turn_unit_waves` (`src/core/ai_euro.c`) posts the goal.
+**Status:** done (user 2026-11-10; port already differed).
+
+### DB-99 — 20e6 reads local_80 before any write (port_bugs.md #1670)
+**DOS:** in FUN_521d_20e6, local_80 [BP-0x7e] is written only by the goal fold's
+promote arm (OVL14 0x3727) but read at 0x38d7 (raw 89506) on any path into the local_4a
+block; a nonzero leftover clears 0x40 when the continent has more than one explorer.
+DOSBox 2026-11-10 (VR_SOUND, golden_idle_america_seed-100 save 1, 65 calls): entry value
+0 in 60 calls, nonzero in 5 (0x237e, -5990, 35, 37, 38); the read was not reached in
+that window.
+
+**Port:** `ai_euro_20e6_goal_fold` / `unload_mask_snapshot` (`src/core/ai_euro_ship.c`)
+zero-init it.
+**Status:** done (user 2026-11-10; port already differed).

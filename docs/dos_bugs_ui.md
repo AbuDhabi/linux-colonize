@@ -276,3 +276,27 @@ reads whatever tile the stack junk points at.
 **Port:** `game_tutorial_colony_opened` (`src/core/game_tutorial.c`) keeps Food when
 colonist 0 has no plot.
 **Status:** done (user 2026-11-10; port already differed).
+
+### DB-96 — MAPEDIT keeps a bad file's name and size after a failed Load Map (port_bugs.md #1615)
+**DOS:** FUN_1000_17e0 case 0x1b copies the picked name into DS:0x4a18 before
+FUN_19f9_0170 runs, and 0170 reads the header's W/H straight into DS:0x4b12/0x4b14
+before it checks the version. After @ERROR the old map therefore carries the new file
+name, so a later Save overwrites the bad file; a version-3 file also leaves the old
+planes read with the new W/H.
+
+**Port:** `me_load` (`src/core/mapedit.c`) changes nothing on failure.
+**Status:** done (user 2026-11-10; port already differed).
+
+### DB-97 — Opening a colonist's jobs menu spends the unit (port_bugs.md #1748)
+**DOS:** FUN_2f2b_348c's trial loop (raw 50599-50663) admits the fence unit through
+FUN_15eb_1068 arm 3, and the tail restore FUN_15eb_1068(sel, current job) (raw
+50669-50675; again on cancel) rebuilds it through arm 2 (FUN_1427_06b4 + FUN_1427_155e)
+or, in a full colony, re-equips it in place (arm 1). Merely opening the menu, Escape
+included, sets spent = full allotment, clears the orders (fortify too), moves the unit to
+a new record at the end of the array, and makes a Pioneer return its tools and re-take
+min(100, floor(stock/20)*20). DOSBox 2026-11-10: Pioneer with 40 tools, colony with 120:
+unit 66 -> 155, spent 3, orders 0, tools 100, colony 60. Same mechanism as DB-54.
+
+**Port:** `game_colony_open_jobs` (`src/core/game_loop_colony.c`) only opens the popup;
+a picked role row exhausts and re-equips as DOS does (#650).
+**Status:** done (user 2026-11-10; port already differed).
