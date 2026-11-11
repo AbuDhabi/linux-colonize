@@ -48,6 +48,7 @@ enum {
   ELEV_UNIT = 16,        /* initial land +16, water -16 */
   MAX_PLATES = 64,
   TECTONIC_ITERS = 6,
+  WARP_CELL = 8,         /* crust warp: coarse noise lattice spacing (finer octaves 1/2, 3/8) */
   COLLISION_UPLIFT = 12, /* added to the higher crust where two plates meet */
   RIFT_ELEV = -32,       /* fresh crust on a tile a plate moved off and nobody filled */
   EROSION_ITERS = 4,
@@ -84,11 +85,13 @@ static const int k_band_widths[4][4] = {
  * ending in a cliff at the sea lane. */
 static const int k_side_cap[] = {-ELEV_UNIT / 4, ELEV_UNIT / 4, ELEV_UNIT * 3 / 4, ELEV_UNIT * 3 / 2};
 #define SIDE_ZONE ((int)(sizeof(k_side_cap) / sizeof(k_side_cap[0])))
+enum { SIDE_REACH_MAX = 4 }; /* extra sea columns at the side, varying smoothly by row */
 /* Moisture an ocean tile hands the wind, by climate 0 Arid .. 2 Wet (3 random). */
 static const float k_moisture_by_climate[4] = {60.0f, 100.0f, 140.0f, 180.0f};
 #define RAIN_BASE_DEP 0.05f   /* share of carried moisture dropped per land tile */
 #define RAIN_OROGRAPHIC 0.02f /* extra share per elevation unit the wind climbs */
 #define RAIN_LEE_FACTOR 0.5f  /* descending air drops less */
+#define WARP_AMP 4.0f         /* crust warp: coarse octave displacement, tiles (finer 40%, 25%) */
 #define WIND_DEFLECT 0.7f     /* share of the uphill wind component a steep slope turns */
 #define WIND_GRAD_FULL 24.0f  /* slope (elevation units per tile) that deflects fully */
 #define WIND_ONSHORE 3.0f     /* pull from sea toward land (monsoon / sea breeze) */
@@ -339,6 +342,64 @@ static void tectonics(AltGen* g) {
   }
 }
 
+/* Bilinear value noise: a lattice every `cell` (>= 3) tiles of values in
+ * -amp..amp, added onto `out`. */
+static void add_value_noise(AltGen* g, float* out, int cell, float amp) {
+  const int lw = W / cell + 2;
+  const int lh = H / cell + 2;
+  float lattice[32 * 32];
+  for (int k = 0; k < lw * lh; ++k) {
+    lattice[k] = (float)(rnd(g, 0, 2000) - 1000) / 1000.0f * amp;
+  }
+  for (int y = 0; y < H; ++y) {
+    for (int x = 0; x < W; ++x) {
+      const int lx = x / cell;
+      const int ly = y / cell;
+      const float tx = (float)(x % cell) / (float)cell;
+      const float ty = (float)(y % cell) / (float)cell;
+      const float* r0 = &lattice[ly * lw + lx];
+      const float* r1 = r0 + lw;
+      const float top = r0[0] * (1.0f - tx) + r0[1] * tx;
+      const float bot = r1[0] * (1.0f - tx) + r1[1] * tx;
+      out[y * W + x] += top * (1.0f - ty) + bot * ty;
+    }
+  }
+}
+
+/*
+ * Step 3, end: rigid shifts leave rift and plate edges as straight lines
+ * along the drift axes. Warp the crust so they bend: each tile takes the
+ * elevation found at a spot displaced by a smooth random field (three value
+ * noise octaves, WARP_CELL / WARP_AMP), then the net change is spread back
+ * so the total stays constant.
+ */
+static void warp_crust(AltGen* g) {
+  float* dx = g->fa;
+  float* dy = g->fb;
+  float* src = g->fc;
+  memset(dx, 0, sizeof(g->fa));
+  memset(dy, 0, sizeof(g->fb));
+  add_value_noise(g, dx, WARP_CELL, WARP_AMP);
+  add_value_noise(g, dx, WARP_CELL / 2, WARP_AMP * 0.4f);
+  add_value_noise(g, dx, WARP_CELL * 3 / 8, WARP_AMP * 0.25f);
+  add_value_noise(g, dy, WARP_CELL, WARP_AMP);
+  add_value_noise(g, dy, WARP_CELL / 2, WARP_AMP * 0.4f);
+  add_value_noise(g, dy, WARP_CELL * 3 / 8, WARP_AMP * 0.25f);
+  const int before = active_elev_sum(g);
+  for (int i = 0; i < N; ++i) {
+    src[i] = (float)g->elev[i];
+  }
+  for (int k = 0; k < g->active_count; ++k) {
+    const int i = g->active[k];
+    float sx = (float)(i % W) + dx[i];
+    float sy = (float)(i / W) + dy[i];
+    sx = sx < EDGE_X ? EDGE_X : sx > W - 1 - EDGE_X ? W - 1 - EDGE_X : sx;
+    sy = sy < EDGE_Y ? EDGE_Y : sy > H - 1 - EDGE_Y ? H - 1 - EDGE_Y : sy;
+    g->elev[i] = (int)floorf(sample(src, sx, sy) + 0.5f);
+  }
+  spread_evenly(g, g->active, g->active_count, before - active_elev_sum(g));
+}
+
 /* ===== Erosion (step 4) ===== */
 
 /* Diffusion between 4-neighbours inside the active area: each pair moves
@@ -351,10 +412,19 @@ static void erosion(AltGen* g) {
   int inland_count = 0;
   for (int k = 0; k < g->active_count; ++k) {
     const int x = g->active[k] % W;
-    if (x - EDGE_X >= SIDE_ZONE && W - 1 - EDGE_X - x >= SIDE_ZONE) {
+    const int zone = SIDE_ZONE + SIDE_REACH_MAX;
+    if (x - EDGE_X >= zone && W - 1 - EDGE_X - x >= zone) {
       inland[inland_count++] = g->active[k];
     }
   }
+  /* How many extra columns the cap reaches in, per row and side (smooth
+   * noise, 0..SIDE_REACH_MAX), so the worn coast is not a straight line. */
+  float* reach_w = g->fa;
+  float* reach_e = g->fb;
+  memset(reach_w, 0, sizeof(g->fa));
+  memset(reach_e, 0, sizeof(g->fb));
+  add_value_noise(g, reach_w, 4, 0.8f * (SIDE_REACH_MAX + 1));
+  add_value_noise(g, reach_e, 4, 0.8f * (SIDE_REACH_MAX + 1));
   for (int it = 0; it < EROSION_ITERS; ++it) {
     memset(delta, 0, sizeof(g->scratch_a));
     for (int k = 0; k < g->active_count; ++k) {
@@ -380,10 +450,15 @@ static void erosion(AltGen* g) {
     for (int k = 0; k < g->active_count; ++k) {
       const int i = g->active[k];
       const int x = i % W;
-      const int side = x - EDGE_X < W - 1 - EDGE_X - x ? x - EDGE_X : W - 1 - EDGE_X - x;
-      if (side < SIDE_ZONE && g->elev[i] > k_side_cap[side]) {
-        worn += g->elev[i] - k_side_cap[side];
-        g->elev[i] = k_side_cap[side];
+      const bool west = x - EDGE_X < W - 1 - EDGE_X - x;
+      const int side = west ? x - EDGE_X : W - 1 - EDGE_X - x;
+      /* The sea column widens by `reach` (column 0 is always sea). */
+      const float r = (west ? reach_w : reach_e)[(i / W) * W] + 0.5f * (SIDE_REACH_MAX + 1);
+      const int reach = clamp_int((int)r, 0, SIDE_REACH_MAX);
+      const int step = side - reach < 0 ? 0 : side - reach;
+      if (step < SIDE_ZONE && g->elev[i] > k_side_cap[step]) {
+        worn += g->elev[i] - k_side_cap[step];
+        g->elev[i] = k_side_cap[step];
       }
     }
     spread_evenly(g, inland, inland_count, worn);
@@ -684,8 +759,7 @@ static HeapItem heap_pop(HeapItem* h, int* n) {
 }
 
 /* Base type by temperature; relief (tile minus its lowest land 8-neighbour;
- * a shore is not a cliff) makes hills and mountains; rainfall then makes deserts
- * (no rain) and dries / moistens the tails beyond one standard deviation. */
+ * a shore is not a cliff) makes hills and mountains. */
 static void paint_land(AltGen* g) {
   for (int i = 0; i < N; ++i) {
     const int x = i % W;
@@ -714,7 +788,11 @@ static void paint_land(AltGen* g) {
     }
     g->terrain[i] = t;
   }
+}
 
+/* Rainfall (river bonus included) makes deserts (no rain) and dries /
+ * moistens the tails beyond one standard deviation of the land mean. */
+static void moisture(AltGen* g) {
   double sum = 0.0;
   double sum2 = 0.0;
   int count = 0;
@@ -767,15 +845,15 @@ static void paint_land(AltGen* g) {
  * and so is a branch that would run alongside another.
  * River tiles lose hill / mountain (the valley; DOS never stores a river on a
  * hill either), arctic never carries one, and the water tile a river enters
- * gets the river bit (estuary).
+ * gets the river bit (estuary). A river tile gains 1 rain (major 2) before
+ * moisture() turns rain into terrain.
  */
 static void rivers(AltGen* g) {
   int* parent = g->scratch_a;
   int* order = g->scratch_b;
-  int* acc = g->rain; /* rain is not needed after this */
   HeapItem* heap = (HeapItem*)malloc(sizeof(HeapItem) * N);
   bool* done = (bool*)calloc(N, sizeof(bool));
-  int* filled = (int*)calloc(4 * (size_t)N, sizeof(int));
+  int* filled = (int*)calloc(5 * (size_t)N, sizeof(int));
   if (!heap || !done || !filled) {
     free(heap);
     free(done);
@@ -785,6 +863,8 @@ static void rivers(AltGen* g) {
   int* route = filled + N;
   int* len = filled + 2 * N;
   int* mouth_len = filled + 3 * N;
+  int* acc = filled + 4 * N;
+  memcpy(acc, g->rain, sizeof(int) * N);
 
   enum { LW = W / ROUTE_CELL + 2, LH = H / ROUTE_CELL + 2 };
   int lattice[LH][LW];
@@ -811,7 +891,10 @@ static void rivers(AltGen* g) {
     parent[i] = -1;
     if (is_water_type(g->terrain[i])) {
       done[i] = true;
-      heap_push(heap, &hn, (HeapItem){rnd(g, 0, 7), i});
+      /* Rows 0 / H-1 turn arctic in the finalize pass: no river drains there. */
+      if (i / W > 0 && i / W < H - 1) {
+        heap_push(heap, &hn, (HeapItem){rnd(g, 0, 7), i});
+      }
     }
   }
   while (hn > 0) {
@@ -887,8 +970,10 @@ static void rivers(AltGen* g) {
       continue;
     }
     const uint8_t typ = (uint8_t)(g->terrain[j] & 0x1f);
-    const uint8_t bits = acc[j] >= RIVER_MAJOR_FLOW ? (uint8_t)(F_RIVER | F_MOUNTAIN) : (uint8_t)F_RIVER;
+    const bool major = acc[j] >= RIVER_MAJOR_FLOW;
+    const uint8_t bits = major ? (uint8_t)(F_RIVER | F_MOUNTAIN) : (uint8_t)F_RIVER;
     g->terrain[j] = (uint8_t)(typ | bits);
+    g->rain[j] += major ? 2 : 1; /* the river waters its tile */
     if (p >= 0 && is_water_type(g->terrain[p]) && in_active(p % W, p / W)) {
       g->terrain[p] = (uint8_t)(g->terrain[p] | bits);
     }
@@ -1002,12 +1087,14 @@ bool map_generate_alternate(
 
   make_plates(g, &p);
   tectonics(g);
+  warp_crust(g);
   erosion(g);
   winds(g);
   rainfall(g, p.climate);
   temperature(g, p.temperature);
   paint_land(g);
   rivers(g);
+  moisture(g);
   forests(g);
   high_seas(g->terrain);
   memcpy(out->terrain, g->terrain, N);

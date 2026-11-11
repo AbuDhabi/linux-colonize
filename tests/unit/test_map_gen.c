@@ -243,7 +243,7 @@ static int test_tb46_latitude_single_draw(void) {
  * sweep of the four Customize axes, map_generate routes to the alternate,
  * replays per seed, keeps the west / east rim (and the column inside it)
  * water and the top / bottom row arctic, never stores a river on a hill /
- * mountain, keeps every land river tile 4-connected to more river or the
+ * mountain or desert, keeps every land river tile 4-connected to more river or the
  * sea, leaves valid land classes only, and still finds the Euro landfalls. */
 static int test_alternate_generator_invariants(void) {
   int rc = 0;
@@ -306,6 +306,11 @@ static int test_alternate_generator_invariants(void) {
           const int ny = y + MAP_DIR8_DY[d];
           const uint8_t n = a.terrain[ny * w + nx];
           linked = linked || (n & F_RIVER) || (n & 0x1f) == T_OCEAN;
+        }
+        if ((typ & 7) == T_DESERT) { /* a river waters its tile: never desert / scrub */
+          fprintf(stderr, "case %d: river (%d,%d) = 0x%02x on desert\n", k, x, y, t);
+          rc = 1;
+          break;
         }
         if ((t & F_HILL) || !linked) {
           fprintf(stderr, "case %d: river (%d,%d) = 0x%02x on a hill or cut off\n", k, x, y, t);

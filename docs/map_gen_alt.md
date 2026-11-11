@@ -40,11 +40,17 @@ Elevation is an `int` (land starts at +16, water at -16); tiles below 0 are wate
    nobody moves onto becomes new low crust (`RIFT_ELEV`): rifts and new seas.
    Crust pushed into the rim is lost. The net change is spread evenly back over the
    active area, so total elevation is the same after every iteration.
+   Rigid shifts leave rift and plate edges as straight lines along the drift axes,
+   so the crust is then warped: each tile takes the elevation found at a spot
+   displaced by a smooth random field (three value-noise octaves, lattice
+   `WARP_CELL` = 8, 4, 3 tiles, `WARP_AMP` = 4, 1.6, 1 tiles), and the net change is
+   spread back again (zero-sum).
 3. **Erosion** (`EROSION_ITERS` = 4). Each 4-neighbour pair moves 1/8 of its
    difference downhill; an exact integer transfer, so zero-sum too. Then the four
    columns at the west and east active edges are worn down to `k_side_cap`
    (-4, 4, 12, 24 from the edge in), and what they lose is spread over the tiles
-   inland of them. Land tapers off instead of ending in a cut-off cliff, and the
+   inland of them. Per row and side, smooth noise widens the always-sea part by
+   0..`SIDE_REACH_MAX` (4) columns, so the worn coast is not a straight line. Land tapers off instead of ending in a cut-off cliff, and the
    column next to each sea lane is always ordinary sea.
 4. **Winds.** Three-cell circulation by latitude (equator at mid-height, rims at
    +-90 degrees): trade winds (easterly, toward the equator) below 30, westerlies
@@ -65,10 +71,7 @@ Elevation is an `int` (land starts at +16, water at -16); tiles below 0 are wate
 7. **Terrain.** Land by band: Cold arctic, Cool tundra, Temperate plains, Warm
    grassland, Hot savannah. Relief (tile minus its lowest land 8-neighbour; a
    shore is not a cliff) `>= MOUNTAIN_RELIEF` is a mountain, `>= HILL_RELIEF` a
-   hill (never on arctic). No rain: desert. Rain more than one standard deviation
-   below the land mean dries (plains -> tundra, grassland -> prairie, savannah ->
-   grassland); more than one above moistens (savannah -> swamp, grassland ->
-   marsh, plains -> prairie, tundra -> plains).
+   hill (never on arctic). Rain turns into terrain after the rivers (step 8).
 8. **Rivers.** A priority flood from every water tile gives each land tile a
    downstream 4-neighbour along a path that never climbs (pits drain as if
    filled; lakes are ordinary sea). Routing adds coarse value noise
@@ -78,7 +81,12 @@ Elevation is an `int` (land starts at +16, water at -16); tiles below 0 are wate
    with tributaries. Rivers shorter than `RIVER_MIN_LEN` at the mouth, and branches
    that would run 4-adjacent to another river (they draw as one blob), are dropped.
    A river tile loses its hill / mountain (DOS never stores both), arctic carries
-   none, and the water tile at the mouth gets the river bit (estuary).
+   none, and the water tile at the mouth gets the river bit (estuary). Each river
+   tile then gains 1 rain (major river 2). With that bonus in, rain becomes
+   terrain: no rain is desert; rain more than one standard deviation below the land
+   mean dries (plains -> tundra, grassland -> prairie, savannah -> grassland); more
+   than one above moistens (savannah -> swamp, grassland -> marsh, plains ->
+   prairie, tundra -> plains). So a river through a dry basin is never desert.
 9. **Forest** on `FOREST_PERCENT` (90) % of flat non-arctic land; desert becomes
    scrub forest.
 10. **Shared tail.** High seas: per row, open water walked west from the east edge
