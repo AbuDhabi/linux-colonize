@@ -721,7 +721,6 @@ static void colony_screen_scale15_dither(
   int out_y = dst_y;
   while (rows != 0) {
     for (;;) {
-      int local6 = 0;
       int x = dst_x;
       if ((rows & 3) == 0) {
         bx = (uint16_t)(bx + 0xd);
@@ -744,7 +743,6 @@ static void colony_screen_scale15_dither(
             fb->pixels[out_y * fb->width + x] = al;
           }
           ++x;
-          ++local6;
           if (k == 0) {
             dl = (uint8_t)~dl;
             if (dl == 0) {
@@ -753,7 +751,6 @@ static void colony_screen_scale15_dither(
           }
         }
       }
-      (void)local6; /* kept from the DOS body; the port never reads it */
       bx = (uint16_t)(bx - local4);
       ++out_y;
       if (ah != 0) {

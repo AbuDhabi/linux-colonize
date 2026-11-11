@@ -550,8 +550,9 @@ void reports_names_load_catalogs(const char* data_dir) {
     return;
   }
   g_reports_names_generation++;
-  /* NAMES.TXT @FATHERS live names (reports_ff_display_name) — best-effort, falls back
-   * to the hand-typed k_ff_names table when missing (tests, old data dirs). */
+  /* NAMES.TXT live names (reports_ff_display_name and the other NAMES.TXT
+   * readers) — best-effort: when the file is missing (tests, old data dirs)
+   * every lookup misses and returns "". */
   if (g_reports_names_ok) {
     assets_msg_free(&g_reports_names);
     g_reports_names_ok = false;
@@ -565,8 +566,8 @@ void reports_names_load_catalogs(const char* data_dir) {
     assets_msg_free(&g_reports_names);
   }
 
-  /* LABELS.TXT live report titles (reports_title) — same best-effort/
-   * fallback shape as the NAMES.TXT block above. */
+  /* LABELS.TXT live report titles (reports_title) — same best-effort
+   * shape as the NAMES.TXT block above. */
   if (g_reports_labels_ok) {
     assets_msg_free(&g_reports_labels);
     g_reports_labels_ok = false;

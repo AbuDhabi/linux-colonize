@@ -1101,7 +1101,7 @@ int ai_king_year_end_woi(ColonizeTurnContext* ctx) {
    * ports, and DOS shows at most ONE @WARN%d per turn (none at cVar1 == 0).
    * The port used to latch and fire all three independently.
    *
-   * The lose dialog leaves the block (`goto LAB_3844_04ec`, raw 58548) and the
+   * The lose dialog leaves the block (`goto LAB_3844_04ec`, raw 58545) and the
    * win dialog leaves it at raw 58500, so a turn that ends the war shows no
    * warn at all — the emission below therefore sits after both.
    *

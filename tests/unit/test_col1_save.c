@@ -1,5 +1,6 @@
 #include <stddef.h>
 #include "../common/test_runner.h"
+#include "../common/test_catalogs.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -2354,6 +2355,11 @@ int main(void) {
     return 1;
   }
   fprintf(stderr, "Col1 over-full ship keeps its chained passenger ok\n");
+  /* The occ 19 import and most later checks load COLONIZE/NAMES.TXT. */
+  if (!test_names_txt()) {
+    fprintf(stderr, "COLONIZE/NAMES.TXT missing: skipping the data-backed checks\n");
+    return TR_SKIP;
+  }
   if (!test_import_occ19_stays_idle(err, sizeof(err))) {
     fprintf(stderr, "occ 19 import: %s\n", err);
     return 1;
