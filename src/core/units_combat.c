@@ -1901,7 +1901,7 @@ static void units_ship_damaged_to_europe(ColonizeUnitPool* pool, ColonizeUnit* l
     return;
   }
   if (col1 && col1->head.game_options.woi) {
-    return; /* no friendly Europe during the WoI (DOS raw 85139 sinks her) */
+    return; /* no friendly Europe during the WoI (FUN_5fef_0352 raw 99603-99607 sinks her) */
   }
   const ColonizeUnitType* lt = units_type(pool, lose->type_index);
   /* port_bugs.md #1381c (DOS trace 2026-11-03, VR_SOUND, French Privateer vs
@@ -2199,7 +2199,7 @@ int units_apply_naval_loss_outcome(
   }
   /*
    * port_bugs.md #254: WoI human with no drydock port has no friendly Europe either
-   * — the ship goes down instead of limping anywhere (DOS 85139).
+   * — the ship goes down instead of limping anywhere (FUN_5fef_0352 raw 99603-99607).
    */
   const ColonizeColony* home = NULL;
   if (damaged) {
@@ -2208,7 +2208,7 @@ int units_apply_naval_loss_outcome(
     );
     if (!home && col1 && col1->head.game_options.woi &&
         lose->nation_id == (int)col1->head.human_player) {
-      damaged = 0; /* DOS 85139: `goto` into the sunk path */
+      damaged = 0; /* raw 99603-99607: `goto` into the sunk path */
     }
   }
   if (damaged) {
@@ -2303,7 +2303,7 @@ int units_raid_damage_ship(
   );
   if (!home && col1 && col1->head.game_options.woi &&
       lose->nation_id == (int)col1->head.human_player) {
-    damaged = 0; /* DOS 85139 / raw 99607: no friendly port at all */
+    damaged = 0; /* raw 99603-99607: no friendly port at all */
   }
   if (!damaged) {
     {

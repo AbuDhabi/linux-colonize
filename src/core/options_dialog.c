@@ -188,9 +188,10 @@ bool options_dialog_open_sound(
  * section's rows follow its id list here. With FONTINTR (glyph_h 9) a row
  * advances 12 px and a prompt of up to two 10 px lines, so
  * popup_dos_list_height is 35 + 12 * rows: 13 rows is the most that fits the
- * 200 px screen (all 17 would need 239), and the OK button takes the last two
- * (OPTIONS_MODS_OK_ROWS). Every ModId sits on exactly one page (checked by the
- * popup dialog tests).
+ * 200 px screen, and the OK button takes the last two (OPTIONS_MODS_OK_ROWS).
+ * The _Static_asserts below hold each page to OPTIONS_MODS_PAGE_ROWS_MAX; a
+ * page that outgrows it needs another section. Every ModId
+ * sits on exactly one page (checked by the popup dialog tests).
  */
 #define OPTIONS_MODS_OK_ROWS 2
 #define OPTIONS_MODS_PAGE_ROWS_MAX (13 - OPTIONS_MODS_OK_ROWS)

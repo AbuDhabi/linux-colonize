@@ -2069,7 +2069,6 @@ static GameMenuActionStatus game_menu_action_goto_and_cargo(ColonizeGameState* g
       return GAME_MENU_ACTION_DONE;
     }
     case MAP_MENU_ACTION_RETURN_EUROPE: {
-      /* Same rules as key H. */
       if (!game->world_map_ok || !game->units_ok || !game->europe_ok) {
         return GAME_MENU_ACTION_DONE;
       }
