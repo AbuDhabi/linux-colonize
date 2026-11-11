@@ -27,7 +27,8 @@ replays and tribe placement continues from the post-gen stream.
 The rim never takes part: 2 columns west / east (water, later the sea lanes) and
 1 row north / south (water during generation, arctic after the finalize pass), so
 generated land reaches the row next to the arctic edge rows.
-Elevation is an `int` (land starts at +16, water at -16); tiles below 0 are water.
+Elevation is an `int` (land starts at +16, water at -16, half the tiles at random
+doubled to +32 / -32); tiles below 0 are water.
 
 1. **Plates.** `plate_count` seeds grow by random frontier picks until they tile
    the active area. Plates are picked as land, in random order, while that brings

@@ -71,14 +71,14 @@ static const int k_plates_by_form[4] = {48, 28, 16, 10};
 /* land_mass 0 Small .. 2 Large (3 random): plate area share started as land. */
 static const int k_land_permille_by_mass[4] = {330, 420, 520, 600};
 /* By temperature 0 Cool .. 2 Warm (3 random): the Cold band is a fixed number
- * of rows at each active rim (arctic is useless land); Hot..Cool share the
- * rest of equator-to-rim in these proportions. */
+ * of rows at each active rim (arctic is useless land); Hot, Warm, Lukewarm,
+ * Temperate, Cool share the rest of equator-to-rim in these proportions. */
 static const int k_cold_rows[4] = {2, 1, 0, 0};
-static const int k_band_widths[4][4] = {
-  {2, 3, 4, 5},
-  {4, 4, 5, 6},
-  {6, 5, 4, 3},
-  {7, 6, 4, 2},
+static const int k_band_widths[4][5] = {
+  {2, 3, 3, 4, 5},
+  {4, 4, 4, 5, 6},
+  {6, 5, 4, 4, 3},
+  {7, 6, 5, 4, 2},
 };
 /* Erosion cap by distance from the west / east active edge: the column next to
  * the rim is always sea, the next few ramp up, so land tapers off instead of
@@ -99,8 +99,8 @@ static const float k_moisture_by_climate[4] = {60.0f, 100.0f, 140.0f, 180.0f};
 static const int k_dx4[4] = {0, 1, 0, -1};
 static const int k_dy4[4] = {-1, 0, 1, 0};
 
-/* Temperature band -> base land type (Hot 2 .. Cold -2). */
-static const uint8_t k_band_terrain[5] = {T_ARCTIC, T_TUNDRA, T_PLAINS, T_GRASSLAND, T_SAVANNAH};
+/* Temperature band -> base land type (Hot 3 .. Cold -2). */
+static const uint8_t k_band_terrain[6] = {T_ARCTIC, T_TUNDRA, T_PLAINS, T_PRAIRIE, T_GRASSLAND, T_SAVANNAH};
 
 typedef struct AltGen {
   ColonizeDosRng* rng;
@@ -266,13 +266,15 @@ static void make_plates(AltGen* g, const MapGenParams* p) {
     g->vy[k] = rnd(g, 0, 4) - 2;
   }
 
-  /* Step 1 + 2: flat plane, then -1 / +1 (scaled) by plate type. */
+  /* Step 1 + 2: flat plane, then -1 / +1 (scaled) by plate type; half the tiles
+   * (coin per tile) start at -2 / +2. */
   for (int i = 0; i < N; ++i) {
     g->elev[i] = -ELEV_UNIT;
   }
   for (int k = 0; k < g->active_count; ++k) {
     const int i = g->active[k];
-    g->elev[i] = land[g->plate[i]] ? ELEV_UNIT : -ELEV_UNIT;
+    const int e = ELEV_UNIT * (1 + rnd(g, 0, 1));
+    g->elev[i] = land[g->plate[i]] ? e : -e;
   }
 }
 
@@ -666,7 +668,8 @@ static int rows_from_pole(int y) {
 }
 
 /*
- * Step 7. Horizontal bands Hot (2) .. Cold (-2) from the equator to each rim:
+ * Step 7. Horizontal bands Hot (3), Warm (2), Lukewarm (1), Temperate (0),
+ * Cool (-1), Cold (-2) from the equator to each rim:
  * Cold is the k_cold_rows rows at each active edge, Hot..Cool split the rest
  * by the temperature axis's proportions. Then the winds smear them: each pass
  * mixes a tile half-and-half with the air arriving from upwind, with the
@@ -676,23 +679,23 @@ static int rows_from_pole(int y) {
 static void temperature(AltGen* g, int temp_axis) {
   const int cold = k_cold_rows[temp_axis];
   const int* widths = k_band_widths[temp_axis];
-  const int total = widths[0] + widths[1] + widths[2] + widths[3];
+  const int total = widths[0] + widths[1] + widths[2] + widths[3] + widths[4];
   const float cy = (float)(H - 1) * 0.5f;
   float* t = g->fa;
   float* next = g->fb;
   for (int y = 0; y < H; ++y) {
-    int band = 4;
+    int band = 5;
     if (rows_from_pole(y) >= cold) {
       const float f = fabsf((float)y - cy) / (cy - (float)(EDGE_Y + cold) + 0.5f) * (float)total;
       band = 0;
       int edge = widths[0];
-      while (band < 3 && f >= (float)edge) {
+      while (band < 4 && f >= (float)edge) {
         band++;
         edge += widths[band];
       }
     }
     for (int x = 0; x < W; ++x) {
-      t[y * W + x] = (float)(2 - band);
+      t[y * W + x] = (float)(3 - band);
     }
   }
   for (int it = 0; it < TEMP_SMEAR_ITERS; ++it) {
@@ -709,7 +712,7 @@ static void temperature(AltGen* g, int temp_axis) {
   for (int i = 0; i < N; ++i) {
     const float jitter = (float)(rnd(g, 0, 6) - 3) * 0.1f;
     const int lo = rows_from_pole(i / W) >= cold ? -1 : -2;
-    g->temp[i] = clamp_int((int)floorf(t[i] + jitter + 0.5f), lo, 2);
+    g->temp[i] = clamp_int((int)floorf(t[i] + jitter + 0.5f), lo, 3);
   }
 }
 
@@ -820,10 +823,15 @@ static void moisture(AltGen* g) {
     if (g->rain[i] == 0) {
       typ = T_DESERT;
     } else if (g->rain[i] < mean - sd) {
-      typ = typ == T_PLAINS ? T_TUNDRA : typ == T_GRASSLAND ? T_PRAIRIE : typ == T_SAVANNAH ? T_GRASSLAND : typ;
+      typ = typ == T_PLAINS ? T_TUNDRA
+          : typ == T_PRAIRIE ? T_PLAINS
+          : typ == T_GRASSLAND ? T_PRAIRIE
+          : typ == T_SAVANNAH ? T_GRASSLAND
+          : typ;
     } else if (g->rain[i] > mean + sd) {
       typ = typ == T_SAVANNAH ? T_SWAMP
           : typ == T_GRASSLAND ? T_MARSH
+          : typ == T_PRAIRIE ? T_GRASSLAND
           : typ == T_PLAINS ? T_PRAIRIE
           : typ == T_TUNDRA ? T_PLAINS
           : typ;
