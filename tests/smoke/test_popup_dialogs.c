@@ -675,7 +675,8 @@ static int case_map_confirm_second_refused(void) {
 }
 
 /* OS window close asks the @DOSYES confirm first: No keeps playing, Yes quits, a
- * second close while it is up quits, and where it cannot show it quits at once. */
+ * second close while it is up quits. A report is left first; over a player popup
+ * the close is remembered and asks once that popup is answered. */
 static int case_os_quit_asks_first(void) {
   ColonizeGameState* game = calloc(1, sizeof(*game));
   if (!game) {
@@ -721,9 +722,37 @@ static int case_os_quit_asks_first(void) {
     ai_popup_clear(&game->ai_popups);
     game->map_confirm = GAME_MAP_CONFIRM_NONE;
     game->in_menu = false;
-    game->in_report = true; /* a report draws no popup */
-    if (rc == 0 && (!game_request_quit(game) || game->ai_popups.queue_count != 0)) {
-      rc = fail("OS quit where the confirm cannot show must quit, not queue it");
+  }
+  if (rc == 0) {
+    /* A report draws no popup: the close leaves it, then asks on the map. */
+    game->in_report = true;
+    game->ff_pedia_after_report = -1;
+    if (game_request_quit(game) || game->in_report ||
+        game->map_confirm != GAME_MAP_CONFIRM_QUIT || game->ai_popups.queue_count != 1) {
+      rc = fail("OS quit on a report must leave it and queue the confirm");
+    }
+    ai_popup_clear(&game->ai_popups);
+    game->map_confirm = GAME_MAP_CONFIRM_NONE;
+  }
+  if (rc == 0) {
+    /* The player's own popup stays up; the confirm follows its answer. */
+    if (!ai_popup_enqueue_ok(&game->ai_popups, AI_POPUP_TAG_INFO, NULL, "x") ||
+        !ai_popup_try_present_next(&game->ai_popups)) {
+      rc = fail("present a player popup");
+    } else if (game_request_quit(game) || !game->ai_popups.open ||
+               game->ai_popups.current.tag != AI_POPUP_TAG_INFO ||
+               game->map_confirm != GAME_MAP_CONFIRM_NONE || !game->quit_ask_pending) {
+      rc = fail("OS quit over a popup must keep it open and remember the close");
+    } else if (!game_request_quit(game) || !game->ai_popups.open) {
+      rc = fail("second OS quit while a close is remembered must quit");
+    } else {
+      ai_popup_handle_input(&game->ai_popups, &enter);
+      game_apply_ai_popup_result(game);
+      game_quit_ask_service(game);
+      if (game->map_confirm != GAME_MAP_CONFIRM_QUIT || game->ai_popups.queue_count != 1 ||
+          game->quit_ask_pending) {
+        rc = fail("the remembered close must ask once the popup is answered");
+      }
     }
   }
   assets_msg_free(&game->messages);

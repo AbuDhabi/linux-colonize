@@ -3425,14 +3425,18 @@ COLONIZE_INTERNAL GameUpdateStep game_update_pedia_screen(ColonizeGameState* gam
   return GAME_UPDATE_CONTINUE;
 }
 
+static void game_debug_atlas_leave(ColonizeGameState* game) {
+  game->in_debug_atlas = false;
+  debug_atlas_free(&game->debug_atlas);
+  debug_atlas_init(&game->debug_atlas);
+  diag_info("Left sprite atlas debug screen.");
+}
+
 /* Sprite atlas debug screen input. */
 COLONIZE_INTERNAL GameUpdateStep game_update_debug_atlas_screen(ColonizeGameState* game, const ColonizeInputState* input) {
   if (game->in_debug_atlas) {
     if (input->last_key == COLONIZE_KEY_ESCAPE || input->last_key == COLONIZE_KEY_TILDE) {
-      game->in_debug_atlas = false;
-      debug_atlas_free(&game->debug_atlas);
-      debug_atlas_init(&game->debug_atlas);
-      diag_info("Left sprite atlas debug screen.");
+      game_debug_atlas_leave(game);
       return GAME_UPDATE_RETURN_TRUE;
     }
     if (input->last_key == COLONIZE_KEY_RIGHT) {
@@ -3453,6 +3457,79 @@ COLONIZE_INTERNAL GameUpdateStep game_update_debug_atlas_screen(ColonizeGameStat
     return GAME_UPDATE_RETURN_TRUE;
   }
   return GAME_UPDATE_CONTINUE;
+}
+
+/* Leave the Hall of Fame the way its key-or-click wait does: the @SCORED choice
+ * after a WoI win or the calendar end, else the title menu. */
+static void game_hall_of_fame_leave(ColonizeGameState* game) {
+  game->in_hall_of_fame = false;
+  if (game->scored_after_hof) {
+    /* WoI win (DOS main-loop 0x104 block) or the calendar end (FUN_3844_0442
+     * LAB_3844_0b4a, raw 58667-58676): the score chain ends in @SCORED "That's
+     * all." / "Keep playing anyway." instead of the menu. */
+    game->scored_after_hof = false;
+    game_enqueue_war_scored_choice(game);
+  } else {
+    mods_campaign_set(0); /* retired or title-menu visit: no campaign runs from here */
+    game->in_menu = true;
+    sound_set_bgm(SOUND_TITLE_BGM_POOL);
+    set_status(game, "OpenCol", NULL);
+  }
+}
+
+/* ===================== OS window close (game_request_quit) ===================== */
+/* The @DOSYES confirm can go up and be answered now: the idle popup gate in
+ * game_update_services, with no popup, modal or autoplay in the way. */
+static bool game_quit_confirm_can_show(const ColonizeGameState* game) {
+  return !game->autoplay && game->map_confirm == GAME_MAP_CONFIRM_NONE &&
+    !game_modal_open(game) && !ai_popup_busy(&game->ai_popups) && !game->ai_popups.has_result &&
+    !new_game_active(&game->new_game) && !game->in_pedia && !game->in_report &&
+    !game->in_exploits && !game->in_hall_of_fame && !game->in_debug_atlas &&
+    !game->colony_zoom_popup_hold;
+}
+
+/* A remembered window close asks once the player's popup or modal is answered. */
+COLONIZE_INTERNAL void game_quit_ask_service(ColonizeGameState* game) {
+  if (game->quit_ask_pending && game_quit_confirm_can_show(game)) {
+    game_enqueue_yes_no(
+      game, game->in_menu ? GAME_MAP_CONFIRM_TITLE_EXIT : GAME_MAP_CONFIRM_QUIT, -1, "DOSYES", "",
+      NULL
+    );
+  }
+}
+
+bool game_request_quit(ColonizeGameState* game) {
+  /* Port-only: the OS window close asks the map Esc @DOSYES first. A screen that
+   * draws no popup is left through its own exit first; a popup or modal the
+   * player has not answered keeps the screen, and the confirm follows it. A
+   * second close while either is waiting quits, so the window can always close.
+   * Autoplay (no player input) and the new-game wizard (no game yet) quit at once. */
+  if (!game || game->autoplay || game->quit_ask_pending ||
+      game->map_confirm == GAME_MAP_CONFIRM_QUIT ||
+      game->map_confirm == GAME_MAP_CONFIRM_TITLE_EXIT || new_game_active(&game->new_game)) {
+    return true;
+  }
+  /* A leave can chain into the next screen (report -> Founding Father article,
+   * retire score -> exploits -> Hall of Fame); the bound only guards a cycle. */
+  for (int guard = 0; guard < 8; ++guard) {
+    if (game->in_report) {
+      game_report_leave(game);
+    } else if (game->in_pedia) {
+      game_pedia_leave(game);
+    } else if (game->in_exploits) {
+      game->in_exploits = false; /* its key-or-click wait goes on to the Hall of Fame */
+      game->in_hall_of_fame = true;
+    } else if (game->in_hall_of_fame) {
+      game_hall_of_fame_leave(game);
+    } else if (game->in_debug_atlas) {
+      game_debug_atlas_leave(game);
+    } else {
+      break;
+    }
+  }
+  game->quit_ask_pending = true;
+  game_quit_ask_service(game);
+  return false;
 }
 
 /* Title menu input. */
@@ -4199,6 +4276,7 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
       game->ai_popups.bar_screen = bar_screen;
     }
   }
+  game_quit_ask_service(game);
   step = game_update_services(game, input, dt_ms);
   if (step != GAME_UPDATE_CONTINUE) {
     return step == GAME_UPDATE_RETURN_TRUE;
@@ -4271,19 +4349,7 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
   /* Title-menu Hall of Fame screen (reports_render_hall_of_fame). */
   if (game->in_hall_of_fame) {
     if (colonize_input_any_key_or_click(input)) {
-      game->in_hall_of_fame = false;
-      if (game->scored_after_hof) {
-        /* WoI win (DOS main-loop 0x104 block) or the calendar end (FUN_3844_0442
-         * LAB_3844_0b4a, raw 58667-58676): the score chain ends in @SCORED "That's
-         * all." / "Keep playing anyway." instead of the menu. */
-        game->scored_after_hof = false;
-        game_enqueue_war_scored_choice(game);
-      } else {
-        mods_campaign_set(0); /* retired or title-menu visit: no campaign runs from here */
-        game->in_menu = true;
-        sound_set_bgm(SOUND_TITLE_BGM_POOL);
-        set_status(game, "OpenCol", NULL);
-      }
+      game_hall_of_fame_leave(game);
     }
     return true;
   }

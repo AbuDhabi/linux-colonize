@@ -110,6 +110,7 @@ GameMoveStep game_move_commit(
 GameUpdateStep game_update_services(
   ColonizeGameState* game, const ColonizeInputState* input, uint32_t dt_ms
 );
+void game_quit_ask_service(ColonizeGameState* game);
 GameUpdateStep game_update_unit_pacer(
   ColonizeGameState* game, const ColonizeInputState* input, uint32_t dt_ms
 );
