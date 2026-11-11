@@ -620,3 +620,30 @@ four DOS map dumps hit it.
 **Port:** `forest_wander_pass` (`src/core/map_gen.c`) starts both chances at 0 and draws
 nothing.
 **Status:** done (user 2026-11-10; port already differed).
+
+### DB-101 — @INDIANCOME after first-contact peace reads an unrelated word
+**DOS:** FUN_5bfb_0182 (raw 96551, asm 5bfb:01ee-0203) shows @INDIANCOME after
+@INDIANPEACE when `FUN_281f_030c(euro - 4, tribe nation) < 0x19`. Every other 030c caller
+passes (tribe slot, euro); here the arguments are swapped, so the word read is
+DS:0x5b1c + ((euro - 4) * 0x27 + nation) * 2: a dwelling-record word (slots 71..80) for
+euro 0..2, an Inca-record word for euro 3. Whether the line shows depends on an
+unrelated village's population and mission bytes (port_bugs.md #1230).
+
+**Port:** `ai_contact_apply_welcome_accept` (`src/core/ai_contact.c`) reads the tribe's
+alarm toward the nation. FUN_5bfb_022e has just clamped it to 20 (raw 96620-96624), so
+@INDIANCOME always follows @INDIANPEACE for a human nation. Message chrome only; no
+AI, RNG or save path reads the gate. Test: `unit_ai_contact_core`
+`welcome_accept_come_reads_alarm`.
+**Status:** done (user 2026-11-11). Was dos_bug_candidates_2026-10-22.md C-66.
+
+### DB-102 — The save writes 4 uninitialised stack bytes after the tallies
+**DOS:** FUN_75c2_0288 (raw 120104, asm 75c2:07bd) writes the 4-byte stack local at
+[BP-6] after `continent_tally_b`, at post_map offset 604 (`save_path_blob`). Nothing in
+the function sets it (ENTER 6; its only other local is the version word at [BP-2]), so
+every save carries whatever an earlier call left on the stack. The loader FUN_75c2_0940
+reads the 4 bytes into `local_64` and never uses them (raw 120425).
+
+**Port:** creates no junk of its own: `post_map.save_path_blob` is 0 on a new game and a
+loaded save's 4 bytes are carried over unchanged to the next save. Nothing reads them in
+DOS or the port, so the slip is invisible.
+**Status:** recorded, not fixed (user 2026-11-11).

@@ -300,3 +300,16 @@ unit 66 -> 155, spent 3, orders 0, tools 100, colony 60. Same mechanism as DB-54
 **Port:** `game_colony_open_jobs` (`src/core/game_loop_colony.c`) only opens the popup;
 a picked role row exhausts and re-equips as DOS does (#650).
 **Status:** done (user 2026-11-10; port already differed).
+
+### DB-103 — Score computed for the Hall of Fame draws two report lines
+**DOS:** FUN_41f2_0092 gates every draw on `param_1 != 0` except two: the line after the
+Founding Fathers loop (raw 71236-71246, asm from LAB_41f2_04e0, string DS:0x2ec6) and the
+bells line under 0x5382 & 2 (raw 71327-71340, asm after LAB_41f2_08ae, string DS:0x97e4).
+Both build their text and call FUN_281f_013c with no `param_1` test. So the compute-only
+call from FUN_41f2_14a8 (`thunk_FUN_291f_03aa(0)`, raw 72750, the Hall of Fame score)
+prints them at the report cursor over whatever screen is up.
+
+**Port:** `reports_compute_score_w` (`src/core/reports_score.c`) only computes; the lines
+are drawn by `reports_render_score` alone, on the F10 plate. No test: the compute path has
+no draw target to check.
+**Status:** done (user 2026-11-11; port already differed).

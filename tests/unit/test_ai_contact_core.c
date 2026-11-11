@@ -7354,14 +7354,15 @@ static int case_actions_menu_missionary(void) { return fx_run(58); }
 static int case_actions_menu_wagon(void) { return fx_run(59); }
 
 /*
- * port_bugs.md #1230: FUN_5bfb_0182 shows @INDIANCOME when
- * FUN_281f_030c(euro - 4, nation) < 0x19 (signed). For France (1) meeting the
- * Tupi (11) that word is DS:0x5b1c + (-3 * 0x27 + 11) * 2 = DS:0x5a48, dwelling
- * slot 76 bytes +4/+5 (population | mission << 8). No mission (0xff) reads
- * negative and the line shows; a French mission makes it 0x1xx and it does not.
- * For the Dutch (3) the word is in the Inca record: Tupi reads +14 (tons[0]).
+ * docs/dos_bugs.md DB-101: DOS FUN_5bfb_0182 gates @INDIANCOME on
+ * FUN_281f_030c(euro - 4, nation) < 0x19, arguments swapped. For France (1)
+ * meeting the Tupi (11) that word is DS:0x5a48, dwelling slot 76 bytes +4/+5
+ * (population | mission << 8): a French mission makes it 0x1xx and DOS drops
+ * the line. For the Dutch (3) it is the Inca record's +14 (tons[0]). The port
+ * reads the Tupi alarm toward the nation, clamped to 20 just before, so the
+ * line shows whatever those unrelated words hold.
  */
-static int case_welcome_accept_come_word(void) {
+static int case_welcome_accept_come_reads_alarm(void) {
   if (!test_game_txt()) {
     return TR_SKIP;
   }
@@ -7384,23 +7385,21 @@ static int case_welcome_accept_come_word(void) {
   c.messages = test_game_txt(); /* textless OKs are dropped */
   int rc = 0;
   tribes[76].population = 3;
-  tribes[76].mission = 0xff;
+  tribes[76].mission = 1;
+  s.indian[7].alarm_by_player[1] = 90;
   ai_contact_apply_welcome_accept(&c, &s.indian[7], 11, 1);
   if (p.queue_count != 2) {
-    rc = fail("come word: unmissioned slot 76 should show PEACE + COME");
+    rc = fail("come alarm: a French mission in slot 76 must not suppress COME");
   }
-  ai_popup_clear(&p);
-  tribes[76].mission = 1;
-  ai_contact_apply_welcome_accept(&c, &s.indian[7], 11, 1);
-  if (rc == 0 && p.queue_count != 1) {
-    rc = fail("come word: a French mission in slot 76 should suppress COME");
+  if (rc == 0 && s.indian[7].alarm_by_player[1] != 20) {
+    rc = fail("come alarm: accept should clamp the alarm to 20");
   }
   ai_popup_clear(&p);
   c.human_nation = 3;
   s.indian[0].tons[0] = 0x19;
   ai_contact_apply_welcome_accept(&c, &s.indian[7], 11, 3);
-  if (rc == 0 && p.queue_count != 1) {
-    rc = fail("come word: Dutch read Inca tons[0] = 0x19, no COME");
+  if (rc == 0 && p.queue_count != 2) {
+    rc = fail("come alarm: Inca tons[0] = 0x19 must not suppress the Dutch COME");
   }
   free(tribes);
   return rc;
@@ -7481,7 +7480,7 @@ static int case_mood_tally(void) {
 static const TestCase k_cases[] = {
   {"mood_tally", case_mood_tally},
   {"village_bgm_cue", case_village_bgm_cue},
-  {"welcome_accept_come_word", case_welcome_accept_come_word},
+  {"welcome_accept_come_reads_alarm", case_welcome_accept_come_reads_alarm},
   {"meet_first_contact", case_meet_first_contact},
   {"raid_colony_loot", case_raid_colony_loot},
   {"raid_alarm_tail_war_gate", case_raid_alarm_tail_war_gate},
