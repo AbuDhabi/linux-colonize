@@ -696,6 +696,16 @@ void game_finish_end_turn(ColonizeGameState* game, const ColonizeTurnResult* res
   units_set_combat_dissolve(NULL, NULL);
   units_set_combat_popup_pump(NULL, NULL);
   game->turn_flow_deferred = false;
+  /* The processor stopped on a FUN_3844_0442 game end (WoI win, @LOSENOCOLONIES,
+   * @LOSINGn) with DS:0x53c2 clear: FUN_130d_0290 saves COLONY10.SAV on the win
+   * (raw 6462-6466) and returns (raw 6511) before the next day's slots, so no
+   * Europe lane, autosave, @MERCENARIES offer, Move Pieces entry or harbor
+   * open follows. */
+  if (result && (result->year_end_victory || result->year_end_defeat ||
+                 result->year_end_war_lost)) {
+    game_apply_turn_autosave(game, result);
+    return;
+  }
   game_europe_service_trade_harbor(game);
   game_europe_deliver_bound_ships(game);
   /*
