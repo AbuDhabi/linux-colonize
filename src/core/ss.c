@@ -544,3 +544,41 @@ bool ss_load_asset(const char* data_dir, const char* name, ColonizeSpriteSheet* 
   }
   return true;
 }
+
+static int ss_icon_scale(const ColonizeSprite* sprite) {
+  const int side = sprite->width > sprite->height ? sprite->width : sprite->height;
+  return side > 0 && 256 / side > 0 ? 256 / side : 1;
+}
+
+int ss_icon_side(const ColonizeSprite* sprite) {
+  if (!sprite || sprite->width <= 0 || sprite->height <= 0) {
+    return 0;
+  }
+  const int side = sprite->width > sprite->height ? sprite->width : sprite->height;
+  return side * ss_icon_scale(sprite);
+}
+
+void ss_sprite_to_icon_argb(const ColonizeSprite* sprite, const ColonizePalette* palette, uint32_t* out) {
+  const int n = ss_icon_side(sprite);
+  if (n <= 0 || !sprite->pixels || !palette || !out) {
+    return;
+  }
+  const int scale = ss_icon_scale(sprite);
+  const int ox = (n / scale - sprite->width) / 2;
+  const int oy = (n / scale - sprite->height) / 2;
+  for (int y = 0; y < n; ++y) {
+    for (int x = 0; x < n; ++x) {
+      const int sx = x / scale - ox;
+      const int sy = y / scale - oy;
+      uint32_t pixel = 0;
+      if (sx >= 0 && sx < sprite->width && sy >= 0 && sy < sprite->height) {
+        const uint8_t index = sprite->pixels[sy * sprite->width + sx];
+        if (index != COLONIZE_SS_TRANSPARENT) {
+          pixel = 0xff000000u | ((uint32_t)palette->rgb[index][0] << 16) |
+                  ((uint32_t)palette->rgb[index][1] << 8) | (uint32_t)palette->rgb[index][2];
+        }
+      }
+      out[y * n + x] = pixel;
+    }
+  }
+}

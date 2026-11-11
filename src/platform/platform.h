@@ -170,6 +170,8 @@ void platform_sleep_ms(uint32_t ms);
 bool platform_clipboard_get(char* out, size_t out_size);
 void platform_clipboard_set(const char* text);
 void platform_set_window_title(ColonizePlatform* platform, const char* title);
+/* Window / Dock icon from a width x height ARGB8888 buffer (alpha 0 = transparent). */
+void platform_set_window_icon(ColonizePlatform* platform, const uint32_t* argb, int width, int height);
 
 /*
  * Replace the OS mouse pointer with an indexed-color sprite (0xFD = transparent),

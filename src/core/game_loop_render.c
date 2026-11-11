@@ -2172,6 +2172,22 @@ void game_set_platform(ColonizeGameState* game, ColonizePlatform* platform) {
   }
   game->platform = platform;
   units_set_combat_human_nation(game->human_nation);
+  /* Window / Dock icon: the Caravel's ICONS.SS sprite, found through its @UNIT
+   * row, so the art comes from the player's game data and nothing is shipped. */
+  if (platform && game->units_ok && game->unit_icons_ok && game->unit_icons.has_palette) {
+    const ColonizeUnitType* t =
+      units_type(&game->units, units_kind_type_index(&game->units, UNITS_KIND_CARAVEL));
+    if (t && t->icon_sprite >= 0 && t->icon_sprite < game->unit_icons.sprite_count) {
+      const ColonizeSprite* sp = &game->unit_icons.sprites[t->icon_sprite];
+      const int n = ss_icon_side(sp);
+      uint32_t* argb = n > 0 ? malloc((size_t)n * (size_t)n * sizeof(uint32_t)) : NULL;
+      if (argb) {
+        ss_sprite_to_icon_argb(sp, &game->unit_icons.palette, argb);
+        platform_set_window_icon(platform, argb, n, n);
+        free(argb);
+      }
+    }
+  }
   units_set_camera_edge_hook(game_camera_edge_center, game);
   ai_popup_set_camera_hook(game_popup_camera, game);
   units_set_phantom_lunge_hook(game_phantom_lunge, game);

@@ -110,5 +110,12 @@ void ss_blit_sprite_lut(
   int dst_y,
   const uint8_t lut[256]
 );
+/*
+ * Window-icon pixels: the sprite centred on a square ARGB8888 canvas of side
+ * ss_icon_side(sprite), nearest-neighbour scaled up to about 256 px.
+ * COLONIZE_SS_TRANSPARENT pixels and the margin come out fully transparent (0).
+ */
+int ss_icon_side(const ColonizeSprite* sprite);
+void ss_sprite_to_icon_argb(const ColonizeSprite* sprite, const ColonizePalette* palette, uint32_t* out);
 
 #endif

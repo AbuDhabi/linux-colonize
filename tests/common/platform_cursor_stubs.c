@@ -73,6 +73,13 @@ void platform_set_mouse_cursor_default(ColonizePlatform* platform) {
   (void)platform;
 }
 
+void platform_set_window_icon(ColonizePlatform* platform, const uint32_t* argb, int width, int height) {
+  (void)platform;
+  (void)argb;
+  (void)width;
+  (void)height;
+}
+
 void platform_show_game_mouse_cursor(ColonizePlatform* platform, bool show_game_cursor) {
   (void)platform;
   (void)show_game_cursor;
