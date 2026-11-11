@@ -82,6 +82,7 @@ and rumours, or a ship to uncharted sea, on its own.
 now is shown veiled.
 ^{Construction Queue}: Shift-click a project to queue it behind the current
 one. Projects the queue unlocks are listed in grey; they can only be queued.
+^{Modern Random Numbers}: the save keeps the dice; a load rerolls nothing.
 
 @;
 @MODMISC14
@@ -92,5 +93,9 @@ one off on the title menu (MODS for New Games) to play as the original.
 ^{Go To Waits at Natives}: in the original, a unit sent by Go To to a tile where
 a native unit stands attacks it. With the fix it stops next to the tile and
 waits, keeping its order, and goes on once the tile is free.
+^{Refused Beg Alarms the Tribe}: in the original, turning away natives who beg
+for food never raises that tribe's alarm; the change is written into another
+tribe's records by mistake. With the fix the begging tribe's alarm toward you
+rises, by the usual rules for your nation.
 
 @;

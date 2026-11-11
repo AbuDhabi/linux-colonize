@@ -108,7 +108,6 @@ typedef struct ColonizeSettings {
   /* "divergences": opt-in departures from DOS behaviour (default all off),
    * process-wide, read at startup. Per-campaign toggles are "mods" below. */
   bool unlimited_units; /* skip the FUN_1427_06b4 unit limits (units_set_unlimited) */
-  bool modern_prng;     /* xoshiro256** instead of the DOS LCG (dos_rng_modern_seed) */
   bool alternate_map_generator; /* NEW WORLD / CUSTOMIZE via map_generate_alternate (map_gen_set_alternate) */
 
   /* "mods": per-toggle defaults a new game copies into its campaign (mods.h).

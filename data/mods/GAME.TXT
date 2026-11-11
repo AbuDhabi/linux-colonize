@@ -44,6 +44,7 @@ Scouts Auto-~Explore
 S~hips Auto-Explore
 Current ~Vision Veil
 ~Construction Queue
+Modern ~Random Numbers
 
 @MODOPTIONS3
 @width=220
@@ -51,6 +52,7 @@ Current ~Vision Veil
 DOS Bug Fixes
 @options
 ~Go To Waits at Natives
+~Refused Beg Alarms the Tribe
 
 ;       Button under every @MODOPTIONS page: saves the page, like Enter.
 ;       Row 0 on the pages before the last, row 1 on the last.

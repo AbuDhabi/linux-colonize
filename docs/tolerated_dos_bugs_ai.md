@@ -209,15 +209,19 @@ tribe's record bytes are edited instead. The village's own attitude word still
 grows by half. Every refusal is affected, human and AI (AI Spain always
 refuses).
 
-**Port (reproduces it):** `ai_contact_apply_beg_food`
-(`src/core/ai_contact_demand.c`), refuse arm, via
-`ai_diplo_indian_alarm_word_raw`. Evidence: DOSBox independence 4->5.
+**Port:** `ai_contact_apply_beg_food` (`src/core/ai_contact_demand.c`), refuse
+arm. Fixed behind the `mods.beg_refusal_alarm` toggle (settings.md "Mods"; on
+by default): the refuser goes through `ai_contact_alarm_delta_00f2`, the whole
+FUN_4cc6_00f2 the accept arm uses (France and Pocahontas halving, clamp, the
+expel roll at 100). Toggle off, or `dos_buggy_behavior()` on (every test
+binary): the DOS write via `ai_diplo_indian_alarm_word_raw`. Evidence: DOSBox
+independence 4->5. Tests: `unit_ai_contact_core` (BEGFOOD decline cases).
 
 **Blocks removal:** tried 2026-10-22 (pass the Euro nation); fails
 `golden_idle_independence` and `_reload`, and `unit_ai_contact_core` ("BEGFOOD
 decline must leave the European's alarm" pins DOS); reverted.
 [Details](archive/tolerated_dos_bugs_evidence_2026-10-24.md#tb-12).
-**Status:** tolerated (2026-10-22). Fixed in opencol 2026-10-27, gated on `!dos_buggy_behavior()`; test binaries still reproduce DOS.
+**Status:** tolerated (2026-10-22). Fixed in opencol behind `mods.beg_refusal_alarm` (default on); a game started before the toggle existed, and test binaries, reproduce DOS.
 
 ### TB-13 — Euro AI colony tick loses its own nation after the improvement arm
 **DOS:** FUN_5952_035e keeps the colony's nation (colony+0x1a) in the local

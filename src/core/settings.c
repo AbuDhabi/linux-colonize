@@ -103,7 +103,6 @@ static const SettingsBoolOpt k_debug_opts[] = {
 /* "divergences": deliberate departures from DOS, all off by default. */
 static const SettingsBoolOpt k_divergence_opts[] = {
   SETTINGS_BOOL(unlimited_units, false),
-  SETTINGS_BOOL(modern_prng, false),
   SETTINGS_BOOL(alternate_map_generator, false),
 };
 
@@ -130,6 +129,8 @@ static const SettingsBoolOpt k_mod_opts[] = {
   SETTINGS_MOD("hard_king", MOD_HARD_KING, false),
   SETTINGS_MOD("current_vision", MOD_CURRENT_VISION, false),
   SETTINGS_MOD("construction_queue", MOD_CONSTRUCTION_QUEUE, false),
+  SETTINGS_MOD("modern_prng", MOD_MODERN_PRNG, false),
+  SETTINGS_MOD("beg_refusal_alarm", MOD_BEG_REFUSAL_ALARM, true),
 };
 
 #define SETTINGS_OPT_COUNT(t) ((int)(sizeof(t) / sizeof((t)[0])))
@@ -462,7 +463,9 @@ bool settings_load_file(const char* path, ColonizeSettings* out, char* err, size
     const SettingsBoolOpt* opt = &k_mod_opts[i];
     const size_t id = (opt->offset - offsetof(ColonizeSettings, mods)) / sizeof(bool);
     bool v;
-    if (id >= MOD_PIONEER_PLAN && id <= MOD_CURRENT_VISION && !json_get_bool(mods, opt->key, &v)) {
+    const bool was_divergence =
+      (id >= MOD_PIONEER_PLAN && id <= MOD_CURRENT_VISION) || id == MOD_MODERN_PRNG;
+    if (was_divergence && !json_get_bool(mods, opt->key, &v)) {
       rb(json_obj_get(root, "divergences"), opt->key, settings_bool_at(out, opt));
     }
   }

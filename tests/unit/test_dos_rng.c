@@ -1,4 +1,4 @@
-/* settings.json divergences.modern_prng: vendored xoshiro256** / splitmix64
+/* Mod modern_prng: vendored xoshiro256** / splitmix64
  * against reference values, and the dos_rng + RTST plumbing on top. */
 #include <stdio.h>
 #include <stdlib.h>
@@ -42,6 +42,7 @@ static void test_modern_stream(void) {
   ColonizeDosRng r;
   dos_rng_seed(&r, 5);
   check(dos_rng_modern_state() == NULL, "off until seeded");
+  mods_campaign_set(1u << MOD_MODERN_PRNG);
   dos_rng_modern_seed(100);
   check(dos_rng_next(&r) == 1407, "draw 0 = top 15 bits");
   check(dos_rng_next(&r) == 2520, "draw 1");
@@ -58,6 +59,41 @@ static void test_modern_stream(void) {
 
   dos_rng_seed(&r, 1);
   check(dos_rng_range_lcg(&r, 0, 0x7fff) == 41, "lcg path stays MSC rand (seed 1 -> 41)");
+  mods_campaign_set(0);
+}
+
+/* Mod modern_prng is per campaign: the stream runs only while the campaign
+ * mask has it, a save keeps both the bit and the stream (a load resumes it,
+ * no reseed), and a campaign without it (DOS save) plays the LCG. */
+static void test_modern_prng_mod(void) {
+  ColonizeDosRng r;
+  dos_rng_seed(&r, 5);
+  mods_campaign_set(1u << MOD_MODERN_PRNG);
+  dos_rng_modern_seed(100);
+  check(dos_rng_next(&r) == 1407, "mod on: xoshiro draw 0");
+  size_t n = 0;
+  uint8_t* blob = runtime_ext_serialize(NULL, NULL, &n);
+
+  mods_campaign_set(0);
+  check(dos_rng_modern_state() == NULL, "a campaign without the mod has no modern stream");
+  dos_rng_seed(&r, 1);
+  check(dos_rng_next(&r) == 41, "mod off: DOS LCG (seed 1 -> 41)");
+
+  runtime_ext_deserialize(NULL, NULL, NULL, blob, n);
+  free(blob);
+  check(mods_on(MOD_MODERN_PRNG), "the save keeps the mod");
+  check(dos_rng_next(&r) == 2520, "the load resumes the saved stream (xoshiro draw 1)");
+
+  runtime_ext_deserialize(NULL, NULL, NULL, NULL, 0);
+  check(!mods_on(MOD_MODERN_PRNG) && dos_rng_modern_state() == NULL,
+        "a DOS save (no RTST) loads with the LCG");
+
+  /* Record 13 alone: a save from when modern_prng was a settings.json switch. */
+  uint8_t xo_only[8 + 32] = {13, 0, 1, 0, 32, 0, 0, 0};
+  memset(xo_only + 8, 0x5a, 32);
+  runtime_ext_deserialize(NULL, NULL, NULL, xo_only, sizeof xo_only);
+  check(!mods_on(MOD_MODERN_PRNG) && dos_rng_modern_state() == NULL,
+        "RT_XOSHIRO without the RT_MODS bit loads with the LCG");
 }
 
 /* FUN_281f_04ca reads the BIOS tick: the fixed word only while live ticks are
@@ -176,6 +212,7 @@ static void test_rtst_mods_mask(void) {
   }
 CASE_(test_xoshiro_reference)
 CASE_(test_modern_stream)
+CASE_(test_modern_prng_mod)
 CASE_(test_04ca_live_tick)
 CASE_(test_04ca_synth_tick)
 CASE_(test_rtst_repair_pending)
@@ -185,6 +222,7 @@ CASE_(test_rtst_mods_mask)
 static const TestCase k_cases[] = {
   {"test_xoshiro_reference", tc_test_xoshiro_reference},
   {"test_modern_stream", tc_test_modern_stream},
+  {"test_modern_prng_mod", tc_test_modern_prng_mod},
   {"test_04ca_live_tick", tc_test_04ca_live_tick},
   {"test_04ca_synth_tick", tc_test_04ca_synth_tick},
   {"test_rtst_repair_pending", tc_test_rtst_repair_pending},
