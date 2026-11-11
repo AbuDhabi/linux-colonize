@@ -438,7 +438,8 @@ static int case_declare_war_side_effects(void) {
       ColonizeMsgCatalog game_txt_sneak;
       memset(&game_txt_sneak, 0, sizeof(game_txt_sneak));
       if (!assets_msg_load_file(&game_txt_sneak, "COLONIZE/GAME.TXT")) {
-        return fail("@SNEAK: GAME.TXT load failed");
+        fprintf(stderr, "unit_ai_diplo: @SNEAK: GAME.TXT load failed\n");
+        return TR_SKIP;
       }
       sneak_buf[0] = '\0';
       popup_msg_fill(
@@ -1146,6 +1147,9 @@ static int case_153e_reads_census_rows(void) {
 }
 
 static int case_153e_phases_2_4_encounter(void) {
+  if (!test_game_txt()) {
+    return TR_SKIP;
+  }
   ai_diplo_talk_reset(); /* a talk left open by an earlier case refuses this one */
     ColonizeWorldMap emap;
     memset(&emap, 0, sizeof(emap));
@@ -1477,6 +1481,9 @@ static int case_153e_war_bit_survives_worthy_peace(void) {
  * 0x02 toward France survives the accepted cash peace.
  */
 static int case_153e_war_bit_survives_givecash_peace(void) {
+  if (!test_game_txt()) {
+    return TR_SKIP;
+  }
   ai_diplo_talk_reset(); /* a talk left open by an earlier case refuses this one */
   static TreatyFx f;
   if (treaty_fx_init(&f) != 0) {
@@ -1514,6 +1521,9 @@ static int case_153e_war_bit_survives_givecash_peace(void) {
  * and DOS says WAR (raw 98039-98047). No gold moves, no PEACE, the talk ends.
  */
 static int case_153e_esc_falls_through_1636(void) {
+  if (!test_game_txt()) {
+    return TR_SKIP;
+  }
   ai_diplo_talk_reset();
   static TreatyFx f;
   if (treaty_fx_init(&f) != 0) {
@@ -1736,6 +1746,9 @@ static int wantstuff_run(int tie, int no_demand) {
 }
 
 static int case_153e_wantstuff_demand(void) {
+  if (!test_game_txt()) {
+    return TR_SKIP;
+  }
   return wantstuff_run(0, 0);
 }
 
@@ -1755,6 +1768,9 @@ static int case_153e_wantstuff_weight_is_84bc_byte(void) {
 }
 
 static int case_153e_worthy_cascade(void) {
+  if (!test_game_txt()) {
+    return TR_SKIP;
+  }
   ai_diplo_talk_reset(); /* a talk left open by an earlier case refuses this one */
     ColonizeWorldMap rmap;
     memset(&rmap, 0, sizeof(rmap));
@@ -2574,6 +2590,9 @@ static void ally_fx_answer(TreatyFx* f, int choice, char* oks, char* asked) {
  * clears France's PEACE with p (WAR both ways), short gold -> @UNFORTUNATE.
  */
 static int case_153e_ally_pay(void) {
+  if (!test_game_txt()) {
+    return TR_SKIP;
+  }
   static TreatyFx f;
   static ColonizeCol1Tribe tribe[1];
   static char oks[AI_POPUP_BODY_LEN];
@@ -2754,6 +2773,9 @@ static int case_153e_treasury_clamp_strict(void) {
  * %STRING0 = @GREATLEADER2[target], %STRING1 = target country; PEACE cleared.
  */
 static int case_153e_withdraw_refusal_tone(void) {
+  if (!test_game_txt()) {
+    return TR_SKIP;
+  }
   static TreatyFx f;
   static char oks[AI_POPUP_BODY_LEN];
   static char asked[AI_POPUP_BODY_LEN];
@@ -2826,6 +2848,9 @@ static int case_153e_usa_signs_without_worthy(void) {
  * alone (no unit rescan).
  */
 static int case_ai_pair_news_reaches_human(void) {
+  if (!test_game_txt()) {
+    return TR_SKIP;
+  }
   static TreatyFx f;
   if (treaty_fx_init(&f) != 0) {
     return 1;

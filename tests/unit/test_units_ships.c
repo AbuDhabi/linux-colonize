@@ -128,7 +128,7 @@ static int unit_refit_drydock(void) {
   assets_msg_init(&names);
   if (!assets_msg_load_file(&names, "COLONIZE/NAMES.TXT")) {
     fprintf(stderr, "refit: NAMES.TXT load failed\n");
-    return 1;
+    return TR_SKIP;
   }
   ColonizeUnitPool pool;
   memset(&pool, 0, sizeof(pool));
@@ -176,7 +176,7 @@ static int unit_refit_drydock(void) {
   if (!assets_msg_load_file(&game_txt, "COLONIZE/GAME.TXT")) {
     fprintf(stderr, "refit: GAME.TXT load failed\n");
     assets_msg_free(&names);
-    return 1;
+    return TR_SKIP;
   }
   AiPopupState pops;
   ai_popup_init(&pops);
@@ -233,7 +233,7 @@ static int unit_warehouse_full(void) {
   assets_msg_init(&names);
   if (!assets_msg_load_file(&names, "COLONIZE/NAMES.TXT")) {
     fprintf(stderr, "whfull: NAMES.TXT load failed\n");
-    return 1;
+    return TR_SKIP;
   }
   ColonizeUnitPool pool;
   memset(&pool, 0, sizeof(pool));
@@ -1004,7 +1004,7 @@ static int unit_tb2_departure_own_riders_only(void) {
   ColonizeMsgCatalog names;
   assets_msg_init(&names);
   if (!assets_msg_load_file(&names, "COLONIZE/NAMES.TXT")) {
-    return 1;
+    return TR_SKIP;
   }
   ColonizeUnitPool pool;
   memset(&pool, 0, sizeof(pool));
@@ -1162,7 +1162,7 @@ static int unit_4720_board_gate_and_landfall(void) {
   ColonizeMsgCatalog names;
   assets_msg_init(&names);
   if (!assets_msg_load_file(&names, "COLONIZE/NAMES.TXT")) {
-    return 1;
+    return TR_SKIP;
   }
   static ColonizeUnitPool pool;
   memset(&pool, 0, sizeof(pool));

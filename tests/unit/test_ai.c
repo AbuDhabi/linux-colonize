@@ -400,7 +400,7 @@ static int run_init_and_turns(
   }
   if (!assets_msg_load_file(&names, names_path)) {
     fprintf(stderr, "%s: failed to load NAMES.TXT\n", label);
-    return 1;
+    return TR_SKIP;
   }
 
   ColonizeUnitPool units;
@@ -1196,7 +1196,7 @@ static int run_village_threat_alarm(void) {
   assets_msg_init(&names);
   if (!assets_msg_load_file(&names, "COLONIZE/NAMES.TXT")) {
     fprintf(stderr, "threat: NAMES.TXT load failed\n");
-    return 1;
+    return TR_SKIP;
   }
 
   ColonizeWorldMap map;
@@ -1425,6 +1425,9 @@ static void ai_152e_fixture_free(Ai152eFixture* f) {
  * this 152e term is now DOS's only mission relief.
  */
 static int run_152e_mission_attitude_word(void) {
+  if (!test_names_txt()) {
+    return TR_SKIP;
+  }
   Ai152eFixture f;
   if (ai_152e_fixture_init(&f, "152e-mission-word", 4242u) != 0) {
     return 1;
@@ -1485,6 +1488,9 @@ static int run_152e_mission_attitude_word(void) {
  * within a couple of ticks and an unwired one never does.
  */
 static int run_152e_alarm_escalation(void) {
+  if (!test_names_txt()) {
+    return TR_SKIP;
+  }
   Ai152eFixture f;
   if (ai_152e_fixture_init(&f, "152e-escalate", 90909u) != 0) {
     return 1;
@@ -1555,6 +1561,9 @@ static int run_152e_alarm_escalation(void) {
  * record.)
  */
 static int run_152e_mission_nibble_out_of_domain(void) {
+  if (!test_names_txt()) {
+    return TR_SKIP;
+  }
   Ai152eFixture f;
   if (ai_152e_fixture_init(&f, "152e-mission-nibble", 1337u) != 0) {
     return 1;
@@ -3732,8 +3741,9 @@ static int case_america(void) {
  * here; ai_init_new_game -> units_reset_state drops it). */
 static int case_new_world_after_america(void) {
   diag_init(0, NULL);
-  if (run_init_and_turns("COLONIZE", true, 2, "AMERICA") != 0) {
-    return 1;
+  const int rc = run_init_and_turns("COLONIZE", true, 2, "AMERICA");
+  if (rc != 0) {
+    return rc;
   }
   return run_init_and_turns("COLONIZE", false, 0, "NEW_WORLD after AMERICA");
 }

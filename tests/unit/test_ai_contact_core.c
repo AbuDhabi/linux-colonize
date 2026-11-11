@@ -7290,6 +7290,9 @@ static const SpineFn k_spine[] = {
  * fixture down. A failure in an earlier segment fails this case too — its own
  * fail() diagnostic names the beat that broke. */
 static int fx_run(int upto) {
+  if (!test_game_txt() || !test_names_txt()) {
+    return TR_SKIP;
+  }
   int rc = 0;
   for (int i = 0; i <= upto; ++i) {
     rc = k_spine[i]();
@@ -7359,6 +7362,9 @@ static int case_actions_menu_wagon(void) { return fx_run(59); }
  * For the Dutch (3) the word is in the Inca record: Tupi reads +14 (tons[0]).
  */
 static int case_welcome_accept_come_word(void) {
+  if (!test_game_txt()) {
+    return TR_SKIP;
+  }
   static ColonizeCol1Save s;
   memset(&s, 0, sizeof(s));
   ColonizeCol1Tribe* tribes = calloc(80, sizeof(ColonizeCol1Tribe));
