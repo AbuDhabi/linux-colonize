@@ -89,8 +89,9 @@ doubled to +32 / -32); tiles below 0 are water.
    mean dries (plains -> tundra, prairie -> plains, grassland -> prairie, savannah
    -> grassland); more than one above moistens (savannah -> swamp, grassland ->
    marsh, prairie -> grassland, plains -> prairie, tundra -> plains). So a river through a dry basin is never desert.
-9. **Forest** on `FOREST_PERCENT` (90) % of flat non-arctic land; desert becomes
-   scrub forest.
+9. **Forest** on `FOREST_PERCENT` (90) % of flat non-arctic land. Desert becomes
+   scrub forest only near its edge: 90 % next to a tile that is neither desert nor
+   scrub, 50 % two tiles in, 10 % three, never deeper (`k_scrub_percent`).
 10. **Shared tail.** High seas: per row, open water walked west from the east edge
     (east half only), minus tiles within 2 of land, kept only while contiguous with
     the edge (the Euro landfall walk needs that). Then `map_gen_finalize_border_and_forest`,

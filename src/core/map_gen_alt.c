@@ -992,15 +992,39 @@ static void rivers(AltGen* g) {
   free(filled);
 }
 
-/* Forest on FOREST_PERCENT of flat land (desert -> scrub forest); never on
- * hills, mountains or arctic. */
+/* Tiles (8-neighbour rings) from desert tile (i) to the nearest tile that is
+ * neither desert nor scrub forest, capped at 4. */
+static int desert_depth(const AltGen* g, int i) {
+  const int x = i % W;
+  const int y = i / W;
+  for (int r = 1; r < 4; ++r) {
+    for (int dy = -r; dy <= r; ++dy) {
+      for (int dx = -r; dx <= r; ++dx) {
+        if ((abs(dx) != r && abs(dy) != r) || !map_dims_in_bounds(x + dx, y + dy, W, H)) {
+          continue;
+        }
+        const int typ = g->terrain[(y + dy) * W + x + dx] & 0x1f;
+        if (typ != T_DESERT && typ != T_DESERT + T_FOREST_BIT) { /* scrub is desert too */
+          return r;
+        }
+      }
+    }
+  }
+  return 4;
+}
+
+/* Forest on FOREST_PERCENT of flat land; never on hills, mountains or arctic.
+ * Desert becomes scrub forest only near its edge (k_scrub_percent by depth),
+ * so desert interiors stay open. */
 static void forests(AltGen* g) {
+  static const int k_scrub_percent[5] = {0, FOREST_PERCENT, 50, 10, 0};
   for (int i = 0; i < N; ++i) {
     const uint8_t t = g->terrain[i];
     if ((t & 0x1f) > 7 || (t & F_HILL)) {
       continue;
     }
-    if (rnd(g, 0, 99) < FOREST_PERCENT) {
+    const int chance = (t & 0x1f) == T_DESERT ? k_scrub_percent[desert_depth(g, i)] : FOREST_PERCENT;
+    if (rnd(g, 0, 99) < chance) {
       g->terrain[i] = (uint8_t)(t + T_FOREST_BIT);
     }
   }
