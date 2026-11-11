@@ -827,7 +827,9 @@ void colony_screen_building_worker_layout(
  * Fence-unit x's and row: FUN_2f2b_11b2 (asm 26AB2-26AE4, port_bugs.md #1691) runs the same
  * FUN_1097_0004 geometry as a class-3 worker strip (flags 2, w = min_w = DS:0x24b = 65,
  * origin slot + DS:0x23c/0x242[3]) with ICONS 0x67 (port index 0x66) as the reference
- * sprite, and draws no count. xs gets the n icon x's; returns the icon row.
+ * sprite, and draws no count. xs gets the n icon x's; returns the icon row. Unlike
+ * FUN_2f2b_12cc (asm 26C9A `inc bx`), the fence blit at 26BA4 takes y unadjusted, so
+ * the row is one pixel above the worker-strip row.
  */
 int colony_screen_fence_unit_layout(
   const ColonyScreenView* view, const int* slot_x, const int* slot_y, int n, int* xs
@@ -841,7 +843,7 @@ int colony_screen_fence_unit_layout(
     COLONY_VIEWPORT_X + slot_x[COLONY_CAT_FORTIFICATION],
     COLONY_VIEWPORT_Y + slot_y[COLONY_CAT_FORTIFICATION], xs, &y
   );
-  return y;
+  return y - 1;
 }
 
 void colony_screen_blit_buildings(
