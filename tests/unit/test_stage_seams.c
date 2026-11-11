@@ -4865,6 +4865,35 @@ static int test_screen_f1_focus_article(void) {
   return rc;
 }
 
+/* FUN_130d_0290 raw 6462-6466 / 6511: a FUN_3844_0442 game end leaves the
+ * day loop, so the end-of-turn tail (here: the arrival harbor open) never
+ * runs. */
+static int test_game_end_skips_end_turn_tail(void) {
+  static ColonizeGameState game;
+  int rc = 0;
+  for (int arm = 0; arm < 3 && rc == 0; ++arm) {
+    memset(&game, 0, sizeof(game));
+    game.europe_ok = true;
+    game.found_open_colony_id = -1;
+    game.ff_pedia_after_report = -1;
+    game.pedia_return_colony_id = -1;
+    ai_popup_init(&game.ai_popups);
+    ColonizeTurnResult res;
+    memset(&res, 0, sizeof(res));
+    res.request_europe_open = true;
+    res.year_end_victory = arm == 0;
+    res.year_end_defeat = arm == 1;
+    res.year_end_war_lost = arm == 2;
+    game_finish_end_turn(&game, &res);
+    if (game.in_europe || game.europe.open_on_dock) {
+      fprintf(stderr, "  arm %d in_europe %d open_on_dock %d\n", arm, (int)game.in_europe,
+              (int)game.europe.open_on_dock);
+      rc = fail("game end: the end-of-turn tail must not run");
+    }
+  }
+  return rc;
+}
+
 /*
  * Every FUN_291f_0dd4 repaint ends in FUN_38fd_081c (raw 59178-59179), which zeroes the
  * harbor selection DS:0x9e20/0x9e1c: the open (menu and both arrival auto-opens, raw 68140),
@@ -6922,6 +6951,7 @@ static const TestCase k_cases[] = {
     {"test_new_campaign_snapshots_mods", test_new_campaign_snapshots_mods},
     {"test_new_campaign_amer2_seed100_landfall", test_new_campaign_amer2_seed100_landfall},
     {"test_europe_repaints_reset_harbor_selection", test_europe_repaints_reset_harbor_selection},
+    {"test_game_end_skips_end_turn_tail", test_game_end_skips_end_turn_tail},
     {"test_click_spent_unit_hands_off", test_click_spent_unit_hands_off},
     {"test_unit_group_fans_out_order", test_unit_group_fans_out_order},
     {"test_eot_off_unit_used_up_ends_turn", test_eot_off_unit_used_up_ends_turn},

@@ -2472,6 +2472,10 @@ static int ai_diplo_153e_encounter_gated(
     ai_diplo_153e_finish_timer(ctx, human, target);
     return 0;
   }
+  /* raw 97427-97429 (asm 5bfb:161e-1633): once the gate is open, the target
+   * nation's chord 0x8020 + target (0..3) through FUN_281f_04c0, before any
+   * dialog. Negative as int16, so no sound option silences it. */
+  units_play_event_sound(0x8020 + target);
   memset(&s_talk.self, 0, sizeof(s_talk) - offsetof(Ai153eTalk, self));
   Ai153eTalk* k = &s_talk;
   k->active = 1;
