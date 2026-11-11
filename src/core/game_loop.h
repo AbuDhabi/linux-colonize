@@ -117,6 +117,9 @@ bool game_in_europe_screen(const ColonizeGameState* game);
 bool game_try_start_intro(ColonizeGameState* game);
 /* Any modal that swallows input (AI popup, name entry, save/load, ...). */
 bool game_modal_open(const ColonizeGameState* game);
+/* OS quit (window close): opens the @DOSYES confirm and returns false; returns
+ * true (quit now) when it is already up or cannot present this frame. */
+bool game_request_quit(ColonizeGameState* game);
 /* AI popup queued but not presented yet: feed one idle frame before keys. */
 bool game_ai_popup_pending(const ColonizeGameState* game);
 /* AiPopupTag of the open AI popup, or -1 when none is open. */

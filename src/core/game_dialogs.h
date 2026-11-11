@@ -390,6 +390,9 @@ struct ColonizeGameState {
    * colony's screen closes). A pedia article that returns to this colony is
    * part of the same visit; otherwise the hold clears when in_colony drops. */
   bool colony_zoom_popup_hold;
+  /* Port-only: an OS window close arrived while a popup or modal owned the
+   * screen; the @DOSYES confirm goes up once it is answered (game_request_quit). */
+  bool quit_ask_pending;
   int colony_view_id;
   ColonizePikImage menu_bg;
   bool menu_bg_ok;

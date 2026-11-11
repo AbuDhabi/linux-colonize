@@ -674,6 +674,92 @@ static int case_map_confirm_second_refused(void) {
   return rc;
 }
 
+/* OS window close asks the @DOSYES confirm first: No keeps playing, Yes quits, a
+ * second close while it is up quits. A report is left first; over a player popup
+ * the close is remembered and asks once that popup is answered. */
+static int case_os_quit_asks_first(void) {
+  ColonizeGameState* game = calloc(1, sizeof(*game));
+  if (!game) {
+    return fail("allocate game state");
+  }
+  assets_msg_init(&game->messages);
+  ai_popup_init(&game->ai_popups);
+  int rc = 0;
+  ColonizeInputState enter;
+  memset(&enter, 0, sizeof(enter));
+  enter.last_key = COLONIZE_KEY_ENTER;
+  if (!assets_msg_load_file(&game->messages, "COLONIZE/GAME.TXT")) {
+    rc = fail("load GAME.TXT for the quit confirm");
+  } else if (game_request_quit(game) || game->map_confirm != GAME_MAP_CONFIRM_QUIT ||
+             game->ai_popups.queue_count != 1) {
+    rc = fail("first OS quit must queue the Exit to DOS confirm, not quit");
+  } else if (!game_request_quit(game) || game->ai_popups.queue_count != 1) {
+    rc = fail("second OS quit while the confirm is queued must quit, not stack");
+  } else if (!ai_popup_try_present_next(&game->ai_popups)) {
+    rc = fail("present the quit confirm");
+  } else {
+    ai_popup_cancel_current(&game->ai_popups); /* No */
+    game_apply_ai_popup_result(game);
+    if (game->elapsed_ms == UINT32_MAX || game->map_confirm != GAME_MAP_CONFIRM_NONE ||
+        ai_popup_busy(&game->ai_popups)) {
+      rc = fail("No must keep the game running with no popup left");
+    } else if (game_request_quit(game) || !ai_popup_try_present_next(&game->ai_popups)) {
+      rc = fail("OS quit after a No must ask again");
+    } else {
+      ai_popup_handle_input(&game->ai_popups, &enter); /* default row: Yes */
+      game_apply_ai_popup_result(game);
+      if (game->elapsed_ms != UINT32_MAX) {
+        rc = fail("Yes must quit");
+      }
+    }
+  }
+  if (rc == 0) {
+    game->elapsed_ms = 0;
+    game->in_menu = true;
+    if (game_request_quit(game) || game->map_confirm != GAME_MAP_CONFIRM_TITLE_EXIT) {
+      rc = fail("OS quit on the title menu must ask too");
+    }
+    ai_popup_clear(&game->ai_popups);
+    game->map_confirm = GAME_MAP_CONFIRM_NONE;
+    game->in_menu = false;
+  }
+  if (rc == 0) {
+    /* A report draws no popup: the close leaves it, then asks on the map. */
+    game->in_report = true;
+    game->ff_pedia_after_report = -1;
+    if (game_request_quit(game) || game->in_report ||
+        game->map_confirm != GAME_MAP_CONFIRM_QUIT || game->ai_popups.queue_count != 1) {
+      rc = fail("OS quit on a report must leave it and queue the confirm");
+    }
+    ai_popup_clear(&game->ai_popups);
+    game->map_confirm = GAME_MAP_CONFIRM_NONE;
+  }
+  if (rc == 0) {
+    /* The player's own popup stays up; the confirm follows its answer. */
+    if (!ai_popup_enqueue_ok(&game->ai_popups, AI_POPUP_TAG_INFO, NULL, "x") ||
+        !ai_popup_try_present_next(&game->ai_popups)) {
+      rc = fail("present a player popup");
+    } else if (game_request_quit(game) || !game->ai_popups.open ||
+               game->ai_popups.current.tag != AI_POPUP_TAG_INFO ||
+               game->map_confirm != GAME_MAP_CONFIRM_NONE || !game->quit_ask_pending) {
+      rc = fail("OS quit over a popup must keep it open and remember the close");
+    } else if (!game_request_quit(game) || !game->ai_popups.open) {
+      rc = fail("second OS quit while a close is remembered must quit");
+    } else {
+      ai_popup_handle_input(&game->ai_popups, &enter);
+      game_apply_ai_popup_result(game);
+      game_quit_ask_service(game);
+      if (game->map_confirm != GAME_MAP_CONFIRM_QUIT || game->ai_popups.queue_count != 1 ||
+          game->quit_ask_pending) {
+        rc = fail("the remembered close must ask once the popup is answered");
+      }
+    }
+  }
+  assets_msg_free(&game->messages);
+  free(game);
+  return rc;
+}
+
 /*
  * port_bugs.md #1187: the Europe Recruit / Purchase / Train dialogs are the generic 6f74 list
  * dialog and must land on the rects measured off the DOS reference shots
@@ -1978,6 +2064,7 @@ static const TestCase k_cases[] = {
     {"game_txt_wired_sections", case_game_txt_wired_sections},
     {"recruitchoose_width", case_recruitchoose_width},
     {"game_confirmation_catalog_choices", case_game_confirmation_catalog_choices},
+    {"os_quit_asks_first", case_os_quit_asks_first},
     {"map_confirm_second_refused", case_map_confirm_second_refused},
     {"europe_menu_frames_are_dos", case_europe_menu_frames_are_dos},
     {"water_cycle_under_report", case_water_cycle_under_report},

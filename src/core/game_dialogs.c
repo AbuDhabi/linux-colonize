@@ -1035,6 +1035,9 @@ void game_enqueue_yes_no(
       )) {
     game->map_confirm = GAME_MAP_CONFIRM_NONE;
     diag_warn("map confirm: popup queue full");
+  } else if (confirm == GAME_MAP_CONFIRM_QUIT || confirm == GAME_MAP_CONFIRM_TITLE_EXIT) {
+    /* Any Exit to DOS confirm answers a window close still waiting to ask. */
+    game->quit_ask_pending = false;
   }
 }
 
