@@ -32,6 +32,7 @@
 #include "core/europe.h"
 #include "core/founding_fathers.h"
 #include "core/map.h"
+#include "core/mods.h"
 #include "core/popup_msg.h"
 #include "core/reports.h"
 #include "core/reports_names.h"
@@ -1185,9 +1186,16 @@ void ai_contact_apply_beg_food(
      * the add lands in the flat alarm table past the tribe's own row
      * (independence 4->5: Spain refuses at Roanoke, tribe 5's horse herds
      * byte gains 1 and Spain's alarm stays).
-     * DOS bug, reproduced for now (docs/tolerated_dos_bugs_ai.md TB-12). */
-    /* TB-12: fixed (raise the refuser's alarm word) under !dos_buggy_behavior(). */
-    ai_diplo_indian_alarm_word_raw(ctx->col1, nation_id, dos_buggy_behavior() ? nation_id : e, d);
+     * DOS bug (docs/tolerated_dos_bugs_ai.md TB-12), fixed behind
+     * MOD_BEG_REFUSAL_ALARM: the fix sends the refuser through the whole
+     * FUN_4cc6_00f2 (France / Pocahontas halving, clamp, expel roll at 100),
+     * as the accept arm's call does with param_1. Mod off, or under
+     * dos_buggy_behavior(), keeps the DOS write. */
+    if (dos_buggy_behavior() || !mods_on(MOD_BEG_REFUSAL_ALARM)) {
+      ai_diplo_indian_alarm_word_raw(ctx->col1, nation_id, nation_id, d);
+    } else {
+      ai_contact_alarm_delta_00f2(ctx, nation_id, e, d);
+    }
     /* raw 87708-87710: `if (contact_state[param_1] == 2) contact_state = 0`
      * (independence 10->11: the Dutch refuse a beg at Vlissingen right after
      * the same tribe's gift visit, and the gift's stamp is gone). */

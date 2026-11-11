@@ -60,6 +60,10 @@ typedef enum ModId {
    * (RTST record 13) instead of the DOS LCG reseeded from the tick on save and
    * load (dos_rng_modern_seed). Off = DOS. */
   MOD_MODERN_PRNG = 18,
+  /* DOS bug fix (tolerated_dos_bugs_ai.md TB-12): a refused food beg raises the
+   * tribe's alarm toward the refuser through FUN_4cc6_00f2, instead of DOS's
+   * write into another tribe's record (ai_contact_apply_beg_food). */
+  MOD_BEG_REFUSAL_ALARM = 19,
   MOD_COUNT
 } ModId;
 

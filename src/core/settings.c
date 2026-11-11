@@ -130,6 +130,7 @@ static const SettingsBoolOpt k_mod_opts[] = {
   SETTINGS_MOD("current_vision", MOD_CURRENT_VISION, false),
   SETTINGS_MOD("construction_queue", MOD_CONSTRUCTION_QUEUE, false),
   SETTINGS_MOD("modern_prng", MOD_MODERN_PRNG, false),
+  SETTINGS_MOD("beg_refusal_alarm", MOD_BEG_REFUSAL_ALARM, true),
 };
 
 #define SETTINGS_OPT_COUNT(t) ((int)(sizeof(t) / sizeof((t)[0])))

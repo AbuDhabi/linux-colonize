@@ -4797,24 +4797,73 @@ static int sp_44(void) {
               colonies.colonies[0].stock[COLONIZE_CARGO_FOOD], col1.tribe[0].alarm[0].friction);
       return fail("Esc on BEGFOOD must refuse (no food, attitude word x1.5)");
     }
-    /* TB-12 fixed (dos_buggy_behavior off): the refuser's own alarm word rises. */
-    col1.tribe[0].alarm[0].friction = 20;
-    col1.indian[0].alarm_by_player[0] = 50;
-    const uint16_t spill_fixed = (uint16_t)(col1.indian[1].capitol_x | col1.indian[1].capitol_y << 8);
-    ai_popup_clear(&pop);
-    pop.has_result = true;
-    pop.result_cancelled = false;
-    pop.result_choice_id = 1;
-    pop.result_tag = AI_POPUP_TAG_CONTACT_BEGFOOD;
-    pop.result_nation_a = 0;
-    pop.result_nation_b = 4;
-    pop.result_payload = 1 << 16;
-    dos_buggy_behavior_set(false);
-    ai_contact_apply_popup_result(&ctx, &pop);
-    dos_buggy_behavior_set(true);
-    if (col1.indian[0].alarm_by_player[0] <= 50 ||
-        (uint16_t)(col1.indian[1].capitol_x | col1.indian[1].capitol_y << 8) != spill_fixed) {
-      return fail("TB-12 fixed: BEGFOOD decline must raise the European's alarm word only");
+    /* TB-12 fix, mods.h MOD_BEG_REFUSAL_ALARM: the refuser goes through the
+     * whole FUN_4cc6_00f2. No visit mood record, so no calm-roll halving and
+     * no reparations re-entry; difficulty 4 makes d = ((4 + 1) >> 1) + 1 = 3.
+     * The spill word (tribe 0's flat index 4) is tribe 1's capitol bytes. */
+    {
+      const uint8_t saved_diff = col1.head.difficulty;
+      const uint32_t saved_mask = mods_campaign_mask();
+      const AiContactVisitMood saved_mood0 = ai_contact_s_visit_mood[0][0];
+      const AiContactVisitMood saved_mood1 = ai_contact_s_visit_mood[0][1];
+      const uint8_t saved_cx = col1.indian[1].capitol_x;
+      const uint8_t saved_cy = col1.indian[1].capitol_y;
+      const uint16_t saved_alarm1 = col1.indian[0].alarm_by_player[1];
+      col1.head.difficulty = 4;
+      static const struct {
+        int euro;
+        bool mod_on;
+        bool buggy;
+        int alarm_after;
+        int spill_after;
+        const char* what;
+      } k_cases[] = {
+        {0, true, false, 53, 10, "mod on: the refuser's alarm rises by d"},
+        {1, true, false, 51, 10, "mod on: France halves the refusal (00f2 raw 80844)"},
+        {0, false, false, 50, 13, "mod off: DOS write past the tribe's row"},
+        {0, true, true, 50, 13, "dos_buggy_behavior on: DOS write even with the mod on"},
+      };
+      int bad = -1;
+      for (int i = 0; i < (int)(sizeof(k_cases) / sizeof(k_cases[0])) && bad < 0; ++i) {
+        const int euro = k_cases[i].euro;
+        colonies.colonies[0].nation_id = euro;
+        col1.tribe[0].alarm[0].friction = 20;
+        col1.tribe[0].alarm[euro].friction = 20;
+        col1.indian[0].alarm_by_player[euro] = 50;
+        col1.indian[1].capitol_x = 10;
+        col1.indian[1].capitol_y = 0;
+        memset(&ai_contact_s_visit_mood[0][euro], 0, sizeof(ai_contact_s_visit_mood[0][euro]));
+        mods_campaign_set(k_cases[i].mod_on ? 1u << MOD_BEG_REFUSAL_ALARM : 0u);
+        dos_buggy_behavior_set(k_cases[i].buggy);
+        ai_popup_clear(&pop);
+        pop.has_result = true;
+        pop.result_cancelled = false;
+        pop.result_choice_id = 1;
+        pop.result_tag = AI_POPUP_TAG_CONTACT_BEGFOOD;
+        pop.result_nation_a = euro;
+        pop.result_nation_b = 4;
+        pop.result_payload = 1 << 16;
+        ai_contact_apply_popup_result(&ctx, &pop);
+        dos_buggy_behavior_set(true);
+        const int spill = col1.indian[1].capitol_x | col1.indian[1].capitol_y << 8;
+        if (col1.indian[0].alarm_by_player[euro] != k_cases[i].alarm_after ||
+            spill != k_cases[i].spill_after) {
+          fprintf(stderr, "unit_ai_contact: TB-12 case %d alarm %d spill %d\n", i,
+                  (int)col1.indian[0].alarm_by_player[euro], spill);
+          bad = i;
+        }
+      }
+      colonies.colonies[0].nation_id = 0;
+      col1.head.difficulty = saved_diff;
+      mods_campaign_set(saved_mask);
+      ai_contact_s_visit_mood[0][0] = saved_mood0;
+      ai_contact_s_visit_mood[0][1] = saved_mood1;
+      col1.indian[1].capitol_x = saved_cx;
+      col1.indian[1].capitol_y = saved_cy;
+      col1.indian[0].alarm_by_player[1] = saved_alarm1;
+      if (bad >= 0) {
+        return fail(k_cases[bad].what);
+      }
     }
     fprintf(stderr, "unit_ai_contact: BEGFOOD accept/decline ok\n");
     /* Drop the adjacency Brave so later fixtures see no stray unit. */
