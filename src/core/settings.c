@@ -104,6 +104,7 @@ static const SettingsBoolOpt k_debug_opts[] = {
 static const SettingsBoolOpt k_divergence_opts[] = {
   SETTINGS_BOOL(unlimited_units, false),
   SETTINGS_BOOL(modern_prng, false),
+  SETTINGS_BOOL(alternate_map_generator, false),
 };
 
 /* "mods": one row per ModId, in ModId order. DOS bug fixes default on,

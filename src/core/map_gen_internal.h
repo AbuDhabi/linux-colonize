@@ -11,6 +11,7 @@
 
 #include "core/dos_rng.h"
 #include "core/internal.h"
+#include "core/map.h"
 
 /* FUN_684c_04a6 rivers on a w*h terrain plane; climate / land_mass 0..3. */
 COLONIZE_INTERNAL void map_gen_rivers_pass(
@@ -22,5 +23,11 @@ COLONIZE_INTERNAL void map_gen_rivers_pass(
   int climate,
   int land_mass
 );
+
+/*
+ * FUN_67bf_0000 continent ids into layer3, flags cleared, then
+ * map_gen_pacific_and_suppress (generated map). Shared with map_gen_alt.c.
+ */
+void map_gen_assign_continents(ColonizeWorldMap* map);
 
 #endif /* COLONIZE_CORE_MAP_GEN_INTERNAL_H */

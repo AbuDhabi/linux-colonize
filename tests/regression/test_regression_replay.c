@@ -54,6 +54,7 @@
 #include "core/game_dialogs.h"
 #include "core/game_loop.h"
 #include "core/game_loop_internal.h"
+#include "core/map_gen.h"
 #include "core/map_panel.h"
 #include "core/mods.h"
 #include "core/units.h"
@@ -737,6 +738,7 @@ static int run_test(const char* name) {
      * modern_prng test needs a `seed` to replay (0 without one). */
     const ColonizeSettings* prefs = settings_get();
     units_set_unlimited(prefs->unlimited_units);
+    map_gen_set_alternate(prefs->alternate_map_generator);
     if (prefs->modern_prng) {
       dos_rng_modern_seed(prefs->seed_present ? (uint64_t)prefs->seed : 0u);
     }

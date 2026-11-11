@@ -239,6 +239,92 @@ static int test_tb46_latitude_single_draw(void) {
   return rc;
 }
 
+/* settings.json divergences.alternate_map_generator (map_gen_alt.c): over a
+ * sweep of the four Customize axes, map_generate routes to the alternate,
+ * replays per seed, keeps the rim (and the column inside it west / east)
+ * water, never stores a river on a hill /
+ * mountain, keeps every land river tile 4-connected to more river or the
+ * sea, leaves valid land classes only, and still finds the Euro landfalls. */
+static int test_alternate_generator_invariants(void) {
+  int rc = 0;
+  int rivers_seen = 0;
+  int mountains_seen = 0;
+  map_gen_set_alternate(true);
+  for (int k = 0; k < 81 && rc == 0; ++k) {
+    MapGenParams p = {k % 3, k / 3 % 3, k / 9 % 3, k / 27 % 3, 1, 1000u + (uint32_t)k, NULL, k % 4};
+    ColonizeWorldMap a;
+    ColonizeWorldMap b;
+    memset(&a, 0, sizeof(a));
+    memset(&b, 0, sizeof(b));
+    char err[256];
+    if (!map_generate(&a, &p, err, sizeof(err)) || !map_generate_alternate(&b, &p, err, sizeof(err))) {
+      fprintf(stderr, "alternate generate failed: %s\n", err);
+      rc = 1;
+      break;
+    }
+    const int w = a.width;
+    const int h = a.height;
+    const int land = count_land(&a);
+    if (!maps_equal(&a, &b)) {
+      fprintf(stderr, "case %d: not seed-reproducible / not routed\n", k);
+      rc = 1;
+    } else if (land < w * h / 8 || land > w * h * 2 / 3) {
+      fprintf(stderr, "case %d: land %d of %d out of range\n", k, land, w * h);
+      rc = 1;
+    } else if (!a.euro_landfalls_ok) {
+      fprintf(stderr, "case %d: no Euro landfalls\n", k);
+      rc = 1;
+    }
+    for (int y = 0; y < h && rc == 0; ++y) {
+      for (int x = 0; x < w; ++x) {
+        const uint8_t t = a.terrain[y * w + x];
+        const uint8_t typ = (uint8_t)(t & 0x1f);
+        /* The column inside the west / east rim is sea too (no land against the lane). */
+        const bool rim = x < 3 || y < 2 || x >= w - 3 || y >= h - 2;
+        const bool water = typ == T_OCEAN || typ == T_HIGH_SEAS;
+        if (rim && !water && !((y == 0 || y == h - 1) && t == T_ARCTIC)) {
+          fprintf(stderr, "case %d: rim (%d,%d) = 0x%02x\n", k, x, y, t);
+          rc = 1;
+          break;
+        }
+        if (water) {
+          continue;
+        }
+        if (typ > 15 && typ != T_ARCTIC) {
+          fprintf(stderr, "case %d: (%d,%d) bad land class 0x%02x\n", k, x, y, t);
+          rc = 1;
+          break;
+        }
+        mountains_seen += (t & 0xa0) == 0xa0;
+        if (!(t & F_RIVER)) {
+          continue;
+        }
+        rivers_seen++;
+        bool linked = false;
+        for (int d = 0; d < 8; d += 2) {
+          const int nx = x + MAP_DIR8_DX[d];
+          const int ny = y + MAP_DIR8_DY[d];
+          const uint8_t n = a.terrain[ny * w + nx];
+          linked = linked || (n & F_RIVER) || (n & 0x1f) == T_OCEAN;
+        }
+        if ((t & F_HILL) || !linked) {
+          fprintf(stderr, "case %d: river (%d,%d) = 0x%02x on a hill or cut off\n", k, x, y, t);
+          rc = 1;
+          break;
+        }
+      }
+    }
+    map_free(&a);
+    map_free(&b);
+  }
+  map_gen_set_alternate(false);
+  if (rc == 0 && (rivers_seen == 0 || mountains_seen == 0)) {
+    fprintf(stderr, "alternate maps had no rivers (%d) or mountains (%d)\n", rivers_seen, mountains_seen);
+    rc = 1;
+  }
+  return rc;
+}
+
 /* FUN_684c_08c0 raw 113529-113536 (asm 684c:1b3a-1b4a) gives the focus nation
  * on a generated map range(1,2): one of the middle bands (2h/5, 3h/5). */
 static int test_euro_landfall_focus_middle_band(void) {
@@ -496,6 +582,7 @@ static const TestCase k_cases[] = {
     {"test_euro_landfall_bands_distinct", test_euro_landfall_bands_distinct},
     {"test_pick_start_fallback_is_land", test_pick_start_fallback_is_land},
     {"test_seed_reproducibility", test_seed_reproducibility},
+    {"test_alternate_generator_invariants", test_alternate_generator_invariants},
     {"test_tb46_latitude_single_draw", test_tb46_latitude_single_draw},
     {"test_rivers_out_of_plane_matches_dos", test_rivers_out_of_plane_matches_dos},
     {"test_rivers_seed105_matches_dos", test_rivers_seed105_matches_dos},

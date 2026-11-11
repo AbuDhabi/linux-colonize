@@ -48,6 +48,22 @@ void map_gen_params_random(MapGenParams* out, uint32_t seed);
  */
 bool map_generate(ColonizeWorldMap* out, const MapGenParams* params, char* err, size_t err_size);
 
+/*
+ * settings.json divergences.alternate_map_generator (main.c, read at startup):
+ * when on, map_generate hands every NEW WORLD / CUSTOMIZE map to
+ * map_generate_alternate (map_gen_alt.c, docs/map_gen_alt.md): plates,
+ * erosion, winds, rainfall and temperature instead of the DOS blob passes.
+ * Same params, same shared RNG, same tail (HS, continents, landfalls).
+ */
+void map_gen_set_alternate(bool on);
+bool map_gen_alternate_enabled(void);
+bool map_generate_alternate(
+  ColonizeWorldMap* out,
+  const MapGenParams* params,
+  char* err,
+  size_t err_size
+);
+
 
 /*
  * Pick a coastal land start for nation 0..3 on a generated map.

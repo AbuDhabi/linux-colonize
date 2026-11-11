@@ -1335,14 +1335,15 @@ static void paint_terrain(
   }
 }
 
-static void map_gen_assign_continents(ColonizeWorldMap* map);
-
 bool map_generate(ColonizeWorldMap* out, const MapGenParams* params, char* err, size_t err_size) {
   if (!out || !params) {
     if (err && err_size) {
       snprintf(err, err_size, "map_generate bad args");
     }
     return false;
+  }
+  if (map_gen_alternate_enabled()) {
+    return map_generate_alternate(out, params, err, err_size);
   }
 
   MapGenParams p = *params;
@@ -1519,7 +1520,7 @@ static uint16_t map_gen_label_merge(
  * give 8-connectivity. Remap IDs >0xf down to 1..0xf; write byte to layer3.
  * Clears layer2 (flags). Ocean then OR 0x20 like FUN_281f_068c after mapgen.
  */
-static void map_gen_assign_continents(ColonizeWorldMap* map) {
+void map_gen_assign_continents(ColonizeWorldMap* map) {
   if (!map || !map->terrain || !map->layer2 || !map->layer3) {
     return;
   }

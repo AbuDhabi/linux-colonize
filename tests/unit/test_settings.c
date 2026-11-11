@@ -48,6 +48,7 @@ static void test_missing_file_defaults(void) {
         "default input logger off, ./input_logs");
   check(!s.unlimited_units, "default divergences.unlimited_units off (DOS limits)");
   check(!s.modern_prng, "default divergences.modern_prng off (DOS LCG)");
+  check(!s.alternate_map_generator, "default divergences.alternate_map_generator off (DOS map_generate)");
   check(!s.mods[MOD_PIONEER_PLAN], "default mods.pioneer_plan off");
   check(!s.mods[MOD_CURRENT_VISION], "default mods.current_vision off");
 }
@@ -76,6 +77,7 @@ static void test_roundtrip(void) {
   out.skip_intro = false;
   out.unlimited_units = true;
   out.modern_prng = true;
+  out.alternate_map_generator = true;
   out.mods[MOD_WAGON_LOOT] = true;
   out.mods[MOD_GOTO_NATIVE_WAIT] = false;
   out.input_logger = true;

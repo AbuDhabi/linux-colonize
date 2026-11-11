@@ -832,7 +832,7 @@ out:
  * adds 1 per NEW WORLD capital only (satellites do not count); the census
  * FUN_4962_06b6 rewrites it later. So a fresh procedural game holds 1 per tribe
  * that got a capital (@INDIANWELCOME %NUMBER0 reads it, port_bugs.md #1510). */
-static int case_new_world_village_counts(void) {
+static int village_counts_run(void) {
   char err[256];
   ColonizeMsgCatalog names;
   assets_msg_init(&names);
@@ -906,6 +906,19 @@ done:
   return rc;
 }
 
+static int case_new_world_village_counts(void) {
+  return village_counts_run();
+}
+
+/* Same new game on a divergences.alternate_map_generator map: every tribe
+ * still gets its capital on the plate-tectonics terrain. */
+static int case_alternate_map_village_counts(void) {
+  map_gen_set_alternate(true);
+  const int rc = village_counts_run();
+  map_gen_set_alternate(false);
+  return rc;
+}
+
 /* #1757: FUN_733a_0790 steps difficulty +1 (Space/Tab/Right/Down) or +4
  * (Backspace/Up/Left) mod 5; FUN_733a_0c2a steps the nation +1 / +2 (Up, Down)
  * / +3 mod 4; a release in the left region confirms. */
@@ -968,6 +981,7 @@ out:
 static const TestCase k_cases[] = {
     {"wizard_picker_keys", case_wizard_picker_keys},
     {"new_world_village_counts", case_new_world_village_counts},
+    {"alternate_map_village_counts", case_alternate_map_village_counts},
     {"scenario_start", case_scenario_start},
     {"customize_defaults", case_customize_defaults},
     {"wizard_new_world_flow", case_wizard_new_world_flow},

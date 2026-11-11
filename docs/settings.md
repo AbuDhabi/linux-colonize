@@ -58,7 +58,7 @@ defaults no matter what file is sitting in the build directory.
     "menu": false, "mouse_coords": false, "building_rects": false, "logs": false,
     "trace_autosaves": false, "input_logger": false, "input_logger_directory": "./input_logs"
   },
-  "divergences": { "unlimited_units": false, "modern_prng": false },
+  "divergences": { "unlimited_units": false, "modern_prng": false, "alternate_map_generator": false },
   "mods": {
     "wagon_loot": false, "goto_native_wait": true, "population_floor": false, "raid_scalps": false,
     "royal_mercy": false, "late_fathers": false, "town_hall_tiers": false, "building_upkeep": false,
@@ -123,6 +123,13 @@ tick) then leave the stream alone, so nothing replays. Values re-derived on dema
 from a stable seed stay on the LCG (`dos_rng_range_lcg`): the colony-screen building
 layout (every frame) and a village's taught skill (@CHIEFHOWDY, then the visit). The state rides
 in RTST record 13, written only while on; off = DOS draws and saves unchanged.
+`divergences.alternate_map_generator` (read at startup, `main.c` ->
+`map_gen_set_alternate`) makes NEW WORLD and CUSTOMIZE maps come from
+`map_generate_alternate` (`src/core/map_gen_alt.c`): plate tectonics, erosion,
+prevailing winds, rainfall and temperature instead of the DOS blob passes
+(docs/map_gen_alt.md). The Customize New World axes still apply; Original
+Americas and loaded `.MP` maps are unchanged. Nothing is saved: a generated map
+lives in the save like any other, so the flag only matters at new-game time.
 `pioneer_plan`, `scout_autoexplore`, `ship_autoexplore`, `hard_king` and
 `current_vision` used to be `divergences` keys; they are per-campaign `mods` now
 (below). A file that still has one of them under `divergences` and not under

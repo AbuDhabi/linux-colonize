@@ -10,6 +10,7 @@
 #include "core/assets.h"
 #include "core/dos_rng.h"
 #include "core/game_loop.h"
+#include "core/map_gen.h"
 #include "core/new_game.h"
 #include "core/savegame.h"
 #include "core/screen_geom.h"
@@ -183,6 +184,7 @@ int main(int argc, char** argv) {
   {
     const ColonizeSettings* prefs = settings_get();
     units_set_unlimited(prefs->unlimited_units);
+    map_gen_set_alternate(prefs->alternate_map_generator);
     if (!cli.data_dir_from_cli && prefs->data_dir[0]) {
       cli.data_dir = prefs->data_dir;
     }

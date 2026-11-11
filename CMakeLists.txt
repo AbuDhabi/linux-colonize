@@ -87,6 +87,7 @@ add_library(colonize_sim STATIC
   # --- Simulation -----------------------------------------------------------
   src/core/map.c
   src/core/map_gen.c
+  src/core/map_gen_alt.c
   src/core/travel_dest.c
   src/core/dos_rng.c
   src/core/dos_buggy.c
