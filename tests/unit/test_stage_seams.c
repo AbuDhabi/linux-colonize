@@ -2920,6 +2920,205 @@ static int test_colony_fence_unit_jobs_list(void) {
   return rc;
 }
 
+/* What a colony-screen click left behind, for comparing a quick click with a slow one. */
+typedef struct ColonyClickOutcome {
+  bool drag;
+  bool jobs_open;
+  bool eject_open;
+  int selected_colonist;
+  int selected_outside_unit;
+  int focus;
+  int colonist_count;
+  int stock_furs;
+  int hold0;
+  int popups;
+} ColonyClickOutcome;
+
+typedef enum ColonyQuickTarget {
+  COLONY_QUICK_CARGO,
+  COLONY_QUICK_HOLD,
+  COLONY_QUICK_WORKER,
+  COLONY_QUICK_PLOT_WORKER,
+  COLONY_QUICK_FENCE_UNIT,
+  COLONY_QUICK_TARGET_COUNT
+} ColonyQuickTarget;
+
+/*
+ * fence_jobs_fixture plus 50 furs in the warehouse, a farmer (colonist 1) on plot 3 and a
+ * Caravel at the colony with 50 furs in hold 0. The press target is pre-selected, so a click
+ * on a person opens the jobs list. Returns the Caravel's id, or -1 on a fixture failure.
+ */
+static int colony_quick_click_fixture(
+  ColonizeGameState* game, ColonizeMsgCatalog* names, ColonyQuickTarget target
+) {
+  const int fence_id = fence_jobs_fixture(game, names);
+  if (fence_id < 0) {
+    return -1;
+  }
+  ColonizeColony* col = &game->colonies.colonies[0];
+  ColonyScreenView* csv = &game->colony_screen;
+  col->stock[COLONIZE_CARGO_FURS] = 50;
+  col->colonists[1] = col->colonists[0];
+  col->colonists[1].building_type = -1;
+  col->colonists[1].field_job = COLONIZE_JOB_FARMER;
+  col->tiles[3] = 1;
+  col->colonist_count = col->population = 2;
+  const int caravel = units_kind_type_index(&game->units, UNITS_KIND_CARAVEL);
+  ColonizeUnit* ship = units_get(&game->units, units_spawn_allow_stack(&game->units, caravel, 8, 8));
+  if (!ship) {
+    return -1;
+  }
+  ship->nation_id = 1;
+  ship->hold_goods_type[0] = COLONIZE_CARGO_FURS;
+  ship->hold_goods_amount[0] = 50;
+  csv->transport_unit_id = -1;
+  colony_screen_refresh_transports(csv, &game->units, col);
+  colony_screen_refresh_outside(csv, &game->units, col);
+  csv->selected_colonist = -1;
+  csv->selected_outside_unit = -1;
+  if (target == COLONY_QUICK_WORKER) {
+    csv->selected_colonist = 0;
+  } else if (target == COLONY_QUICK_PLOT_WORKER) {
+    csv->selected_colonist = 1;
+  } else if (target == COLONY_QUICK_FENCE_UNIT) {
+    csv->selected_outside_unit = fence_id;
+  }
+  return ship->id;
+}
+
+/* A left click at (x, y) on the colony screen: quick (press and release in one input, then
+ * an empty input) or slow (press, then release). */
+static ColonyClickOutcome colony_click(ColonizeGameState* game, int ship_id, int x, int y, bool quick) {
+  ColonizeInputState in;
+  memset(&in, 0, sizeof(in));
+  in.mouse_x = x;
+  in.mouse_y = y;
+  in.mouse_left_clicked = true;
+  in.mouse_left_down = !quick;
+  in.mouse_left_released = quick;
+  (void)game_update_colony_screen(game, &in);
+  in.mouse_left_clicked = false;
+  in.mouse_left_down = false;
+  in.mouse_left_released = !quick;
+  (void)game_update_colony_screen(game, &in);
+  const ColonizeColony* col = &game->colonies.colonies[0];
+  const ColonyScreenView* csv = &game->colony_screen;
+  const ColonizeUnit* ship = units_get_const(&game->units, ship_id);
+  ColonyClickOutcome o = {
+    .drag = ui_drag_active(&game->ui_drag),
+    .jobs_open = csv->jobs_open,
+    .eject_open = csv->eject_open,
+    .selected_colonist = csv->selected_colonist,
+    .selected_outside_unit = csv->selected_outside_unit,
+    .focus = (int)csv->focus,
+    .colonist_count = col->colonist_count,
+    .stock_furs = col->stock[COLONIZE_CARGO_FURS],
+    .hold0 = ship ? ship->hold_goods_amount[0] : -1,
+    .popups = game->ai_popups.queue_count + (game->ai_popups.open ? 1 : 0),
+  };
+  return o;
+}
+
+/*
+ * platform_poll_input folds a frame's events into one input, so a quick click arrives with
+ * both the press and the release edge. On every colony-screen drag source (warehouse cargo,
+ * ship hold, a People-band colonist, a plot worker, a fence unit) it must leave no drag live and
+ * do what the same click does when its release comes a frame later.
+ */
+static int test_colony_click_same_frame_release(void) {
+  static ColonizeGameState game;
+  ColonizeMsgCatalog names;
+  static const char* const k_names[COLONY_QUICK_TARGET_COUNT] = {
+    "warehouse cargo", "ship hold", "people-band colonist", "plot worker", "fence unit",
+  };
+  int rc = 0;
+  for (int t = 0; t < COLONY_QUICK_TARGET_COUNT; ++t) {
+    int ship_id = colony_quick_click_fixture(&game, &names, (ColonyQuickTarget)t);
+    if (ship_id < 0) {
+      return fail("colony quick-click fixture");
+    }
+    const ColonizeColony* col = &game.colonies.colonies[0];
+    const ColonyScreenView* csv = &game.colony_screen;
+    ColonyScreenHit want = COLONY_HIT_NONE;
+    int want_index = 0;
+    switch ((ColonyQuickTarget)t) {
+    case COLONY_QUICK_CARGO:
+      want = COLONY_HIT_CARGO_SLOT;
+      want_index = COLONIZE_CARGO_FURS;
+      break;
+    case COLONY_QUICK_HOLD:
+      want = COLONY_HIT_HOLD;
+      break;
+    case COLONY_QUICK_WORKER:
+      want = COLONY_HIT_PEOPLE_COLONIST;
+      break;
+    case COLONY_QUICK_PLOT_WORKER:
+      want = COLONY_HIT_AREA_TILE;
+      want_index = 3;
+      break;
+    default:
+      want = COLONY_HIT_OUTSIDE_UNIT;
+      break;
+    }
+    /* The middle one, in scan order, of the pixels that hit the target. */
+    int px = -1;
+    int py = -1;
+    for (int pass = 0, hits = 0, pick = -1; pass < 2; ++pass, pick = hits / 2, hits = 0) {
+      for (int y = 0; y < 200; ++y) {
+        for (int x = 0; x < 320; ++x) {
+          const ColonyScreenHitResult h =
+            colony_screen_hit_test(csv, &game.colonies, col, &game.units, x, y);
+          if (h.kind == want && h.index == want_index && hits++ == pick) {
+            px = x;
+            py = y;
+          }
+        }
+      }
+    }
+    ColonyClickOutcome slow;
+    memset(&slow, 0, sizeof(slow));
+    if (px < 0) {
+      fprintf(stderr, "  %s: no hit spot\n", k_names[t]);
+      rc = fail("fixture: colony drag source hit spot");
+    } else {
+      slow = colony_click(&game, ship_id, px, py, false);
+      if ((t == COLONY_QUICK_PLOT_WORKER || t == COLONY_QUICK_FENCE_UNIT) && !slow.jobs_open) {
+        rc = fail("fixture: a click on a selected person opens the jobs list");
+      }
+    }
+    game_ui_drag_clear(&game);
+    fx_map_free(&game.world_map);
+    assets_msg_free(&names);
+    if (px < 0) {
+      continue;
+    }
+    ship_id = colony_quick_click_fixture(&game, &names, (ColonyQuickTarget)t);
+    if (ship_id < 0) {
+      return fail("colony quick-click fixture");
+    }
+    const ColonyClickOutcome quick = colony_click(&game, ship_id, px, py, true);
+    game_ui_drag_clear(&game);
+    fx_map_free(&game.world_map);
+    assets_msg_free(&names);
+    if (quick.drag || slow.drag || slow.jobs_open != quick.jobs_open ||
+        slow.eject_open != quick.eject_open || slow.selected_colonist != quick.selected_colonist ||
+        slow.selected_outside_unit != quick.selected_outside_unit || slow.focus != quick.focus ||
+        slow.colonist_count != quick.colonist_count || slow.stock_furs != quick.stock_furs ||
+        slow.hold0 != quick.hold0 || slow.popups != quick.popups) {
+      fprintf(stderr,
+              "  %s at (%d,%d): drag %d/%d jobs %d/%d eject %d/%d sel %d/%d out %d/%d "
+              "focus %d/%d pop %d/%d furs %d/%d hold0 %d/%d popups %d/%d\n",
+              k_names[t], px, py, slow.drag, quick.drag, slow.jobs_open, quick.jobs_open,
+              slow.eject_open, quick.eject_open, slow.selected_colonist, quick.selected_colonist,
+              slow.selected_outside_unit, quick.selected_outside_unit, slow.focus, quick.focus,
+              slow.colonist_count, quick.colonist_count, slow.stock_furs, quick.stock_furs,
+              slow.hold0, quick.hold0, slow.popups, quick.popups);
+      rc = fail("a quick colony click must leave no drag and act as a slow click");
+    }
+  }
+  return rc;
+}
+
 /* The open popup is GAME.TXT @MORETHANTHREE (colonies_emit_more_than_three_chrome). */
 static bool popup_is_morethanthree(ColonizeGameState* game) {
   char want[AI_POPUP_BODY_LEN];
@@ -3534,6 +3733,108 @@ static int test_right_click_and_find_colony_keep_active_unit(void) {
   }
   units_set_occupancy_map(NULL);
   fx_map_free(&game.world_map);
+  return rc;
+}
+
+/* platform_poll_input folds a frame's events into one input, so a quick click arrives as
+ * one input with both the press and the release edge. It must act as a click and leave no
+ * Go To drag behind, and the next separate click must be a click too, not the commit of a
+ * stuck drag. */
+static int test_map_click_same_frame_release(void) {
+  static ColonizeGameState game;
+  memset(&game, 0, sizeof(game));
+  if (!fx_map_alloc(&game.world_map, 8, 8, /*terrain_fill=*/3, /*with_seen=*/true)) {
+    return fail("same-frame click map alloc");
+  }
+  game.world_map_ok = true;
+  game.map_menu.open_index = -1;
+  fx_units_init(&game.units);
+  game.units_ok = true;
+  game.units.type_count = 1;
+  game.units.types[0].movement = 1;
+  game.units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  units_set_occupancy_map(&game.world_map);
+  int ids[3];
+  int rc = 0;
+  for (int k = 0; k < 3; ++k) {
+    ids[k] = units_spawn(&game.units, 0, 2 + k, 2 + k);
+    ColonizeUnit* u = units_get(&game.units, ids[k]);
+    if (!u) {
+      rc = fail("same-frame click spawn");
+      break;
+    }
+    u->nation_id = 0;
+    u->moves = 3;
+  }
+  const int tw = game_map_zoom_tile_px(game.map_zoom);
+  ColonizeInputState in;
+  if (rc == 0) {
+    game.units.selected_id = ids[1];
+    /* Press and release in one input on the lone unit at (4,4). An 8x8 map pins the view
+     * origin at (1,1) (map_panel_clamp_view_origin), so map tile t is view cell t-1. */
+    memset(&in, 0, sizeof(in));
+    in.mouse_left_clicked = true;
+    in.mouse_left_released = true;
+    in.mouse_x = 3 * tw + 1;
+    in.mouse_y = MAP_VIEW_ORIGIN_Y + 3 * tw + 1;
+    (void)game_update_map_menu_bar(&game, &in);
+    memset(&in, 0, sizeof(in));
+    in.mouse_x = 3 * tw + 1;
+    in.mouse_y = MAP_VIEW_ORIGIN_Y + 3 * tw + 1;
+    (void)game_update_map_menu_bar(&game, &in);
+    if (ui_drag_active(&game.ui_drag)) {
+      rc = fail("a same-frame press and release must leave no Go To drag");
+    } else if (game.units.selected_id != ids[2]) {
+      rc = fail("a same-frame press and release on a unit must activate it");
+    }
+  }
+  if (rc == 0) {
+    /* The next click, press and release on separate frames, on the unit at (2,2). */
+    memset(&in, 0, sizeof(in));
+    in.mouse_left_clicked = true;
+    in.mouse_left_down = true;
+    in.mouse_x = 1 * tw + 1;
+    in.mouse_y = MAP_VIEW_ORIGIN_Y + 1 * tw + 1;
+    (void)game_update_map_menu_bar(&game, &in);
+    in.mouse_left_clicked = false;
+    in.mouse_left_down = false;
+    in.mouse_left_released = true;
+    (void)game_update_map_menu_bar(&game, &in);
+    const ColonizeUnit* u2 = units_get_const(&game.units, ids[2]);
+    if (ui_drag_active(&game.ui_drag) || game.units.selected_id != ids[0]) {
+      rc = fail("the next click must activate the clicked unit");
+    } else if (!u2 || u2->x != 4 || u2->y != 4 || u2->orders != 0) {
+      rc = fail("the next click must not order a Go To");
+    }
+  }
+  units_set_occupancy_map(NULL);
+  fx_map_free(&game.world_map);
+  return rc;
+}
+
+/* A map Go To drag live with the button up and no release edge lost its release;
+ * game_update clears it rather than leave the Go To cursor and a swallowed next press. */
+static int test_map_goto_drag_cleared_without_release(void) {
+  ColonizeGameState* game = calloc(1, sizeof(*game));
+  if (!game) {
+    return fail("calloc");
+  }
+  int rc = 0;
+  game->map_menu.open_index = -1;
+  ColonizeInputState in;
+  memset(&in, 0, sizeof(in));
+  ui_drag_begin(&game->ui_drag, UI_DRAG_MAP_GOTO, 0, 1, 0);
+  in.mouse_left_down = true;
+  (void)game_update(game, &in, 16);
+  if (game->ui_drag.kind != UI_DRAG_MAP_GOTO) {
+    rc = fail("a held drag must stay live");
+  }
+  in.mouse_left_down = false;
+  (void)game_update(game, &in, 16);
+  if (rc == 0 && ui_drag_active(&game->ui_drag)) {
+    rc = fail("a Go To drag with the button up and no release must be cleared");
+  }
+  free(game);
   return rc;
 }
 
@@ -5298,6 +5599,167 @@ static int test_europe_dock_menu_on_release(void) {
   return rc;
 }
 
+/* What a Europe click left behind, for comparing a quick click with a slow one. */
+typedef struct EuropeClickOutcome {
+  bool drag;
+  int menu;
+  int popups;
+  int selected_harbor;
+  int focus;
+  int gold;
+  int hold0;
+  int harbor_ships;
+  int expected_ships;
+  int bound_ships;
+} EuropeClickOutcome;
+
+/* A Caravel in harbor (selected) with 50 furs in hold 0, one Expected and one Bound hull. */
+static void europe_quick_click_fixture(ColonizeGameState* game, int caravel) {
+  EuropeScreen* eu = &game->europe;
+  game_ui_drag_clear(game);
+  ai_popup_clear(&game->ai_popups);
+  europe_menu_close(eu);
+  eu->harbor_ships = 0;
+  eu->dock_count = 0;
+  int types[EUROPE_SHIP_CARGO_MAX];
+  int amounts[EUROPE_SHIP_CARGO_MAX];
+  for (int i = 0; i < EUROPE_SHIP_CARGO_MAX; ++i) {
+    types[i] = -1;
+    amounts[i] = 0;
+  }
+  types[0] = COLONIZE_CARGO_FURS;
+  amounts[0] = 50;
+  (void)europe_harbor_push_ex(eu, caravel, "", NULL, NULL, 0, types, amounts);
+  eu->selected_harbor = 0;
+  eu->focus = 0;
+  eu->gold = 1000;
+  eu->expected_ships = 1;
+  eu->expected[0] = eu->harbor[0];
+  eu->expected[0].turns_left = 3;
+  eu->bound_ships = 1;
+  eu->bound[0] = eu->harbor[0];
+  eu->bound[0].turns_left = 3;
+  game->europe_press_on_screen = false;
+}
+
+/* A left click at (x, y): a quick one (press and release in one input, then an empty input)
+ * or a slow one (press, then release). */
+static EuropeClickOutcome europe_click(ColonizeGameState* game, int x, int y, bool quick) {
+  ColonizeInputState in;
+  memset(&in, 0, sizeof(in));
+  in.mouse_x = x;
+  in.mouse_y = y;
+  in.mouse_left_clicked = true;
+  in.mouse_left_down = !quick;
+  in.mouse_left_released = quick;
+  (void)game_update_europe_screen(game, &in);
+  in.mouse_left_clicked = false;
+  in.mouse_left_down = false;
+  in.mouse_left_released = !quick;
+  (void)game_update_europe_screen(game, &in);
+  const EuropeScreen* eu = &game->europe;
+  EuropeClickOutcome o = {
+    .drag = ui_drag_active(&game->ui_drag),
+    .menu = (int)eu->menu,
+    .popups = game->ai_popups.queue_count + (game->ai_popups.open ? 1 : 0),
+    .selected_harbor = eu->selected_harbor,
+    .focus = eu->focus,
+    .gold = eu->gold,
+    .hold0 = eu->harbor_ships > 0 ? eu->harbor[0].hold_goods_amount[0] : -1,
+    .harbor_ships = eu->harbor_ships,
+    .expected_ships = eu->expected_ships,
+    .bound_ships = eu->bound_ships,
+  };
+  return o;
+}
+
+/*
+ * platform_poll_input folds a frame's events into one input, so a quick click arrives with
+ * both the press and the release edge. On every Europe drag source (market cargo, ship hold,
+ * harbor ship, Expected and Bound hulls) it must leave no drag live and do what the same
+ * click does when its release comes a frame later.
+ */
+static int test_europe_click_same_frame_release(void) {
+  ColonizeGameConfig cfg = {.data_dir = "./COLONIZE", .save_dir = "./build/debug"};
+  ColonizeGameState* game = game_create(&cfg);
+  if (!game || !game_assets_ok(game)) {
+    fprintf(stderr, "SKIP: no COLONIZE/ assets\n");
+    if (game) {
+      game_destroy(game);
+    }
+    return TR_SKIP;
+  }
+  static const struct {
+    EuropeHit kind;
+    const char* name;
+  } k_targets[] = {
+    {EUROPE_HIT_MARKET, "market cargo"},
+    {EUROPE_HIT_HOLD, "ship hold"},
+    {EUROPE_HIT_HARBOR_SHIP, "harbor ship"},
+    {EUROPE_HIT_EXPECTED, "Expected hull"},
+    {EUROPE_HIT_BOUND, "Bound hull"},
+  };
+  const int caravel = units_kind_type_index(&game->units, UNITS_KIND_CARAVEL);
+  /* game_europe_transit_line_h. */
+  const int line_h = game->menu_font_ok && game->menu_font.max_height > 0
+                       ? (int)game->menu_font.max_height + 2
+                       : 8;
+  game->in_europe = true;
+  int rc = 0;
+  for (size_t t = 0; t < sizeof(k_targets) / sizeof(k_targets[0]); ++t) {
+    europe_quick_click_fixture(game, caravel);
+    /* The middle one, in scan order, of the pixels that hit the target. */
+    int px = -1;
+    int py = -1;
+    for (int pass = 0, hits = 0, pick = -1; pass < 2; ++pass, pick = hits / 2, hits = 0) {
+      for (int y = 0; y < 200; ++y) {
+        for (int x = 0; x < 320; ++x) {
+          const EuropeHitResult h = game_europe_hit(game, x, y);
+          /* A harbor ship's release opens its menu only over its icon. */
+          const bool on_icon = k_targets[t].kind != EUROPE_HIT_HARBOR_SHIP ||
+            europe_harbor_ship_icon_at(&game->europe, &game->units, game_icons(game), line_h,
+                                       x, y) == 0;
+          if (h.kind == k_targets[t].kind && h.index == 0 && on_icon && hits++ == pick) {
+            px = x;
+            py = y;
+          }
+        }
+      }
+    }
+    if (px < 0) {
+      fprintf(stderr, "  %s: no hit spot\n", k_targets[t].name);
+      rc = fail("fixture: Europe drag source hit spot");
+      continue;
+    }
+    const EuropeClickOutcome slow = europe_click(game, px, py, false);
+    if (k_targets[t].kind == EUROPE_HIT_HARBOR_SHIP && slow.popups < 1) {
+      rc = fail("fixture: a click on a harbor ship opens its menu");
+    }
+    europe_quick_click_fixture(game, caravel);
+    const EuropeClickOutcome quick = europe_click(game, px, py, true);
+    if (quick.drag || slow.drag || slow.menu != quick.menu || slow.popups != quick.popups ||
+        slow.selected_harbor != quick.selected_harbor || slow.focus != quick.focus ||
+        slow.gold != quick.gold || slow.hold0 != quick.hold0 ||
+        slow.harbor_ships != quick.harbor_ships || slow.expected_ships != quick.expected_ships ||
+        slow.bound_ships != quick.bound_ships) {
+      fprintf(stderr,
+              "  %s at (%d,%d): drag %d/%d menu %d/%d popups %d/%d sel %d/%d focus %d/%d "
+              "gold %d/%d hold0 %d/%d ships %d,%d,%d/%d,%d,%d\n",
+              k_targets[t].name, px, py, slow.drag, quick.drag, slow.menu, quick.menu,
+              slow.popups, quick.popups, slow.selected_harbor, quick.selected_harbor, slow.focus,
+              quick.focus, slow.gold, quick.gold, slow.hold0, quick.hold0, slow.harbor_ships,
+              slow.expected_ships, slow.bound_ships, quick.harbor_ships, quick.expected_ships,
+              quick.bound_ships);
+      rc = fail("a quick Europe click must leave no drag and act as a slow click");
+    }
+  }
+  game_ui_drag_clear(game);
+  ai_popup_clear(&game->ai_popups);
+  game->in_europe = false;
+  game_destroy(game);
+  return rc;
+}
+
 /*
  * port_bugs.md #1214: the encroachment popup keeps DOS's "offer gold" row and greys it when the
  * treasury is short (FUN_2b5a_123e raw 42484-42488: FUN_291f_01b6(box, 2, 1)). Fixture: the
@@ -6419,6 +6881,10 @@ static const TestCase k_cases[] = {
     {"test_select_tile_rotation_retest", test_select_tile_rotation_retest},
     {"test_despawn_to_europe_rotation", test_despawn_to_europe_rotation},
     {"test_click_selects_ship", test_click_selects_ship},
+    {"test_map_click_same_frame_release", test_map_click_same_frame_release},
+    {"test_map_goto_drag_cleared_without_release", test_map_goto_drag_cleared_without_release},
+    {"test_colony_click_same_frame_release", test_colony_click_same_frame_release},
+    {"test_europe_click_same_frame_release", test_europe_click_same_frame_release},
     {"test_view_pieces_keeps_active_unit", test_view_pieces_keeps_active_unit},
     {"test_right_click_and_find_colony_keep_active_unit",
      test_right_click_and_find_colony_keep_active_unit},

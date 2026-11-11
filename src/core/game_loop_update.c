@@ -2708,6 +2708,14 @@ COLONIZE_INTERNAL GameUpdateStep game_update_colony_screen(ColonizeGameState* ga
     {
       const GameUpdateStep sub = game_colony_screen_mouse_click(game, input, colony, csv, cmap);
       if (sub != GAME_UPDATE_CONTINUE) {
+        /* A release folded into the press's input (platform_poll_input) drops the drag
+         * the press just began, as the release arm above would a frame later. A drag live
+         * before this press was already dropped there. */
+        if (ui_drag_active(&game->ui_drag) && input->mouse_left_released && colony) {
+          game_colony_drag_drop(
+            game, colony, cmap, input->mouse_x, input->mouse_y, input->shift_held
+          );
+        }
         return sub;
       }
     }
@@ -3298,6 +3306,12 @@ static GameUpdateStep game_europe_screen_mouse(
     default:
       break;
     }
+    /* A release folded into the press's input (platform_poll_input) drops the drag the
+     * press just began, as the release arm above would a frame later. A drag live before
+     * this press was already dropped there. */
+    if (ui_drag_active(&game->ui_drag) && input->mouse_left_released) {
+      game_europe_drag_drop(game, input->mouse_x, input->mouse_y, input->shift_held);
+    }
     return GAME_UPDATE_RETURN_TRUE;
   }
   return GAME_UPDATE_CONTINUE;
@@ -3723,6 +3737,15 @@ static GameUpdateStep game_map_mouse_click(
         game->map_goto_down_px = input->mouse_x;
         game->map_goto_down_py = input->mouse_y;
         game->map_goto_dragged_px = false;
+        /* platform_poll_input folds a whole frame's events into one input, so the release
+         * can arrive with its press. Run it through the release arm above, as if it came a
+         * frame later; with only the last pointer position known it counts as a release on
+         * the press pixel, i.e. a click. */
+        if (input->mouse_left_released) {
+          ColonizeInputState release = *input;
+          release.mouse_left_clicked = false;
+          return game_map_mouse_click(game, &release);
+        }
         return GAME_UPDATE_RETURN_TRUE;
       }
     }
@@ -4185,6 +4208,14 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
   input = game_autoplay_filter_input(game, input, &autoplay_scratch);
   if (game->elapsed_ms == UINT32_MAX) {
     return false;
+  }
+
+  /* A map Go To drag still live with the button up and no release edge lost its release
+   * (a stage took that frame). Clear it, or the Go To cursor lingers and the next press is
+   * swallowed by the drag branch and its release commits a Go To. */
+  if (game->ui_drag.kind == UI_DRAG_MAP_GOTO && !input->mouse_left_down &&
+      !input->mouse_left_released) {
+    game_ui_drag_clear(game);
   }
 
   game_europe_view_service(game); /* a foreign Europe visit that closed elsewhere */
