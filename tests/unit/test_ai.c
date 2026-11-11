@@ -460,6 +460,7 @@ static int run_init_and_turns(
   bool col1_ok = false;
   colonies_set_col1_context(NULL); /* a previous case left its stack col1 registered */
   colonies_set_units_context(NULL);
+  units_set_native_fallout_context(NULL, NULL); /* same: turn.c set it; the Brave pulse reads it */
   EuropeScreen europe;
   memset(&europe, 0, sizeof(europe));
   /* Real @CARGO table: AI Europe trades price off it (port_bugs.md #1049). */
