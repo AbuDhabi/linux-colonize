@@ -64,7 +64,7 @@ defaults no matter what file is sitting in the build directory.
     "royal_mercy": false, "late_fathers": false, "town_hall_tiers": false, "building_upkeep": false,
     "kings_audience": false, "tribe_mood": false, "scout_spying": false, "treaty_cancel_popup": false,
     "pioneer_plan": false, "scout_autoexplore": false, "ship_autoexplore": false, "hard_king": false,
-    "current_vision": false, "construction_queue": false
+    "current_vision": false, "construction_queue": false, "beg_refusal_alarm": true
   },
   "data_dir": "./COLONIZE",
   "save_dir": "",
@@ -156,7 +156,7 @@ page title naming the group:
 2. `@MODOPTIONS2` "New Rules and Features": `population_floor`,
    `late_fathers`, `building_upkeep`, `hard_king`, `pioneer_plan`,
    `scout_autoexplore`, `ship_autoexplore`, `current_vision`, `construction_queue`.
-3. `@MODOPTIONS3` "DOS Bug Fixes": `goto_native_wait`.
+3. `@MODOPTIONS3` "DOS Bug Fixes": `goto_native_wait`, `beg_refusal_alarm`.
 
 Next / Done (the button under the rows, `@MODOPTIONSDONE`, Done on the last page; or Enter) on a page saves
 that page's toggles, flushes the file and opens the next page; Esc on any page
@@ -195,6 +195,7 @@ stock 12 Game Concept pages stay title-only, as in DOS.
 | `hard_king` | off | Makes the War of Independence REF tougher (`ai_king_ref.c`): (1) `ai_king_ref_wave` runs up to difficulty + 1 FUN_43f7_0982 waves a turn (Discoverer 1 .. Viceroy 5), each spending one Man-O-War from the pool; an empty hull or land pool ends the turn's waves, and later waves skip colonies already invaded this turn while another coastal colony is left; (2) the landing sweep (`ai_king_0982_land_troops`) no longer counts the target's own units in a tile's stack, so occupied tiles tie with empty ones and get seized (FUN_43f7_0512, units destroyed); (3) target scoring adds the target's land units with attack > 1 within Chebyshev 2 of the colony (off its tile) to the tile strength and, outside the Fort/Fortress multiplier, to the garrison score. Off = DOS. Nothing saved. |
 | `current_vision` | off | Dithers (1-pixel checkerboard: 1/4 fog blue, palette 60..62, over 3/4 pixel; palette-nearest LUT) every seen map tile that no unit or colony of the viewed nation currently sees: unit tiles from `units_sight_radius` + the `map_sight_each` domain gate, colonies radius 1. The veil covers explored tiles plus a 1-tile ring into the unexplored. Layering, top first: colony names, fog (pixels the terrain pass left as fog are re-stamped, `s_fog_mask`), the veil (`game_render_current_vision`), everything else. Render-only, nothing saved. |
 | `construction_queue` | off | Port-only Construction build queue (docs/colony.md "ColonizeColony.build_queue"): Shift-click / Shift+Enter queues a project behind the one in production, and the picker also lists, in grey, projects only that plan unlocks (Drydock behind Docks), which can only be queued. Off = the DOS picker, Shift ignored. The queue rides the `BQUE` chunk. |
+| `beg_refusal_alarm` | on | DOS bug fix (tolerated_dos_bugs_ai.md TB-12): a refused native food beg raises the begging tribe's alarm toward the refuser through the whole `FUN_4cc6_00f2` (`ai_contact_alarm_delta_00f2`: France and Pocahontas halve it, clamp 0..100, at 100 under peace the mission expel roll and `@INDIANBURN`). Off = DOS: the add lands in another tribe's record (`ai_diplo_indian_alarm_word_raw` with the Indian nation as index). |
 
 Port-only keys, no DOS bit, no head bridge.
 `save_dir` empty means the platform default (`<exe>/COLONIZE`). `seed` is

@@ -78,6 +78,7 @@ static void test_roundtrip(void) {
   out.modern_prng = true;
   out.mods[MOD_WAGON_LOOT] = true;
   out.mods[MOD_GOTO_NATIVE_WAIT] = false;
+  out.mods[MOD_BEG_REFUSAL_ALARM] = false;
   out.input_logger = true;
   snprintf(out.input_logger_directory, sizeof(out.input_logger_directory), "/tmp/col \"in\"");
   /* Raw CP437 0x8e + UTF-8 e-acute: bytes must survive save/load unchanged (#1086). */
@@ -391,7 +392,9 @@ static void test_mods_group(void) {
   settings_defaults(&s);
   check(!s.mods[MOD_WAGON_LOOT], "default mods.wagon_loot off (gameplay mod)");
   check(s.mods[MOD_GOTO_NATIVE_WAIT], "default mods.goto_native_wait on (DOS bug fix)");
-  check(settings_mods_mask(&s) == 1u << MOD_GOTO_NATIVE_WAIT, "defaults as a mask");
+  check(s.mods[MOD_BEG_REFUSAL_ALARM], "default mods.beg_refusal_alarm on (DOS bug fix)");
+  check(settings_mods_mask(&s) == (1u << MOD_GOTO_NATIVE_WAIT | 1u << MOD_BEG_REFUSAL_ALARM),
+        "defaults as a mask");
 
   FILE* f = fopen(k_path, "wb");
   check(f != NULL, "write partial mods file");
