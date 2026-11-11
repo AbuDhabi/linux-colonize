@@ -18,7 +18,7 @@ replays and tribe placement continues from the post-gen stream.
 |----------------|--------|
 | Land Mass (0..2, NEW WORLD 0..3) | share of plate area started as land: 33 / 42 / 52 / 60 % (`k_land_permille_by_mass`) |
 | Land Form (0..2, 3) | plate count: 48 / 28 / 16 / 10 (`k_plates_by_form`): archipelago = many small plates |
-| Temperature (0..2, 3) | Cold = 2 / 1 / 0 / 0 rows at each active edge (`k_cold_rows`); Hot..Cool share the rest (`k_band_widths`): Warm widens Hot / Warm, Cool widens Cool |
+| Temperature (0..2, 3) | Cold = 2 / 1 / 0 / 0 rows at each active edge (`k_cold_rows`); Hot / Warm / Lukewarm / Temperate / Cool share the rest (`k_band_widths`): Temperate favours Lukewarm / Temperate, Warm widens Hot / Warm, Cool widens Cool / Temperate, 3 is warmer than Warm (as DOS) |
 | Climate (0..2, 3) | moisture an ocean tile hands the wind: 60 / 100 / 140 / 180 (`k_moisture_by_climate`) |
 | `forest_extra` | unused |
 
@@ -65,12 +65,13 @@ doubled to +32 / -32); tiles below 0 are water.
    `RAIN_OROGRAPHIC` per elevation unit the wind climbs, halved where it
    descends. Ranges get a wet windward and a dry lee side (rain shadow). Land
    touching water (8-neighbour) with rain 0 gets 1, so no desert lies on a shore.
-6. **Temperature.** Horizontal bands Hot (2) .. Cold (-2) from the equator to each
+6. **Temperature.** Horizontal bands Hot (3), Warm (2), Lukewarm (1), Temperate (0), Cool (-1),
+   Cold (-2) from the equator to each
    rim (Cold only the `k_cold_rows` rows at the edge; arctic is useless land), then `TEMP_SMEAR_ITERS` passes mixing each tile half-and-half with the
    air 2 tiles upwind (3 for the north-south component), plus up to 0.3 band of
    jitter so the band edges are ragged. The smear never takes Cold past its rows.
-7. **Terrain.** Land by band: Cold arctic, Cool tundra, Temperate plains, Warm
-   grassland, Hot savannah. Relief (tile minus its lowest land 8-neighbour; a
+7. **Terrain.** Land by band: Cold arctic, Cool tundra, Temperate plains, Lukewarm
+   prairie, Warm grassland, Hot savannah. Relief (tile minus its lowest land 8-neighbour; a
    shore is not a cliff) `>= MOUNTAIN_RELIEF` is a mountain, `>= HILL_RELIEF` a
    hill (never on arctic). Rain turns into terrain after the rivers (step 8).
 8. **Rivers.** A priority flood from every water tile gives each land tile a
@@ -85,9 +86,9 @@ doubled to +32 / -32); tiles below 0 are water.
    none, and the water tile at the mouth gets the river bit (estuary). Each river
    tile then gains 1 rain (major river 2). With that bonus in, rain becomes
    terrain: no rain is desert; rain more than one standard deviation below the land
-   mean dries (plains -> tundra, grassland -> prairie, savannah -> grassland); more
-   than one above moistens (savannah -> swamp, grassland -> marsh, plains ->
-   prairie, tundra -> plains). So a river through a dry basin is never desert.
+   mean dries (plains -> tundra, prairie -> plains, grassland -> prairie, savannah
+   -> grassland); more than one above moistens (savannah -> swamp, grassland ->
+   marsh, prairie -> grassland, plains -> prairie, tundra -> plains). So a river through a dry basin is never desert.
 9. **Forest** on `FOREST_PERCENT` (90) % of flat non-arctic land; desert becomes
    scrub forest.
 10. **Shared tail.** High seas: per row, open water walked west from the east edge

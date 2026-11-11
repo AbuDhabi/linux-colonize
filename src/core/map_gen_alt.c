@@ -72,13 +72,14 @@ static const int k_plates_by_form[4] = {48, 28, 16, 10};
 static const int k_land_permille_by_mass[4] = {330, 420, 520, 600};
 /* By temperature 0 Cool .. 2 Warm (3 random): the Cold band is a fixed number
  * of rows at each active rim (arctic is useless land); Hot, Warm, Lukewarm,
- * Temperate, Cool share the rest of equator-to-rim in these proportions. */
+ * Temperate, Cool share the rest of equator-to-rim in these proportions.
+ * Hot is one strip astride the equator; its entry is doubled so it reads wide. */
 static const int k_cold_rows[4] = {2, 1, 0, 0};
 static const int k_band_widths[4][5] = {
-  {2, 3, 3, 4, 5},
-  {4, 4, 4, 5, 6},
-  {6, 5, 4, 4, 3},
-  {7, 6, 5, 4, 2},
+  {4, 2, 4, 8, 6},   /* Cool: Cool + Temperate grow */
+  {8, 3, 6, 6, 3},   /* Temperate: Lukewarm + Temperate lead */
+  {12, 5, 4, 4, 2},  /* Warm: Hot + Warm grow */
+  {14, 6, 3, 3, 1},  /* NEW WORLD 3: past Warm, as DOS (1 - temperature) */
 };
 /* Erosion cap by distance from the west / east active edge: the column next to
  * the rim is always sea, the next few ramp up, so land tapers off instead of
