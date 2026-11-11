@@ -989,6 +989,44 @@ static int test_trade_route_europe_stop_off_lane_keeps_stop(void) {
   return rc;
 }
 
+/* dos_bugs.md DB-104: DOS binds a colony stop by record index and tests arrival by
+ * tile alone (FUN_479b_0b84 raw 77164-77174), so a captured stop is re-aimed forever.
+ * The port skips it: from the stop before it, and while already on the way to it. */
+static int test_trade_route_skips_captured_stop(void) {
+  int rc = 0;
+  for (int en_route = 0; en_route < 2 && rc == 0; ++en_route) {
+    ColonizeGameState game;
+    trade_seam_init(&game, 2, false);
+    ColonizeColony* a = fx_colony_add(&game.colonies, 0, 2, 2, 1);
+    ColonizeColony* b = fx_colony_add(&game.colonies, 0, 5, 2, 1);
+    ColonizeColony* c = fx_colony_add(&game.colonies, 0, 5, 6, 1);
+    b->nation_id = 1; /* captured */
+    ColonizeCol1TradeRoute* route = &game.col1.trade_route[0];
+    route->dest_count = 3;
+    route->stop[0].colony_index = 0;
+    route->stop[1].colony_index = 1;
+    route->stop[2].colony_index = 2;
+    ColonizeUnit* w =
+      en_route ? trade_seam_unit(&game, 4, 4, 1) : trade_seam_unit(&game, a->x, a->y, 0);
+    if (!w) {
+      rc = fail("captured-stop wagon spawn");
+    } else {
+      if (en_route) {
+        w->goto_x = b->x;
+        w->goto_y = b->y;
+      }
+      game_trade_route_retarget(&game, w);
+      if (w->orders != UNITS_ORDER_TRADE_ROUTE || w->col1_counter16 != 2 ||
+          w->goto_x != c->x || w->goto_y != c->y) {
+        rc = fail(en_route ? "en-route unit kept its captured stop"
+                           : "route aimed a captured stop");
+      }
+    }
+    trade_seam_free(&game);
+  }
+  return rc;
+}
+
 /* DOS FUN_2b5a_1e66 raw 42862-42864 assigns order 2 and immediately calls
  * FUN_479b_0bd0(unit, 1). Starting a full-MP wagon at the other stop must
  * therefore retain control long enough to begin moving, even when another
@@ -6867,6 +6905,7 @@ static const TestCase k_cases[] = {
     {"test_trade_route_routeloop_advances_stop", test_trade_route_routeloop_advances_stop},
     {"test_trade_route_woi_europe_stop_no_trade", test_trade_route_woi_europe_stop_no_trade},
     {"test_trade_route_europe_stop_off_lane_keeps_stop", test_trade_route_europe_stop_off_lane_keeps_stop},
+    {"test_trade_route_skips_captured_stop", test_trade_route_skips_captured_stop},
     {"test_trade_route_begin_moves_wagon_to_selected_stop", test_trade_route_begin_moves_wagon_to_selected_stop},
     {"test_goto_treasure_gets_king_galleon_offer", test_goto_treasure_gets_king_galleon_offer},
     {"test_human_lcr_count_change_skips_contact", test_human_lcr_count_change_skips_contact},

@@ -647,3 +647,17 @@ reads the 4 bytes into `local_64` and never uses them (raw 120425).
 loaded save's 4 bytes are carried over unchanged to the next save. Nothing reads them in
 DOS or the port, so the slip is invisible.
 **Status:** recorded, not fixed (user 2026-11-11).
+
+### DB-104 — A trade route keeps aiming at a stop colony another nation captured
+**DOS:** FUN_479b_0bd0 binds a colony stop by record index only (`FUN_281f_09e6`, raw
+77233-77236 / 77253: the record's x/y become the goto) and FUN_479b_0b84 (raw
+77164-77174) tests arrival by tile only. Neither checks the owner, so after a capture
+the route unit re-aims a colony tile it can never stand on and never moves on.
+
+**Port:** `game_trade_stop_colony_ok` (`src/core/game_loop_eot.c`): a colony stop is
+valid only while its colony is active and the route unit's nation owns it. An invalid
+current stop counts as reached (`game_trade_route_at_stop`), so `game_trade_route_retarget`
+services nothing and advances, stepping past further invalid stops; with no valid stop
+the aim fails as it did for a missing colony. Ungated: every golden still matches.
+Test: unit_stage_seams `test_trade_route_skips_captured_stop`.
+**Status:** done (user 2026-11-11).

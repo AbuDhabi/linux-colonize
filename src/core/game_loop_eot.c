@@ -1155,6 +1155,22 @@ void game_hof_save(const ColonizeGameState* game) {
 }
 
 /*
+ * A colony stop (not 999) is valid only while its colony is active and still
+ * the route unit's own. DOS binds the stop by record index alone (FUN_479b_0bd0
+ * raw 77233-77236, 77253) and tests arrival by tile alone (FUN_479b_0b84 raw
+ * 77164-77174), so after a capture its ship re-aims a colony it can never
+ * reach (dos_bugs.md DB-104).
+ */
+static bool game_trade_stop_colony_ok(
+  const ColonizeGameState* game, const ColonizeUnit* u, uint16_t colony_index
+) {
+  const ColonizeColony* c = colonies_get(
+    &game->colonies, colonies_id_at_dos_index(&game->colonies, (int)colony_index)
+  );
+  return c && c->active && c->nation_id == u->nation_id;
+}
+
+/*
  * Resolve Col1 trade-stop to map coords. colony_index 999 = Europe (eastern HS
  * for ships; none for wagons or a failed lookup). Returns 1 if *ox,*oy set.
  * Cite: ColonizeCol1TradeStop; Colonization.pdf Trade Routes.
@@ -1191,7 +1207,7 @@ static int game_trade_stop_coords(
   const ColonizeColony* c = colonies_get(
     &game->colonies, colonies_id_at_dos_index(&game->colonies, (int)colony_index)
   );
-  if (!c || !c->active) {
+  if (!game_trade_stop_colony_ok(game, u, colony_index)) {
     return 0;
   }
   /*
@@ -1294,15 +1310,19 @@ static const ColonizeCol1TradeRoute* game_trade_route_at_stop(
   if (r->dest_count == 0) {
     return NULL;
   }
+  const int si_here = u->col1_counter16;
+  const ColonizeCol1TradeStop* st =
+    (game->col1_ok && si_here >= 0 && si_here < (int)r->dest_count) ? &r->stop[si_here] : NULL;
+  /* An invalid colony stop (DB-104) counts as reached, so the route moves on
+   * even while the unit is still on its way there. */
   const int at_dest =
     (u->goto_x >= UNITS_GOTO_NONE || u->goto_y >= UNITS_GOTO_NONE) ||
-    (u->x == u->goto_x && u->y == u->goto_y);
+    (u->x == u->goto_x && u->y == u->goto_y) ||
+    (st && st->colony_index != 999 && !game_trade_stop_colony_ok(game, u, st->colony_index));
   if (!at_dest) {
     return NULL;
   }
-  const int si_here = u->col1_counter16;
-  *st_out =
-    (game->col1_ok && si_here >= 0 && si_here < (int)r->dest_count) ? &r->stop[si_here] : NULL;
+  *st_out = st;
   return r;
 }
 
@@ -1409,7 +1429,7 @@ void game_trade_route_retarget(ColonizeGameState* game, ColonizeUnit* u) {
      */
     const int cid = colonies_id_at_dos_index(&game->colonies, (int)st->colony_index);
     const ColonizeColony* col = colonies_get(&game->colonies, cid);
-    if (col && col->active) {
+    if (col && game_trade_stop_colony_ok(game, u, st->colony_index)) {
       if (u->x != col->x || u->y != col->y) {
         (void)game_trade_route_aim_stop(game, u, si_here);
         return;
@@ -1425,7 +1445,13 @@ void game_trade_route_retarget(ColonizeGameState* game, ColonizeUnit* u) {
    * only then raw 77319-77334 test whether all stops are the same colony and,
    * if so, warn @ROUTELOOP {%STRING0} and end the unit's move (FUN_281f_0934).
    */
-  const int next = (u->col1_counter16 + 1) % (int)r->dest_count;
+  int next = (u->col1_counter16 + 1) % (int)r->dest_count;
+  /* DB-104: step past invalid colony stops; with none valid, the aim fails as before. */
+  for (int k = 1; k < (int)r->dest_count && r->stop[next].colony_index != 999 &&
+                  !game_trade_stop_colony_ok(game, u, r->stop[next].colony_index);
+       ++k) {
+    next = (next + 1) % (int)r->dest_count;
+  }
   (void)game_trade_route_aim_stop(game, u, next);
   if (game_trade_route_loop_warn(game, r)) {
     u->moves = 0;
