@@ -957,6 +957,22 @@ void platform_sleep_ms(uint32_t ms) {
   SDL_Delay(ms);
 }
 
+void platform_set_window_icon(ColonizePlatform* platform, const uint32_t* argb, int width, int height) {
+  if (!platform || !platform->window || !argb || width <= 0 || height <= 0) {
+    return;
+  }
+  /* SDL only reads the pixels; the surface does not own them. */
+  SDL_Surface* surface = SDL_CreateRGBSurfaceWithFormatFrom(
+    (void*)argb, width, height, 32, width * (int)sizeof(uint32_t), SDL_PIXELFORMAT_ARGB8888
+  );
+  if (!surface) {
+    diag_warn("Window icon: SDL_CreateRGBSurfaceWithFormatFrom failed: %s", SDL_GetError());
+    return;
+  }
+  SDL_SetWindowIcon(platform->window, surface);
+  SDL_FreeSurface(surface);
+}
+
 void platform_set_window_title(ColonizePlatform* platform, const char* title) {
   if (!platform || !platform->window || !title) {
     return;
