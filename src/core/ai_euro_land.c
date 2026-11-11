@@ -147,11 +147,12 @@ static int ai_euro_5952_resource_site_byte(const ColonizeMsgCatalog* names, int 
  * 4..11 reads indian[4..7] for 4..7 and runs off the block into the colony
  * array (DS:0x5d46 = 0x5ad6 + 8 * 0x4e, stride 0xca) for 8..11.
  * A negative offset lands in the 84-slot dwelling array below the Indian
- * records (DS:0x54ec, stride 0x12, ending at the DS:0x5ad4 tile-size word):
- * FUN_5bfb_0182's swapped (euro - 4, tribe nation) read (port_bugs.md #1230).
- * ponytail: the colony bytes come from the col1 snapshot, which can lag the
- * live colonies within a turn; dwelling slots past tribe_count read 0, where
- * DOS keeps whatever FUN_4d56_00e0's compaction left there.
+ * records (DS:0x54ec, stride 0x12, ending at the DS:0x5ad4 tile-size word).
+ * Only FUN_5bfb_0182's swapped (euro - 4, tribe nation) read made one, and the
+ * port no longer reproduces it (docs/dos_bugs.md DB-101).
+ * The colony bytes come from the col1 snapshot, which can lag the live
+ * colonies within a turn; dwelling slots past tribe_count read 0, where DOS
+ * keeps whatever FUN_4d56_00e0's compaction left there.
  */
 int ai_euro_5952_alarm_word(const ColonizeCol1Save* col1, int p1, int euro) {
   if (!col1) {

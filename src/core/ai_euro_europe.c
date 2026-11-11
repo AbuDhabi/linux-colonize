@@ -1766,9 +1766,14 @@ static void ai_euro_5d04_hire_ladder_tail(
    * unrelated to the gate-cascade flags of the same raw names earlier in
    * the function; fresh C names to avoid confusion with `f->*`. */
   const int every_third_turn = (turn % 3) == 0;
-  /* unit+0x3148 bit 0x20 of the last list-walk cursor, which is -1 (past
-   * end) by the time this reads it in the raw body — an artifact of
-   * DOS's register reuse, not a meaningful read. Structural placeholder. */
+  /* raw 92589 (asm 521d:6273-627c) tests unit+0x3148 bit 0x20 of the list
+   * walk's cursor [BP-0x42], which is always negative there (the loop only
+   * exits on it), so DOS reads unit -1: DS:0x3148 - 0x1c = DS:0x312c. That is
+   * the DS:0x2f76 terrain record of class 27 (Mountains) at +6, its Sugar
+   * yield, 0 in NAMES.TXT; the DOSBox-X state vr4528 holds the
+   * record 03 06 07 02 18 00 00 .. at DS:0x3126. So the bit is never set and
+   * 0 is what DOS computes, not a stand-in. Which unit was meant cannot be
+   * recovered. */
   const int unit_flag_bit5 = 0;
   const int has_any_colony = stuff->colony_counts[nation_id] != 0;
   /* raw 92595 `-0x5f48` = DS:0xa0b8[nation] — own colonies flagged

@@ -1,7 +1,6 @@
 #include "core/internal.h"
 #include "core/ai_contact.h"
 #include "core/ai_contact_internal.h"
-#include "core/ai_euro_internal.h" /* ai_euro_5952_alarm_word */
 
 /*
  * Sections:
@@ -561,14 +560,14 @@ void ai_contact_apply_welcome_accept(
   ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_MEET, nation_id, peace_body);
 
   /*
-   * DOS-LITERAL FUN_5bfb_0182 (5bfb:01ee-0203): @INDIANCOME when
-   * FUN_281f_030c(euro - 4, tribe nation) < 0x19, signed. The PUSHes swap the
-   * (tribe slot, euro) order every other caller uses, so the word read is
-   * DS:0x5b1c + ((euro - 4) * 0x27 + nation) * 2: a dwelling-record word for
-   * euro 0..2 (slots 71..80), an Inca-record word for euro 3. On an unused
-   * dwelling slot it is 0 and the line shows (port_bugs.md #1230).
+   * FUN_5bfb_0182 (raw 96551, 5bfb:01ee-0203): @INDIANCOME when the tribe's
+   * alarm toward the meeting nation is below 0x19, signed. DOS pushes the
+   * FUN_281f_030c arguments swapped, (euro - 4, tribe nation), and so reads a
+   * dwelling-record word (euro 0..2) or an Inca-record word (euro 3) instead
+   * of the alarm. The port reads the alarm (docs/dos_bugs.md DB-101). It was
+   * clamped to 20 above, so the line always follows @INDIANPEACE.
    */
-  if (ai_euro_5952_alarm_word(ctx->col1, e - 4, nation_id) < 0x19) {
+  if (ind->alarm_by_player[e] < 0x19) {
     PopupMsgTokens come_tok;
     memset(&come_tok, 0, sizeof(come_tok));
     come_tok.string0 = tribe;
