@@ -12,7 +12,8 @@
  * share, land_form = plate count, temperature = band widths, climate = the
  * moisture winds carry. forest_extra is not used.
  *
- * The 2-tile rim never takes part (always water). The tail is shared with
+ * The rim never takes part: 2 columns west / east (water, sea lanes), 1 row
+ * north / south (arctic, as map_generate's finalize writes it). The tail is shared with
  * map_generate: prime_resource_seed (specials and rumours hash from it), high
  * seas, map_gen_finalize_border_and_forest, continents (+ Pacific / offshore
  * suppress) and the Euro landfalls. All draws come from the campaign RNG, so a
@@ -42,7 +43,8 @@ enum {
   W = MAP_GEN_WIDTH,
   H = MAP_GEN_HEIGHT,
   N = W * H,
-  EDGE = 2,              /* rim width kept as water */
+  EDGE_X = 2,            /* west / east rim kept as water (sea lanes) */
+  EDGE_Y = 1,            /* north / south rim: row 0 / H-1 become arctic */
   ELEV_UNIT = 16,        /* initial land +16, water -16 */
   MAX_PLATES = 64,
   TECTONIC_ITERS = 6,
@@ -70,7 +72,7 @@ static const int k_land_permille_by_mass[4] = {330, 420, 520, 600};
 /* By temperature 0 Cool .. 2 Warm (3 random): the Cold band is a fixed number
  * of rows at each active rim (arctic is useless land); Hot..Cool share the
  * rest of equator-to-rim in these proportions. */
-static const int k_cold_rows[4] = {3, 2, 1, 1};
+static const int k_cold_rows[4] = {2, 1, 0, 0};
 static const int k_band_widths[4][4] = {
   {2, 3, 4, 5},
   {4, 4, 5, 6},
@@ -133,7 +135,7 @@ static int rnd(AltGen* g, int lo, int hi) {
 }
 
 static bool in_active(int x, int y) {
-  return x >= EDGE && y >= EDGE && x < W - EDGE && y < H - EDGE;
+  return x >= EDGE_X && y >= EDGE_Y && x < W - EDGE_X && y < H - EDGE_Y;
 }
 
 static bool is_water_type(uint8_t t) {
@@ -202,8 +204,8 @@ static void make_plates(AltGen* g, const MapGenParams* p) {
   }
   g->plate_count = k_plates_by_form[p->land_form];
   for (int k = 0; k < g->plate_count;) {
-    const int x = rnd(g, EDGE, W - 1 - EDGE);
-    const int y = rnd(g, EDGE, H - 1 - EDGE);
+    const int x = rnd(g, EDGE_X, W - 1 - EDGE_X);
+    const int y = rnd(g, EDGE_Y, H - 1 - EDGE_Y);
     const int i = y * W + x;
     if (g->plate[i] >= 0) {
       continue;
@@ -349,7 +351,7 @@ static void erosion(AltGen* g) {
   int inland_count = 0;
   for (int k = 0; k < g->active_count; ++k) {
     const int x = g->active[k] % W;
-    if (x - EDGE >= SIDE_ZONE && W - 1 - EDGE - x >= SIDE_ZONE) {
+    if (x - EDGE_X >= SIDE_ZONE && W - 1 - EDGE_X - x >= SIDE_ZONE) {
       inland[inland_count++] = g->active[k];
     }
   }
@@ -378,7 +380,7 @@ static void erosion(AltGen* g) {
     for (int k = 0; k < g->active_count; ++k) {
       const int i = g->active[k];
       const int x = i % W;
-      const int side = x - EDGE < W - 1 - EDGE - x ? x - EDGE : W - 1 - EDGE - x;
+      const int side = x - EDGE_X < W - 1 - EDGE_X - x ? x - EDGE_X : W - 1 - EDGE_X - x;
       if (side < SIDE_ZONE && g->elev[i] > k_side_cap[side]) {
         worn += g->elev[i] - k_side_cap[side];
         g->elev[i] = k_side_cap[side];
@@ -393,7 +395,7 @@ static void erosion(AltGen* g) {
 /* Latitude in -1 (south rim) .. +1 (north rim); equator at mid-height. */
 static float latitude(int y) {
   const float cy = (float)(H - 1) * 0.5f;
-  return (cy - (float)y) / (cy - (float)EDGE);
+  return (cy - (float)y) / (cy - (float)EDGE_Y);
 }
 
 /*
@@ -585,7 +587,7 @@ static void rainfall(AltGen* g, int climate) {
 
 /* Rows from (y) to the nearer active north / south edge; negative in the rim. */
 static int rows_from_pole(int y) {
-  return y < H / 2 ? y - EDGE : H - 1 - EDGE - y;
+  return y < H / 2 ? y - EDGE_Y : H - 1 - EDGE_Y - y;
 }
 
 /*
@@ -606,7 +608,7 @@ static void temperature(AltGen* g, int temp_axis) {
   for (int y = 0; y < H; ++y) {
     int band = 4;
     if (rows_from_pole(y) >= cold) {
-      const float f = fabsf((float)y - cy) / (cy - (float)(EDGE + cold) + 0.5f) * (float)total;
+      const float f = fabsf((float)y - cy) / (cy - (float)(EDGE_Y + cold) + 0.5f) * (float)total;
       band = 0;
       int edge = widths[0];
       while (band < 3 && f >= (float)edge) {
@@ -989,8 +991,8 @@ bool map_generate_alternate(
     dos_rng_seed(&local, p.seed);
     g->rng = &local;
   }
-  for (int y = EDGE; y < H - EDGE; ++y) {
-    for (int x = EDGE; x < W - EDGE; ++x) {
+  for (int y = EDGE_Y; y < H - EDGE_Y; ++y) {
+    for (int x = EDGE_X; x < W - EDGE_X; ++x) {
       g->active[g->active_count++] = y * W + x;
     }
   }

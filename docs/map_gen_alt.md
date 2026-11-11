@@ -18,13 +18,15 @@ replays and tribe placement continues from the post-gen stream.
 |----------------|--------|
 | Land Mass (0..2, NEW WORLD 0..3) | share of plate area started as land: 33 / 42 / 52 / 60 % (`k_land_permille_by_mass`) |
 | Land Form (0..2, 3) | plate count: 48 / 28 / 16 / 10 (`k_plates_by_form`): archipelago = many small plates |
-| Temperature (0..2, 3) | Cold = 3 / 2 / 1 / 1 rows at each active edge (`k_cold_rows`); Hot..Cool share the rest (`k_band_widths`): Warm widens Hot / Warm, Cool widens Cool |
+| Temperature (0..2, 3) | Cold = 2 / 1 / 0 / 0 rows at each active edge (`k_cold_rows`); Hot..Cool share the rest (`k_band_widths`): Warm widens Hot / Warm, Cool widens Cool |
 | Climate (0..2, 3) | moisture an ocean tile hands the wind: 60 / 100 / 140 / 180 (`k_moisture_by_climate`) |
 | `forest_extra` | unused |
 
 ## Pipeline
 
-The 2-tile rim never takes part: always water (later high seas / arctic rows).
+The rim never takes part: 2 columns west / east (water, later the sea lanes) and
+1 row north / south (water during generation, arctic after the finalize pass), so
+generated land reaches the row next to the arctic edge rows.
 Elevation is an `int` (land starts at +16, water at -16); tiles below 0 are water.
 
 1. **Plates.** `plate_count` seeds grow by random frontier picks until they tile
@@ -92,7 +94,7 @@ Specials and Lost City Rumours need nothing extra: like DOS they hash from
 
 - `unit_map_gen` `test_alternate_generator_invariants`: 81 axis combinations:
   routing, replay, land share bounds, water rim plus the sea column inside the
-  west / east rim, valid classes, no river on a
+  west / east rim, arctic top / bottom rows, valid classes, no river on a
   hill, every river tile linked to river or sea, landfalls present.
 - `unit_new_game` `alternate_map_village_counts`: a full `ai_init_new_game` on an
   alternate map places every tribe's capital.

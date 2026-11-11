@@ -241,8 +241,8 @@ static int test_tb46_latitude_single_draw(void) {
 
 /* settings.json divergences.alternate_map_generator (map_gen_alt.c): over a
  * sweep of the four Customize axes, map_generate routes to the alternate,
- * replays per seed, keeps the rim (and the column inside it west / east)
- * water, never stores a river on a hill /
+ * replays per seed, keeps the west / east rim (and the column inside it)
+ * water and the top / bottom row arctic, never stores a river on a hill /
  * mountain, keeps every land river tile 4-connected to more river or the
  * sea, leaves valid land classes only, and still finds the Euro landfalls. */
 static int test_alternate_generator_invariants(void) {
@@ -280,7 +280,7 @@ static int test_alternate_generator_invariants(void) {
         const uint8_t t = a.terrain[y * w + x];
         const uint8_t typ = (uint8_t)(t & 0x1f);
         /* The column inside the west / east rim is sea too (no land against the lane). */
-        const bool rim = x < 3 || y < 2 || x >= w - 3 || y >= h - 2;
+        const bool rim = x < 3 || y < 1 || x >= w - 3 || y >= h - 1;
         const bool water = typ == T_OCEAN || typ == T_HIGH_SEAS;
         if (rim && !water && !((y == 0 || y == h - 1) && t == T_ARCTIC)) {
           fprintf(stderr, "case %d: rim (%d,%d) = 0x%02x\n", k, x, y, t);
