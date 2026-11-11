@@ -611,12 +611,12 @@ static bool game_tile_live_seen(const ColonizeGameState* game, int x, int y);
  * combat lunge: 0x10 >> zoom one-pixel steps with a wait of (fast ? 8 : 10)
  * << zoom ticks of the 608.77 Hz DS:0x8338 clock between steps and none after
  * the last, i.e. 15 waits, ~197 / ~246 ms a tile. Port divergence
- * (known_divergences.md "Fast Piece Slide"): fast waits 3 ticks, ~74 ms a
+ * (known_divergences.md "Fast Piece Slide"): fast waits 4 ticks, ~99 ms a
  * tile. Frames are placed by elapsed time, so a slow present never stretches
  * the slide. */
 COLONIZE_INTERNAL uint32_t game_slide_total_ms(const ColonizeGameState* game) {
   const bool fast = game->col1_ok && game->col1.head.game_options.fast_piece_slide;
-  return (GAME_SLIDE_STEPS - 1) * (fast ? 3u : 10u) * 100000u / 60877u;
+  return (GAME_SLIDE_STEPS - 1) * (fast ? 4u : 10u) * 100000u / 60877u;
 }
 
 COLONIZE_INTERNAL int game_slide_wait_next(uint32_t t0, uint32_t total_ms, int f) {

@@ -4189,7 +4189,7 @@ static int test_bar_screen_lines_do_not_block_map(void) {
 }
 
 /* FUN_112b_0eb6 (raw 2648-2713): 16 one-pixel steps, 15 waits of 10 (fast: 8
- * in DOS, 3 in the port per known_divergences.md) ticks of the 608.77 Hz clock, none after the last. Under the stubs' virtual
+ * in DOS, 4 in the port per known_divergences.md) ticks of the 608.77 Hz clock, none after the last. Under the stubs' virtual
  * clock the paced loop must show every one of the 16 frames and end exactly
  * when the last wait does. */
 static int test_slide_pacing_matches_dos(void) {
@@ -4200,7 +4200,7 @@ static int test_slide_pacing_matches_dos(void) {
   for (int fast = 0; fast <= 1 && rc == 0; ++fast) {
     game.col1.head.game_options.fast_piece_slide = (uint8_t)fast;
     const uint32_t total = game_slide_total_ms(&game);
-    const uint32_t want_total = fast ? 73u : 246u;
+    const uint32_t want_total = fast ? 98u : 246u;
     const uint32_t t0 = platform_ticks_ms();
     int frames = 1;
     for (int f = 1; f < GAME_SLIDE_STEPS;) {
