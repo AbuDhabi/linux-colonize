@@ -25,7 +25,8 @@
 #define GS_BOUND_BGM 0x00FA
 #define GS_BOUND_EVT 0x00FC
 /* FUN_1000_19bc: ids 0x8020.. index table 0x2AB6 by (id + 0x7fe0) = id − 0x8020;
- * these are the chord stings (war declaration 0x8020, assign colonist 0x8024). */
+ * these are the chord stings (0x8020-0x8023 nation chords played by
+ * FUN_5bfb_153e, assign colonist 0x8024). */
 #define GS_TABLE_STING 0x2AB6
 #define GS_BOUND_STING 0x00FE
 

@@ -726,9 +726,9 @@ ColonizeSoundOptions sound_get_options(void) {
  * (event ids 0x40..0x5c) by Sound Effects. Background Music gates only the
  * BGM *scheduler* (DS:0xa2, FUN_129f_00f6/02cc), never this dispatcher.
  *
- * The signed compare is load-bearing: the chord stings (0x8020 war
- * declaration, 0x8024 assign colonist) are negative as int16, so BX = 1 and
- * they always play, whatever the options say.
+ * The signed compare is load-bearing: the chord stings (0x8020-0x8023 the
+ * nation chords of a FUN_5bfb_153e audience, 0x8024 assign colonist) are
+ * negative as int16, so BX = 1 and they always play, whatever the options say.
  */
 bool sound_id_gate_allows(int id, ColonizeSoundOptions opts) {
   if ((int16_t)(uint16_t)id < 0x10) {

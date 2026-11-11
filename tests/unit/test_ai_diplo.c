@@ -2841,6 +2841,43 @@ static int case_153e_usa_signs_without_worthy(void) {
   return 0;
 }
 
+static int s_chord_id;
+static int s_chord_count;
+static void chord_record(int id) {
+  s_chord_id = id;
+  s_chord_count++;
+}
+
+/* FUN_5bfb_153e raw 97427-97429: an open audience with nation n plays
+ * 0x8020 + n; a closed gate (met, stamp under 16 turns) plays nothing. */
+static int case_153e_open_plays_nation_chord(void) {
+  ai_diplo_talk_reset();
+  static TreatyFx f;
+  if (treaty_fx_init(&f) != 0) {
+    return 1;
+  }
+  s_chord_id = -1;
+  s_chord_count = 0;
+  units_set_combat_music_hooks(chord_record, NULL);
+  const int opened = ai_diplo_153e_encounter(&f.ctx, 0, 1, f.unit_id, -1);
+  const int first_id = s_chord_id;
+  const int first_count = s_chord_count;
+  treaty_fx_drain(&f, treaty_pick_first);
+  ai_diplo_talk_reset();
+  s_chord_count = 0;
+  (void)ai_diplo_153e_encounter(&f.ctx, 0, 1, f.unit_id, -1);
+  const int closed_count = s_chord_count;
+  ai_diplo_talk_reset();
+  units_set_combat_music_hooks(NULL, NULL);
+  fx_map_free(&f.map);
+  if (!opened || first_id != 0x8021 || first_count != 1 || closed_count != 0) {
+    fprintf(stderr, "  opened %d id 0x%x count %d closed %d\n", opened, first_id, first_count,
+            closed_count);
+    return fail("153e: open audience plays 0x8020 + target once, closed gate none");
+  }
+  return 0;
+}
+
 /*
  * AI x AI news: FUN_5bfb_13b0's @SIGNTREATY (raw 97286) and FUN_465b_0000's
  * AI-attacker @DECLAREWAR (raw 75576-75585) go through an ungated
@@ -2886,6 +2923,7 @@ static const TestCase k_cases[] = {
     {"case_153e_withdraw_refusal_tone", case_153e_withdraw_refusal_tone},
     {"case_153e_usa_signs_without_worthy", case_153e_usa_signs_without_worthy},
     {"case_ai_pair_news_reaches_human", case_ai_pair_news_reaches_human},
+    {"case_153e_open_plays_nation_chord", case_153e_open_plays_nation_chord},
     {"case_00f8_score_wraps_16bit", case_00f8_score_wraps_16bit},
     {"case_2b5a_1112_fortify_break_treaty", case_2b5a_1112_fortify_break_treaty},
     {"case_153e_peacemenu_withdraw_dominance", case_153e_peacemenu_withdraw_dominance},
