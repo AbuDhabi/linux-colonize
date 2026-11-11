@@ -44,6 +44,7 @@ Scouts Auto-~Explore
 S~hips Auto-Explore
 Current ~Vision Veil
 ~Construction Queue
+Modern ~Random Numbers
 
 @MODOPTIONS3
 @width=220

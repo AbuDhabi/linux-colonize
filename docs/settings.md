@@ -58,13 +58,13 @@ defaults no matter what file is sitting in the build directory.
     "menu": false, "mouse_coords": false, "building_rects": false, "logs": false,
     "trace_autosaves": false, "input_logger": false, "input_logger_directory": "./input_logs"
   },
-  "divergences": { "unlimited_units": false, "modern_prng": false },
+  "divergences": { "unlimited_units": false },
   "mods": {
     "wagon_loot": false, "goto_native_wait": true, "population_floor": false, "raid_scalps": false,
     "royal_mercy": false, "late_fathers": false, "town_hall_tiers": false, "building_upkeep": false,
     "kings_audience": false, "tribe_mood": false, "scout_spying": false, "treaty_cancel_popup": false,
     "pioneer_plan": false, "scout_autoexplore": false, "ship_autoexplore": false, "hard_king": false,
-    "current_vision": false, "construction_queue": false
+    "current_vision": false, "construction_queue": false, "modern_prng": false
   },
   "data_dir": "./COLONIZE",
   "save_dir": "",
@@ -114,17 +114,8 @@ saved in the `UNXT` port extension chunk (docs/savegame.md), so DOS still
 loads the first 300 and never sees the rest. Turning the flag off again does
 not drop units: a save already above 300 loads whole, and new units wait
 until the count falls back under the DOS limit.
-`divergences.modern_prng` (read at startup, `main.c` -> `dos_rng_modern_seed`)
-makes every `dos_rng_next` draw, on any `ColonizeDosRng`, the top 15 bits of one
-process-wide xoshiro256** (`src/third_party/xoshiro256starstar.h`, authors' CC0
-code). Seeded once per process via splitmix64 from the campaign seed (`--seed` /
-`seed`) if set, else the wall clock; DOS reseeds (`dos_rng_seed`, DS:0x83a6, music
-tick) then leave the stream alone, so nothing replays. Values re-derived on demand
-from a stable seed stay on the LCG (`dos_rng_range_lcg`): the colony-screen building
-layout (every frame) and a village's taught skill (@CHIEFHOWDY, then the visit). The state rides
-in RTST record 13, written only while on; off = DOS draws and saves unchanged.
-`pioneer_plan`, `scout_autoexplore`, `ship_autoexplore`, `hard_king` and
-`current_vision` used to be `divergences` keys; they are per-campaign `mods` now
+`pioneer_plan`, `scout_autoexplore`, `ship_autoexplore`, `hard_king`,
+`current_vision` and `modern_prng` used to be `divergences` keys; they are per-campaign `mods` now
 (below). A file that still has one of them under `divergences` and not under
 `mods` seeds that mod's new-game default from it once; the next write keeps only
 the `mods` key.
@@ -141,7 +132,8 @@ loads with every mod off, except that an older port save carrying a `PPLN` or
 `SAUT` chunk (written only while the old `divergences.pioneer_plan` /
 `scout_autoexplore` / `ship_autoexplore` were on) gets those mods back
 (`explore_auto_legacy_mods`, col1_bridge.c); `hard_king` and `current_vision`
-leave no trace and stay off. Leaving to the title clears the mask. With
+leave no trace and stay off, and `modern_prng` stays off too: an older save's
+RTST record 13 is ignored without the record 17 bit. Leaving to the title clears the mask. With
 `dos_buggy_behavior()` on (every test binary) a new game gets mask 0.
 
 The defaults are edited on the title menu only (the in-game GAME pulldown stays
@@ -155,7 +147,8 @@ page title naming the group:
    `raid_scalps`, `scout_spying`.
 2. `@MODOPTIONS2` "New Rules and Features": `population_floor`,
    `late_fathers`, `building_upkeep`, `hard_king`, `pioneer_plan`,
-   `scout_autoexplore`, `ship_autoexplore`, `current_vision`, `construction_queue`.
+   `scout_autoexplore`, `ship_autoexplore`, `current_vision`, `construction_queue`,
+   `modern_prng`.
 3. `@MODOPTIONS3` "DOS Bug Fixes": `goto_native_wait`.
 
 Next / Done (the button under the rows, `@MODOPTIONSDONE`, Done on the last page; or Enter) on a page saves
@@ -195,6 +188,7 @@ stock 12 Game Concept pages stay title-only, as in DOS.
 | `hard_king` | off | Makes the War of Independence REF tougher (`ai_king_ref.c`): (1) `ai_king_ref_wave` runs up to difficulty + 1 FUN_43f7_0982 waves a turn (Discoverer 1 .. Viceroy 5), each spending one Man-O-War from the pool; an empty hull or land pool ends the turn's waves, and later waves skip colonies already invaded this turn while another coastal colony is left; (2) the landing sweep (`ai_king_0982_land_troops`) no longer counts the target's own units in a tile's stack, so occupied tiles tie with empty ones and get seized (FUN_43f7_0512, units destroyed); (3) target scoring adds the target's land units with attack > 1 within Chebyshev 2 of the colony (off its tile) to the tile strength and, outside the Fort/Fortress multiplier, to the garrison score. Off = DOS. Nothing saved. |
 | `current_vision` | off | Dithers (1-pixel checkerboard: 1/4 fog blue, palette 60..62, over 3/4 pixel; palette-nearest LUT) every seen map tile that no unit or colony of the viewed nation currently sees: unit tiles from `units_sight_radius` + the `map_sight_each` domain gate, colonies radius 1. The veil covers explored tiles plus a 1-tile ring into the unexplored. Layering, top first: colony names, fog (pixels the terrain pass left as fog are re-stamped, `s_fog_mask`), the veil (`game_render_current_vision`), everything else. Render-only, nothing saved. |
 | `construction_queue` | off | Port-only Construction build queue (docs/colony.md "ColonizeColony.build_queue"): Shift-click / Shift+Enter queues a project behind the one in production, and the picker also lists, in grey, projects only that plan unlocks (Drydock behind Docks), which can only be queued. Off = the DOS picker, Shift ignored. The queue rides the `BQUE` chunk. |
+| `modern_prng` | off | Every `dos_rng_next` draw, on any `ColonizeDosRng`, is the top 15 bits of one process-wide xoshiro256** (`src/third_party/xoshiro256starstar.h`, authors' CC0 code) instead of the DOS LCG. `game_commit_new_campaign` seeds it via splitmix64 from the campaign seed (`--seed` / `seed`) if set, else the wall clock, before map generation; DOS reseeds (`dos_rng_seed`, DS:0x83a6, music tick, save/load) then leave the stream alone, so nothing replays. Values re-derived on demand from a stable seed stay on the LCG (`dos_rng_range_lcg`): the colony-screen building layout (every frame) and a village's taught skill (@CHIEFHOWDY, then the visit). The state rides in RTST record 13, written only while on, and a load resumes it (no reseed); a mask without the bit (`mods_campaign_set`) switches the stream off. Off = DOS draws and saves unchanged. |
 
 Port-only keys, no DOS bit, no head bridge.
 `save_dir` empty means the platform default (`<exe>/COLONIZE`). `seed` is

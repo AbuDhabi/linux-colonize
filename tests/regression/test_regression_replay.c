@@ -733,13 +733,8 @@ static int run_test(const char* name) {
   }
   (void)settings_init(settings_file, NULL, 0);
   {
-    /* The startup-read divergences main.c applies after settings_init. A
-     * modern_prng test needs a `seed` to replay (0 without one). */
-    const ColonizeSettings* prefs = settings_get();
-    units_set_unlimited(prefs->unlimited_units);
-    if (prefs->modern_prng) {
-      dos_rng_modern_seed(prefs->seed_present ? (uint64_t)prefs->seed : 0u);
-    }
+    /* The startup-read divergence main.c applies after settings_init. */
+    units_set_unlimited(settings_get()->unlimited_units);
   }
 #ifndef _WIN32
   /* The limit above is checked between frames; this catches one frame that

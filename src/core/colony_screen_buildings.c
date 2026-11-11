@@ -180,7 +180,7 @@ static int colony_screen_slot_size_class(int slot) {
  * sequentially within each class — a fixed mapping, so all the randomness
  * lives in that one shuffle. Deterministic per colony, cheap enough to redo
  * on every call — which is why it stays on the LCG (dos_rng_range_lcg) even
- * under settings.json divergences.modern_prng.
+ * under mod modern_prng.
  */
 void colony_screen_assign_slot_positions_ex(
   const ColonizeColony* colony,

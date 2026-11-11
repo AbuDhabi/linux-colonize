@@ -2,7 +2,7 @@
  * the authors' reference code. Bodies are verbatim; adaptations: the static
  * state became a pointer argument, the two `next` functions were renamed and
  * made static inline, and the unused jump functions were left out. Used by
- * core/dos_rng.c for settings.json divergences.modern_prng. */
+ * core/dos_rng.c for mod modern_prng. */
 #ifndef COLONIZE_THIRD_PARTY_XOSHIRO256STARSTAR_H
 #define COLONIZE_THIRD_PARTY_XOSHIRO256STARSTAR_H
 

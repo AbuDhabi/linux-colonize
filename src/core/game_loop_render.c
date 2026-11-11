@@ -2247,6 +2247,15 @@ void game_commit_new_campaign(ColonizeGameState* game) {
   /* The campaign keeps the mod toggles the defaults hold now; the save
    * carries them, later edits of the defaults never reach this game. */
   mods_campaign_set(settings_mods_new_campaign_mask());
+  if (mods_on(MOD_MODERN_PRNG)) {
+    /* Before map generation, which draws from it too. Campaign seed when one
+     * is set, else wall clock mixed with a stack address (ASLR) so two new
+     * games in one second still differ. */
+    dos_rng_modern_seed(
+      game->config.rng_seed_set ? (uint64_t)game->config.rng_seed
+                                : (uint64_t)time(NULL) ^ ((uint64_t)(uintptr_t)&ng << 16)
+    );
+  }
 
   game->difficulty = ng->difficulty;
   game->human_nation = ng->nation;

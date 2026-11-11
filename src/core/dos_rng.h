@@ -66,11 +66,14 @@ unsigned long dos_rng_draw_count(void);
 /* Inclusive range [lo, hi], matching FUN_19ef_0032. */
 int dos_rng_range(ColonizeDosRng* rng, int lo, int hi);
 
-/* settings.json divergences.modern_prng (main.c only): from this call every
- * dos_rng_next on any instance draws the top 15 bits of one process-wide
- * xoshiro256** (third_party/xoshiro256starstar.h), seeded by splitmix64(seed);
- * reseeds no longer touch the stream. Never called = DOS LCG, bit-identical. */
+/* Mod modern_prng (mods.h MOD_MODERN_PRNG; seeded by a new campaign that has
+ * it): from this call every dos_rng_next on any instance draws the top 15 bits
+ * of one process-wide xoshiro256** (third_party/xoshiro256starstar.h), seeded
+ * by splitmix64(seed); reseeds no longer touch the stream. Never called = DOS
+ * LCG, bit-identical. */
 void dos_rng_modern_seed(uint64_t seed);
+/* Back to the DOS LCG (mods_campaign_set without MOD_MODERN_PRNG). */
+void dos_rng_modern_off(void);
 /* The 4-word xoshiro state (RTST save carry); NULL while modern is off. */
 uint64_t* dos_rng_modern_state(void);
 /* dos_rng_range that always steps the LCG: deterministic per-seed layouts that

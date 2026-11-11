@@ -56,6 +56,10 @@ typedef enum ModId {
   /* New feature: Shift-pick Construction build queue; the picker lists, in grey,
    * projects only the queued plan unlocks (docs/colony.md build_queue). */
   MOD_CONSTRUCTION_QUEUE = 17,
+  /* Gameplay: every draw comes from one xoshiro256** stream the save carries
+   * (RTST record 13) instead of the DOS LCG reseeded from the tick on save and
+   * load (dos_rng_modern_seed). Off = DOS. */
+  MOD_MODERN_PRNG = 18,
   MOD_COUNT
 } ModId;
 
