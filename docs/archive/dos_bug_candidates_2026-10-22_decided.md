@@ -496,7 +496,7 @@ C-61 and C-62 were decided earlier (DB-41, DB-42).
 - Port: `ai_contact_actions.c:1457` uses the per-village owner. (DB-7 is a different slip in the same function.)
 
 ### C-66. @INDIANCOME follow-up gate calls the alarm reader with swapped arguments
-Decided 2026-10-24: ported literally (port_bugs.md #1230, CLOSED).
+Decided 2026-10-24: ported literally (port_bugs.md #1230, CLOSED). Reversed 2026-11-11: fixed, see dos_bugs.md DB-101.
 - DOS: FUN_5bfb_0182 raw 96551 (asm 5bfb:01e0-01f5): `030c(euro - 4, indian)` reads before the Indian records. Confidence: high.
 - Port: reproduces it since 2026-10-24 (port_bugs.md #1230): `ai_contact_apply_welcome_accept` reads the same word through `ai_euro_5952_alarm_word(col1, e - 4, nation)` (dwelling slots 71..80 for euro 0..2, the Inca record for euro 3). The intended (slot, euro) read is the alarm 022e just clamped to 20, so the fix would show @INDIANCOME every time.
 
