@@ -654,7 +654,7 @@ static int ai_contact_a618_skill_ex(
    * (post_map tail @608: FUN_2a1f_0c9c write, FUN_2a1f_0cb4 read at raw
    * 120429), so it is a stable per-game value: post_map.boot_timer.
    * port_bugs.md #564. @CHIEFHOWDY and the learn visit both recompute it, so
-   * it stays on the LCG (dos_rng_range_lcg) under divergences.modern_prng.
+   * it stays on the LCG (dos_rng_range_lcg) under mod modern_prng.
    */
   dos_rng_seed(&rng,
                (uint32_t)((int)t->y * 256 + (int)t->x) + ctx->col1->post_map.boot_timer);

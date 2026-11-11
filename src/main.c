@@ -208,14 +208,6 @@ int main(int argc, char** argv) {
       cli.debug_menu = prefs->debug_menu;
     }
     diag_set_info_enabled(prefs->debug_logs);
-    if (prefs->modern_prng) {
-      /* Campaign seed when one is set, else wall clock mixed with a stack
-       * address (ASLR) so two launches in one second still differ. */
-      dos_rng_modern_seed(
-        cli.seed_from_cli ? (uint64_t)cli.rng_seed
-                          : (uint64_t)time(NULL) ^ ((uint64_t)(uintptr_t)&cli << 16)
-      );
-    }
   }
 
   diag_info("CLI data_dir=%s", cli.data_dir);

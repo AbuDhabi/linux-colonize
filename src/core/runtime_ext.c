@@ -32,7 +32,7 @@ enum {
   RT_COLONY_PLOTS_REC = 10, /* v1: u32 plot_was_worked_mask per colony in record order (26e4 carry) */
   RT_HOLD_AMOUNT = 11, /* v1: i32 DS:0x8dc4 units_last_hold_amount (last 317c slot amount) */
   RT_LCR_COUNTS = 12,  /* v1: u8 DS:0x1dc6 rumours explored, u8 DS:0x1dc7 Cibola count */
-  RT_XOSHIRO = 13,     /* v1: 4x u64 xoshiro256** state; written only under divergences.modern_prng */
+  RT_XOSHIRO = 13,     /* v1: 4x u64 xoshiro256** state; written only under MOD_MODERN_PRNG */
   RT_REPAIR = 14,      /* v1: per damaged ship {u8 x, u8 y, u8 nation, u8 type_index, u8 repair_pending} */
   RT_TRIBE_MOOD = 15,  /* v1: MOD_TRIBE_MOOD per-cause alarm tally (ai_contact_mood_export); written only when non-zero */
   RT_SCOUT_INTEL = 16, /* v1: MOD_SCOUT_SPYING 8-byte {nation, x, y, 0, i16 strength, u16 turn} entries; written only when non-empty */
@@ -284,13 +284,14 @@ void runtime_ext_deserialize(
   s_rng_restored = false;
   mods_campaign_set(0); /* a save without RT_MODS (DOS, older port saves) plays with every toggle off */
   if (!data) return;
+  uint64_t xo[4] = {0, 0, 0, 0};
   size_t off = 0;
   while (off + 8 <= size) {
     const uint32_t id = rd_u16_le(data + off);
     const uint32_t ver = rd_u16_le(data + off + 2);
     const uint32_t len = rd_u32_le(data + off + 4);
     off += 8;
-    if (len > size - off) return; /* truncated: stop, keep what applied */
+    if (len > size - off) break; /* truncated: stop, keep what applied */
     const uint8_t* p = data + off;
     off += len;
     if (ver != 1) continue;
@@ -380,15 +381,21 @@ void runtime_ext_deserialize(
         if (len == 4) mods_campaign_set(rd_u32_le(p));
         break;
       case RT_XOSHIRO:
-        /* Applied only while modern_prng is on; an all-zero state would stick. */
-        if (len == 32 && dos_rng_modern_state()) {
-          uint64_t xo[4];
+        if (len == 32) {
           for (int i = 0; i < 4; ++i) xo[i] = rd_u32_le(p + i * 8) | (uint64_t)rd_u32_le(p + i * 8 + 4) << 32;
-          if (xo[0] | xo[1] | xo[2] | xo[3]) memcpy(dos_rng_modern_state(), xo, sizeof xo);
         }
         break;
       default:
         break;
     }
+  }
+  /* The stream resumes only in a campaign whose RT_MODS has modern_prng. A
+   * RT_XOSHIRO without it (saves from when modern_prng was a settings.json
+   * divergence) is ignored: that campaign loads on the DOS LCG. */
+  if (mods_on(MOD_MODERN_PRNG)) {
+    /* No or all-zero state (an all-zero state would stick): a fresh clock seed. */
+    const bool have_xo = (xo[0] | xo[1] | xo[2] | xo[3]) != 0;
+    dos_rng_modern_seed(have_xo ? 0u : (uint64_t)dos_rng_wall_ms());
+    if (have_xo) memcpy(dos_rng_modern_state(), xo, sizeof xo);
   }
 }

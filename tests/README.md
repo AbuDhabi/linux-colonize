@@ -175,7 +175,7 @@ own entry, `regression_replay.<dir name>`, so `ctest -j` runs them in parallel. 
 | `input.jsonl` | `debug.input_logger` log (docs/settings.md "Input log") of the test span; none in an idle test |
 | `output.sav` | save taken on the main map right after the last input |
 | `input.steps` | optional: the step script `input.jsonl` was compiled from (see "Authoring from a step script") |
-| `settings.json` | optional: the settings the replay runs with (e.g. a `divergences` switch); default settings without it. The harness applies the startup-read `unlimited_units` and `modern_prng` as `main.c` does (xoshiro seeded from `seed`, 0 without one) |
+| `settings.json` | optional: the settings the replay runs with (e.g. a `divergences` switch); default settings without it. The harness applies the startup-read `unlimited_units` as `main.c` does; mods (e.g. `modern_prng`) come from the RTST record 17 in `input.sav`, never from this file |
 | `output.frame` | optional: FNV-1a hash of the final frame's palette indices, for render-only behaviour the save never sees (`current_vision`); `--bless` refreshes it when present (create it empty to start) |
 | `turns` | optional: N, the number of turns the test ends (multi-turn tests, see below); 0 without it |
 | `ends_on_title` | optional, empty: the test ends on the title menu (Retire, a won or lost War of Independence) instead of the main map; the save is taken there |

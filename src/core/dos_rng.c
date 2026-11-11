@@ -37,9 +37,9 @@ static int dos_rng_env_cached(const char* name, int* cache) {
 
 static int32_t s_dos_rng_83a6 = -1;
 
-/* settings.json divergences.modern_prng: one process-wide xoshiro256** stream
- * feeds every ColonizeDosRng; dos_rng_seed and the reseed points then only
- * rewrite the instance's (unused) LCG word, so they never replay a sequence. */
+/* Mod modern_prng: one process-wide xoshiro256** stream feeds every
+ * ColonizeDosRng; dos_rng_seed and the reseed points then only rewrite the
+ * instance's (unused) LCG word, so they never replay a sequence. */
 static bool s_xo_on;
 static uint64_t s_xo[4];
 
@@ -48,6 +48,10 @@ void dos_rng_modern_seed(uint64_t seed) {
     s_xo[i] = splitmix64_next(&seed);
   }
   s_xo_on = true;
+}
+
+void dos_rng_modern_off(void) {
+  s_xo_on = false;
 }
 
 uint64_t* dos_rng_modern_state(void) {

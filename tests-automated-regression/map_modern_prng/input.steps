@@ -1,6 +1,6 @@
-# divergences.modern_prng (settings.json, seed 1234): the same three Lost City Rumours as
-# map_rumour_colonist_outcomes (same input.sav), rolled from the seeded xoshiro256** stream instead
-# of the DOS LCG (state 2293), so all three come out different; the save gains RTST record 13.
+# modern_prng mod (input.sav carries RTST record 17 with the mod bit and record 13 with the
+# stream for seed 1234): the same three Lost City Rumours as map_rumour_colonist_outcomes, rolled
+# from the xoshiro256** stream instead of the DOS LCG (state 2293), so all three come out different.
 key KP_6                   # Scout east onto (30,62): "nothing but rumors" (LCG: small treasure 300)
 wait 3
 key Return
