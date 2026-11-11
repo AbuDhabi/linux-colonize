@@ -337,7 +337,9 @@ struct ColonizeGameState {
   bool pedia_return_europe;   /* leaving the pedia reopens the Europe screen */
   PediaCategory pedia_category;
   int pedia_index;
-  int pedia_hover_entry;
+  int pedia_hover_entry; /* list: painted slot, DOS FUN_6cb2_24b8 local_c */
+  int pedia_list_sel;    /* list: selected slot, DOS local_6 */
+  bool pedia_list_press; /* list: a press was seen here (DS:0x7f2 latch for the release) */
   ColonizePikImage pedia_wood;
   bool pedia_wood_ok;
   ColonizeSpriteSheet pedia_buildings;

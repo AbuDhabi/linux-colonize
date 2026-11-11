@@ -631,7 +631,11 @@ Second pass, same day (were port_bugs.md #1282-#1286):
   tile) block at 16px and scaled to the 120x120 box at (200,8) by `FUN_12e9_008c`
   with `FUN_12e9_0006`'s ordered dither (source cols 2,1,2,1; rows 1,2,1,2; the
   dither phase carries from the box corner, so the full 5x5 must be run). Only
-  the middle 3x3 is shown (`colony_screen_scale15_dither`).
+  the middle 3x3 is shown (`colony_screen_scale15_dither`). The colonies go into
+  the block too, between terrain and tribes (`FUN_291f_0896` -> `FUN_6b22_0102`,
+  the main map's `FUN_112b_0c64`: settlement + nation flag, no population or name
+  because DS:0x890 = 1 while the colony screen is up), so the centre settlement is
+  scaled and dithered with the terrain (port_bugs.md #1848).
 - Blocked plots (`FUN_2f2b_0ba8` tile loop, EXE file 0x26546): mask bit 0x40
   (worked by another colony) draws a colour-0xc box over the tile; bit 0x80
   (foreign fortified guard) draws the first unit in the tile chain with @UNIT

@@ -58,6 +58,8 @@
 typedef struct MapPanel {
   ColonizeSpriteSheet wood_tile;
   bool wood_ok;
+  /* DS:0xa576 (FUN_6a9f_0068): minimap colour per terrain class 0..0x1c. */
+  uint8_t minimap_color[29];
   char label_moves[32];
   char label_locat[32];
   char label_with[32];
@@ -68,6 +70,9 @@ typedef struct MapPanel {
   /* DS:0x894 CHEAT Debug Info Flags (game->debug_flags_mask), set per frame
    * by game_render_map_panel; bit 0 = the per-tribe alarm list. */
   uint16_t debug_flags;
+  /* DS:0x929c map blink on-phase while the blink runs (FUN_1984_010a), set per frame:
+   * the minimap cursor tile draws white. */
+  bool minimap_cursor_white;
 } MapPanel;
 
 bool map_panel_load(MapPanel* panel, const char* data_dir, const ColonizeMsgCatalog* labels);

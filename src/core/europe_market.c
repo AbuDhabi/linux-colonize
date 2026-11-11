@@ -1041,25 +1041,9 @@ EuropeHitResult europe_hit_test_ex(
     return hit;
   }
 
-  if (europe_in_rect(mx, my, EUROPE_BTN_X, EUROPE_BTN_Y, EUROPE_BTN_W, EUROPE_BTN_H)) {
-    hit.kind = EUROPE_HIT_BTN_RECRUIT;
-    return hit;
-  }
-  if (europe_in_rect(
-        mx, my, EUROPE_BTN_X, EUROPE_BTN_Y + EUROPE_BTN_PITCH, EUROPE_BTN_W + 8, EUROPE_BTN_H
-      )) {
-    hit.kind = EUROPE_HIT_BTN_PURCHASE;
-    return hit;
-  }
-  if (europe_in_rect(
-        mx,
-        my,
-        EUROPE_BTN_X,
-        EUROPE_BTN_Y + 2 * EUROPE_BTN_PITCH,
-        EUROPE_BTN_W,
-        EUROPE_BTN_H
-      )) {
-    hit.kind = EUROPE_HIT_BTN_TRAIN;
+  if (europe_in_rect(mx, my, EUROPE_BTN_X, EUROPE_BTN_Y, EUROPE_BTN_W, EUROPE_BTN_PANEL_H)) {
+    /* raw 0x35344: clamp(y - 0x59, 0, 0x20) / 0xb picks the button. */
+    hit.kind = (EuropeHit)(EUROPE_HIT_BTN_RECRUIT + (my - EUROPE_BTN_Y) / EUROPE_BTN_PITCH);
     return hit;
   }
 

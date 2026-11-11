@@ -26,6 +26,37 @@ immigrants on the dock lane and just leaves them unpainted.
 The 233/138 origin is confirmed by original_screenshots/europe (the selection
 frame there runs x 232..249, y 137..154 — 1px outside a 16x16 at 233,138).
 
+## EUROPE_BTN_* button column and market selection box
+
+RECRUIT / PURCHASE / TRAIN (port_bugs.md #1849): FUN_38fd_1878 draws three
+FUN_38fd_1696 buttons at x 0x119 (281) from y 0x59 (89). FUN_38fd_1660 sizes
+each 0x25 (37) wide and FONTTINY[0]+3 tall; the next starts height+2 lower.
+Unpressed bevel: bottom/right lines in 0x30 first, then top/left in 0x39 (so
+the TR / BL corners are 0x39). The label is centred as x + (0x25 − w) SAR 1,
+where w = FUN_104b_0216 = pixel width − 1, at y+2: first char 0xe, the rest 0xf.
+Pressed (bit0: DS:0x9e2e == button, DS:0x7ee held, press region DS:0x9e3a == 5)
+inverts the bevel, fills 0xf and inks 0 / hotkey 7. The port does not draw the
+pressed state. Hit test: FUN_38fd_1aba region 5 = rect (0x119, 0x59, 0x25,
+0x20), button = clamp(y − 0x59, 0, 0x20) / 0xb (raw 0x35344). The gap rows
+belong to the button above.
+
+Market selection box (#1852): FUN_38fd_0b64 inks it 10 (green). It is 0xe
+(yellow) while a press on the market is held (DS:0x7ee, DS:0x9e3a == 0), or
+while the market has the DS:0xf9a focus, the DS:0xfa7 hover caption is off
+and the DS:0x9e40 blink is on. The FUN_38fd_55b6 loop flips DS:0x9e40 through
+FUN_38fd_1960 every 0x14 ticks of the 60.877 Hz clock (~328 ms). The port
+leaves out the hover hold and the phase restarts (FUN_38fd_199e sets the on
+phase, and a key press in the on phase flips it off first), so its blink runs
+free on `elapsed_ms`.
+
+Market cells (#1853, FUN_38fd_0b64, OVL05 0f64-1120): cell i has x = 1 +
+i*0x13. The cargo icon sits at (x + 9 − w/2, 0xb5); "sell/buy" at
+(x + 9 − (width+1)/2, 0xc2) in ink 0x2f; a boycotted cargo (FUN_291f_0cd8)
+gets ICONS 0x38, the red X, at (x + 5, 0xb8), and its price keeps the normal
+ink. The box spans (x − 1, 0xb3) to (x + 0x12, 0xc7). After the cells the same
+routine draws "Exit" (@MISC 210) at (0x132, 0xb3) in ink 0xf, as the colony
+screen does.
+
 ## EUROPE_DOCK_TYPE_*
 
 DOS @UNIT type codes a dock unit can hold (FUN_38fd_0718 / the @ARMOPTIONS

@@ -1328,6 +1328,16 @@ static void render_europe_market_and_buttons(
   const EuropeScreen* eu
 ) {
   char line[192];
+  /* FUN_38fd_0b64 selection box ink: 10, or 0xe while a press on the market is held
+   * (DS:0x7ee, press region DS:0x9e3a 0) or while the market has the DS:0xf9a focus and
+   * the DS:0x9e40 blink is in its on phase. FUN_38fd_55b6 (raw 68170-68178) toggles
+   * DS:0x9e40 through FUN_38fd_1960 every 0x14 ticks of the 60.877 Hz FUN_1c0c_0006
+   * clock (~328 ms, colony_screen_blink_on's period). Not ported: the DS:0xfa7 hover
+   * caption that holds it at 10, and the on-phase restarts (FUN_38fd_199e, key press). */
+  const bool market_held =
+    ui_drag_active(&game->ui_drag) && game->ui_drag.kind == UI_DRAG_EUROPE_MARKET;
+  const bool market_blink_on = eu->focus == 0 && (game->elapsed_ms / 328u) % 2u == 0u;
+  const uint8_t sel_ink = (market_held || market_blink_on) ? 0xe : 10;
   /* Market: 20x20 cells sharing borders; selection lights the cell. */
   for (int i = 0; i < eu->cargo_count && i < EUROPE_CARGO_MAX; ++i) {
     const int mx = EUROPE_MARKET_X + i * EUROPE_MARKET_PITCH;
@@ -1335,68 +1345,65 @@ static void render_europe_market_and_buttons(
       break;
     }
     const bool sel = (i == eu->selected_market);
+    /* DOS-LITERAL FUN_38fd_0b64 (OVL05 0f64-10fc), port_bugs.md #1853: cell x
+     * = 1 + i*0x13; the cargo icon at (x + 9 - w/2, 0xb5); "sell/buy" at
+     * (x + 9 - (width+1)/2, 0xc2) in ink 0x2f; a boycotted cargo (FUN_291f_0cd8)
+     * gets ICONS 0x38, the red X, at (x + 5, 0xb8). */
+    const int cx = mx + 1;
     const int sprite = EUROPE_CARGO_ICON_BASE + i;
     if (game->unit_icons_ok && sprite < game->unit_icons.sprite_count) {
       const ColonizeSprite* sp = &game->unit_icons.sprites[sprite];
-      const int ix = mx + (EUROPE_MARKET_CELL - sp->width) / 2;
-      const int iy = EUROPE_MARKET_Y + 1;
-      ss_blit_sprite(&game->unit_icons, sprite, framebuffer, ix, iy);
+      ss_blit_sprite(&game->unit_icons, sprite, framebuffer, cx + 9 - (sp->width >> 1), 0xb5);
     }
-    /* Boycotted cargo (ai_king.c tea-party / ai_diplo.c embargo): price text
-     * in red — trading is blocked until the boycott lifts (europe_buy_cargo /
-     * europe_sell_hold refuse it; see
-     * europe_cargo_boycotted). Source: fandom Boycott (Col). */
-    const bool boycotted = europe_cargo_boycotted_ex(
-      eu, game->col1_ok ? &game->col1 : NULL, game->human_nation, i
-    );
-    /* DOS shows sell/buy = (euro_price − 1)/(euro_price + burden). */
     snprintf(line, sizeof(line), "%d/%d", europe_sell_price(eu, i), europe_buy_price(eu, i));
-    {
-      const int tw = font_text_width(font, line);
-      const int th = font ? (font->max_height > 0 ? (int)font->max_height : 6) : 7;
-      const int tx = mx + (EUROPE_MARKET_CELL - tw) / 2;
-      const int ty = EUROPE_MARKET_Y + EUROPE_MARKET_CELL - th - 1;
-      font_draw_text(font, framebuffer, tx, ty, line, boycotted ? 12 : 0);
+    if (font) {
+      const int w = font_text_width_skip(font, line, FONT_SKIP_NONE) + 1;
+      font_draw_text(font, framebuffer, cx + 9 - (w >> 1), 0xc2, line, 0x2f);
+    }
+    if (europe_cargo_boycotted_ex(eu, game->col1_ok ? &game->col1 : NULL, game->human_nation, i) &&
+        game->unit_icons_ok && UNIT_CHROME_REPAIR_X_SPRITE < game->unit_icons.sprite_count) {
+      ss_blit_sprite(&game->unit_icons, UNIT_CHROME_REPAIR_X_SPRITE, framebuffer, cx + 5, 0xb8);
     }
     if (sel) {
       europe_draw_box_border(
-        framebuffer, mx, EUROPE_MARKET_Y, EUROPE_MARKET_CELL, EUROPE_MARKET_CELL + 1, 14
+        framebuffer, mx, EUROPE_MARKET_Y, EUROPE_MARKET_CELL, EUROPE_MARKET_CELL + 1, sel_ink
       );
     }
   }
 
-  /* RECRUIT / PURCHASE / TRAIN — transparent beveled ALL-CAPS buttons. */
-  {
-    /* LABELS.TXT @EUROLABEL rows 0..2; '~' is the port's hotkey marker. */
-    char k_btn_labels[3][24];
+  /* FUN_38fd_0b64 tail (OVL05 110c-1120): "Exit" (@MISC 210, DS:0x2f5e) at
+   * (0x132, 0xb3) in ink 0xf over the E icon, as on the colony screen. */
+  if (font) {
+    font_draw_text_shaded(
+      font, framebuffer, 0x132, 0xb3,
+      assets_msg_line_or(game->labels_ok ? &game->labels : NULL, "MISC", 210, ""),
+      (const uint8_t[4]){0, 0x0f, 0x0f, 0x0f}
+    );
+  }
+
+  /* RECRUIT / PURCHASE / TRAIN: DOS-LITERAL FUN_38fd_1878 / FUN_38fd_1696
+   * (OVL05 1c78 / 1a96), unpressed state. Each button is 0x25 wide and
+   * FONTTINY[0]+3 tall; bottom/right drawn first in 0x30, then top/left in
+   * 0x39; label centred (SAR) at y+2, first char 0xe, the rest 0xf. */
+  if (font) {
+    const int bh = (int)font->max_height + 3;
+    int by = EUROPE_BTN_Y;
     for (int i = 0; i < 3; ++i) {
+      /* LABELS.TXT @EUROLABEL rows 0..2; '~' marks the first char as hotkey. */
       snprintf(
-        k_btn_labels[i], sizeof(k_btn_labels[i]), "~%s",
+        line, sizeof(line), "~%s",
         assets_msg_line_or(game->labels_ok ? &game->labels : NULL, "EUROLABEL", i, "")
       );
-    }
-    UiButtonColors bc;
-    bc.dark = EUROPE_BTN_DARK;
-    bc.light = EUROPE_BTN_LIGHT;
-    bc.text = 15;
-    bc.hotkey = 14;
-    for (int i = 0; i < 3; ++i) {
-      int bw = EUROPE_BTN_W;
-      int bh = EUROPE_BTN_H;
-      ui_button_measure(font, k_btn_labels[i], &bw, &bh);
-      if (bw < EUROPE_BTN_W) {
-        bw = EUROPE_BTN_W;
-      }
-      ui_button_draw(
-        font,
-        framebuffer,
-        EUROPE_BTN_X,
-        EUROPE_BTN_Y + i * EUROPE_BTN_PITCH,
-        bw,
-        bh,
-        k_btn_labels[i],
-        &bc
-      );
+      const int x0 = EUROPE_BTN_X;
+      const int x1 = EUROPE_BTN_X + EUROPE_BTN_W - 1;
+      fb_hline(framebuffer, by + bh - 1, x0, x1, EUROPE_BTN_LIGHT);
+      fb_vline(framebuffer, x1, by, by + bh - 1, EUROPE_BTN_LIGHT);
+      fb_hline(framebuffer, by, x0, x1, EUROPE_BTN_DARK);
+      fb_vline(framebuffer, x0, by, by + bh - 1, EUROPE_BTN_DARK);
+      /* FUN_38fd_1660 measures with FUN_281f_0114 -> FUN_104b_0216 = width - 1. */
+      const int tx = x0 + ((EUROPE_BTN_W - (font_text_width(font, line) - 1)) >> 1);
+      font_draw_text_hotkey(font, framebuffer, tx, by + 2, line, 15, 14);
+      by += bh + 2;
     }
   }
 }
@@ -1926,6 +1933,9 @@ static void game_create_load_menu_art(ColonizeGameState* game) {
   if (dos_compat_normalize_asset_path(game->resolved_data_dir, "WOODPANL.PIK", pik_path, sizeof(pik_path))) {
     if (pik_load(pik_path, &game->pedia_wood, pik_err, sizeof(pik_err))) {
       game->pedia_wood_ok = true;
+      /* FUN_6cb2_0424 loads WOODPANL via FUN_291f_087a -> FUN_7939_000c (pixels only):
+       * the DAC stays VICEROY.PAL (port_bugs.md #1851). */
+      assets_load_palette(game->resolved_data_dir, &game->pedia_wood.palette);
       diag_info(
         "Loaded Colonizopedia wood panel WOODPANL.PIK (%dx%d)",
         game->pedia_wood.width,

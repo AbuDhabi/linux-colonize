@@ -2,6 +2,7 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <strings.h>
 
 #include "core/colony.h"
 #include "core/colony_production.h"
@@ -529,114 +530,165 @@ bool pedia_entry_title(
   return true;
 }
 
-static int pedia_list_line_h(const ColonizeFont* font) {
-  const int h = font ? (font->max_height + 2) : 8;
-  return h < 8 ? 8 : h;
-}
-
-/* Column-major layout: fill down each column, then next. */
-static void pedia_list_cell(
-  PediaCategory category,
-  int entry_index,
-  int count,
-  const ColonizeFont* font,
-  int* out_x,
-  int* out_y,
-  int* out_w,
-  int* out_h
-) {
-  const int line_h = pedia_list_line_h(font);
-  /* Founding Fathers list uses two wider columns instead of three. */
-  const int cols = (category == PEDIA_CAT_FATHER) ? 2 : PEDIA_LIST_COLS;
-  const int rows = (count + cols - 1) / cols;
-  const int col_w = (category == PEDIA_CAT_FATHER) ? 150 : 104;
-  const int origin_x = 8;
-  const int origin_y = 20;
-  const int col = (rows > 0) ? (entry_index / rows) : 0;
-  const int row = (rows > 0) ? (entry_index % rows) : 0;
-  if (out_x) {
-    *out_x = origin_x + col * col_w;
-  }
-  if (out_y) {
-    *out_y = origin_y + row * line_h;
-  }
-  if (out_w) {
-    *out_w = col_w - 4;
-  }
-  if (out_h) {
-    *out_h = line_h;
-  }
-}
-
-static void pedia_list_exit_rect(
-  const ColonizeFont* font,
-  int fb_w,
-  int* out_x,
-  int* out_y,
-  int* out_w,
-  int* out_h
-) {
-  /* LABELS.TXT @MISC row 110 — the same live text the row draws, so the
-   * hit-rect and the caption can never disagree. */
-  const int tw = font_text_width_skip(font, pedia_label(g_pedia_labels_txt, 110, ""), FONT_SKIP_NONE);
-  const int line_h = pedia_list_line_h(font);
-  if (out_w) {
-    *out_w = tw + 4;
-  }
-  if (out_h) {
-    *out_h = line_h;
-  }
-  if (out_x) {
-    *out_x = fb_w - tw - 8;
-  }
-  if (out_y) {
-    *out_y = 4;
-  }
-}
+/* ===== Encyclopedia list (DOS FUN_6cb2_2322 / 0178 / 214a / 02c4 / 24b8) ===== */
 
 /*
- * List rows can be a filtered view of the category (Colonist Skills hides
- * the cut Teacher profession, @JOB 18 — leftover from pre-release). Slot =
- * visual row, id = the real category index the article opens with.
- *
- * Colony Buildings hides the same cut rows DOS's construction gate
- * (FUN_15eb_3650) refuses to ever offer: @BUILDING 30 Capitol and 31 Capitol
- * Expansion, whose PEDIA.TXT bodies are title-only stubs; DOS never shows them
- * either (user-observed: cut feature, disabled stub). (@BUILDING 10/11,
- * the unfinished Town Hall upgrades, are equally dead in DOS but still read
- * as plain "Town Hall" rows in NAMES.TXT — left alone here.)
+ * DOS-LITERAL FUN_6cb2_2322 (6cb2:232c-2498, jump table 6cb2:24a8): which rows each
+ * category lists and where the title comes from. Every title is the NAMES short name
+ * the DS tables hold (cargo DS:0x97c0, unit record +0 at 0x5230, terrain 0x2f74,
+ * job 0x8ea2, building 0x8f82, father 0x9652, misc 0x935c), not the PEDIA.TXT {title}.
+ *  - terrain: 0..15 and 24..28 (the 16..23 forest rows are skipped, 6cb2:23a2-23ac)
+ *  - jobs: all but 18 (the cut Teacher, 6cb2:23da)
+ *  - buildings: all but 10/11 (the unfinished Town Hall tiers, 6cb2:2418-2422) and
+ *    30/31 (Capitol / Capitol Expansion, 6cb2:240c-2416). Port-only: with
+ *    MOD_TOWN_HALL_TIERS on, rows 10/11 are the mod's buildings and stay listed.
  */
-#define PEDIA_BUILDING_CAPITOL 30
-#define PEDIA_BUILDING_CAPITOL_EXPANSION 31
-
-static int pedia_list_slot_count(PediaCategory category) {
-  const int count = pedia_category_count(category);
-  if (category == PEDIA_CAT_JOB) {
-    return count - 1;
+static bool pedia_list_row_listed(PediaCategory category, int row) {
+  switch (category) {
+    case PEDIA_CAT_TERRAIN:
+      return row < 16 || row >= 24;
+    case PEDIA_CAT_JOB:
+      return row != 18;
+    case PEDIA_CAT_BUILDING:
+      if (row == 30 || row == 31) {
+        return false;
+      }
+      return (row != 10 && row != 11) || colonies_building_mod_name(row) != NULL;
+    default:
+      return true;
   }
-  if (category == PEDIA_CAT_BUILDING) {
-    return count - 2;
-  }
-  return count;
 }
 
-static int pedia_list_slot_id(PediaCategory category, int slot) {
-  if (category == PEDIA_CAT_JOB && slot >= 18) {
-    return slot + 1;
-  }
-  if (category == PEDIA_CAT_BUILDING && slot >= PEDIA_BUILDING_CAPITOL) {
-    return slot + 2;
-  }
-  return slot;
-}
-
-void pedia_list_render(
+static void pedia_list_row_title(
   const ColonizeMsgCatalog* pedia,
   const ColonizeMsgCatalog* names,
   PediaCategory category,
+  int row,
+  char* out,
+  size_t out_size
+) {
+  out[0] = '\0';
+  switch (category) {
+    case PEDIA_CAT_CARGO:
+      assets_msg_row_field(names, "CARGO", row, 0, out, out_size);
+      break;
+    case PEDIA_CAT_UNIT:
+      assets_msg_row_field(names, "UNIT", row, 0, out, out_size);
+      break;
+    case PEDIA_CAT_TERRAIN:
+      if (row < 8) {
+        assets_msg_row_field(names, "UNFORESTED", row, 0, out, out_size);
+      } else if (row < 24) {
+        assets_msg_row_field(names, "FORESTED", row & 7, 0, out, out_size);
+      } else {
+        assets_msg_row_field(names, "OTHER", row - 24, 0, out, out_size);
+      }
+      break;
+    case PEDIA_CAT_JOB:
+      assets_msg_row_field(names, "JOB", row, 0, out, out_size);
+      break;
+    case PEDIA_CAT_BUILDING: {
+      const char* mod_name = colonies_building_mod_name(row);
+      if (mod_name) {
+        snprintf(out, out_size, "%s", mod_name);
+      } else {
+        assets_msg_row_field(names, "BUILDING", row, 0, out, out_size);
+      }
+      break;
+    }
+    case PEDIA_CAT_FATHER:
+      assets_msg_row_field(names, "FATHERS", row, 0, out, out_size);
+      break;
+    case PEDIA_CAT_MISC: {
+      const ColonizeMsgSection* misc = pedia ? assets_msg_find(pedia, "MISCELLANEOUS") : NULL;
+      if (misc && row + 1 < misc->line_count) {
+        snprintf(out, out_size, "%s", misc->lines[row + 1]);
+      }
+      break;
+    }
+    default:
+      break;
+  }
+}
+
+void pedia_list_build(
+  const ColonizeMsgCatalog* pedia,
+  const ColonizeMsgCatalog* names,
+  PediaCategory category,
+  PediaList* out
+) {
+  if (!out) {
+    return;
+  }
+  out->count = 0;
+  const int rows = pedia_category_count(category);
+  for (int row = 0; row < rows && out->count < PEDIA_LIST_MAX; ++row) {
+    if (!pedia_list_row_listed(category, row)) {
+      continue;
+    }
+    const int n = out->count++;
+    out->id[n] = row;
+    out->forest[n] = category == PEDIA_CAT_TERRAIN && row >= 8 && row < 16;
+    pedia_list_row_title(pedia, names, category, row, out->title[n], sizeof(out->title[n]));
+  }
+  /* FUN_6cb2_0178: adjacent swaps only while stricmp (FUN_1d1d_103e) > 0 — a stable
+   * sort on the bare title (the forest suffix is added at paint time, 033a). */
+  for (int i = 1; i < out->count; ++i) {
+    for (int j = i; j > 0 && strcasecmp(out->title[j - 1], out->title[j]) > 0; --j) {
+      char t[PEDIA_TITLE_LEN];
+      memcpy(t, out->title[j], sizeof(t));
+      memcpy(out->title[j], out->title[j - 1], sizeof(t));
+      memcpy(out->title[j - 1], t, sizeof(t));
+      const int id = out->id[j];
+      out->id[j] = out->id[j - 1];
+      out->id[j - 1] = id;
+      const bool f = out->forest[j];
+      out->forest[j] = out->forest[j - 1];
+      out->forest[j - 1] = f;
+    }
+  }
+}
+
+void pedia_list_display(
+  const PediaList* list, const ColonizeMsgCatalog* names, int slot, char* out, size_t out_size
+) {
+  out[0] = '\0';
+  if (!list || slot < 0 || slot >= list->count) {
+    return;
+  }
+  snprintf(out, out_size, "%s", list->title[slot]);
+  if (list->forest[slot]) {
+    /* FUN_6cb2_033a: terrain 8..15 get " " + DS:0x2db0 (@OTHER_NAMES row 0). */
+    const ColonizeMsgSection* other = names ? assets_msg_find(names, "OTHER_NAMES") : NULL;
+    const size_t len = strlen(out);
+    snprintf(
+      out + len, out_size - len, " %s", other && other->line_count > 0 ? other->lines[0] : ""
+    );
+  }
+}
+
+/* FUN_6cb2_0276: 24 rows of 7 px per column, columns 100 px apart, 3 on screen
+ * (DS:0xa5ac scrolls by columns; no single category exceeds 72 rows, so it stays 0). */
+#define PEDIA_LIST_ROWS 0x18
+static void pedia_list_cell_xy(int slot, int* x, int* y) {
+  *x = (slot / PEDIA_LIST_ROWS) * 100 + 5;
+  *y = (slot % PEDIA_LIST_ROWS) * 7 + 0x19;
+}
+
+/* FUN_281f_013c / 0150 / 01fa: one FONTTINY pass through {skip, c, c, c}. */
+static void pedia_list_text(
+  const ColonizeFont* font, ColonizeFramebuffer8* fb, int x, int y, const char* s, uint8_t c
+) {
+  font_draw_text_shaded(font, fb, x, y, s, (const uint8_t[4]){0, c, c, c});
+}
+
+/* DOS-LITERAL FUN_6cb2_214a (paint) with the 24b8 header (6cb2:2520-2539). */
+void pedia_list_render(
+  const PediaList* list,
+  const ColonizeMsgCatalog* names,
   const ColonizePikImage* wood_bg,
   const ColonizeFont* font,
-  int hover_entry,
+  int shown,
   ColonizeFramebuffer8* framebuffer
 ) {
   if (!framebuffer || !framebuffer->pixels) {
@@ -647,70 +699,127 @@ void pedia_list_render(
     pik_blit(wood_bg, framebuffer, 0, 0);
   }
 
-  /* LABELS.TXT @MISC row 108 (header) / 110 ("(Exit)") — row 108 was already
-   * live on the article page (pedia_article_render). */
-  font_draw_text(
-    font, framebuffer, 8, 4, pedia_label(g_pedia_labels_txt, 108, ""), PEDIA_COL_HEADER
-  );
+  /* LABELS.TXT @MISC 108 = DS:0x2e92: FUN_281f_0100(s, 0, 0x140, 5, 0xf), centred as
+   * x + (w >> 1) - ((width - 1) >> 1). */
+  const char* head = pedia_label(g_pedia_labels_txt, 108, "");
+  int hx = 160 - ((font_text_width_skip(font, head, FONT_SKIP_NONE) - 1) >> 1);
+  pedia_list_text(font, framebuffer, hx < 0 ? 0 : hx, 5, head, PEDIA_COL_HEADER);
 
-  int ex, ey, ew, eh;
-  pedia_list_exit_rect(font, framebuffer->width, &ex, &ey, &ew, &eh);
-  font_draw_text(
-    font, framebuffer, ex, ey, pedia_label(g_pedia_labels_txt, 110, ""), PEDIA_COL_LINK
-  );
-
-  const int count = pedia_list_slot_count(category);
-  for (int i = 0; i < count; ++i) {
-    const int id = pedia_list_slot_id(category, i);
-    char title[PEDIA_TITLE_LEN];
-    if (!pedia_entry_title(pedia, names, category, id, title, sizeof(title))) {
-      snprintf(title, sizeof(title), "%d", id);
+  const int bar_h = (font ? font->max_height : 6) + 1;
+  for (int slot = 0; list && slot < list->count && slot < 3 * PEDIA_LIST_ROWS; ++slot) {
+    int x, y;
+    pedia_list_cell_xy(slot, &x, &y);
+    char text[PEDIA_TITLE_LEN + 16];
+    pedia_list_display(list, names, slot, text, sizeof(text));
+    if (slot == shown) {
+      /* FUN_281f_00ba(x, y, width + 4, font[0] + 1) in @COLORS select (DS:0x835). */
+      const int bar_w = font_text_width_skip(font, text, FONT_SKIP_NONE) + 4;
+      fb_fill_rect(framebuffer, x, y, bar_w, bar_h, COLONIZE_COL_SELECT);
     }
-    int x, y, w, h;
-    pedia_list_cell(category, i, count, font, &x, &y, &w, &h);
-    const uint8_t color = (id == hover_entry) ? PEDIA_COL_LINK_HOVER : PEDIA_COL_LINK;
-    font_draw_text(font, framebuffer, x, y, title, color);
+    pedia_list_text(
+      font, framebuffer, x + 2, y + 1, text,
+      slot == shown ? COLONIZE_COL_HILITE : COLONIZE_COL_BASIC
+    );
   }
+  /* ponytail: the DS:0x2e94 page label at (5, 5) only shows past 72 rows (the DOS
+   * all-categories browse, which the port never opens). */
+
+  /* LABELS.TXT @MISC 110 = DS:0x2e96: FUN_281f_0150, right-aligned at x 0x13b. */
+  const char* exit_s = pedia_label(g_pedia_labels_txt, 110, "");
+  pedia_list_text(
+    font, framebuffer, 0x13b - font_text_width_skip(font, exit_s, FONT_SKIP_NONE), 5, exit_s,
+    shown == PEDIA_LIST_HIT_EXIT ? COLONIZE_COL_HILITE : COLONIZE_COL_BASIC
+  );
 }
 
-PediaListHit pedia_list_hit(
-  const ColonizeMsgCatalog* pedia,
-  const ColonizeMsgCatalog* names,
-  PediaCategory category,
-  const ColonizeFont* font,
-  int mouse_x,
-  int mouse_y
-) {
-  (void)pedia;
-  (void)names;
-  PediaListHit hit = {PEDIA_LIST_HIT_NONE, -1};
-  int ex, ey, ew, eh;
-  pedia_list_exit_rect(font, 320, &ex, &ey, &ew, &eh);
-  if (mouse_x >= ex && mouse_x < ex + ew && mouse_y >= ey && mouse_y < ey + eh) {
-    hit.kind = PEDIA_LIST_HIT_EXIT;
-    return hit;
+/* DOS-LITERAL FUN_6cb2_02c4: y <= 15 is the top strip (x < 160 page, else Exit),
+ * otherwise the row whose (x, y, 100, 7) box holds the pointer. */
+int pedia_list_hit(const PediaList* list, int mouse_x, int mouse_y) {
+  if (mouse_y <= 0xf) {
+    return mouse_x < 0xa0 ? PEDIA_LIST_HIT_PAGE : PEDIA_LIST_HIT_EXIT;
   }
+  for (int slot = 0; list && slot < list->count && slot < 3 * PEDIA_LIST_ROWS; ++slot) {
+    int x, y;
+    pedia_list_cell_xy(slot, &x, &y);
+    if (mouse_x >= x && mouse_x < x + 100 && mouse_y >= y && mouse_y < y + 7) {
+      return slot;
+    }
+  }
+  return PEDIA_LIST_HIT_NONE;
+}
 
-  const int count = pedia_list_slot_count(category);
-  for (int i = 0; i < count; ++i) {
-    const int id = pedia_list_slot_id(category, i);
-    int x, y, w, h;
-    pedia_list_cell(category, i, count, font, &x, &y, &w, &h);
-    /* Tighten hit box to text width when possible. */
-    char title[PEDIA_TITLE_LEN];
-    if (pedia_entry_title(pedia, names, category, id, title, sizeof(title))) {
-      const int tw = font_text_width_skip(font, title, FONT_SKIP_NONE);
-      if (tw + 4 < w) {
-        w = tw + 4;
+/* DOS-LITERAL FUN_6cb2_24b8 loop body (6cb2:254a-26ea). */
+PediaListAction pedia_list_step(
+  const PediaList* list,
+  ColonizeKey key,
+  bool held,
+  bool released,
+  int mouse_x,
+  int mouse_y,
+  int* sel,
+  int* shown
+) {
+  const int count = list ? list->count : 0;
+  if (count <= 0) {
+    return PEDIA_LIST_EXIT; /* 6cb2:24f4: an empty list leaves at once */
+  }
+  PediaListAction act = PEDIA_LIST_STAY;
+  if (colonize_key_up(key)) { /* 0x148 / '8' */
+    if (--*sel < 0) {
+      *sel = count - 1;
+    }
+  } else if (colonize_key_down(key)) { /* 0x150 / '2' */
+    *sel = (*sel + 1) % count;
+  } else if (colonize_key_left(key)) { /* 0x14b / '4' */
+    *sel -= PEDIA_LIST_ROWS;
+    if (*sel < 0) {
+      while (*sel + PEDIA_LIST_ROWS < count) {
+        *sel += PEDIA_LIST_ROWS;
       }
     }
-    if (mouse_x >= x && mouse_x < x + w && mouse_y >= y && mouse_y < y + h) {
-      hit.kind = PEDIA_LIST_HIT_ENTRY;
-      hit.entry_index = id;
-      return hit;
+  } else if (colonize_key_right(key) || key == COLONIZE_KEY_TAB) { /* 0x14d / '6' / Tab */
+    /* 6cb2:25e7 is JLE: sel may land on count, a slot with no row and no bar
+     * (DOSBox-X: Founding Fathers, Down, Right). */
+    *sel += PEDIA_LIST_ROWS;
+    if (*sel > count) {
+      while (*sel - PEDIA_LIST_ROWS >= 0) {
+        *sel -= PEDIA_LIST_ROWS;
+      }
+    }
+  } else if (key == COLONIZE_KEY_ENTER || key == COLONIZE_KEY_SPACE) {
+    act = PEDIA_LIST_OPEN;
+  } else if (key == COLONIZE_KEY_ESCAPE) {
+    act = PEDIA_LIST_EXIT;
+  }
+
+  if (!held) {
+    *shown = *sel;
+  } else {
+    const int hit = pedia_list_hit(list, mouse_x, mouse_y);
+    if (hit != PEDIA_LIST_HIT_NONE && hit != *sel) {
+      *shown = hit;
+    }
+    if (released) {
+      /* -2 pages only past 72 rows; otherwise every release leaves the loop, and a
+       * negative hit (off the rows, header strip, Exit) leaves the list. */
+      if (hit < 0) {
+        act = PEDIA_LIST_EXIT;
+      } else if (act != PEDIA_LIST_EXIT) { /* Esc's local_4 = 0 survives the release */
+        act = PEDIA_LIST_OPEN;
+      }
+    }
+    if (*shown >= 0) {
+      *sel = *shown;
     }
   }
-  return hit;
+  if (act == PEDIA_LIST_OPEN && *sel >= count) {
+    /* Opening that empty slot reads a stale category byte > 6, which loops
+     * 24b8 back to 6cb2:24fe: the list restarts on row 0 (DOSBox-X, same run). */
+    *sel = 0;
+    *shown = 0;
+    act = PEDIA_LIST_STAY;
+  }
+  return act;
 }
 
 /* ------------------------------------------------------------------ */

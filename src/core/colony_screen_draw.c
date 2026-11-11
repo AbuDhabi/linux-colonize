@@ -834,17 +834,11 @@ void colony_screen_draw_area_overlays(
    * instead of showing the unboosted base rate. */
   const int sol_b_field = colony_prod_sol_bonus_field(col1, colony);
 
-  /* Center settlement icon + auto-yield rows (Note 1), on the center tile. */
+  /* Town-commons yield rows (Note 1) on the centre tile; the settlement itself is in the
+   * pre-scale block (colony_screen_render_minimap, port_bugs.md #1848). */
   {
     const int tile_x = origin_x + half * tile;
     const int tile_y = origin_y + half * tile;
-    const int icon = colonies_settlement_icon(pool, colony);
-    if (view->icons_ok && icon >= 0 && icon < view->icons.sprite_count) {
-      const ColonizeSprite* sp = &view->icons.sprites[icon];
-      const int px = tile_x + (tile - sp->width) / 2;
-      const int py = tile_y + (tile - sp->height) / 2;
-      ss_blit_sprite(&view->icons, icon, framebuffer, px, py);
-    }
     ColonizeTownCommonsYield tc;
     colony_yield_town_commons(
       map, colony->x, colony->y, colony->colony_flags,
@@ -1097,7 +1091,7 @@ void colony_screen_render_minimap(
   colony_screen_minimap_origin(&origin_x, &origin_y);
   const int tile = COLONY_MINIMAP_TILE;
 
-  /* DOS FUN_2f2b_0a74 composes the 3x3 tiles (terrain layers, then the tribe
+  /* DOS FUN_2f2b_0a74 composes the 3x3 tiles (terrain layers, the colonies, then the tribe
    * overlay FUN_6b22_0002 -> FUN_112b_0790, fog-gated on DS:0x5396 / 0x53a2)
    * into a 16px-per-tile block, then FUN_12e9_008c scales the whole block
    * 1.5x with FUN_12e9_0006's ordered dither, so villages scale with the
@@ -1140,6 +1134,14 @@ void colony_screen_render_minimap(
   }
   if (w && w->col1 && icons) {
     const int fog = w->col1->head.show_entire_map ? -1 : (int)w->col1->head.curr_nation_map_view;
+    /* port_bugs.md #1848: FUN_291f_0896 -> FUN_6b22_0248 -> FUN_6b22_0102 (asm 2f2b:0a9f) draws
+     * every colony in the block before the tribes, through the main map's FUN_281f_02a8 ->
+     * FUN_112b_0c64 (settlement + nation flag). DS:0x890 is 1 while the colony screen is up
+     * (FUN_2f2b_6cd4), so asm 6b22:01d2-0209 pass 0 for the population and name flags. */
+    colonies_render_on_map(
+      w->colonies, icons, &scratch, NULL, NULL, colony_x - DOS_HALF, colony_y - DOS_HALF, DOS_GRID,
+      DOS_GRID, 16, 16, 0, 0, map, fog, icons_palette, COLONY_MAP_DRAW_BODY
+    );
     map_panel_render_tribes_on_map_w(
       w, icons, &scratch, colony_x - DOS_HALF, colony_y - DOS_HALF, DOS_GRID,
       DOS_GRID, 16, 16, 0, 0, fog, icons_palette

@@ -477,55 +477,129 @@ static int case_list_render_and_hits(void) {
   if (fixture_ensure() != 0) {
     return 1;
   }
-  /* Encyclopedia list: wood background, header, Exit, green entry links. */
-  ColonizePikImage wood;
-  memset(&wood, 0, sizeof(wood));
-  char pik_err[128];
-  const bool wood_ok = pik_load("COLONIZE/WOODPANL.PIK", &wood, pik_err, sizeof(pik_err));
-
   ColonizeFont font;
   memset(&font, 0, sizeof(font));
   char ff_err[128];
   const bool font_ok = font_file_load("COLONIZE/FONTTINY.FF", &font, ff_err, sizeof(ff_err));
   const ColonizeFont* f = font_ok ? &font : NULL;
-
   int rc = 0;
-  uint8_t pixels[320 * 200];
-  memset(pixels, 0, sizeof(pixels));
-  ColonizeFramebuffer8 fb = {.width = 320, .height = 200, .pixels = pixels};
-  pedia_list_render(
-    &s_catalog, &s_names, PEDIA_CAT_TERRAIN, wood_ok ? &wood : NULL, f, -1, &fb
-  );
-  if (pixels[8 + 4 * 320] == 0 && pixels[20 * 320 + 8] == 0) {
-    fprintf(stderr, "pedia list render produced empty pixels\n");
+  char text[64];
+
+  /* FUN_6cb2_2322 + 0178: NAMES short names, stricmp order (DOSBox-X Unit Types list). */
+  PediaList list;
+  pedia_list_build(&s_catalog, &s_names, PEDIA_CAT_UNIT, &list);
+  static const char* const k_units[] = {"Armed Braves", "Artillery", "Braves", "Caravel",
+                                        "Cavalry", "Colonists", "Cont. Army", "Cont. Cav."};
+  for (int i = 0; i < 8; ++i) {
+    if (list.count != 23 || strcmp(list.title[i], k_units[i]) != 0) {
+      fprintf(stderr, "unit list[%d] '%s' (count %d)\n", i, list.title[i], list.count);
+      rc = 1;
+      goto done;
+    }
+  }
+  /* Terrain: 0..15 + 24..28, forest suffix only when painted; Skills: no Teacher;
+   * Buildings: no Town Hall tiers 10/11, no Capitol 30/31. */
+  pedia_list_build(&s_catalog, &s_names, PEDIA_CAT_TERRAIN, &list);
+  pedia_list_display(&list, &s_names, 1, text, sizeof(text));
+  if (list.count != 21 || strcmp(text, "Boreal Forest") != 0) {
+    fprintf(stderr, "terrain list count %d slot1 '%s'\n", list.count, text);
+    rc = 1;
+    goto done;
+  }
+  pedia_list_build(&s_catalog, &s_names, PEDIA_CAT_JOB, &list);
+  if (list.count != 27) {
+    fprintf(stderr, "job list count %d\n", list.count);
+    rc = 1;
+    goto done;
+  }
+  pedia_list_build(&s_catalog, &s_names, PEDIA_CAT_BUILDING, &list);
+  if (list.count != 38) {
+    fprintf(stderr, "building list count %d\n", list.count);
     rc = 1;
     goto done;
   }
 
+  /* FUN_6cb2_02c4 geometry: rows (5 + 100 * col, 25 + 7 * row, 100, 7); top strip. */
+  pedia_list_build(&s_catalog, &s_names, PEDIA_CAT_UNIT, &list);
+  if (pedia_list_hit(&list, 310, 4) != PEDIA_LIST_HIT_EXIT ||
+      pedia_list_hit(&list, 10, 15) != PEDIA_LIST_HIT_PAGE ||
+      pedia_list_hit(&list, 5, 25) != 0 || pedia_list_hit(&list, 104, 31) != 0 ||
+      pedia_list_hit(&list, 5, 32) != 1 || pedia_list_hit(&list, 4, 25) != PEDIA_LIST_HIT_NONE ||
+      pedia_list_hit(&list, 5, 25 + 23 * 7) != PEDIA_LIST_HIT_NONE) {
+    fprintf(stderr, "pedia list hit geometry\n");
+    rc = 1;
+    goto done;
+  }
+
+  /* FUN_6cb2_24b8 keys: Up wraps, Down wraps, Left/Right by 24 within range. */
   {
-    PediaListHit hit = pedia_list_hit(&s_catalog, &s_names, PEDIA_CAT_TERRAIN, f, 310, 4);
-    if (hit.kind != PEDIA_LIST_HIT_EXIT) {
-      fprintf(stderr, "expected Exit hit near top-right, got kind=%d\n", (int)hit.kind);
+    int sel = 0, shown = 0;
+    pedia_list_step(&list, COLONIZE_KEY_UP, false, false, 0, 0, &sel, &shown);
+    if (sel != 22 || shown != 22) {
+      fprintf(stderr, "Up from 0: sel %d shown %d\n", sel, shown);
       rc = 1;
       goto done;
     }
-    hit = pedia_list_hit(&s_catalog, &s_names, PEDIA_CAT_TERRAIN, f, 10, 22);
-    if (hit.kind != PEDIA_LIST_HIT_ENTRY || hit.entry_index != 0) {
-      fprintf(
-        stderr,
-        "expected entry 0 hit, got kind=%d index=%d\n",
-        (int)hit.kind,
-        hit.entry_index
-      );
+    pedia_list_step(&list, COLONIZE_KEY_DOWN, false, false, 0, 0, &sel, &shown);
+    pedia_list_step(&list, COLONIZE_KEY_RIGHT, false, false, 0, 0, &sel, &shown);
+    if (sel != 0) {
+      fprintf(stderr, "Right in one column: sel %d\n", sel);
+      rc = 1;
+      goto done;
+    }
+    if (pedia_list_step(&list, COLONIZE_KEY_ENTER, false, false, 0, 0, &sel, &shown) !=
+        PEDIA_LIST_OPEN) {
+      fprintf(stderr, "Enter should open\n");
+      rc = 1;
+      goto done;
+    }
+    /* Held over row 3 moves the bar; the release opens it; a release off the rows exits. */
+    pedia_list_step(&list, COLONIZE_KEY_NONE, true, false, 8, 25 + 3 * 7, &sel, &shown);
+    if (sel != 3 || shown != 3) {
+      fprintf(stderr, "held drag: sel %d shown %d\n", sel, shown);
+      rc = 1;
+      goto done;
+    }
+    if (pedia_list_step(&list, COLONIZE_KEY_NONE, true, true, 8, 25 + 3 * 7, &sel, &shown) !=
+            PEDIA_LIST_OPEN ||
+        pedia_list_step(&list, COLONIZE_KEY_NONE, true, true, 200, 100, &sel, &shown) !=
+            PEDIA_LIST_EXIT ||
+        pedia_list_step(&list, COLONIZE_KEY_ESCAPE, false, false, 0, 0, &sel, &shown) !=
+            PEDIA_LIST_EXIT) {
+      fprintf(stderr, "release / Esc actions\n");
+      rc = 1;
+      goto done;
+    }
+  }
+  {
+    /* DOSBox-X: Founding Fathers (25), Down, Right = slot 25 with no bar; Enter
+     * restarts the list on row 0 (6cb2:25e7 JLE). */
+    PediaList fathers;
+    pedia_list_build(&s_catalog, &s_names, PEDIA_CAT_FATHER, &fathers);
+    int sel = 1, shown = 1;
+    pedia_list_step(&fathers, COLONIZE_KEY_RIGHT, false, false, 0, 0, &sel, &shown);
+    const PediaListAction act =
+      pedia_list_step(&fathers, COLONIZE_KEY_ENTER, false, false, 0, 0, &sel, &shown);
+    if (fathers.count != 25 || act != PEDIA_LIST_STAY || sel != 0 || shown != 0) {
+      fprintf(stderr, "fathers Right overflow: act %d sel %d\n", (int)act, sel);
       rc = 1;
       goto done;
     }
   }
 
-done:
-  if (wood_ok) {
-    pik_free(&wood);
+  {
+    uint8_t pixels[320 * 200];
+    memset(pixels, 0, sizeof(pixels));
+    ColonizeFramebuffer8 fb = {.width = 320, .height = 200, .pixels = pixels};
+    pedia_list_render(&list, &s_names, NULL, f, 0, &fb);
+    /* Row 0 bar in @COLORS select at (5, 25). */
+    if (f && pixels[25 * 320 + 5] != COLONIZE_COL_SELECT) {
+      fprintf(stderr, "pedia list bar missing\n");
+      rc = 1;
+    }
   }
+
+done:
   if (font_ok) {
     font_file_free(&font);
   }

@@ -609,18 +609,11 @@ static int case_render_title_position(void) {
     fixture_free(&fx);
     return 1;
   }
-  const int inner_x0 = MAP_PANEL_X + 2;
-  const int inner_w = 319 - inner_x0 + 1;
-  const int mx = inner_x0 + (inner_w - MAP_PANEL_MINIMAP_W) / 2;
-  const int minimap_cx = mx + MAP_PANEL_MINIMAP_W / 2;
-  const int title_cx = bar->menus[pedia_i].title_x + bar->menus[pedia_i].title_w / 2;
-  if (title_cx < minimap_cx - 12 || title_cx > minimap_cx + 12) {
+  /* FUN_4b58_063a right-aligned title: x = 320 - w - 12. */
+  if (bar->menus[pedia_i].title_x + bar->menus[pedia_i].title_w != 320 - 12) {
     fprintf(
-      stderr,
-      "COLONIZOPEDIA should be centered over minimap (title_cx=%d minimap_cx=%d title_x=%d)\n",
-      title_cx,
-      minimap_cx,
-      bar->menus[pedia_i].title_x
+      stderr, "COLONIZOPEDIA should end 12px from the right edge (title_x=%d title_w=%d)\n",
+      bar->menus[pedia_i].title_x, bar->menus[pedia_i].title_w
     );
     if (font_ok) {
       font_file_free(&font);

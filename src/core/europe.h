@@ -86,11 +86,16 @@
 #define EUROPE_DOCK_ROW1 5
 #define EUROPE_DOCK_UNIT_W 16
 #define EUROPE_DOCK_UNIT_H 16
-#define EUROPE_BTN_X 268
-#define EUROPE_BTN_Y 48
-#define EUROPE_BTN_W 48
-#define EUROPE_BTN_H 14
-#define EUROPE_BTN_PITCH 18
+/* RECRUIT / PURCHASE / TRAIN column: FUN_38fd_1878 draws three FUN_38fd_1696
+ * buttons at x 0x119 from y 0x59, each 0x25 wide and FONTTINY[0]+3 tall
+ * (FUN_38fd_1660), stacked height+2 apart. Hit test: panel rect
+ * (0x119,0x59,0x25,0x20) = FUN_38fd_1aba region 5, button =
+ * clamp(mouse_y-0x59, 0, 0x20) / 0xb (raw 0x35344). */
+#define EUROPE_BTN_X 0x119
+#define EUROPE_BTN_Y 0x59
+#define EUROPE_BTN_W 0x25
+#define EUROPE_BTN_PANEL_H 0x20
+#define EUROPE_BTN_PITCH 0xb /* hit-test divisor only; draw pitch is height+2 */
 #define EUROPE_MARKET_X 0
 #define EUROPE_MARKET_Y 179 /* EUROPE.PIK blue cargo strip */
 #define EUROPE_MARKET_CELL 20 /* outer size; adjacent cells share the 1px border */
@@ -107,9 +112,10 @@
 #define EUROPE_SCREEN_W 320
 #define EUROPE_SCREEN_H 200
 
-/* Transparent button bevel on EUROPE.PIK sky (dark TL / light BR). */
-#define EUROPE_BTN_DARK 0x3f  /* deep blue */
-#define EUROPE_BTN_LIGHT 0x31 /* pale blue */
+/* FUN_38fd_1696 unpressed bevel: top/left 0x39, bottom/right 0x30 (drawn
+ * first, so the TR / BL corners take 0x39); label 0xf, hotkey (first char) 0xe. */
+#define EUROPE_BTN_DARK 0x39
+#define EUROPE_BTN_LIGHT 0x30
 
 /* Voyage delays — Unverified vs DOS (manual: 1–4 turns; east usually shorter). */
 /* FUN_48d3_0002: a crossing takes 1 turn; 2 when RNG(1,100)>89, the nation

@@ -16,11 +16,11 @@
 /*
  * Colonizopedia (MENU.TXT @PEDIA / PEDIA.TXT).
  *
- * Category menu items open an encyclopedia *list* on WOODPANL.PIK
- * ("ENCYCLOPEDIA OF COLONIZATION" + green entry titles in up to 3 columns;
- * Founding Fathers uses 2). Clicking an entry opens the article page. Any
- * key or click from an article returns to the list (DOS FUN_281f_03c0);
- * Esc / (Exit) from the list returns to the map.
+ * Category menu items open an encyclopedia *list* on WOODPANL.PIK (DOS
+ * FUN_6cb2_24b8): one alphabetical column of NAMES short names with a
+ * highlight bar. Enter / Space / a click opens the article; any key or click
+ * from an article returns to the list (DOS FUN_281f_03c0); Esc, (Exit) or a
+ * click off the rows returns to the map.
  */
 typedef enum PediaCategory {
   PEDIA_CAT_CARGO = 0,
@@ -55,7 +55,6 @@ typedef enum PediaViewMode {
 #define PEDIA_BODY_MAX_LINES 20
 #define PEDIA_BODY_LINE_LEN 160
 
-#define PEDIA_LIST_COLS 3
 /* Link greens from NAMES.TXT @COLORS (basic / hilite). */
 #define PEDIA_COL_HEADER 15
 #define PEDIA_COL_LINK COLONIZE_COL_BASIC
@@ -88,16 +87,30 @@ typedef struct PediaPage {
   int father_index;
 } PediaPage;
 
-typedef enum PediaListHitKind {
-  PEDIA_LIST_HIT_NONE = 0,
-  PEDIA_LIST_HIT_EXIT,
-  PEDIA_LIST_HIT_ENTRY
-} PediaListHitKind;
+/*
+ * Encyclopedia list (DOS FUN_6cb2_2322 fill, 0178 sort, 214a paint, 02c4 hit,
+ * 24b8 loop). One entry per listed row in stricmp title order; id = the
+ * category row the article opens with.
+ */
+#define PEDIA_LIST_MAX 48
 
-typedef struct PediaListHit {
-  PediaListHitKind kind;
-  int entry_index;
-} PediaListHit;
+typedef struct PediaList {
+  int count;
+  int id[PEDIA_LIST_MAX];
+  char title[PEDIA_LIST_MAX][PEDIA_TITLE_LEN]; /* sort key (NAMES short name) */
+  bool forest[PEDIA_LIST_MAX];                 /* terrain 8..15: + " " + @OTHER_NAMES 0 */
+} PediaList;
+
+/* FUN_6cb2_02c4 results besides a slot index. */
+#define PEDIA_LIST_HIT_NONE (-1)
+#define PEDIA_LIST_HIT_PAGE (-2) /* top strip, x < 160 */
+#define PEDIA_LIST_HIT_EXIT (-3) /* top strip, x >= 160 */
+
+typedef enum PediaListAction {
+  PEDIA_LIST_STAY = 0,
+  PEDIA_LIST_OPEN, /* open the article of list->id[*sel] */
+  PEDIA_LIST_EXIT
+} PediaListAction;
 
 /* Bind LABELS.TXT / MENU.TXT for the list screen's own chrome (header,
  * "(Exit)" row, category names). Call once after the catalogs load. */
@@ -150,23 +163,45 @@ bool pedia_page(
 
 bool pedia_terrain_page(const ColonizeMsgCatalog* catalog, int terrain_index, PediaPage* out);
 
-void pedia_list_render(
+void pedia_list_build(
   const ColonizeMsgCatalog* pedia,
   const ColonizeMsgCatalog* names,
   PediaCategory category,
+  PediaList* out
+);
+
+/* Row text as painted (FUN_6cb2_033a). */
+void pedia_list_display(
+  const PediaList* list, const ColonizeMsgCatalog* names, int slot, char* out, size_t out_size
+);
+
+/* shown = the slot painted on the highlight bar, or PEDIA_LIST_HIT_EXIT to
+ * hilite "(Exit)" (DOS local_c). */
+void pedia_list_render(
+  const PediaList* list,
+  const ColonizeMsgCatalog* names,
   const ColonizePikImage* wood_bg,
   const ColonizeFont* font,
-  int hover_entry, /* -1 none */
+  int shown,
   ColonizeFramebuffer8* framebuffer
 );
 
-PediaListHit pedia_list_hit(
-  const ColonizeMsgCatalog* pedia,
-  const ColonizeMsgCatalog* names,
-  PediaCategory category,
-  const ColonizeFont* font,
+int pedia_list_hit(const PediaList* list, int mouse_x, int mouse_y);
+
+/*
+ * One pass of the FUN_6cb2_24b8 loop. sel = selected slot (local_6), shown =
+ * painted slot (local_c). held = DS:0x7f6 (button down or released this
+ * frame), released = DS:0x7f4.
+ */
+PediaListAction pedia_list_step(
+  const PediaList* list,
+  ColonizeKey key,
+  bool held,
+  bool released,
   int mouse_x,
-  int mouse_y
+  int mouse_y,
+  int* sel,
+  int* shown
 );
 
 /*

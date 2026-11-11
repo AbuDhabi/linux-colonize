@@ -267,6 +267,11 @@ static int case_minimap_rect_and_origin(void) {
     fprintf(stderr, "minimap origin out of panel: %d,%d %dx%d\n", mx, my, mw, mh);
     return 1;
   }
+  /* port_bugs.md #1844: FUN_6a9f_0118 puts minimap x at 0xfc (MAP_PANEL_X + 12 at 320). */
+  if (mx != MAP_PANEL_X + 12) {
+    fprintf(stderr, "minimap x expected %d, got %d\n", MAP_PANEL_X + 12, mx);
+    return 1;
+  }
 
   /* Scrolled window near south pole. */
   map_panel_minimap_rect(&g_map, 0, 50, 15, 12, &mx, &my, &mw, &mh, &ox, &oy);
@@ -307,6 +312,18 @@ static int case_render_basic(void) {
   fb.height = 200;
   fb.pixels = pixels;
   ColonizeWorld w_basic = world_make(NULL, NULL, &g_map, NULL, false, NULL, NULL);
+  /* port_bugs.md #1844 pins: a seen settlement tile (layer2 0x02) of tribe 4 draws DS:0x848[4]
+   * (97); a seen bare tile draws its terrain class colour (DS:0xa576). World (20,20) / (21,20). */
+  const size_t k_city = 20u * g_map.width + 20u;
+  const size_t k_bare = k_city + 1u;
+  const uint8_t saved[6] = {g_map.layer2[k_city], g_map.layer3[k_city], g_map.seen[k_city],
+                            g_map.layer2[k_bare], g_map.seen[k_bare], g_map.terrain[k_bare]};
+  g_map.layer2[k_city] |= MAP_OCCUPANCY_HAS_CITY;
+  g_map.layer3[k_city] = (uint8_t)(0x40u | (g_map.layer3[k_city] & 0x0fu));
+  g_map.seen[k_city] |= MAP_SEEN_NATION_BIT(0);
+  g_map.layer2[k_bare] &= (uint8_t)~(MAP_OCCUPANCY_HAS_CITY | MAP_OCCUPANCY_HAS_UNIT);
+  g_map.seen[k_bare] |= MAP_SEEN_NATION_BIT(0);
+  g_map.terrain[k_bare] = 3;
   map_panel_render_w(
     &w_basic,
     &g_panel,
@@ -376,6 +393,23 @@ static int case_render_basic(void) {
     fprintf(stderr, "expected black section separator under minimap border\n");
     free(pixels);
     return 1;
+  }
+
+  {
+    const uint8_t city_px = pixels[(my + 20 - oy) * 320 + mx + 20 - ox];
+    const uint8_t bare_px = pixels[(my + 20 - oy) * 320 + mx + 21 - ox];
+    g_map.layer2[k_city] = saved[0];
+    g_map.layer3[k_city] = saved[1];
+    g_map.seen[k_city] = saved[2];
+    g_map.layer2[k_bare] = saved[3];
+    g_map.seen[k_bare] = saved[4];
+    g_map.terrain[k_bare] = saved[5];
+    if (city_px != 97 || bare_px != g_panel.minimap_color[3] || bare_px == 0) {
+      fprintf(stderr, "minimap tile colours: city %u (want 97), bare %u (want %u)\n", city_px,
+        bare_px, g_panel.minimap_color[3]);
+      free(pixels);
+      return 1;
+    }
   }
 
   /* View-rect corner should sit ON the edge tile of the view (world 5,5). */

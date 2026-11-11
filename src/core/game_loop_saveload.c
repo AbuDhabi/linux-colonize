@@ -1057,7 +1057,11 @@ void game_open_pedia_list(ColonizeGameState* game, PediaCategory category) {
   game->pedia_return_to_list = true;
   game->pedia_category = category;
   game->pedia_index = 0;
-  game->pedia_hover_entry = -1;
+  /* FUN_6cb2_24b8 (6cb2:24fe): every list entry, and every return from an article,
+   * starts on the first row with no button latched. */
+  game->pedia_hover_entry = 0;
+  game->pedia_list_sel = 0;
+  game->pedia_list_press = false;
   snprintf(game->status, sizeof(game->status), "%s", pedia_category_label(category));
   game_track_screen(game);
   diag_info("Opened Colonizopedia list (%s)", pedia_category_label(category));
@@ -1173,13 +1177,14 @@ void render_pedia_screen(const ColonizeGameState* game, ColonizeFramebuffer8* fr
   const ColonizeFont* font = game_pedia_font(game);
 
   if (game->pedia_view == PEDIA_VIEW_LIST) {
+    PediaList list;
+    pedia_list_build(
+      game->pedia_ok ? &game->pedia : NULL, game->names_ok ? &game->names : NULL,
+      game->pedia_category, &list
+    );
     pedia_list_render(
-      game->pedia_ok ? &game->pedia : NULL,
-      game->names_ok ? &game->names : NULL,
-      game->pedia_category,
-      game->pedia_wood_ok ? &game->pedia_wood : NULL,
-      font,
-      game->pedia_hover_entry,
+      &list, game->names_ok ? &game->names : NULL,
+      game->pedia_wood_ok ? &game->pedia_wood : NULL, font, game->pedia_hover_entry,
       framebuffer
     );
     return;

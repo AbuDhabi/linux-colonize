@@ -754,6 +754,28 @@ static int case_europe_workflow(void) {
       europe_free(&eu);
       return 1;
     }
+    /* Button column (raw 0x35344): region (281,89,37,32), button = (y - 89) / 11. */
+    {
+      static const struct {
+        int x, y;
+        EuropeHit kind;
+      } k_btn[] = {
+        {281, 89, EUROPE_HIT_BTN_RECRUIT},  {317, 99, EUROPE_HIT_BTN_RECRUIT},
+        {281, 100, EUROPE_HIT_BTN_PURCHASE}, {300, 120, EUROPE_HIT_BTN_TRAIN},
+        {280, 95, EUROPE_HIT_NONE},          {318, 95, EUROPE_HIT_NONE},
+      };
+      for (size_t i = 0; i < sizeof k_btn / sizeof k_btn[0]; ++i) {
+        hit = europe_hit_test(&eu, k_btn[i].x, k_btn[i].y);
+        if (hit.kind != k_btn[i].kind) {
+          fprintf(
+            stderr, "button hit (%d,%d) expected %d got %d\n", k_btn[i].x, k_btn[i].y,
+            (int)k_btn[i].kind, (int)hit.kind
+          );
+          europe_free(&eu);
+          return 1;
+        }
+      }
+    }
     /* Empty Bound box must still be hittable (drag drop target). */
     {
       const int saved_bound = eu.bound_ships;

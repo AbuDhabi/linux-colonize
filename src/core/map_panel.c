@@ -40,12 +40,6 @@
 #define MAP_PANEL_TRIBE_ICON_COUNT 4
 
 enum {
-  MAP_PANEL_COL_OCEAN = 1,
-  MAP_PANEL_COL_HIGH_SEAS = 9,
-  MAP_PANEL_COL_LAND = COLONIZE_COL_BASIC,
-  MAP_PANEL_COL_COLONY = 15,
-  MAP_PANEL_COL_TRIBE = 12,
-  MAP_PANEL_COL_UNIT = 14,
   MAP_PANEL_COL_VIEW_RECT = 15,
   MAP_PANEL_COL_TEXT = COLONIZE_COL_BASIC,
   MAP_PANEL_COL_EMPHASIS = COLONIZE_COL_HILITE,
@@ -65,14 +59,39 @@ void map_panel_tile_rect(
   ss_tile_rect(sheet, origin_x, origin_y, rect_w, rect_h, framebuffer);
 }
 
-static uint8_t map_panel_terrain_color(const ColonizeWorldMap* map, int x, int y) {
-  if (!map || !map_tile_is_land(map, x, y)) {
-    if (map_tile_is_high_seas(map, x, y)) {
-      return MAP_PANEL_COL_HIGH_SEAS;
-    }
-    return MAP_PANEL_COL_OCEAN;
+/* FUN_6a9f_0034 / FUN_6a9f_0000: byte 0x88 of a 16x16 sprite = its centre pixel (8,8). */
+static uint8_t map_panel_sprite_centre(const ColonizeSpriteSheet* sheet, int idx) {
+  if (idx < 0 || idx >= sheet->sprite_count) {
+    return 0;
   }
-  return MAP_PANEL_COL_LAND;
+  const ColonizeSprite* sp = &sheet->sprites[idx];
+  if (!sp->pixels || sp->width <= 8 || sp->height <= 8) {
+    return 0;
+  }
+  return sp->pixels[8 * sp->width + 8];
+}
+
+/* FUN_6a9f_0068 (DS:0xa576): TERRAIN sprite i for classes i, i+8, i+16 (i 0..7) and 24..26,
+ * PHYS0 0x21 / 0x31 (1-based) for the 0x1b / 0x1c hill / mountain pseudo-classes. Same table
+ * as MAPEDIT FUN_1b56_006c (me_build_minimap_colors). */
+static void map_panel_load_minimap_colors(MapPanel* panel, const char* data_dir) {
+  char path[512];
+  char err[256];
+  ColonizeSpriteSheet sheet;
+  if (dos_compat_normalize_asset_path(data_dir, "TERRAIN.SS", path, sizeof(path)) &&
+      ss_load(path, &sheet, err, sizeof(err))) {
+    for (int i = 0; i < 27; ++i) {
+      panel->minimap_color[i] =
+        map_panel_sprite_centre(&sheet, map_terrain_index_to_sprite(i < 24 ? (i & 7) : i));
+    }
+    ss_free(&sheet);
+  }
+  if (dos_compat_normalize_asset_path(data_dir, "PHYS0.SS", path, sizeof(path)) &&
+      ss_load(path, &sheet, err, sizeof(err))) {
+    panel->minimap_color[0x1b] = map_panel_sprite_centre(&sheet, 0x21 - 1);
+    panel->minimap_color[0x1c] = map_panel_sprite_centre(&sheet, 0x31 - 1);
+    ss_free(&sheet);
+  }
 }
 
 bool map_panel_load(MapPanel* panel, const char* data_dir, const ColonizeMsgCatalog* labels) {
@@ -106,6 +125,7 @@ bool map_panel_load(MapPanel* panel, const char* data_dir, const ColonizeMsgCata
       diag_warn("map_panel: WOODTILE.SS: %s", err);
     }
   }
+  map_panel_load_minimap_colors(panel, data_dir);
   /* NAMEPLAT.SS belongs to the Europe / colony screens: DOS FUN_49dd_0424
    * draws the selected unit straight onto the wood panel, no plate. */
   return true;
@@ -203,11 +223,9 @@ void map_panel_minimap_rect(
   int w = interior_w < MAP_PANEL_MINIMAP_W ? interior_w : MAP_PANEL_MINIMAP_W;
   int h = interior_h < MAP_PANEL_MINIMAP_H ? interior_h : MAP_PANEL_MINIMAP_H;
 
-  /* Center horizontally in the panel interior (leave room for the left rule + brown). */
-  const int inner_x0 = MAP_PANEL_X + 2;
-  const int inner_x1 = screen_geom_w() - 1;
-  const int inner_w = inner_x1 - inner_x0 + 1;
-  const int px = inner_x0 + (inner_w - w) / 2;
+  /* FUN_6a9f_0118 (OVL22 0x58a): screen x = tile - origin + 0xfc, y = tile - origin + 9;
+   * 0xfc is MAP_PANEL_X + 12 at 320 wide (port_bugs.md #1844). */
+  const int px = MAP_PANEL_X + 0xfc - 0xf0;
   /* Brown top border at MAP_MENU_BAR_H touches the menu black rule above. */
   const int py = MAP_PANEL_MINIMAP_ORIGIN_Y;
 
@@ -1419,7 +1437,8 @@ static void map_panel_draw_stack_row(
     pre = (size_t)snprintf(line, sizeof(line), "%d ", cheat_index);
   }
   map_panel_orders_text(units, u, colonies, map, names, true, line + pre, sizeof(line) - pre);
-  font_draw_text(font, fb, x, orders_y, line, MAP_PANEL_COL_TEXT);
+  /* port_bugs.md #1845: stack-row orders line uses DS:0x836 too (asm 0x441c2). */
+  font_draw_text(font, fb, x, orders_y, line, MAP_PANEL_COL_EMPHASIS);
   *y += MAP_PANEL_ROW_H;
 }
 
@@ -1430,18 +1449,29 @@ COLONIZE_INTERNAL void map_panel_render_backdrop(MapPanelRenderCtx* c) {
   const int panel_y = c->panel_y;
   const int panel_h = framebuffer->height - panel_y;
   if (panel && panel->wood_ok) {
-    map_panel_tile_rect(&panel->wood_tile, MAP_PANEL_X, panel_y, MAP_PANEL_W, panel_h, framebuffer);
+    /* port_bugs.md #1846: DOS tiles the sidebar wood from screen (0,0), like the menu bar. */
+    map_menu_tile_rect_screen_phase(&panel->wood_tile, MAP_PANEL_X, panel_y, MAP_PANEL_W, panel_h, framebuffer);
   } else {
     fb_fill_rect(framebuffer, MAP_PANEL_X, panel_y, framebuffer->width - MAP_PANEL_X, panel_h, 4);
   }
 }
 
-/* Minimap: border, fog-gated terrain, colony/tribe/unit dots, view rect,
+/* DS:0x848[owner]: European shades palette-adapted like the map chrome (crown slot white),
+ * tribes from @TRIBES; 12..15 keep the EXE's static image (7 11 9 10). */
+static uint8_t map_panel_minimap_owner_color(int owner, const ColonizePalette* active_palette) {
+  static const uint8_t k_848_hi[4] = {7, 11, 9, 10};
+  if (owner < 4) {
+    return map_panel_alarm_shade(owner, active_palette, false);
+  }
+  return owner < 12 ? unit_chrome_names_color(owner) : k_848_hi[owner - 12];
+}
+
+/* Minimap: border, fog-gated DOS tile colours, view rect,
  * then the section rule under it and the panel's left edge. */
 COLONIZE_INTERNAL void map_panel_render_minimap(MapPanelRenderCtx* c) {
+  const MapPanel* panel = c->panel;
   const ColonizeWorldMap* map = c->map;
   const ColonizeUnitPool* units = c->units;
-  const ColonizeColonyPool* colonies = c->colonies;
   const ColonizeCol1Save* col1 = c->col1;
   const int view_x = c->view_x;
   const int view_y = c->view_y;
@@ -1461,6 +1491,11 @@ COLONIZE_INTERNAL void map_panel_render_minimap(MapPanelRenderCtx* c) {
   fb_vline(framebuffer, mx + mw, my - 1, my + mh, MAP_PANEL_COL_MINIMAP_BORDER);
 
   if (map && map->terrain && map->width > 0 && map->height > 0) {
+    /* DOS FUN_6a9f_0118 (OVL22 0x518), the per-tile minimap writer: unexplored = 0; a
+     * settlement (layer2 0x02) or a shown unit (layer2 0x01, tile-chain head) takes
+     * DS:0x848[layer3 owner nibble]; a lone foreign Privateer is grey 8; else the
+     * terrain class colour (DS:0xa576). */
+    const bool entire_map = col1 && col1->head.show_entire_map != 0;
     for (int ly = 0; ly < mh; ++ly) {
       for (int lx = 0; lx < mw; ++lx) {
         const int tx = origin_x + lx;
@@ -1469,67 +1504,42 @@ COLONIZE_INTERNAL void map_panel_render_minimap(MapPanelRenderCtx* c) {
           fb_put(framebuffer, mx + lx, my + ly, 0);
           continue;
         }
-        fb_put(framebuffer, mx + lx, my + ly, map_panel_terrain_color(map, tx, ty));
+        const size_t idx = (size_t)ty * map->width + (size_t)tx;
+        const uint8_t l2 = map->layer2 ? map->layer2[idx] : 0;
+        const int owner = (map_get_layer3(map, tx, ty) >> MAP_L3_OWNER_SHIFT) & MAP_L3_OWNER_MASK;
+        uint8_t color = 0;
+        if (l2 & MAP_OCCUPANCY_HAS_CITY) {
+          color = map_panel_minimap_owner_color(owner, c->active_palette);
+        } else if ((l2 & MAP_OCCUPANCY_HAS_UNIT) && units) {
+          const int head = units_tile_head_id_at(units, tx, ty);
+          const ColonizeUnit* u = head >= 0 ? units_get_const(units, head) : NULL;
+          /* DOS tests the head's vis bit (0x10 << nation); the port's display sight is
+           * units_shown_to (dos_bugs.md DB-65). */
+          if (u && (units_shown_to(u, fog_nation) || entire_map)) {
+            color = map_panel_minimap_owner_color(owner, c->active_palette);
+            if (u->type_index == UNITS_KIND_PRIVATEER && u->nation_id != fog_nation &&
+                !entire_map && units_tile_chain_next_id(units, head) < 0) {
+              color = 8;
+            }
+          }
+        }
+        if (color == 0) {
+          uint8_t t = map->terrain[idx];
+          t = (t & 0x20) ? ((t & 0x80) ? 0x1b : 0x1c) : (t & 0x1f);
+          color = (panel && t < 29) ? panel->minimap_color[t] : 0;
+        }
+        fb_put(framebuffer, mx + lx, my + ly, color);
       }
     }
-
-    if (colonies) {
-      for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
-        const ColonizeColony* c = &colonies->colonies[i];
-        if (!c->active) {
-          continue;
-        }
-        if (!map_tile_seen_by(map, c->x, c->y, fog_nation)) {
-          continue;
-        }
-        const int lx = c->x - origin_x;
-        const int ly = c->y - origin_y;
-        if (lx < 0 || ly < 0 || lx >= mw || ly >= mh) {
-          continue;
-        }
-        fb_put(framebuffer, mx + lx, my + ly, MAP_PANEL_COL_COLONY);
-      }
+    /* FUN_1984_010a: each blink tick redraws the map cursor's minimap tile (inset tiles only,
+     * FUN_137f_000a) through FUN_6a9f_0360 with param_6 = DS:0x929c, i.e. white (0xf) on the
+     * on-phase, its normal colour on the off-phase and while the blink is stopped. */
+    const int clx = c->cursor_x - origin_x;
+    const int cly = c->cursor_y - origin_y;
+    if (panel && panel->minimap_cursor_white && map_coords_inset(map, c->cursor_x, c->cursor_y) && clx >= 0 &&
+        cly >= 0 && clx < mw && cly < mh) {
+      fb_put(framebuffer, mx + clx, my + cly, 15);
     }
-
-    if (col1 && col1->tribe) {
-      for (uint16_t i = 0; i < col1->head.tribe_count; ++i) {
-        const ColonizeCol1Tribe* t = &col1->tribe[i];
-        if (!map_tile_seen_by(map, (int)t->x, (int)t->y, fog_nation)) {
-          continue;
-        }
-        const int lx = (int)t->x - origin_x;
-        const int ly = (int)t->y - origin_y;
-        if (lx < 0 || ly < 0 || lx >= mw || ly >= mh) {
-          continue;
-        }
-        fb_put(framebuffer, mx + lx, my + ly, MAP_PANEL_COL_TRIBE);
-      }
-    }
-
-    if (units) {
-      for (int i = 0; i < units_slot_end(units); ++i) {
-        const ColonizeUnit* u = &units->units[i];
-        if (!units_is_on_map(u)) {
-          continue;
-        }
-        if (!map_tile_seen_by(map, u->x, u->y, fog_nation)) {
-          continue;
-        }
-        /* Same vis-bit gate as the main map. The DOS minimap writer is not
-         * identified yet (FUN_2f2b_6372 is the colony-screen loop; finding
-         * it needs a VRAM write breakpoint, port_bugs.md #1776). */
-        if (!units_shown_to(u, fog_nation)) {
-          continue;
-        }
-        const int lx = u->x - origin_x;
-        const int ly = u->y - origin_y;
-        if (lx < 0 || ly < 0 || lx >= mw || ly >= mh) {
-          continue;
-        }
-        fb_put(framebuffer, mx + lx, my + ly, MAP_PANEL_COL_UNIT);
-      }
-    }
-
     if (view_cols > 0 && view_rows > 0) {
       const int lx0 = view_x - origin_x;
       const int ly0 = view_y - origin_y;
@@ -1717,7 +1727,8 @@ COLONIZE_INTERNAL void map_panel_render_selected_block(MapPanelRenderCtx* c) {
   }
 
   map_panel_orders_text(units, selected, colonies, map, names, false, line, sizeof(line));
-  map_panel_draw_line(font, framebuffer, text_x, &c->text_y, line_h, y_limit, line, MAP_PANEL_COL_TEXT);
+  /* port_bugs.md #1845: FUN_49dd_0424 draws the orders line with DS:0x836 (asm 0x43690). */
+  map_panel_draw_line(font, framebuffer, text_x, &c->text_y, line_h, y_limit, line, MAP_PANEL_COL_EMPHASIS);
 }
 
 /* View Pieces / no selection: cursor position and tile owner. */

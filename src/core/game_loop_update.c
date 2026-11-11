@@ -3385,42 +3385,35 @@ static void game_pedia_leave(ColonizeGameState* game) {
 
 COLONIZE_INTERNAL GameUpdateStep game_update_pedia_screen(ColonizeGameState* game, const ColonizeInputState* input) {
   if (game->in_pedia) {
-    const ColonizeFont* font = game_pedia_font(game);
     if (game->pedia_view == PEDIA_VIEW_LIST) {
-      const PediaListHit hover = pedia_list_hit(
-        game->pedia_ok ? &game->pedia : NULL,
-        game->names_ok ? &game->names : NULL,
-        game->pedia_category,
-        font,
-        input->mouse_x,
-        input->mouse_y
+      PediaList list;
+      pedia_list_build(
+        game->pedia_ok ? &game->pedia : NULL, game->names_ok ? &game->names : NULL,
+        game->pedia_category, &list
       );
-      game->pedia_hover_entry =
-        (hover.kind == PEDIA_LIST_HIT_ENTRY) ? hover.entry_index : -1;
-
-      if (input->last_key == COLONIZE_KEY_ESCAPE || input->last_key == COLONIZE_KEY_P) {
+      /* DS:0x7f4 (release) needs the DS:0x7f2 press latch, so the press that
+       * dismissed an article never acts here; DS:0x7f6 = held or that release. */
+      if (input->mouse_left_clicked || input->mouse_right_clicked) {
+        game->pedia_list_press = true;
+      }
+      const bool released = game->pedia_list_press &&
+                            (input->mouse_left_released || input->mouse_right_released);
+      const bool held = game->pedia_list_press &&
+                        (input->mouse_left_down || input->mouse_right_down || released);
+      const PediaListAction act = pedia_list_step(
+        &list, input->last_key, held, released, input->mouse_x, input->mouse_y,
+        &game->pedia_list_sel, &game->pedia_hover_entry
+      );
+      if (released) {
+        game->pedia_list_press = false;
+      }
+      if (act == PEDIA_LIST_EXIT) {
         game->in_pedia = false;
         diag_info("Left Colonizopedia.");
-        return GAME_UPDATE_RETURN_TRUE;
-      }
-      if (input->mouse_left_clicked) {
-        const PediaListHit hit = pedia_list_hit(
-          game->pedia_ok ? &game->pedia : NULL,
-          game->names_ok ? &game->names : NULL,
-          game->pedia_category,
-          font,
-          input->mouse_x,
-          input->mouse_y
+      } else if (act == PEDIA_LIST_OPEN) {
+        game_open_pedia_article(
+          game, game->pedia_category, list.id[game->pedia_list_sel], true
         );
-        if (hit.kind == PEDIA_LIST_HIT_EXIT) {
-          game->in_pedia = false;
-          diag_info("Left Colonizopedia (Exit).");
-          return GAME_UPDATE_RETURN_TRUE;
-        }
-        if (hit.kind == PEDIA_LIST_HIT_ENTRY) {
-          game_open_pedia_article(game, game->pedia_category, hit.entry_index, true);
-          return GAME_UPDATE_RETURN_TRUE;
-        }
       }
       return GAME_UPDATE_RETURN_TRUE;
     }

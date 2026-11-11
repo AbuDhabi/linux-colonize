@@ -33,7 +33,7 @@ key Down
 key Down                   # "Unload all cargo" (row 2)
 key Return                 # sells 39 Furs (net 114) and 69 Tobacco (net 202): gold 429 -> 745
 wait 6
-click 293 52               # RECRUIT: three Free Colonists in the pool, passage 400 gold
+click 299 93               # RECRUIT: three Free Colonists in the pool, passage 400 gold
 wait 3
 key Down                   # row 1, first Free Colonist
 key Return                 # recruited: gold 745 -> 345, the colonist joins the dock, the pool slot refills

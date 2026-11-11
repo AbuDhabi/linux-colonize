@@ -300,7 +300,7 @@ Who reads it:
 | Area | Behaviour when the window grows |
 |------|--------------------------------|
 | Overland map view | The only screen that lays itself out from the live size. |
-| Menu bar (`map_menu.c`) | Stretches; titles stay left-packed from x=12, COLONIZOPEDIA stays right-aligned over the minimap, so the slack lands in front of it. |
+| Menu bar (`map_menu.c`) | Stretches; titles stay left-packed from x=12, COLONIZOPEDIA stays right-aligned 12px from the edge (DOS `FUN_4b58_063a`, so over the minimap), so the slack lands in front of it. |
 | Right sidebar (`map_panel.c`) | Keeps `MAP_PANEL_W` = 80 px, stays flush right, grows downwards — the unit stack list (`MAP_PANEL_STACK_Y_LIMIT`) and the End-of-Turn line (`MAP_PANEL_EOT_Y_MAX`) are rebased on the live height. |
 | Tile stack picker (`unit_stack.c`) | DOS lists at most 10 units (FUN_2b5a_1b5a raw 42760); each 16 lines of height over 200 adds one row (`10 + (h - 200) / 16`, read at open). Past that, on any screen bigger than 320×200, render adds columns (column-major, pitch widest label + 26) while they fit across; Left/Right step a column. Up to `UNITS_TILE_STACK_MAX`. |
 | Map viewport | Takes the rest; partial tiles at the right/bottom edge are clipped, so `MAP_VIEW_TILE_COLS/ROWS` round **up**. |
