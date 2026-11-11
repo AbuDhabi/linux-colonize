@@ -1179,7 +1179,8 @@ static void europe_market_phase4(const EuropeMarketTick* t, int* out_rise, int* 
     int nr = (int)t->nr[c];
     const int rise = q->rise;
     const int fall = q->fall;
-    if (rise > 0 && nr <= -(rise * 100)) {
+    /* raw 58953 / 58970: no rise/fall > 0 guard, so a 0 column fires at nr <= 0 / nr >= 0. */
+    if (nr <= -(rise * 100)) {
       nr += rise * 100;
       if (t->bid[c] < cap) {
         t->bid[c] += 1;
@@ -1193,7 +1194,7 @@ static void europe_market_phase4(const EuropeMarketTick* t, int* out_rise, int* 
         }
       }
     }
-    if (fall > 0 && nr >= fall * 100) {
+    if (nr >= fall * 100) {
       nr -= fall * 100;
       if (t->bid[c] > q->low) {
         t->bid[c] -= 1;
