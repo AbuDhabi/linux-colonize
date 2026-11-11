@@ -46,7 +46,7 @@ enum {
   EDGE_X = 2,            /* west / east rim kept as water (sea lanes) */
   EDGE_Y = 1,            /* north / south rim: row 0 / H-1 become arctic */
   ELEV_UNIT = 16,        /* initial land +16, water -16 */
-  MAX_PLATES = 64,
+  MAX_PLATES = 128,
   TECTONIC_ITERS = 6,
   WARP_CELL = 8,         /* crust warp: coarse noise lattice spacing (finer octaves 1/2, 3/8) */
   COLLISION_UPLIFT = 12, /* added to the higher crust where two plates meet */
@@ -67,9 +67,9 @@ enum {
 };
 
 /* land_form 0 Archipelago .. 2 Continents (3 from NEW WORLD's random axes). */
-static const int k_plates_by_form[4] = {48, 28, 16, 10};
+static const int k_plates_by_form[4] = {110, 32, 12, 6};
 /* land_mass 0 Small .. 2 Large (3 random): plate area share started as land. */
-static const int k_land_permille_by_mass[4] = {330, 420, 520, 600};
+static const int k_land_permille_by_mass[4] = {230, 420, 660, 720};
 /* By temperature 0 Cool .. 2 Warm (3 random): the Cold band is a fixed number
  * of rows at each active rim (arctic is useless land); Hot, Warm, Lukewarm,
  * Temperate, Cool share the rest of equator-to-rim in these proportions.

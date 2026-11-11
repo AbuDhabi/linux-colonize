@@ -16,8 +16,8 @@ replays and tribe placement continues from the post-gen stream.
 
 | Customize axis | Effect |
 |----------------|--------|
-| Land Mass (0..2, NEW WORLD 0..3) | share of plate area started as land: 33 / 42 / 52 / 60 % (`k_land_permille_by_mass`) |
-| Land Form (0..2, 3) | plate count: 48 / 28 / 16 / 10 (`k_plates_by_form`): archipelago = many small plates |
+| Land Mass (0..2, NEW WORLD 0..3) | share of plate area started as land: 23 / 42 / 66 / 72 % (`k_land_permille_by_mass`); 3 (NEW WORLD only) is past Large, as in DOS |
+| Land Form (0..2, 3) | plate count: 110 / 32 / 12 / 6 (`k_plates_by_form`): archipelago = many small plates |
 | Temperature (0..2, 3) | Cold = 2 / 1 / 0 / 0 rows at each active edge (`k_cold_rows`); Hot / Warm / Lukewarm / Temperate / Cool share the rest (`k_band_widths`): Temperate favours Lukewarm / Temperate, Warm widens Hot / Warm, Cool widens Cool / Temperate, 3 is warmer than Warm (as DOS) |
 | Climate (0..2, 3) | moisture an ocean tile hands the wind: 60 / 100 / 140 / 180 (`k_moisture_by_climate`) |
 | `forest_extra` | unused |
