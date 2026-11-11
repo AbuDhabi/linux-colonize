@@ -7483,7 +7483,7 @@ static int case_combat_fort_fire_repair(void) {
           }
         }
       }
-    found_coast_bit7:
+    found_coast_bit7:;
       ColonizeColony* col = &colonies.colonies[0];
       col->active = true;
       col->nation_id = 0;

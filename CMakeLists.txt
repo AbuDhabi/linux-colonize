@@ -264,7 +264,8 @@ set_target_properties(colonize_sim PROPERTIES POSITION_INDEPENDENT_CODE ON)
 # PIC alone makes GCC assume every exported function may be interposed, so it
 # never inlines one even inside its own file (units_is_on_map in the tile
 # scans: a third of a late-game turn). The archive is only linked statically.
-if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+# Apple clang (id "AppleClang") ignores the flag and warns on every file.
+if(CMAKE_C_COMPILER_ID STREQUAL "GNU" OR CMAKE_C_COMPILER_ID STREQUAL "Clang")
   target_compile_options(colonize_sim PRIVATE -fno-semantic-interposition)
 endif()
 

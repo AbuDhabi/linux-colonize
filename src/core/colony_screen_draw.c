@@ -753,6 +753,7 @@ static void colony_screen_scale15_dither(
           }
         }
       }
+      (void)local6; /* kept from the DOS body; the port never reads it */
       bx = (uint16_t)(bx - local4);
       ++out_y;
       if (ah != 0) {
