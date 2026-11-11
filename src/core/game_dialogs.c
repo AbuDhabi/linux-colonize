@@ -1038,6 +1038,25 @@ void game_enqueue_yes_no(
   }
 }
 
+bool game_request_quit(ColonizeGameState* game) {
+  /* Port-only: the OS window close asks the map Esc @DOSYES first. Only where
+   * that confirm presents at once (the idle popup gate in game_update_services);
+   * on a screen that draws no popup, with another popup or modal up, under
+   * autoplay (no player input), or on a second close while it is up, quit at
+   * once, so the window can always close and no hidden confirm is left queued. */
+  if (!game || game->map_confirm != GAME_MAP_CONFIRM_NONE || game->autoplay ||
+      game_modal_open(game) || ai_popup_busy(&game->ai_popups) || game->ai_popups.has_result ||
+      game_in_new_game(game) || game->in_pedia || game->in_report || game->in_exploits ||
+      game->in_hall_of_fame || game->in_debug_atlas || game->colony_zoom_popup_hold) {
+    return true;
+  }
+  game_enqueue_yes_no(
+    game, game->in_menu ? GAME_MAP_CONFIRM_TITLE_EXIT : GAME_MAP_CONFIRM_QUIT, -1, "DOSYES", "",
+    NULL
+  );
+  return game->map_confirm == GAME_MAP_CONFIRM_NONE;
+}
+
 static void game_do_disband(ColonizeGameState* game, int uid) {
   if (!game) {
     return;

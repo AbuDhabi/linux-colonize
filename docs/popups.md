@@ -433,7 +433,7 @@ fragment. Related sections are listed in the first column.
 | `@BUILD1`…`@BUILD10` | Sail-away captions | Done | Over `LEVN*.PIK` |
 | `@CUSTOM` / `@CLAND`…`@CCLIM` | Customize land/climate | Done | Image grid + `@MISC` labels |
 | `@GAMEOPTIONS` / `@COLONYOPTIONS` / `@SOUNDOPTIONS` | Options checkboxes | Done | [`options_dialog.c`](../src/core/options_dialog.c) |
-| `@DOS` / `@DOSYES` | Quit confirm | Done | Map/title confirm via `AI_POPUP_TAG_MAP_CONFIRM` |
+| `@DOS` / `@DOSYES` | Quit confirm | Done | Map/title confirm via `AI_POPUP_TAG_MAP_CONFIRM`; the OS window close asks `@DOSYES` too (`game_request_quit`) |
 | `@RETIRE` | Retire confirm | Done | Confirm then F10 score |
 | `@MULTI` / `@MULTINEXT` / `@MULTIREV` | Hidden hot-seat (env `COLONIZE=MULTI` or argv `-K`) | Ported ([hotseat.md](hotseat.md)) | `@MULTI` checklist `FUN_75c2_10ae` (DS 0x21a6); `@MULTINEXT` turn handoff `FUN_130d_0290` (DS 0x0137); `@MULTIREV` declare warning `FUN_43f7_2564` (DS 0x138e) |
 

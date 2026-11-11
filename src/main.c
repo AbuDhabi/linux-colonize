@@ -347,7 +347,7 @@ int main(int argc, char** argv) {
     if (!platform_poll_input(platform, &input)) {
       break;
     }
-    if (input.quit_requested) {
+    if (input.quit_requested && game_request_quit(game)) {
       running = false;
     }
 
