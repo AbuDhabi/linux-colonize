@@ -158,6 +158,19 @@ static int combat_colony_fort_strength(
   return fort_strength;
 }
 
+int combat_record_base_x8(const ColonizeUnitType* t, int profession, int mode) {
+  if (!t) {
+    return 0;
+  }
+  const int base = (mode == 0) ? t->defense : t->attack; /* raw 8929-8934 */
+  int strength_x8 = (base < 0 ? 0 : base) * 8;
+  /* raw 8942-8944, as in combat_unit_base_x8 below. */
+  if (combat_type_is_soldier_or_dragoon(t) && profession == UNITS_JOB_SOLDIER) {
+    strength_x8 += strength_x8 >> 1;
+  }
+  return strength_x8;
+}
+
 int combat_unit_base_x8(
   const ColonizeCombatStrengthCtx* ctx,
   int unit_id,

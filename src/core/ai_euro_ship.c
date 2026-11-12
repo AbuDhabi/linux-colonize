@@ -1704,29 +1704,25 @@ void ai_euro_ship_leave_europe(ColonizeTurnContext* ctx, ColonizeUnit* ship) {
  * FUN_48d3_048e (raw 77810-77901): ring-place a hull arriving from Europe on
  * High Seas around its own saved tile +0x314d/e, set xy (0948), reveal
  * (07a0). Goto, orders and MP are untouched; the hull then acts as an
- * ordinary on-map ship. With no ring tile at all, raw 77880-77884 destroys
- * the unit chain on the landfall tile (07e0 -> 083a = FUN_1427_0f30) and
- * places the hull there (port_bugs.md #1669; needs a map with no free High
- * Seas tile, so practically unreachable).
+ * ordinary on-map ship.
+ *
+ * DOS bug not reproduced (docs/dos_bugs_ai.md DB-105): with no ring tile at all,
+ * raw 77884-77890 destroys the unit chain on the landfall tile (07e0 -> 083a
+ * = FUN_1427_0f30) and places the hull there. The ring runs to
+ * max(width, height) (raw 77879-77883), so from an on-map saved tile it
+ * covers the whole map; units_find_high_seas_tile covers a saved tile off the
+ * map. When neither finds a free High Seas tile, the hull stays on its 224+n
+ * lane and the next tick retries; nothing is destroyed.
  */
 static void ai_euro_europe_place_arrival(ColonizeTurnContext* ctx, ColonizeUnit* u) {
-  /* raw 77832-77833: the ring centre is the hull's own +0x314d/e, no fallback. */
+  /* raw 77832-77833: the ring centre is the hull's own +0x314d/e. */
   const int lx = u->goto_x;
   const int ly = u->goto_y;
   int hx = lx;
   int hy = ly;
-  if (!units_spiral_place_hs_near(ctx->units, ctx->map, lx, ly, u->nation_id, &hx, &hy)) {
-    hx = lx;
-    hy = ly;
-    int doomed[COLONIZE_UNITS_MAX];
-    int nd = 0;
-    for (int id = units_tile_head_id_at(ctx->units, lx, ly); id >= 0 && nd < COLONIZE_UNITS_MAX;
-         id = units_tile_chain_next_id(ctx->units, id)) {
-      doomed[nd++] = id;
-    }
-    for (int k = 0; k < nd; ++k) {
-      (void)units_despawn(ctx->units, doomed[k]);
-    }
+  if (!units_spiral_place_hs_near(ctx->units, ctx->map, lx, ly, u->nation_id, &hx, &hy) &&
+      !units_find_high_seas_tile(ctx->units, ctx->map, lx, ly, &hx, &hy)) {
+    return;
   }
   const int ox = u->x;
   const int oy = u->y;
@@ -1804,8 +1800,8 @@ void ai_euro_europe_lane_tick(ColonizeTurnContext* ctx, int nation_id) {
     if (pick < 0) {
       break;
     }
-    /* DOS 048e always moves the hull off the lane (raw 77884-77890);
-     * `tried` just bounds the restart loop. */
+    /* `tried` bounds the restart loop: a hull with no High Seas tile stays
+     * on the lane (DB-105) and would otherwise be picked again. */
     tried[pick] = true;
     ai_euro_europe_place_arrival(ctx, units_get(ctx->units, pick));
   }

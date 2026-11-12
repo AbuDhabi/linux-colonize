@@ -6,6 +6,7 @@
 
 #include "core/ai_contact.h"
 #include "core/combat_strength.h"
+#include "core/europe.h"
 #include "core/map.h"
 #include "core/units.h"
 
@@ -35,6 +36,47 @@ static void census_sat_add(uint8_t* b, int v) {
   *b = (uint8_t)(t > 0xff ? 0xff : t);
 }
 
+typedef struct CensusEuropeSink {
+  ColonizeCol1Stuff* stuff;
+  const ColonizeUnitPool* units;
+  int n;
+} CensusEuropeSink;
+
+/* One Europe-side record of the human (europe_for_each_offpool_record): the
+ * unit walk below for a record. Off the map (FUN_281f_081c reads -1), so no
+ * continent cells; FUN_281f_06be -> FUN_137f_03e4 returns -1 off the map
+ * (FUN_137f_000a bounds test), so a land record also feeds the field total
+ * (raw 78224-78231). */
+static void census_europe_record(void* user, int t, int profession, bool hull) {
+  CensusEuropeSink* k = user;
+  ColonizeCol1Stuff* stuff = k->stuff;
+  const int n = k->n;
+  const ColonizeUnitType* ut = units_type(k->units, t);
+  if (t >= 0 && t < 0x13) {
+    census_sat_add(&stuff->unit_type_counts[n][t], 1);
+  }
+  if (hull) {
+    census_sat_add(&stuff->ship_cargo_totals[n], ut && ut->cargo > 0 ? ut->cargo : 0);
+    census_sat_add(&stuff->ship_counts[n], 1);
+    if (ut && ut->attack > 0) {
+      stuff->armed_ship_counts[n]++;
+    }
+  }
+  stuff->all_unit_counts[n]++;
+  if (t == 0) {
+    stuff->free_colonist_counts[n]++;
+  }
+  if (units_type_has_profession_slot(t)) {
+    census_sat_add(&stuff->census_pop_proxy[n], 1);
+  }
+  if (!hull) {
+    census_sat_add(&stuff->land_combat_totals[n], combat_record_base_x8(ut, profession, 0));
+    const int v1 = combat_record_base_x8(ut, profession, 1);
+    stuff->land_combat_strength[n] = (uint16_t)(stuff->land_combat_strength[n] + v1);
+    census_sat_add(&stuff->field_combat_totals[n], v1);
+  }
+}
+
 /* bind_origin = the raw 78193-78197 unit write; the blank-template fill on the
  * save-writing path passes false so a save never mutates the live pool. */
 static void census_4962(const ColonizeWorld* w, ColonizeCol1Stuff* stuff, int n, bool bind_origin) {
@@ -42,6 +84,9 @@ static void census_4962(const ColonizeWorld* w, ColonizeCol1Stuff* stuff, int n,
   const ColonizeColonyPool* colonies = w->colonies;
   const ColonizeCol1Save* col1 = w->col1;
   const ColonizeWorldMap* map = w->map;
+  /* The human's Europe-side records (dock rows, lane hulls and passengers)
+   * live only in the EuropeScreen; DOS walks them with the rest (raw 78159). */
+  const EuropeScreen* eu = (w->europe && (int)w->europe->bound_nation == n) ? w->europe : NULL;
   /* raw 78129-78158: this nation's slices, and all sixteen 0x95f2 bytes. */
   if (getenv("AI_28C8_TRACE")) fprintf(stderr, "[census] n%d (old land %d)\n", n, (int)stuff->land_combat_strength[n]);
   stuff->land_combat_strength[n] = 0;
@@ -88,6 +133,14 @@ static void census_4962(const ColonizeWorld* w, ColonizeCol1Stuff* stuff, int n,
       if (cont >= 0 && cont < 16 && owner < 4) {
         stuff->continent_presence_flags[cont] |= 2; /* raw 78234-78235 */
       }
+      continue;
+    }
+    /* A (236,236) dock mirror stands for its dock row, which the Europe pass
+     * below counts (rows without a mirror too). Off the map, it touches no
+     * continent cell and binds no colony, so skipping it drops only the double
+     * count. The row carries no damaged bit, so a damaged Artillery on the
+     * dock loses its -2 peel (raw 8936-8939). */
+    if (eu && europe_is_dock_mirror(units, u, n)) {
       continue;
     }
     const int t = u->type_index;
@@ -148,6 +201,10 @@ static void census_4962(const ColonizeWorld* w, ColonizeCol1Stuff* stuff, int n,
         }
       }
     }
+  }
+  {
+    CensusEuropeSink sink = {stuff, units, n};
+    europe_for_each_offpool_record(eu, units, census_europe_record, &sink);
   }
   /* Colony array (raw 78238-78303). */
   for (int i = 0; colonies && i < COLONIZE_COLONIES_MAX; ++i) {
