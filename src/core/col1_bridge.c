@@ -4309,7 +4309,7 @@ COLONIZE_INTERNAL void col1_bridge_capture_occupancy(Col1CaptureCtx* ctx) {
   if (col1_stuff_census_window_is_blank(&save->stuff)) {
     const ColonizeWorld cw = world_make(
       (ColonizeUnitPool*)units, (ColonizeColonyPool*)colonies, (ColonizeWorldMap*)map, save,
-      save != NULL, NULL, NULL
+      save != NULL, NULL, ctx->europe
     );
     col1_stuff_census_fill_blank_w(&cw, &save->stuff);
   }
