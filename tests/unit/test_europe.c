@@ -46,10 +46,16 @@ static bool test_europe_load(EuropeScreen* eu, const char* dir, char* err, size_
   return true;
 }
 
+/*
+ * Every EuropeScreen (~0.9 MB), ColonizeUnitPool (~0.8 MB) and AiPopupState
+ * (~2.8 MB) in this case is static: an unoptimised build gives each block-scoped
+ * local its own slot, which put the frame at 15 MB, past the default 8 MB stack.
+ * Each one is reset (europe_load / memset / ai_popup_init) before use.
+ */
 static int case_europe_workflow(void) {
   diag_init(0, NULL);
 
-  EuropeScreen eu;
+  static EuropeScreen eu;
   char err[256];
   if (!test_europe_load(&eu, "COLONIZE", err, sizeof(err))) {
     fprintf(stderr, "europe_load failed: %s\n", err);
@@ -932,7 +938,7 @@ static int case_europe_workflow(void) {
   /* port_bugs.md #754: an unaffordable Purchase row is greyed and inert — Enter
    * does nothing, no status text, dialog stays open. */
   {
-    EuropeScreen poor;
+    static EuropeScreen poor;
     if (!test_europe_load(&poor, "COLONIZE", err, sizeof(err))) {
       fprintf(stderr, "europe_load (poor) failed: %s\n", err);
       return 1;
@@ -1377,7 +1383,7 @@ static int case_europe_workflow(void) {
    */
   {
     ColonizeCol1Save* col1 = (ColonizeCol1Save*)calloc(1, sizeof(ColonizeCol1Save));
-    AiPopupState popups;
+    static AiPopupState popups;
     ai_popup_init(&popups);
     if (!col1) {
       europe_free(&eu);
@@ -1421,7 +1427,7 @@ static int case_europe_workflow(void) {
   /* Disembark Treasure passenger: cash-in + do not land as dock immigrant. */
   {
     ColonizeMsgCatalog names;
-    ColonizeUnitPool units;
+    static ColonizeUnitPool units;
     memset(&units, 0, sizeof(units));
     memset(&names, 0, sizeof(names));
     units_reset(&units);
@@ -1497,8 +1503,8 @@ static int case_europe_workflow(void) {
    */
   {
     ColonizeMsgCatalog cap_names;
-    ColonizeUnitPool cap_units;
-    EuropeScreen cap;
+    static ColonizeUnitPool cap_units;
+    static EuropeScreen cap;
     char cerr[128];
     memset(&cap_units, 0, sizeof(cap_units));
     memset(&cap_names, 0, sizeof(cap_names));
@@ -1713,7 +1719,7 @@ static int case_europe_workflow(void) {
    * buy row for the matching sell row.
    */
   {
-    EuropeScreen arm;
+    static EuropeScreen arm;
     char aerr[128];
     if (!test_europe_load(&arm, "COLONIZE", aerr, sizeof(aerr))) {
       fprintf(stderr, "armoptions: reload failed: %s\n", aerr);
@@ -1858,7 +1864,7 @@ static int case_europe_workflow(void) {
    * Cite: NAMES.TXT @CARGO; viceroy_unpacked.c FUN_38fd_0058.
    */
   {
-    EuropeScreen vol;
+    static EuropeScreen vol;
     char verr[128];
     if (!test_europe_load(&vol, "COLONIZE", verr, sizeof(verr))) {
       fprintf(stderr, "volume: reload failed: %s\n", verr);
@@ -1922,7 +1928,7 @@ static int case_europe_workflow(void) {
    * volatility 0 and attrition 0, so the sale terms are the whole delta.
    */
   {
-    EuropeScreen led;
+    static EuropeScreen led;
     if (!test_europe_load(&led, "COLONIZE", err, sizeof(err))) {
       fprintf(stderr, "europe_load (ledger): %s\n", err);
       europe_free(&eu);
@@ -1988,7 +1994,7 @@ static int case_europe_workflow(void) {
 
   /* EOT attrition tick: Trade Goods attrition=+4 kept on nr (0058 all-cargo). */
   {
-    EuropeScreen tick;
+    static EuropeScreen tick;
     char terr[128];
     if (!test_europe_load(&tick, "COLONIZE", terr, sizeof(terr))) {
       fprintf(stderr, "tick: reload failed: %s\n", terr);
@@ -2073,7 +2079,7 @@ static int case_europe_workflow(void) {
     col1.nation[0].trade.tons2[COLONIZE_CARGO_FOOD] = 246;
     col1.nation[1].trade.tons2[COLONIZE_CARGO_FOOD] = -500; /* negative ledgers clamp to 0 */
 
-    EuropeScreen tick;
+    static EuropeScreen tick;
     memset(&tick, 0, sizeof(tick));
     tick.cargo_count = COLONIZE_CARGO_COUNT;
     ColonizeWorld tick_w2 = world_make(NULL, &pool, NULL, &col1, true, NULL, &tick);
@@ -2107,7 +2113,7 @@ static int case_europe_workflow(void) {
     col1.head.market_demand_pool[COLONIZE_CARGO_COTTON] = 10;
     col1.head.market_demand_pool[COLONIZE_CARGO_FURS] = 20; /* halved → 10 */
 
-    EuropeScreen tick;
+    static EuropeScreen tick;
     memset(&tick, 0, sizeof(tick));
     tick.cargo_count = COLONIZE_CARGO_COUNT;
     for (int c = 0; c < COLONIZE_CARGO_COUNT; ++c) {
@@ -2176,7 +2182,7 @@ static int case_europe_workflow(void) {
    */
   {
     ColonizeMsgCatalog names;
-    ColonizeUnitPool units;
+    static ColonizeUnitPool units;
     memset(&units, 0, sizeof(units));
     memset(&names, 0, sizeof(names));
     units_reset(&units);
@@ -2267,7 +2273,7 @@ static int case_europe_workflow(void) {
     ai->population = 1;
     pool.colony_count = 1;
 
-    EuropeScreen dseu;
+    static EuropeScreen dseu;
     memset(&dseu, 0, sizeof(dseu));
     dseu.cargo_count = COLONIZE_CARGO_COUNT;
     for (int i = 0; i < COLONIZE_CARGO_COUNT; ++i) {
@@ -2606,7 +2612,7 @@ static int case_europe_workflow(void) {
    */
   {
     ColonizeMsgCatalog names;
-    ColonizeUnitPool units;
+    static ColonizeUnitPool units;
     memset(&units, 0, sizeof(units));
     memset(&names, 0, sizeof(names));
     units_reset(&units);

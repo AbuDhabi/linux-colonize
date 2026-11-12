@@ -786,6 +786,13 @@ static int ff_case_mod_blocks_boundary(void) {
   return rc;
 }
 
+/*
+ * Every AiPopupState (~2.8 MB), ColonizeUnitPool (~0.8 MB) and EuropeScreen
+ * (~0.9 MB) below is static: an unoptimised build gives each block-scoped local
+ * its own slot, which put main at 31 MB, past the default 8 MB stack. Each one
+ * is reset (ai_popup_init / memset) before use, so static storage changes
+ * nothing in a loop body either.
+ */
 int main(void) {
   {
     const int gate = tr_single_flow_gate("founding_fathers");
@@ -937,7 +944,7 @@ int main(void) {
   /* Brewster: pool filter flag; no crosses / free-colonist spawn fiction. */
   nat->liberty_bells_pool = 241;
   nat->next_founding_father = 20;
-  EuropeScreen eu_brew;
+  static EuropeScreen eu_brew;
   memset(&eu_brew, 0, sizeof(eu_brew));
   snprintf(eu_brew.pool[0].name, sizeof(eu_brew.pool[0].name), "Petty Criminals");
   eu_brew.pool[0].profession = 26;
@@ -986,7 +993,7 @@ int main(void) {
     ai_nat->recruit[0] = 0x19; /* Indentured Servant */
     ai_nat->recruit[1] = 0x1a; /* Petty Criminal */
     ai_nat->recruit[2] = 0x18; /* Jesuit Missionaries - untouched */
-    EuropeScreen eu_human;
+    static EuropeScreen eu_human;
     memset(&eu_human, 0, sizeof(eu_human));
     eu_human.pool[0].profession = 26;
     eu_human.pool[0].filled = true;
@@ -1047,7 +1054,7 @@ int main(void) {
     jcol1.nation[1].next_founding_father = FF_JOHN_PAUL_JONES;
     jcol1.nation[1].return_from_europe_x = 37;
     jcol1.nation[1].return_from_europe_y = 41;
-    ColonizeUnitPool jun;
+    static ColonizeUnitPool jun;
     memset(&jun, 0, sizeof(jun));
     units_reset(&jun);
     units_set_occupancy_map(NULL);
@@ -1082,7 +1089,7 @@ int main(void) {
   /* port_bugs.md #728: FUN_4345_0342 case 0x14 rewrites only the three recruit
    * slots — colonists already on the docks stay Indentured / Criminal. */
   {
-    EuropeScreen eu_dock;
+    static EuropeScreen eu_dock;
     memset(&eu_dock, 0, sizeof(eu_dock));
     eu_dock.dock_count = 1;
     eu_dock.dock[0].present = true;
@@ -1349,7 +1356,7 @@ int main(void) {
     col->stock[COLONIZE_CARGO_FURS] = 5;
     colonies.colony_count = 1;
 
-    ColonizeUnitPool units;
+    static ColonizeUnitPool units;
     memset(&units, 0, sizeof(units));
     units_reset(&units);
     units_set_occupancy_map(NULL);
@@ -1413,7 +1420,7 @@ int main(void) {
     deep_col1.colony[0].rebel_dividend = 40;
     deep_col1.colony[0].rebel_divisor = 100;
 
-    EuropeScreen europe;
+    static EuropeScreen europe;
     memset(&europe, 0, sizeof(europe));
     europe.dock_count = 0;
     europe.gold = (int)dnat->gold;
@@ -1976,7 +1983,7 @@ int main(void) {
       return fail("Revere helper must require owning nation");
     }
 
-    ColonizeUnitPool upool;
+    static ColonizeUnitPool upool;
     memset(&upool, 0, sizeof(upool));
     units_reset(&upool);
     units_set_occupancy_map(NULL);
@@ -2649,13 +2656,13 @@ int main(void) {
     pnat->next_founding_father = FF_THOMAS_JEFFERSON;
     pcol1.head.founding_father[FF_THOMAS_JEFFERSON] = -1;
 
-    EuropeScreen peu;
+    static EuropeScreen peu;
     memset(&peu, 0, sizeof(peu));
     peu.needed_crosses = 100;
     peu.crosses_immigrant_seen = true; /* dock latch up, but dock is empty */
 
     /* Keep 584a needed above Penn's 13 so the meter is not cleared by a spawn. */
-    ColonizeUnitPool punits;
+    static ColonizeUnitPool punits;
     memset(&punits, 0, sizeof(punits));
     units_reset(&punits);
     units_set_occupancy_map(NULL);
@@ -2890,7 +2897,7 @@ int main(void) {
     fcol->colonists[0].profession = COLONIZE_PROF_CONVERT;
     lcolonies.colony_count = 2;
 
-    ColonizeUnitPool lunits;
+    static ColonizeUnitPool lunits;
     memset(&lunits, 0, sizeof(lunits));
     units_reset(&lunits);
     units_set_occupancy_map(NULL);
@@ -2928,7 +2935,7 @@ int main(void) {
      * both carry the dock's @JOB, so both must land on the port's dock
      * "Free Colonist" convention, @JOB 19.
      */
-    EuropeScreen lc_eu;
+    static EuropeScreen lc_eu;
     memset(&lc_eu, 0, sizeof(lc_eu));
     lc_eu.dock_count = 2;
     lc_eu.dock[0].present = true;
@@ -3088,7 +3095,7 @@ int main(void) {
      * rumour one tile SE. Scrub keeps the AMER2 fixture's terrain class. */
     lmap.terrain[15 * 20 + 9] = 0x08;
     lmap.layer3[15 * 20 + 9] = 0xf0u; /* nobody visited (FUN_137f_0598) */
-    ColonizeUnitPool upool;
+    static ColonizeUnitPool upool;
     memset(&upool, 0, sizeof(upool));
     units_reset(&upool);
     units_set_occupancy_map(NULL);
@@ -3154,7 +3161,7 @@ int main(void) {
     }
     cmap.layer3[5 * 16 + 5] = (uint8_t)((4u << 4) | 1u);
 
-    ColonizeUnitPool upool;
+    static ColonizeUnitPool upool;
     memset(&upool, 0, sizeof(upool));
     units_reset(&upool);
     units_set_occupancy_map(NULL);
@@ -3235,7 +3242,7 @@ int main(void) {
     dnat->next_founding_father = -1;
     dnat->founding_father_count = 0;
 
-    AiPopupState pop;
+    static AiPopupState pop;
     ai_popup_init(&pop);
 
     char dstatus[128];
@@ -3325,7 +3332,7 @@ int main(void) {
       xcol1.nation[2].founding_fathers[i / 8] |= (uint8_t)(1u << (i % 8));
     }
 
-    AiPopupState xpop;
+    static AiPopupState xpop;
     ai_popup_init(&xpop);
     char xstatus[128];
     xstatus[0] = '\0';
@@ -3364,7 +3371,7 @@ int main(void) {
     dnat->liberty_bells_pool = 10;
     dnat->next_founding_father = -1;
 
-    AiPopupState pop;
+    static AiPopupState pop;
     ai_popup_init(&pop);
     char dstatus[128];
     dstatus[0] = '\0';
@@ -3505,9 +3512,9 @@ int main(void) {
     znat->next_founding_father = FF_ADAM_SMITH;
     znat->founding_father_count = 0;
 
-    AiPopupState zpop;
+    static AiPopupState zpop;
     ai_popup_init(&zpop);
-    EuropeScreen zeu;
+    static EuropeScreen zeu;
     memset(&zeu, 0, sizeof(zeu));
     zeu.liberty_bells_pool = 900;
     ColonizeTurnContext zctx;
@@ -3573,7 +3580,7 @@ int main(void) {
       rnat->liberty_bells_pool = 10;
       rnat->next_founding_father = -1;
 
-      AiPopupState rpop;
+      static AiPopupState rpop;
       ai_popup_init(&rpop);
       ColonizeDosRng rrng;
       dos_rng_seed(&rrng, 7u);
@@ -3633,7 +3640,7 @@ int main(void) {
     for (int pass = 0; pass < 2; ++pass) {
       /* Clear the persistent debate slate — this test compares fresh rolls. */
       founding_fathers_reset();
-      AiPopupState pop;
+      static AiPopupState pop;
       ai_popup_init(&pop);
       ColonizeDosRng rng;
       dos_rng_seed(&rng, pass == 0 ? 7u : 9u);
@@ -3691,7 +3698,7 @@ int main(void) {
     wnat->next_founding_father = FF_ADAM_SMITH;
     wnat->founding_father_count = 0;
 
-    AiPopupState wpop;
+    static AiPopupState wpop;
     ai_popup_init(&wpop);
     ColonizeTurnContext wctx;
     memset(&wctx, 0, sizeof(wctx));

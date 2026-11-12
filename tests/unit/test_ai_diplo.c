@@ -416,43 +416,8 @@ static int case_declare_war_side_effects(void) {
       return fail("declare_war must not OR Food onto existing king boycotts");
     }
 
-    /*
-     * @SNEAK ("Sneak attack by the treacherous {attacker}!") — real text
-     * confirmed 2026-08-14 (COLONIZE/GAME.TXT), user-confirmed live mechanic
-     * (see src/core/ai_euro.c ai_euro_try_attack). Direct primitive check
-     * since ai_euro_try_attack itself is static and its dispatcher-turn
-     * context is too entangled for an end-to-end assertion, so this pins the exact fallback text and the real GAME.TXT rendering
-     * that ai_euro.c's popup_msg_fill call produces. */
-    {
-      char sneak_buf[256];
-      PopupMsgTokens tok = {0};
-      tok.string0 = "Spain";
-      popup_msg_fill(
-        NULL, "SNEAK", &tok, "Sneak attack by the treacherous %STRING0!", sneak_buf,
-        sizeof(sneak_buf)
-      );
-      if (strcmp(sneak_buf, "Sneak attack by the treacherous Spain!") != 0) {
-        fprintf(stderr, "unit_ai_diplo: sneak fallback status '%s'\n", sneak_buf);
-        return fail("@SNEAK fallback text should match ai_euro.c's popup_msg_fill call");
-      }
-      ColonizeMsgCatalog game_txt_sneak;
-      memset(&game_txt_sneak, 0, sizeof(game_txt_sneak));
-      if (!assets_msg_load_file(&game_txt_sneak, "COLONIZE/GAME.TXT")) {
-        fprintf(stderr, "unit_ai_diplo: @SNEAK: GAME.TXT load failed\n");
-        return TR_SKIP;
-      }
-      sneak_buf[0] = '\0';
-      popup_msg_fill(
-        &game_txt_sneak, "SNEAK", &tok, "Sneak attack by the treacherous %STRING0!", sneak_buf,
-        sizeof(sneak_buf)
-      );
-      /* popup_msg_fill keeps the {} emphasis markup now; renderers color it. */
-      if (strcmp(sneak_buf, "Sneak attack by the treacherous {Spain}!") != 0) {
-        fprintf(stderr, "unit_ai_diplo: sneak real-catalog status '%s'\n", sneak_buf);
-        return fail("@SNEAK should render authentic GAME.TXT text with attacker name");
-      }
-      assets_msg_free(&game_txt_sneak);
-    }
+    /* The @SNEAK wording is checked on the real 465b path:
+     * case_465b_sneak_names_attacker. */
 
     /* 2026-09-03: the −5 war hit is retired (no DOS declare site touches
      * Indian relations). */
@@ -2916,6 +2881,53 @@ static int case_ai_pair_news_reaches_human(void) {
   return rc;
 }
 
+/*
+ * FUN_465b_0000 raw 75558-75595: a computer attacker breaking PEACE with the
+ * human defender raises @SNEAK with STRING0 = the attacker's FUN_281f_0a1a
+ * name (ai_diplo_465b_say, fallback ""). The expected body is built from the
+ * GAME.TXT section and the NAMES.TXT name, never typed here, so a wrong
+ * section or the defender's name fails the exact compare.
+ */
+static int case_465b_sneak_names_attacker(void) {
+  const ColonizeMsgCatalog* game_txt = test_game_txt();
+  if (!game_txt) {
+    return TR_SKIP;
+  }
+  static TreatyFx f;
+  if (treaty_fx_init(&f) != 0) {
+    return 1;
+  }
+  ColonizeCol1Save* e = &f.col1;
+  ai_diplo_write(e, 0, 1, AI_DIPLO_MET | AI_DIPLO_PEACE);
+  ai_diplo_write(e, 1, 0, AI_DIPLO_MET | AI_DIPLO_PEACE);
+  (void)ai_diplo_465b_band_ctx(&f.ctx, 1, 0); /* computer France attacks human England */
+  const char* attacker = reports_nation_plural_woi(e, 1);
+  const char* defender = reports_nation_plural_woi(e, 0);
+  int rc = 0;
+  if (!attacker[0] || !defender[0] || strcmp(attacker, defender) == 0) {
+    fprintf(stderr, "  names '%s' / '%s'\n", attacker, defender);
+    rc = fail("465b @SNEAK: NAMES.TXT must give two distinct nation names");
+  }
+  char want[AI_POPUP_BODY_LEN];
+  PopupMsgTokens tok = {0};
+  tok.string0 = attacker;
+  popup_msg_fill(game_txt, "SNEAK", &tok, "", want, sizeof(want));
+  if (rc == 0 && (!want[0] || !strstr(want, attacker))) {
+    fprintf(stderr, "  want '%s'\n", want);
+    rc = fail("465b @SNEAK: GAME.TXT @SNEAK must carry the %STRING0 token");
+  }
+  if (rc == 0 && (f.pop.queue_count < 1 || f.pop.queue[0].tag != AI_POPUP_TAG_DIPLO_SNEAK ||
+                  strcmp(f.pop.queue[0].body, want) != 0)) {
+    fprintf(stderr, "  queued %d tag %d body '%s' want '%s'\n", f.pop.queue_count,
+            f.pop.queue_count > 0 ? (int)f.pop.queue[0].tag : -1,
+            f.pop.queue_count > 0 ? f.pop.queue[0].body : "", want);
+    rc = fail("465b: @SNEAK must name the attacker in the GAME.TXT wording");
+  }
+  ai_popup_init(&f.pop);
+  fx_map_free(&f.map);
+  return rc;
+}
+
 static const TestCase k_cases[] = {
   {"case_153e_ally_pay", case_153e_ally_pay},
     {"case_153e_dominance_exit_rearms_timer", case_153e_dominance_exit_rearms_timer},
@@ -2923,6 +2935,7 @@ static const TestCase k_cases[] = {
     {"case_153e_withdraw_refusal_tone", case_153e_withdraw_refusal_tone},
     {"case_153e_usa_signs_without_worthy", case_153e_usa_signs_without_worthy},
     {"case_ai_pair_news_reaches_human", case_ai_pair_news_reaches_human},
+    {"case_465b_sneak_names_attacker", case_465b_sneak_names_attacker},
     {"case_153e_open_plays_nation_chord", case_153e_open_plays_nation_chord},
     {"case_00f8_score_wraps_16bit", case_00f8_score_wraps_16bit},
     {"case_2b5a_1112_fortify_break_treaty", case_2b5a_1112_fortify_break_treaty},

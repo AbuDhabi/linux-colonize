@@ -1262,6 +1262,10 @@ colonize_add_test(NAME smoke_ai_late01
   LIBS colonize_core
   INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}
 )
+# late01 reads test-saves-ai/MID02.SAV, which mid01 rewrites on every run: under
+# ctest -j the two must not overlap.
+set_tests_properties(smoke_ai_mid01 PROPERTIES FIXTURES_SETUP ai_mid02_save)
+set_tests_properties(smoke_ai_late01 PROPERTIES FIXTURES_REQUIRED ai_mid02_save)
 
 # History: this AI cluster (golden_ai_turns / the two joint smoke tests /
 # golden_ai_joint) was parked 2026-08-19 while the AI transcription was

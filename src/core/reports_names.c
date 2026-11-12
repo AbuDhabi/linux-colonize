@@ -177,7 +177,8 @@ const char* reports_title(ColonizeReportId id) {
  * `col`-th (0-based) comma-separated field of the `row`-th (0-based,
  * comment/blank lines skipped) data line in `section` of g_reports_names.
  * Returns NULL when the live catalog, the section, the row, or the field
- * isn't available — callers fall back to their own static table.
+ * isn't available. No caller keeps a static table to fall back on: each treats
+ * NULL as a catalog miss (empty text, no value, or a rejected row).
  * Static return buffer: use/copy before the next call (matches the existing
  * ai_contact_tribe_flavor_good idiom — no caller here needs two at once).
  */
