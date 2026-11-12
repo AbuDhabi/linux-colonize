@@ -3782,6 +3782,47 @@ static int case_colony_delete_appends_next(void) {
   return rc;
 }
 
+/* FUN_364b_1ba8 founds only while DS:0x539e < 0x30; settings.json
+ * divergences.unlimited_colonies (colonies_set_unlimited) lifts the gate. */
+static int case_unlimited_colonies_gate(void) {
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  char err[256];
+  if (!map_load_mp("COLONIZE/AMER2.MP", &map, err, sizeof(err))) {
+    return 1;
+  }
+  static ColonizeColonyPool pool;
+  colonies_init(&pool);
+  colonies_set_occupancy_map(NULL);
+  int founded = 0;
+  int refused = 0;
+  int extra = -1;
+  for (int y = 2; y < (int)map.height - 2 && extra < 0; y += 3) {
+    for (int x = 2; x < (int)map.width - 2 && extra < 0; x += 3) {
+      if (!colonies_can_found(&pool, &map, x, y)) {
+        continue;
+      }
+      if (refused) {
+        colonies_set_unlimited(true);
+        extra = colonies_found(&pool, &map, x, y, 0, -1, UNITS_JOB_NONE, 0, 0, 0);
+        colonies_set_unlimited(false);
+      } else if (colonies_found(&pool, &map, x, y, 0, -1, UNITS_JOB_NONE, 0, 0, 0) >= 0) {
+        ++founded;
+      } else {
+        refused = 1;
+      }
+    }
+  }
+  map_free(&map);
+  if (founded != COLONIZE_COLONIES_DOS_MAX || !refused || extra < 0 ||
+      pool.colony_count != COLONIZE_COLONIES_DOS_MAX + 1) {
+    fprintf(stderr, "unlimited colonies: founded %d refused %d extra %d count %d\n", founded,
+            refused, extra, pool.colony_count);
+    return 1;
+  }
+  return 0;
+}
+
 /* port_bugs.md #1179, FUN_364b_1e64 raw 58170-58188: live trade-route stops are DOS
  * colony indices, so a colony delete drops the stops at it, shifts later ones
  * down and walks the unit cursor (FUN_647e_060e); a hole-fill founding shifts
@@ -4318,5 +4359,6 @@ static const TestCase k_cases[] = {
     {"unit_colony_cheat_helpers", unit_colony_cheat_helpers},
     {"unit_trade_route_stop_load_order_and_boycott", unit_trade_route_stop_load_order_and_boycott},
     {"unit_population_floor_mod", unit_population_floor_mod},
+    {"unlimited_colonies_gate", case_unlimited_colonies_gate},
 };
 TEST_MAIN(k_cases)

@@ -636,6 +636,62 @@ static bool test_unit_overflow(char* err, size_t err_size) {
   return ok;
 }
 
+/* More than 48 colonies: DOS section keeps 48, the rest rides in 'COXT' and
+ * comes back on read. An overflow colony's tile loses its city flag on disk
+ * (DOS has no record there) and gets it back on read. */
+static bool test_colony_overflow(char* err, size_t err_size) {
+  ColonizeCol1Save save;
+  if (!build_synthetic(&save, err, err_size)) {
+    return false;
+  }
+  const uint16_t n = (uint16_t)(COLONIZE_COL1_DOS_COLONY_MAX + 3u);
+  ColonizeCol1Colony* colonies = calloc(n, sizeof(*colonies));
+  if (!colonies) {
+    col1_save_free(&save);
+    return false;
+  }
+  for (uint16_t i = 0; i < n; ++i) {
+    colonies[i].x = (uint8_t)(1 + i % 50);
+    colonies[i].y = (uint8_t)(2 + i / 50);
+    save.map.mask[(size_t)colonies[i].y * save.map.width + colonies[i].x] |= 0x02u;
+  }
+  snprintf(colonies[n - 1].name, sizeof(colonies[n - 1].name), "Overflow");
+  free(save.colony);
+  save.colony = colonies;
+  save.head.colony_count = n;
+  const size_t last_tile = (size_t)colonies[n - 1].y * save.map.width + colonies[n - 1].x;
+  const size_t first_tile = (size_t)colonies[0].y * save.map.width + colonies[0].x;
+  uint8_t* data = NULL;
+  size_t size = 0;
+  bool ok = col1_save_write_memory(&save, &data, &size, err, err_size);
+  ColonizeCol1Save back;
+  col1_save_init(&back);
+  if (ok) {
+    ColonizeCol1Head dos_head;
+    memcpy(&dos_head, data, sizeof(dos_head));
+    const size_t mask_at = col1_save_expected_size_counts(
+                             save.head.map_size_x, save.head.map_size_y,
+                             COLONIZE_COL1_DOS_COLONY_MAX, save.head.unit_count,
+                             save.head.tribe_count
+                           ) -
+                           COLONIZE_COL1_TRADE_ROUTE_SIZE * COLONIZE_COL1_TRADE_ROUTE_COUNT -
+                           COLONIZE_COL1_POST_MAP_SIZE - 3u * save.map.tile_count;
+    ok = dos_head.colony_count == COLONIZE_COL1_DOS_COLONY_MAX &&
+         !(data[mask_at + last_tile] & 0x02u) && (data[mask_at + first_tile] & 0x02u) &&
+         col1_save_read_memory(data, size, &back, err, err_size) &&
+         back.head.colony_count == n && strcmp(back.colony[n - 1].name, "Overflow") == 0 &&
+         (back.map.mask[last_tile] & 0x02u) &&
+         !col1_save_ext_find(&back, COLONIZE_COL1_EXT_TAG_COLONY_OVERFLOW, NULL, NULL);
+  }
+  if (!ok) {
+    fprintf(stderr, "colony overflow: round trip failed (%s)\n", err);
+  }
+  free(data);
+  col1_save_free(&back);
+  col1_save_free(&save);
+  return ok;
+}
+
 static bool test_port_ext(char* err, size_t err_size) {
   ColonizeCol1Save save;
   if (!build_synthetic(&save, err, err_size)) {
@@ -2342,6 +2398,9 @@ int main(void) {
   fprintf(stderr, "col1 layout sizes ok\n");
 
   if (!test_port_ext(err, sizeof(err))) {
+    return 1;
+  }
+  if (!test_colony_overflow(err, sizeof(err))) {
     return 1;
   }
   if (!test_unit_overflow(err, sizeof(err))) {

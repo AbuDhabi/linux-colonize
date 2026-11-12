@@ -58,7 +58,9 @@ defaults no matter what file is sitting in the build directory.
     "menu": false, "mouse_coords": false, "building_rects": false, "logs": false,
     "trace_autosaves": false, "input_logger": false, "input_logger_directory": "./input_logs"
   },
-  "divergences": { "unlimited_units": false, "alternate_map_generator": false },
+  "divergences": {
+    "unlimited_units": false, "unlimited_colonies": false, "alternate_map_generator": false
+  },
   "mods": {
     "wagon_loot": false, "goto_native_wait": true, "population_floor": false, "raid_scalps": false,
     "royal_mercy": false, "late_fathers": false, "town_hall_tiers": false, "building_upkeep": false,
@@ -115,6 +117,15 @@ saved in the `UNXT` port extension chunk (docs/savegame.md), so DOS still
 loads the first 300 and never sees the rest. Turning the flag off again does
 not drop units: a save already above 300 loads whole, and new units wait
 until the count falls back under the DOS limit.
+`divergences.unlimited_colonies` (read at startup, `main.c` ->
+`colonies_set_unlimited`) skips the `FUN_364b_1ba8` founding gate (48
+colonies in all, DS:0x539e `< 0x30`), for the player and for the AI's
+expansion urgency (`FUN_521d_03d0`, same `0x30` test); the pool size
+`COLONIZE_COLONIES_MAX` (200) is the only cap left. Colony records past 48 are
+saved in the `COXT` port extension chunk (docs/savegame.md), so DOS still loads
+the first 48 and never sees the rest. Turning the flag off again does not drop
+colonies: a save already above 48 loads whole, and new colonies wait until the
+count falls back under the DOS limit.
 `divergences.alternate_map_generator` (read at startup, `main.c` ->
 `map_gen_set_alternate`) makes NEW WORLD and CUSTOMIZE maps come from
 `map_generate_alternate` (`src/core/map_gen_alt.c`): plate tectonics, erosion,

@@ -411,12 +411,18 @@ bool col1_save_ext_put(
   return true;
 }
 
-/* ---------------- Unit records past the DOS limit ('UNXT') ---------------- */
+/* ---------------- Records past the DOS limits ('UNXT', 'COXT') ---------------- */
 
 static uint16_t col1_save_dos_unit_count(const ColonizeCol1Save* save) {
   return save->head.unit_count > COLONIZE_COL1_DOS_UNIT_MAX
            ? (uint16_t)COLONIZE_COL1_DOS_UNIT_MAX
            : save->head.unit_count;
+}
+
+static uint16_t col1_save_dos_colony_count(const ColonizeCol1Save* save) {
+  return save->head.colony_count > COLONIZE_COL1_DOS_COLONY_MAX
+           ? (uint16_t)COLONIZE_COL1_DOS_COLONY_MAX
+           : save->head.colony_count;
 }
 
 /* A tile-chain link as DOS sees it: past any 'UNXT' records (>= the DOS
@@ -435,12 +441,17 @@ static int16_t col1_save_dos_link(const ColonizeCol1Save* save, int16_t link, bo
 
 /*
  * The mask as DOS sees it: a map tile held only by 'UNXT' records loses its
- * unit flag (bit 0). DOS has no record there, and FUN_1427_005c raises
- * @UNITFLAG on the first lookup of a flagged tile without one. NULL when no
- * record spills (caller frees).
+ * unit flag (bit 0), a 'COXT' colony's tile its city flag (bit 1). DOS has no
+ * record there, and FUN_1427_005c raises @UNITFLAG on the first lookup of a
+ * flagged tile without one (@COLONYFLAG for a colony). NULL when no record
+ * spills (caller frees).
  */
-static uint8_t* col1_save_dos_mask(const ColonizeCol1Save* save, uint16_t dos) {
-  if (save->head.unit_count <= dos || !save->unit || !save->map.mask) {
+static uint8_t* col1_save_dos_mask(
+  const ColonizeCol1Save* save, uint16_t dos, uint16_t dos_colonies
+) {
+  const bool units_spill = save->head.unit_count > dos && save->unit;
+  const bool colonies_spill = save->head.colony_count > dos_colonies && save->colony;
+  if ((!units_spill && !colonies_spill) || !save->map.mask) {
     return NULL;
   }
   uint8_t* mask = malloc(save->map.tile_count);
@@ -449,7 +460,13 @@ static uint8_t* col1_save_dos_mask(const ColonizeCol1Save* save, uint16_t dos) {
   }
   memcpy(mask, save->map.mask, save->map.tile_count);
   const size_t w = save->map.width;
-  for (uint16_t pass = 0; pass < 2; ++pass) {
+  for (uint16_t i = dos_colonies; colonies_spill && i < save->head.colony_count; ++i) {
+    const ColonizeCol1Colony* c = &save->colony[i];
+    if (c->x < save->map.width && c->y < save->map.height) {
+      mask[(size_t)c->y * w + c->x] &= (uint8_t)~0x02u;
+    }
+  }
+  for (uint16_t pass = 0; units_spill && pass < 2; ++pass) {
     for (uint16_t i = pass ? 0 : dos; i < (pass ? dos : save->head.unit_count); ++i) {
       const ColonizeCol1Unit* u = &save->unit[i];
       if (u->x >= save->map.width || u->y >= save->map.height) {
@@ -468,8 +485,9 @@ static uint8_t* col1_save_dos_mask(const ColonizeCol1Save* save, uint16_t dos) {
 
 /*
  * The ext block as it goes to disk: save->ext, plus an 'UNXT' chunk carrying
- * records 300.. when the save holds more units than DOS can load. `*owned`
- * is set (caller frees) when a new buffer had to be built.
+ * records 300.. when the save holds more units than DOS can load, and a
+ * 'COXT' chunk carrying colony records 48.. likewise. `*owned` is set (caller
+ * frees) when a new buffer had to be built.
  */
 static bool col1_save_file_ext(
   const ColonizeCol1Save* save, const uint8_t** out, size_t* out_size, uint8_t** owned
@@ -478,7 +496,10 @@ static bool col1_save_file_ext(
   *out = save->ext;
   *out_size = save->ext_size;
   const uint16_t dos = col1_save_dos_unit_count(save);
-  if (save->head.unit_count <= dos || !save->unit) {
+  const uint16_t dos_colonies = col1_save_dos_colony_count(save);
+  const bool units_spill = save->head.unit_count > dos && save->unit;
+  const bool colonies_spill = save->head.colony_count > dos_colonies && save->colony;
+  if (!units_spill && !colonies_spill) {
     return true;
   }
   ColonizeCol1Save shell;
@@ -486,27 +507,39 @@ static bool col1_save_file_ext(
   if (save->ext_size > 0 && !col1_save_set_ext(&shell, save->ext, save->ext_size)) {
     return false;
   }
-  const size_t records = (size_t)(save->head.unit_count - dos) * sizeof(ColonizeCol1Unit);
-  uint8_t* payload = malloc(4u + records);
-  if (!payload) {
+  if (colonies_spill &&
+      !col1_save_ext_put(
+        &shell,
+        COLONIZE_COL1_EXT_TAG_COLONY_OVERFLOW,
+        (const uint8_t*)(save->colony + dos_colonies),
+        (size_t)(save->head.colony_count - dos_colonies) * sizeof(ColonizeCol1Colony)
+      )) {
     free(shell.ext);
     return false;
   }
-  const uint16_t active = save->head.active_unit;
-  const uint16_t spilled_active =
-    (active != 0xffffu && active >= dos && active < save->head.unit_count) ? active : 0xffffu;
-  payload[0] = (uint8_t)(spilled_active & 0xffu);
-  payload[1] = (uint8_t)(spilled_active >> 8);
-  payload[2] = 0;
-  payload[3] = 0;
-  memcpy(payload + 4, save->unit + dos, records);
-  const bool put_ok = col1_save_ext_put(
-    &shell, COLONIZE_COL1_EXT_TAG_UNIT_OVERFLOW, payload, 4u + records
-  );
-  free(payload);
-  if (!put_ok) {
-    free(shell.ext);
-    return false;
+  if (units_spill) {
+    const size_t records = (size_t)(save->head.unit_count - dos) * sizeof(ColonizeCol1Unit);
+    uint8_t* payload = malloc(4u + records);
+    if (!payload) {
+      free(shell.ext);
+      return false;
+    }
+    const uint16_t active = save->head.active_unit;
+    const uint16_t spilled_active =
+      (active != 0xffffu && active >= dos && active < save->head.unit_count) ? active : 0xffffu;
+    payload[0] = (uint8_t)(spilled_active & 0xffu);
+    payload[1] = (uint8_t)(spilled_active >> 8);
+    payload[2] = 0;
+    payload[3] = 0;
+    memcpy(payload + 4, save->unit + dos, records);
+    const bool put_ok = col1_save_ext_put(
+      &shell, COLONIZE_COL1_EXT_TAG_UNIT_OVERFLOW, payload, 4u + records
+    );
+    free(payload);
+    if (!put_ok) {
+      free(shell.ext);
+      return false;
+    }
   }
   *owned = shell.ext;
   *out = shell.ext;
@@ -555,6 +588,41 @@ static void col1_save_unspill_units(ColonizeCol1Save* save) {
   (void)col1_save_ext_put(save, COLONIZE_COL1_EXT_TAG_UNIT_OVERFLOW, NULL, 0);
 }
 
+/* After a read: fold a 'COXT' chunk back onto the colony array, and give
+ * those tiles back the city flag the DOS mask dropped. */
+static void col1_save_unspill_colonies(ColonizeCol1Save* save) {
+  const uint8_t* payload = NULL;
+  size_t size = 0;
+  if (!col1_save_ext_find(save, COLONIZE_COL1_EXT_TAG_COLONY_OVERFLOW, &payload, &size)) {
+    return;
+  }
+  const size_t extra = size / sizeof(ColonizeCol1Colony);
+  const size_t total = (size_t)save->head.colony_count + extra;
+  if (extra == 0 || size % sizeof(ColonizeCol1Colony) != 0 || total > 0xffffu) {
+    diag_warn("col1_save: malformed %zu-byte COXT chunk ignored", size);
+    return;
+  }
+  ColonizeCol1Colony* grown = realloc(save->colony, total * sizeof(ColonizeCol1Colony));
+  if (!grown) {
+    diag_warn("col1_save: oom restoring %zu overflow colonies", extra);
+    return;
+  }
+  memcpy(grown + save->head.colony_count, payload, size);
+  for (size_t i = save->head.colony_count; i < total; ++i) {
+    if (save->map.mask && grown[i].x < save->map.width && grown[i].y < save->map.height) {
+      save->map.mask[(size_t)grown[i].y * save->map.width + grown[i].x] |= 0x02u;
+    }
+  }
+  save->colony = grown;
+  save->head.colony_count = (uint16_t)total;
+  (void)col1_save_ext_put(save, COLONIZE_COL1_EXT_TAG_COLONY_OVERFLOW, NULL, 0);
+}
+
+static void col1_save_unspill(ColonizeCol1Save* save) {
+  col1_save_unspill_colonies(save);
+  col1_save_unspill_units(save);
+}
+
 size_t col1_save_total_size(const ColonizeCol1Save* save) {
   if (!save) {
     return 0;
@@ -576,7 +644,7 @@ size_t col1_save_expected_size(const ColonizeCol1Save* save) {
   return col1_save_expected_size_counts(
     save->head.map_size_x,
     save->head.map_size_y,
-    save->head.colony_count,
+    col1_save_dos_colony_count(save),
     col1_save_dos_unit_count(save),
     save->head.tribe_count
   );
@@ -855,7 +923,9 @@ static bool emit_to_stream(
   }
   ColonizeCol1Head head = save->head;
   const uint16_t dos_units = col1_save_dos_unit_count(save);
+  const uint16_t dos_colonies = col1_save_dos_colony_count(save);
   head.unit_count = dos_units;
+  head.colony_count = dos_colonies; /* the rest rides in 'COXT' */
   if (head.active_unit != 0xffffu && head.active_unit >= dos_units) {
     head.active_unit = 0xffffu; /* the active unit lives in 'UNXT' */
     head.no_unit_selected = 1;
@@ -888,11 +958,11 @@ static bool emit_to_stream(
       !put(ctx, save->other, sizeof(save->other), err, err_size, "other")) {
     return false;
   }
-  if (save->head.colony_count > 0 &&
+  if (dos_colonies > 0 &&
       !put(
         ctx,
         save->colony,
-        (size_t)save->head.colony_count * sizeof(ColonizeCol1Colony),
+        (size_t)dos_colonies * sizeof(ColonizeCol1Colony),
         err,
         err_size,
         "colonies"
@@ -924,9 +994,10 @@ static bool emit_to_stream(
       )) {
     return false;
   }
-  uint8_t* dos_mask = col1_save_dos_mask(save, dos_units);
-  if (!dos_mask && save->head.unit_count > dos_units) {
-    COL1_FAIL(err, err_size, "oom building the DOS unit mask");
+  uint8_t* dos_mask = col1_save_dos_mask(save, dos_units, dos_colonies);
+  if (!dos_mask &&
+      (save->head.unit_count > dos_units || save->head.colony_count > dos_colonies)) {
+    COL1_FAIL(err, err_size, "oom building the DOS mask");
   }
   const bool map_ok =
     put(ctx, save->indian, sizeof(save->indian), err, err_size, "indians") &&
@@ -1057,7 +1128,7 @@ bool col1_save_read_file(const char* path, ColonizeCol1Save* out, char* err, siz
       if (!col1_save_set_ext(out, tail_buf, tail)) {
         diag_warn("col1_save_read_file %s: unrecognised %zu-byte tail ignored", path, tail);
       } else {
-        col1_save_unspill_units(out);
+        col1_save_unspill(out);
       }
     } else {
       /* The tail may carry UNXT units past 300: dropping it silently would
@@ -1200,7 +1271,7 @@ bool col1_save_read_memory(
     if (!col1_save_set_ext(out, data + expect, size - expect)) {
       diag_warn("col1_save_read_memory: unrecognised %zu-byte tail ignored", size - expect);
     } else {
-      col1_save_unspill_units(out);
+      col1_save_unspill(out);
     }
   }
   return true;

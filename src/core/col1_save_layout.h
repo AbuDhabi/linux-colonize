@@ -29,6 +29,10 @@
  * load. A port save holding more (settings divergences.unlimited_units)
  * writes the rest to the 'UNXT' extension chunk. */
 #define COLONIZE_COL1_DOS_UNIT_MAX 300u
+/* FUN_364b_1ba8 founds only while DS:0x539e < 0x30: the most colony records
+ * DOS can load. A port save holding more (settings divergences.
+ * unlimited_colonies) writes the rest to the 'COXT' extension chunk. */
+#define COLONIZE_COL1_DOS_COLONY_MAX 48u
 /* DOS unit ai_plan default seen on virtually all units in original starters. */
 #define COL1_UNIT_UNKNOWN16_HI_DEFAULT 0x58u
 #define COLONIZE_COL1_NATION_SIZE 316u

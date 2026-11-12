@@ -737,6 +737,7 @@ static int run_test(const char* name) {
     /* The startup-read divergences main.c applies after settings_init. */
     const ColonizeSettings* prefs = settings_get();
     units_set_unlimited(prefs->unlimited_units);
+    colonies_set_unlimited(prefs->unlimited_colonies);
     map_gen_set_alternate(prefs->alternate_map_generator);
   }
 #ifndef _WIN32

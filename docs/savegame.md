@@ -109,6 +109,7 @@ Chunks:
 |-----|-------|----------|
 | `VTIN` | `village_trade_intel.c` | Village sidebar `Buys:` / `Sells:` / `Skill:` knowledge per settlement tile × European nation (`uint16` version 2, `uint16` entry count, 40 B per entry; version 1's 36 B trade-only entries remain readable) |
 | `UNXT` | `col1_save.c` | Unit records past `COLONIZE_COL1_DOS_UNIT_MAX` (300), written when `settings.json` `divergences.unlimited_units` let the game grow beyond DOS's `FUN_1427_06b4` limit: `uint16` original `head.active_unit` if it points into these records (else `0xffff`), `uint16` 0, then verbatim 28-byte unit records. Handled inside `col1_save_read_*` / `_write_*` only: in memory the save just has `head.unit_count > 300`. The DOS section keeps records 0..299 with `head.unit_count = 300`; tile-chain links splice past the overflow records (the read points the neighbours back), the mask drops the unit flag on tiles held only by overflow records (else DOS raises `@UNITFLAG`, port_bugs.md #1432), and an overflow `active_unit` becomes `0xffff`. A DOS re-save drops the overflow units. A carrier in the DOS part whose passengers spilled still counts them in `holds_occupied` |
+| `COXT` | `col1_save.c` | Colony records past `COLONIZE_COL1_DOS_COLONY_MAX` (48), written when `settings.json` `divergences.unlimited_colonies` let the game found more than DOS's `FUN_364b_1ba8` gate allows: verbatim 202-byte colony records. Handled inside `col1_save_read_*` / `_write_*` only, like `UNXT`: in memory the save just has `head.colony_count > 48`. The DOS section keeps records 0..47 with `head.colony_count = 48`, and the mask drops the city flag (bit 1) on the overflow colonies' tiles (the read sets it back). A DOS re-save drops the overflow colonies. Not adjusted for DOS: trade-route stops at an overflow colony keep their index (>= 48), and `stuff.colony_counts` / per-continent counts still include the overflow |
 | `BQUE` | `colony_build.c` | Port-only per-colony build queues (`uint16` record count, then `x`, `y`, `count`, `count` project ids per colony, keyed by colony tile). QOL only — DOS keeps one project per colony |
 | `PPLN` | `pioneer_plan.c` | Port-only Pioneer plan (campaign mod `pioneer_plan`, RTST record 17; written only while on): `uint8` version 1, `uint8` 0, `uint8` width, `uint8` height, width×height plan bytes (bit 0 Clear, 1 Plow, 2 Road), `uint16` count of automated Pioneers, then `x`, `y`, `nation` bytes per unit (keyed by tile, like `BQUE`) |
 | `SAUT` | `explore_auto.c` | Port-only explorer Automate (campaign mods `scout_autoexplore` / `ship_autoexplore`, RTST record 17; written only while either is on and non-empty): `uint8` version 1, `uint8` 0, `uint16` count of automated Scouts and ships, `x`, `y`, `nation` (bit 7 set for a ship) per unit (keyed by tile), `uint16` count of entered settlements, `x`, `y`, nation bitmask per tile. DOS keeps only the unit's real order byte (its current Go To) |
@@ -325,9 +326,10 @@ Full opaque-field inventory: **[save_format_map.md](save_format_map.md)**.
   checked on `tests-automated-regression/europe_unequip_units/output.sav`
   (dock order and Caravel in port match). Port saves written before #1158
   load with the dock in DOS's (reversed) order.
-- **Colony cap** raised 32 → 48 (`COLONIZE_COLONIES_MAX`): DOS's founding
+- **Colony cap** raised 32 → 48 (`COLONIZE_COLONIES_DOS_MAX`): DOS's founding
   gate is `colony_count < 0x30`; five 33-colony lategame fixtures were
-  silently truncated to 32 on apply.
+  silently truncated to 32 on apply. The pool itself (`COLONIZE_COLONIES_MAX`)
+  holds 200 for `divergences.unlimited_colonies` (`COXT` chunk above).
 - `post_map` connectivity still rebuilt on blank templates; `boot_timer` /
   `save_path_blob` stay zero / RMW-preserved
 

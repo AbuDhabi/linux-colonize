@@ -1065,7 +1065,7 @@ int ai_goals_founding_expansion_urgency(int nation_id, int total_colony_count) {
   if (nation_id < 0 || nation_id >= 4) {
     return 0;
   }
-  if (total_colony_count < 0x30) {
+  if (total_colony_count < colonies_cap()) { /* 0x30 unless divergences.unlimited_colonies */
     const AiNationPlanScratch* p = &s_plan[nation_id];
     if (getenv("AI_SHIP_TRACE")) {
       fprintf(stderr, "[03d0] n%d total %d colonies %d wanting %d census %d cargo %d avg %d trait %d\n",
