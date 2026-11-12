@@ -2403,7 +2403,7 @@ static int case_colonies_core(void) {
         int price[COLONIZE_CARGO_COUNT] = {0};
         price[COLONIZE_CARGO_LUMBER] = 1;
         CHECK(
-          colonies_trade_route_service_stop(&pool, cid, &units, wid, &st, price, 0) == 1,
+          colonies_trade_route_service_stop(&pool, cid, &units, wid, &st, price) == 1,
           "trade nibble service moves cargo"
         );
         CHECK(c->stock[COLONIZE_CARGO_TOOLS] == tools0 + 20, "unload TOOLS only into warehouse");
@@ -4038,7 +4038,7 @@ static int trade_stop_wagon(ColonizeUnitPool* units, int held_type, int held) {
  * FUN_479b_0bd0 raw 77260-77316 colony stop: the load pick is the highest
  * (DS:0x84bc sell price x stock) after the FUN_1cf8_000a sort (tie = higher cargo
  * index), the loop stops once every hold is used, and boycotted unload-list cargos
- * stay aboard (FUN_291f_0cd8 gate, raw 77260).
+ * still unload at a colony stop (DB-106; DOS FUN_291f_0cd8 gate, raw 77260, not reproduced).
  */
 static int unit_trade_route_stop_load_order_and_boycott(void) {
   const int failures_before = failures;
@@ -4068,7 +4068,7 @@ static int unit_trade_route_stop_load_order_and_boycott(void) {
   price[COLONIZE_CARGO_CIGARS] = 10;
   int wid = trade_stop_wagon(&units, 0, 0);
   ColonizeUnit* w = units_get(&units, wid);
-  CHECK(w && colonies_trade_route_service_stop(&pool, 0, &units, wid, &st, price, 0) == 1,
+  CHECK(w && colonies_trade_route_service_stop(&pool, 0, &units, wid, &st, price) == 1,
         "load order: service");
   CHECK(w && w->hold_goods_type[0] == COLONIZE_CARGO_CIGARS && w->hold_goods_amount[0] == 100,
         "load order: price x stock picks cigars over the bigger fur stock");
@@ -4080,7 +4080,7 @@ static int unit_trade_route_stop_load_order_and_boycott(void) {
   price[COLONIZE_CARGO_CIGARS] = 5;
   wid = trade_stop_wagon(&units, 0, 0);
   w = units_get(&units, wid);
-  (void)colonies_trade_route_service_stop(&pool, 0, &units, wid, &st, price, 0);
+  (void)colonies_trade_route_service_stop(&pool, 0, &units, wid, &st, price);
   CHECK(w && w->hold_goods_type[0] == COLONIZE_CARGO_CIGARS,
         "load order: a tie goes to the higher cargo index, not the first listed");
 
@@ -4088,11 +4088,12 @@ static int unit_trade_route_stop_load_order_and_boycott(void) {
   c->stock[COLONIZE_CARGO_FURS] = 200;
   wid = trade_stop_wagon(&units, COLONIZE_CARGO_FURS, 50);
   w = units_get(&units, wid);
-  (void)colonies_trade_route_service_stop(&pool, 0, &units, wid, &st, price, 0);
+  (void)colonies_trade_route_service_stop(&pool, 0, &units, wid, &st, price);
   CHECK(w && w->hold_goods_amount[0] == 50 && c->stock[COLONIZE_CARGO_FURS] == 200,
         "load order: loop stops once every hold is used");
 
-  /* Boycotted unload-list cargo stays aboard at a colony stop. */
+  /* DB-106: a boycotted unload-list cargo still unloads at a colony stop
+   * (DOS keeps it aboard; the boycott only gates the Europe stop). */
   ColonizeCol1TradeStop un;
   memset(&un, 0, sizeof(un));
   un.unload_count = 1;
@@ -4100,12 +4101,9 @@ static int unit_trade_route_stop_load_order_and_boycott(void) {
   c->stock[COLONIZE_CARGO_TOOLS] = 0;
   wid = trade_stop_wagon(&units, COLONIZE_CARGO_TOOLS, 30);
   w = units_get(&units, wid);
-  (void)colonies_trade_route_service_stop(
-    &pool, 0, &units, wid, &un, price, (uint16_t)(1u << COLONIZE_CARGO_TOOLS)
-  );
-  CHECK(w && w->hold_goods_type[0] == COLONIZE_CARGO_TOOLS && w->hold_goods_amount[0] == 30 &&
-          c->stock[COLONIZE_CARGO_TOOLS] == 0,
-        "boycott: boycotted tools stay aboard at a colony stop");
+  (void)colonies_trade_route_service_stop(&pool, 0, &units, wid, &un, price);
+  CHECK(w && units_holds_used(&units, wid) == 0 && c->stock[COLONIZE_CARGO_TOOLS] == 30,
+        "boycott: boycotted tools unload at a colony stop (DB-106)");
   return failures != failures_before;
 }
 

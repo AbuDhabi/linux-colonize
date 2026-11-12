@@ -678,3 +678,18 @@ repair port while `g_units_naval_attacker_lost` is set (only the attacker-loss l
 `units_resolve_naval_combat_ff_w`). Captured and raided ports keep the distance-0 skip.
 Test: `unit_units_ships` `unit_attacker_loss_stays_in_own_drydock`.
 **Status:** fixed (user 2026-11-12).
+
+### DB-106 — A Trade Route wagon never unloads a boycotted cargo at a colony stop
+**DOS:** `FUN_479b_0bd0` (raw 77256-77267) wraps the whole unload loop in
+`if (FUN_291f_0cd8(cargo) == 0)` (`FUN_38fd_05e8` raw 59010-59016, the nation `+0x20`
+boycott word), above the split between the Europe stop (sell) and a colony stop
+(unload). The load loop has no such gate. Once the Crown boycotts a cargo, a wagon or
+ship on a colony-to-colony route keeps loading it and never unloads it, so its holds
+fill up and it carries nothing else (seen in the discard campaign: sugar boycotted
+autumn 1639, both wagons clogged with sugar at New Amsterdam).
+
+**Port:** fixed unconditionally. `colonies_trade_route_service_stop`
+(`src/core/colony_goods.c`) unloads the stop's unload list whatever the boycott;
+the Europe stop keeps the gate (`europe_sell_commit` refuses a boycotted sale).
+Test: `unit_colonies` `unit_trade_route_stop_load_order_and_boycott`.
+**Status:** fixed (user 2026-11-12).

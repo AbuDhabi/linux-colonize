@@ -702,8 +702,7 @@ int colonies_trade_route_service_stop(
   ColonizeUnitPool* units,
   int unit_id,
   const ColonizeCol1TradeStop* stop,
-  const int* sell_price,
-  uint16_t boycott_bitmap
+  const int* sell_price
 ) {
   if (!pool || !units || !stop) {
     return 0;
@@ -718,17 +717,15 @@ int colonies_trade_route_service_stop(
   /*
    * Unload phase (DOS FUN_479b_0bd0): exactly the stop's unload-list cargos,
    * every matching hold, into the warehouse. No list → unload nothing.
-   * Boycotted cargos stay aboard (raw 77260 `if (FUN_291f_0cd8(cargo) == 0)`,
-   * 0cd8 -> FUN_38fd_05e8 raw 59010-59016 = `1<<cargo & nation+0x20`); the
-   * gate sits above the 999-or-colony split, so colony stops are gated too.
+   * DOS skips boycotted cargos here too (raw 77260 `if (FUN_291f_0cd8(cargo)
+   * == 0)` sits above the 999-or-colony split), so a route wagon keeps loading
+   * a boycotted cargo and never unloads it; not reproduced (docs/dos_bugs.md
+   * DB-106). The Europe stop keeps the gate (game_europe_service_trade_harbor).
    */
   const int unload_n = (int)stop->unload_count;
   for (int i = 0; i < unload_n && i < 6; ++i) {
     const int want = col1_trade_nibble_cargo(stop->unload_cargo_nibbles, i);
     if (want < 0 || want >= COLONIZE_CARGO_COUNT) {
-      continue;
-    }
-    if (boycott_bitmap & (uint16_t)(1u << want)) {
       continue;
     }
     /* Re-scan holds each pass — unload may compact. */

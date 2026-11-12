@@ -3538,6 +3538,20 @@ bool game_request_quit(ColonizeGameState* game) {
       break;
     }
   }
+  /* An unanswered popup (e.g. SAVEGOOD) goes back to the queue head behind the
+   * confirm, so the close shows at once and No brings the popup back. */
+  if (game->ai_popups.open && !game->ai_popups.has_result &&
+      game->map_confirm == GAME_MAP_CONFIRM_NONE &&
+      !game_modal_besides_popup_open(game) && ai_popup_requeue_current(&game->ai_popups)) {
+    game_enqueue_yes_no(
+      game, game->in_menu ? GAME_MAP_CONFIRM_TITLE_EXIT : GAME_MAP_CONFIRM_QUIT, -1, "DOSYES", "",
+      NULL
+    );
+    if (game->map_confirm != GAME_MAP_CONFIRM_NONE &&
+        ai_popup_present_now(&game->ai_popups, AI_POPUP_TAG_MAP_CONFIRM)) {
+      return false;
+    }
+  }
   game->quit_ask_pending = true;
   game_quit_ask_service(game);
   return false;

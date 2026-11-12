@@ -1083,16 +1083,14 @@ int colonies_foreign_trade_apply(
 );
 
 /* FUN_479b_0bd0 arrival body (see docs/colony_goods.md#colonies_trade_route_service_stop).
- * sell_price[COLONIZE_CARGO_COUNT] = the unit owner's DS:0x84bc row (NULL = all 0);
- * boycott_bitmap = the bound nation's +0x20 word. */
+ * sell_price[COLONIZE_CARGO_COUNT] = the unit owner's DS:0x84bc row (NULL = all 0). */
 int colonies_trade_route_service_stop(
   ColonizeColonyPool* pool,
   int colony_id,
   ColonizeUnitPool* units,
   int unit_id,
   const ColonizeCol1TradeStop* stop,
-  const int* sell_price,
-  uint16_t boycott_bitmap
+  const int* sell_price
 );
 
 /* Stockade/Fort/Fortress bits as owned (FUN_15eb_038e(0/1/2), literal; no tier fold). */

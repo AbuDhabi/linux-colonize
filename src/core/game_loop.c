@@ -3890,6 +3890,10 @@ bool game_modal_over_screen_open(const ColonizeGameState* game) {
   return game_modal_open_skip(game, game ? &game->trade_screen : NULL);
 }
 
+bool game_modal_besides_popup_open(const ColonizeGameState* game) {
+  return game_modal_open_skip(game, game ? &game->ai_popups : NULL);
+}
+
 bool game_ai_popup_pending(const ColonizeGameState* game) {
   return game && ai_popup_busy(&game->ai_popups) && !game->ai_popups.open;
 }

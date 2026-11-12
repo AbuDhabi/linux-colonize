@@ -83,11 +83,12 @@ debits the handed-over goods from the colony (clamped at 0); DOS never does
 
 TRADE stop cargo at own colony — DOS FUN_479b_0bd0 arrival body (raw
 77256-77316): unload exactly the stop's unload-list cargos (all matching
-holds) except boycotted ones (FUN_291f_0cd8 gate; they stay aboard), then
+holds), boycotted ones too (DOS skips them via FUN_291f_0cd8; not reproduced,
+[dos_bugs.md](dos_bugs.md) DB-106), then
 load while not every hold is used: key = owner's DS:0x84bc sell price x
 colony stock (16-bit) for each load-list cargo, FUN_1cf8_000a ascending sort,
 load min(100, stock) of the top cargo (tie = higher cargo index); stop when
 the top key is 0, a load fails, or every hold is used (no top-up of a
 part-full hold then). Empty lists move nothing. The caller passes the price
-row and boycott word and checks the unit stands on the colony tile
+row and checks the unit stands on the colony tile
 (FUN_479b_0b84). Returns 1 if any transfer happened.
