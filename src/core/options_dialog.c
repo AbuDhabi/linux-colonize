@@ -206,7 +206,9 @@ static const ModId k_mods_rules[] = {
   MOD_PIONEER_PLAN,      MOD_SCOUT_AUTOEXPLORE, MOD_SHIP_AUTOEXPLORE, MOD_CURRENT_VISION,
   MOD_CONSTRUCTION_QUEUE, MOD_MODERN_PRNG,
 };
-static const ModId k_mods_fixes[] = {MOD_GOTO_NATIVE_WAIT, MOD_BEG_REFUSAL_ALARM};
+static const ModId k_mods_fixes[] = {
+  MOD_GOTO_NATIVE_WAIT, MOD_BEG_REFUSAL_ALARM, MOD_RIDERS_KEEP_SHIP
+};
 #define MODS_PAGE_LEN(a) ((int)(sizeof(a) / sizeof((a)[0])))
 static const struct {
   const char* section;

@@ -7754,7 +7754,7 @@ static int case_selected_passenger_blink(void) {
   return 0;
 }
 
-  /* DOS ship-switch bug (docs/tolerated_dos_bugs.md TB-2): the first ship to leave a shared tile
+  /* DOS ship-switch bug (docs/dos_bugs.md DB-109): the first ship to leave a shared tile
    * scoops the tile's loaded units first come, first served; the rest stay
    * with the remaining ship(s). At sea awake riders go too (#1780). */
 static int case_ship_switch_quirk(void) {

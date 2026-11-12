@@ -20,6 +20,7 @@
 #include "core/combat_strength.h"
 #include "core/europe.h"
 #include "core/founding_fathers.h"
+#include "core/mods.h"
 #include "core/popup_msg.h"
 #include "core/reports.h"
 #include "core/sound.h"
@@ -676,8 +677,8 @@ bool units_unboard(ColonizeUnitPool* pool, int unit_id) {
 }
 
 /*
- * DOS bug, reproduced for now (docs/tolerated_dos_bugs.md TB-2): loaded
- * units switch ships en route. In DOS a
+ * DOS bug (docs/dos_bugs.md DB-109, fixed behind MOD_RIDERS_KEEP_SHIP):
+ * loaded units switch ships en route. In DOS a
  * "passenger" is just a sentried land unit sharing the ship's tile in the
  * unit chain, so whichever ship moves off a shared tile first scoops up as
  * many of the tile's loaded units as it has room for, in chain order —
@@ -701,6 +702,58 @@ int units_ship_departure_pickup(
   ColonizeUnit* ship = units_get(pool, ship_id);
   if (!pool || !ship || !units_is_sea(pool, ship_id)) {
     return 0;
+  }
+  /* dos_bugs.md DB-109: DOS boards any own-nation rider on the tile, other
+   * hulls' too. Fixed behind MOD_RIDERS_KEEP_SHIP (never under
+   * dos_buggy_behavior()): pass 0 seats the hull's own riders first, pass 1
+   * skips riders of other hulls (tile sentries still board). */
+  const bool fixed = !dos_buggy_behavior() && mods_on(MOD_RIDERS_KEEP_SHIP);
+  /* FUN_1427_10be raw 8630-8644, the at-sea arm (DOS only; with the fix
+   * every hull keeps its riders, so the arm would move no one): a Trade
+   * Route hull off a settlement and off the Europe park runs FUN_1427_101c
+   * (raw 8566-8602) first. Every other hull on the tile, top of the 04d6
+   * order first, runs its own pickup with the plain budget (DAT_0200
+   * re-entry guard, raw 8624-8626 / 8678) and leaves for the -2 chain with
+   * what it took (here: x = -1 until the return), so the next hull cannot
+   * take it again. DOS parks the route hull's record at (-4,-4) and leaves
+   * its riders in the tile chain; here it simply stays on the tile, so its
+   * riders can be taken. It gets its budget only if 101c finds a unit still
+   * on the tile, else 0; the hulls come back (040c) before it walks. */
+  static bool s_route_prepass;
+  bool route_budget = true;
+  if (!fixed && !s_route_prepass && ship->orders == UNITS_ORDER_TRADE_ROUTE &&
+      !units_coords_in_europe_park(x, y) && !(map && map_tile_has_city(map, x, y))) {
+    s_route_prepass = true;
+    int parked[COLONIZE_UNITS_MAX];
+    int np = 0;
+    for (;;) {
+      int next = -1;
+      for (int i = 0; i < units_slot_end(pool); ++i) {
+        const ColonizeUnit* h = &pool->units[i];
+        if (h->active && h->id != ship_id && h->aboard_ship_id < 0 && h->x == x && h->y == y &&
+            h->nation_id == ship->nation_id && units_is_sea(pool, h->id) &&
+            (next < 0 || h->tile_stack_order > pool->units[next].tile_stack_order)) {
+          next = i;
+        }
+      }
+      if (next < 0 || np >= COLONIZE_UNITS_MAX) {
+        break;
+      }
+      (void)units_ship_departure_pickup(pool, map, pool->units[next].id, x, y);
+      pool->units[next].x = -1; /* off the tile until the 040c return */
+      parked[np++] = next;
+    }
+    route_budget = false;
+    for (int i = 0; i < units_slot_end(pool) && !route_budget; ++i) {
+      const ColonizeUnit* u = &pool->units[i];
+      route_budget = u->active && !units_is_sea(pool, u->id) &&
+                     (u->aboard_ship_id == ship_id ||
+                      (u->aboard_ship_id < 0 && u->x == x && u->y == y));
+    }
+    for (int k = 0; k < np; ++k) {
+      pool->units[parked[k]].x = x;
+    }
+    s_route_prepass = false;
   }
   /* "Move to front" (port_bugs.md): the flagged unit is first in line. */
   int order[COLONIZE_UNITS_MAX];
@@ -777,20 +830,15 @@ int units_ship_departure_pickup(
   int room = units_ship_capacity(pool, ship_id) - goods;
   /* FUN_1427_10be raw 8630-8644: a Trade Route hull (+0x314c == 2) on a
    * settlement tile (FUN_137f_03e4 >= 0) keeps budget 0, so it takes no one
-   * and its own riders stay ashore. Not ported: the at-sea arm (the
-   * FUN_1427_101c pre-pass, where other hulls pick first; the port has no
-   * tile chain to replay). DB-104: fixed under !dos_buggy_behavior(), the
-   * route hull boards like any other. */
-  if (dos_buggy_behavior() && ship->orders == UNITS_ORDER_TRADE_ROUTE && map &&
-      map_tile_has_city(map, x, y)) {
+   * and its own riders stay ashore. */
+  if (ship->orders == UNITS_ORDER_TRADE_ROUTE && map && map_tile_has_city(map, x, y)) {
+    room = 0;
+  }
+  if (!route_budget) {
     room = 0;
   }
   int chosen[COLONIZE_UNIT_CARGO_MAX];
   int nc = 0;
-  /* TB-2: DOS boards any own-nation rider on the tile, other hulls' too;
-   * fixed under !dos_buggy_behavior(): pass 0 seats the hull's own riders
-   * first, pass 1 skips riders of other hulls (tile sentries still board). */
-  const bool fixed = !dos_buggy_behavior();
   for (int pass = fixed ? 0 : 1; pass < 2; ++pass)
   for (int oi = 0; oi < on && nc < COLONIZE_UNIT_CARGO_MAX; ++oi) {
     ColonizeUnit* u = &pool->units[order[oi]];
@@ -1159,7 +1207,7 @@ int units_first_landfall_cargo(ColonizeUnitPool* pool, int ship_id) {
    * port_bugs.md #1782: 015c's FUN_281f_0916(mover) (raw 75967) is
    * FUN_1427_12f6 -> FUN_1427_10be for a hull, so the walk below runs over the
    * hull's fresh pickup (the -2 chain), not over a standing manifest: at sea
-   * that takes other hulls' riders too (TB-2), sorted by 04d6. 10be sentries
+   * that takes other hulls' riders too (DB-109 DOS mode), sorted by 04d6. 10be sentries
    * every rider it takes (raw 8676); 049e's "Make Landfall" wakes them.
    */
   if (units_is_on_map(ship)) {

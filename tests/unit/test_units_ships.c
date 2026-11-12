@@ -1,6 +1,7 @@
 #include "test_units_common.h"
 #include "../common/test_runner.h"
 #include "core/dos_buggy.h"
+#include "core/mods.h"
 #include "core/units_internal.h"
 
 static int g_refit_sound_id;
@@ -998,8 +999,9 @@ fail:
   assets_msg_free(&names);
   return 1;
 }
-/* TB-2 fixed path (dos_buggy_behavior off): a departing ship boards only its
- * own riders; another hull's sentried passengers stay with their ship. */
+/* dos_bugs.md DB-109 fixed path (mods.h MOD_RIDERS_KEEP_SHIP on,
+ * dos_buggy_behavior off): a departing ship boards only its own riders;
+ * another hull's sentried passengers stay with their ship. */
 static int unit_tb2_departure_own_riders_only(void) {
   ColonizeMsgCatalog names;
   assets_msg_init(&names);
@@ -1026,17 +1028,89 @@ static int unit_tb2_departure_own_riders_only(void) {
     pu->orders = UNITS_ORDER_SENTRY;
     sb->cargo_ids[sb->cargo_count++] = pu->id;
   }
+  const uint32_t saved_mask = mods_campaign_mask();
+  mods_campaign_set(1u << MOD_RIDERS_KEEP_SHIP);
   dos_buggy_behavior_set(false);
   const int taken_a = units_ship_departure_pickup(&pool, NULL, ship_a, 5, 5);
   const int taken_b = units_ship_departure_pickup(&pool, NULL, ship_b, 5, 5);
   dos_buggy_behavior_set(true);
+  mods_campaign_set(saved_mask);
   int rc = 0;
   if (taken_a != 0 || taken_b != 0 || units_get(&pool, ship_a)->cargo_count != 0 ||
       sb->cargo_count != 2 || units_get(&pool, pax[0])->aboard_ship_id != ship_b ||
       units_get(&pool, pax[1])->aboard_ship_id != ship_b) {
-    fprintf(stderr, "TB-2 fixed: taken %d/%d, B cargo %d\n", taken_a, taken_b, sb->cargo_count);
+    fprintf(stderr, "riders keep ship: taken %d/%d, B cargo %d\n", taken_a, taken_b, sb->cargo_count);
     rc = 1;
   }
+  assets_msg_free(&names);
+  return rc;
+}
+
+/* FUN_1427_10be raw 8630-8644 -> FUN_1427_101c raw 8566-8602: a trade-route
+ * Merchantman M leaving a sea tile lets the own Caravel K there pick first;
+ * M gets its room only if a unit is left over, then walks the whole tile.
+ * mods.h MOD_RIDERS_KEEP_SHIP on (and dos_buggy_behavior off): each hull
+ * keeps its own riders. */
+static int unit_trade_route_sea_departure_pickup(void) {
+  ColonizeMsgCatalog names;
+  assets_msg_init(&names);
+  if (!assets_msg_load_file(&names, "COLONIZE/NAMES.TXT")) {
+    return TR_SKIP;
+  }
+  static const struct {
+    int k_riders;
+    bool buggy;
+    bool mod_on;
+    int want_m;
+    int want_k;
+    const char* what;
+  } k_cases[] = {
+    {0, false, false, 0, 1, "mod off: K takes M's rider, M leaves empty"},
+    {2, false, false, 3, 0, "mod off: K leaves one over, M takes all three"},
+    {0, false, true, 1, 0, "mod on: M keeps its rider"},
+    {2, false, true, 1, 2, "mod on: each hull keeps its riders"},
+    {0, true, true, 0, 1, "dos_buggy_behavior on: DOS even with the mod on"},
+  };
+  static ColonizeUnitPool pool;
+  const uint32_t saved_mask = mods_campaign_mask();
+  int rc = 0;
+  for (int i = 0; i < (int)(sizeof(k_cases) / sizeof(k_cases[0])) && rc == 0; ++i) {
+    memset(&pool, 0, sizeof(pool));
+    if (!units_load_types(&pool, &names)) {
+      rc = 1;
+      break;
+    }
+    const int colonist = units_find_type(&pool, "Colonists");
+    const int m = units_spawn_allow_stack(&pool, units_find_type(&pool, "Merchantman"), 5, 5);
+    const int k = units_spawn_allow_stack(&pool, units_find_type(&pool, "Caravel"), 5, 5);
+    for (int r = 0; r < 1 + k_cases[i].k_riders; ++r) {
+      ColonizeUnit* host = units_get(&pool, r == 0 ? m : k);
+      ColonizeUnit* pu = units_get(&pool, units_spawn_allow_stack(&pool, colonist, 5, 5));
+      pu->aboard_ship_id = host->id;
+      pu->orders = UNITS_ORDER_SENTRY;
+      host->cargo_ids[host->cargo_count++] = pu->id;
+    }
+    units_get(&pool, m)->orders = UNITS_ORDER_TRADE_ROUTE;
+    mods_campaign_set(k_cases[i].mod_on ? 1u << MOD_RIDERS_KEEP_SHIP : 0u);
+    dos_buggy_behavior_set(k_cases[i].buggy);
+    (void)units_ship_departure_pickup(&pool, NULL, m, 5, 5);
+    dos_buggy_behavior_set(true);
+    const ColonizeUnit* sm = units_get(&pool, m);
+    const ColonizeUnit* sk = units_get(&pool, k);
+    bool ok = sm->cargo_count == k_cases[i].want_m && sk->cargo_count == k_cases[i].want_k;
+    for (int c = 0; ok && c < sm->cargo_count; ++c) {
+      ok = units_get(&pool, sm->cargo_ids[c])->aboard_ship_id == m;
+    }
+    for (int c = 0; ok && c < sk->cargo_count; ++c) {
+      ok = units_get(&pool, sk->cargo_ids[c])->aboard_ship_id == k;
+    }
+    if (!ok) {
+      fprintf(stderr, "case %d (%s): M cargo %d, K cargo %d\n", i, k_cases[i].what,
+              sm->cargo_count, sk->cargo_count);
+      rc = 1;
+    }
+  }
+  mods_campaign_set(saved_mask);
   assets_msg_free(&names);
   return rc;
 }
@@ -1246,7 +1320,7 @@ static int unit_4720_board_gate_and_landfall(void) {
     fprintf(stderr, "#1781: Caravel+Colonist over Galleon must take a Treasure\n");
     rc = 1;
   }
-  /* #1782 (DOS-buggy, TB-2): an empty hull's landfall re-runs its 10be
+  /* #1782 (DOS-buggy, DB-109): an empty hull's landfall re-runs its 10be
    * pickup, which takes the other hull's sentried riders. */
   const int a = units_spawn_allow_stack(&pool, caravel, 8, 8);
   const int b = units_spawn_allow_stack(&pool, caravel, 8, 8);
@@ -1297,6 +1371,7 @@ static const TestCase k_cases[] = {
   {"unit_hs_fallback_skips_map_rim", unit_hs_fallback_skips_map_rim},
   {"unit_hs_ring_skips_map_rim", unit_hs_ring_skips_map_rim},
   {"unit_tb2_departure_own_riders_only", unit_tb2_departure_own_riders_only},
+  {"unit_trade_route_sea_departure_pickup", unit_trade_route_sea_departure_pickup},
   {"unit_repair_port_needs_drydock_bit", unit_repair_port_needs_drydock_bit},
   {"unit_attacker_loss_stays_in_own_drydock", unit_attacker_loss_stays_in_own_drydock},
   {"unit_europe_sail_keeps_census", unit_europe_sail_keeps_census},

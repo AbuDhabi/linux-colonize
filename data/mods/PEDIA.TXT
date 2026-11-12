@@ -97,5 +97,9 @@ waits, keeping its order, and goes on once the tile is free.
 for food never raises that tribe's alarm; the change is written into another
 tribe's records by mistake. With the fix the begging tribe's alarm toward you
 rises, by the usual rules for your nation.
+^{Passengers Keep Their Ship}: in the original, when two of your ships share a
+square, the first one to sail takes every passenger there that fits, including
+those loaded on the other ship. With the fix each ship sails with its own
+passengers.
 
 @;

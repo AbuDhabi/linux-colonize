@@ -707,3 +707,61 @@ autumn 1639, both wagons clogged with sugar at New Amsterdam).
 the Europe stop keeps the gate (`europe_sell_commit` refuses a boycotted sale).
 Test: `unit_colonies` `unit_trade_route_stop_load_order_and_boycott`.
 **Status:** fixed (user 2026-11-12).
+
+### DB-109 — Passengers switch ships when another own ship leaves the tile first
+Was tolerated_dos_bugs.md TB-2.
+
+**DOS:** a passenger is not "aboard" anything; it is a sentried land unit in
+the tile's unit chain. When a ship leaves a tile, `FUN_1427_10be` (raw
+8606-8680) sorts the tile with `FUN_1427_04d6` (hulls on top, then Treasure,
+then @UNIT size 6..1, each bucket in chain order) and boards every same-nation
+land unit that fits the hull's room, charging each its @UNIT size column
+(`FUN_4720_00e0`, raw 74655-74661). Riders of other ships on the tile are in
+that chain too, so whichever ship moves off a shared tile first takes them,
+first come, first served, and may leave some of its own passengers behind for
+the next hull. A rider of another hull boards when it is sentried or the tile
+is water (asm 1427:11d4-1232, port_bugs.md #1780). DOSBox-confirmed
+(independence seed-100 1->2,
+[evidence](archive/tolerated_dos_bugs_evidence_2026-10-24.md#tb-2)).
+
+Trade-route arm (raw 8630-8644): a hull with orders 2 gets budget 0 on a
+settlement tile (`FUN_137f_03e4` >= 0) or in its Europe slot. Off both, its
+record is parked at (-4,-4) and `FUN_1427_101c` (raw 8566-8602) runs: every
+other hull on the tile, top of the chain first, runs its own 10be (nested, so
+the `DAT_0200` guard, raw 8624-8626 / 8678, gives it the plain budget) and
+leaves with its boarders for the (-2,-2) chain; `FUN_1427_040c` brings them
+back. The route hull's riders stay in the tile chain, so the other hulls can
+take them. The route hull then gets its budget only if a unit was left on the
+tile, and walks the whole tile again; else it takes no one. So a route ship at
+sea next to an empty own ship sails empty, its passengers left on the other.
+
+The landfall pick re-runs the same pickup first (`units_first_landfall_cargo`:
+FUN_4720_015c's FUN_281f_0916 = FUN_1427_12f6 -> 10be, raw 75967), so with two
+own hulls at sea one hull's Make Landfall can put another hull's rider ashore
+(port_bugs.md #1782).
+
+**Effect:** with two or more own ships on one tile (colony or open sea), units
+loaded on one ship can sail off on another, and a ship can depart without some
+of the units the player loaded on it. Affects human players and the AI alike.
+
+**Port:** `units_ship_departure_pickup` (`src/core/units_cargo.c`), called from
+the ship move (`units_move.c`), the landfall pick, and the AI ship moves
+(`ai_euro_ship.c`). Fixed behind the `mods.riders_keep_ship` toggle
+(settings.md "Mods"; on by default for new games, off for DOS saves and saves
+from before the toggle, and under `dos_buggy_behavior()`): the hull seats its
+own riders first, then sentried land units on the tile, and never takes another
+hull's rider; the trade-route at-sea arm is skipped, since with the fix no
+other hull could take the route hull's riders. Off = DOS: the walk takes the
+hull's own riders, tile sentries and other own hulls' riders in the 04d6 order,
+and the at-sea arm runs the other hulls' pickups first (each takes its pick
+off the tile until the route hull's budget is known). Not reproduced: the
+nested pickups do not re-stamp Sentry on what they board (DOS +0x314c = 1,
+raw 8676); at sea the water rule makes every rider eligible anyway. The
+port runs the arm only on map tiles: on the off-map park (x or y >= 200, the
+Europe dock and lanes) a route hull keeps its full budget, where DOS gives 0 in
+its Europe slot and applies the 03e4 test elsewhere (not traced off-map). Tests:
+`unit_units_core` `ship_switch_quirk` (DOS), `unit_units_ships`
+`unit_tb2_departure_own_riders_only` (fix) and
+`unit_trade_route_sea_departure_pickup` (both, the trade-route arm).
+**Status:** done (user-approved toggle, default on; 2026-11-12). Golden fixtures and
+idle campaigns keep DOS through `dos_buggy_behavior()`.
