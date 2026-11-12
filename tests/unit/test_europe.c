@@ -4364,7 +4364,37 @@ static int case_europe_howmuch_text_box(void) {
   return 0;
 }
 
+/* FUN_38fd_0058 phase 4 has no rise/fall > 0 guard: raw 58953 tests
+ * nr <= rise * -100 and raw 58970 tests fall * 100 <= nr as written, so a
+ * cargo row with rise 0 steps its bid up whenever the pressure word is <= 0. */
+static int case_europe_phase4_rise_zero(void) {
+  EuropeScreen eu;
+  char err[128];
+  if (!test_europe_load(&eu, "COLONIZE", err, sizeof(err))) {
+    fprintf(stderr, "phase4 rise 0: load failed: %s\n", err);
+    return 1;
+  }
+  const int tg = COLONIZE_CARGO_TRADE_GOODS;
+  eu.cargo[tg].bid = 10;
+  eu.cargo[tg].low = 1;
+  eu.cargo[tg].high = 20;
+  eu.cargo[tg].rise = 0;
+  eu.cargo[tg].fall = 1;
+  eu.cargo[tg].attrition = 0;
+  eu.trade_nr[tg] = 0;
+  ColonizeWorld w = world_make(NULL, NULL, NULL, NULL, false, NULL, &eu);
+  europe_tick_market_prices_w(&w, 0, 0u);
+  const int rc = eu.cargo[tg].bid == 11 && eu.trade_nr[tg] == 0 ? 0 : 1;
+  if (rc) {
+    fprintf(stderr, "phase4 rise 0: bid/nr want 11/0 got %d/%d\n", eu.cargo[tg].bid,
+            (int)eu.trade_nr[tg]);
+  }
+  europe_free(&eu);
+  return rc;
+}
+
 static const TestCase k_cases[] = {
+    {"case_europe_phase4_rise_zero", case_europe_phase4_rise_zero},
     {"case_europe_howmuch_text_box", case_europe_howmuch_text_box},
     {"case_europe_dock_menu_dos_bytes", case_europe_dock_menu_dos_bytes},
     {"case_europe_trade_route_departure_no_dockers", case_europe_trade_route_departure_no_dockers},
