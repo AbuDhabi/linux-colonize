@@ -6338,7 +6338,9 @@ static int sp_53(void) {
     }
     /* Speak With Chief: alarm 10 (<25) → never the kill arm; scouted latch set or bored. */
     {
-      AiPopupState res;
+      /* static: three ~2.8 MB popup states put this step past the 8 MB stack;
+       * ai_popup_init resets it on every replay of the spine. */
+      static AiPopupState res;
       ai_popup_init(&res);
       res.has_result = true;
       res.result_cancelled = false;
@@ -6456,7 +6458,7 @@ static int sp_53(void) {
         if (!ai_contact_try_village_meet_unit(&ctx, 0, 4, 0, 0, sid)) {
           return fail("C12-B1: meet should enqueue");
         }
-        AiPopupState res;
+        static AiPopupState res;
         ai_popup_init(&res);
         res.has_result = true;
         res.result_choice_id = 9; /* CHIEF */
@@ -6505,7 +6507,7 @@ static int sp_53(void) {
         if (!ai_contact_try_village_meet_unit(&ctx, 0, 4, 0, 0, sid)) {
           return fail("chief bgm: meet should enqueue");
         }
-        AiPopupState res;
+        static AiPopupState res;
         ai_popup_init(&res);
         res.has_result = true;
         res.result_choice_id = 9; /* CHIEF */
@@ -6931,7 +6933,9 @@ static int sp_56(void) {
       if (!ai_contact_try_village_meet_unit(&ctx, 0, 4, 0, 0, srv_id)) {
         return fail("menu: servant meet should enqueue");
       }
-      AiPopupState res;
+      /* static: three ~2.8 MB popup states put this step past the 8 MB stack;
+       * ai_popup_init resets each one on every replay of the spine. */
+      static AiPopupState res;
       ai_popup_init(&res);
       res.has_result = true;
       res.result_cancelled = false;
@@ -6984,7 +6988,7 @@ static int sp_56(void) {
         if (!ai_contact_try_village_meet_unit(&ctx, 0, 4, 0, 0, lid)) {
           return fail("#564: learner meet should enqueue");
         }
-        AiPopupState res2;
+        static AiPopupState res2;
         ai_popup_init(&res2);
         res2.has_result = true;
         res2.result_cancelled = false;
@@ -6996,7 +7000,7 @@ static int sp_56(void) {
         ai_popup_clear(&pop_menu);
         st_menu[0] = '\0';
         ai_contact_apply_popup_result(&ctx, &res2);
-        AiPopupState ans2;
+        static AiPopupState ans2;
         ai_popup_init(&ans2);
         ans2.has_result = true;
         ans2.result_cancelled = false;
