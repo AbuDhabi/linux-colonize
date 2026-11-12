@@ -663,3 +663,18 @@ longer zeroes the budget for a route hull on a colony tile. Under the switch (ev
 binary) both keep the DOS budget 0. Test: `unit_europe`
 `case_europe_trade_route_leg_boards_dockers`.
 **Status:** fixed (user 2026-11-12).
+
+### DB-105 — A ship beaten attacking out of its own Drydock port is sent elsewhere
+**DOS:** when a ship attacker loses, `FUN_5fef_1b0e` (raw 100566-100567, 100759) hands
+`FUN_5fef_0ec0` / `FUN_5fef_0352` the attacker's own tile (`+0x3144/+0x3145`) as the
+distance origin. 0352's repair-port scan (raw 99584-99597) takes `dist <= best && dist
+!= 0`, so a Drydock colony on that tile is always skipped: a damaged Privateer that
+attacked from its own Drydock port limps to the nearest other Drydock colony, or to
+Europe (and a WoI human with no other repair port loses the ship).
+
+**Port:** fixed outside `dos_buggy_behavior()`. `units_apply_naval_loss_outcome`
+(`src/core/units_combat.c`) takes the loser's own Drydock colony on its tile as the
+repair port while `g_units_naval_attacker_lost` is set (only the attacker-loss limb of
+`units_resolve_naval_combat_ff_w`). Captured and raided ports keep the distance-0 skip.
+Test: `unit_units_ships` `unit_attacker_loss_stays_in_own_drydock`.
+**Status:** fixed (user 2026-11-12).

@@ -2206,6 +2206,19 @@ int units_apply_naval_loss_outcome(
     home = units_nearest_own_drydock_colony(
       g_units_combat_colonies, lose->nation_id, lose->x, lose->y
     );
+    /* dos_bugs.md DB-105: 1b0e measures an attacker's loss from its own tile
+     * and 0352 skips distance 0, so a hull beaten while attacking out of its
+     * own Drydock port is sent elsewhere. The port keeps it there. */
+    if (g_units_naval_attacker_lost && !dos_buggy_behavior() && g_units_combat_colonies) {
+      const ColonizeColony* here = colonies_get(
+        g_units_combat_colonies, colonies_id_at(g_units_combat_colonies, lose->x, lose->y)
+      );
+      const int dd = colonies_building_row(g_units_combat_colonies, COLONY_BUILDING_DRYDOCK);
+      if (here && here->nation_id == lose->nation_id && dd >= 0 &&
+          dd < COLONIZE_BUILDING_TYPES_MAX && here->has_building[dd]) {
+        home = here;
+      }
+    }
     if (!home && col1 && col1->head.game_options.woi &&
         lose->nation_id == (int)col1->head.human_player) {
       damaged = 0; /* raw 99603-99607: `goto` into the sunk path */
@@ -2531,6 +2544,7 @@ int units_indian_attack_alarm_vent_amount(
  */
 bool g_units_colony_autodefender = false;
 int g_units_combat_param4 = -1;
+bool g_units_naval_attacker_lost = false;
 
 /*
  * One-shot latch, cleared at the top of every units_try_move. DOS runs the

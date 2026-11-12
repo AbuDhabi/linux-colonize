@@ -897,9 +897,11 @@ bool units_resolve_naval_combat_ff_w(
    * 12 -> 13: the crown '9' Man-O-War beside the sinking 'B' stays
    * intact). Passengers go with units_ship_lose_holds inside 0352.
    */
+  g_units_naval_attacker_lost = true;
   (void)units_apply_naval_loss_outcome(
     pool, attacker_id, defender_id, 0, 0, 1, col1, rng
   );
+  g_units_naval_attacker_lost = false;
   /* port_bugs.md #1793: @EUROPELOSE after the 0352 popups (raw 100810). */
   units_combat_outcome_popups(
     pool, &win_snap, NULL, 0, atk_nation, def_nation, 1, 0, col1
