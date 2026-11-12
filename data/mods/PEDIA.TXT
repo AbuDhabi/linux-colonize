@@ -99,7 +99,8 @@ tribe's records by mistake. With the fix the begging tribe's alarm toward you
 rises, by the usual rules for your nation.
 ^{Passengers Keep Their Ship}: in the original, when two of your ships share a
 square, the first one to sail takes every passenger there that fits, including
-those loaded on the other ship. With the fix each ship sails with its own
-passengers.
+those loaded on the other ship, and a ship on a trade route boards nobody when
+it leaves a colony or Europe. With the fix each ship sails with its own
+passengers, and a trade route ship boards like any other.
 
 @;

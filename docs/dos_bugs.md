@@ -670,13 +670,15 @@ map move off a colony) therefore carries no sentried colonist waiting on the doc
 the colony, and riders loaded by hand stay behind. Only the manual Sail click in Europe
 (`FUN_38fd_2a92`, which first clears the orders and so the route) boards anyone.
 
-**Port:** fixed outside `dos_buggy_behavior()`. `europe_set_sail_from_harbor_ex(...,
+**Port:** fixed behind the `mods.riders_keep_ship` toggle (DB-109, on by default; off =
+DOS, and always DOS under `dos_buggy_behavior()`). `europe_set_sail_from_harbor_ex(...,
 false)` (`src/core/europe_harbor.c`) boards sentried dockers up to free capacity and keeps
 the riders and the route; `units_ship_departure_pickup` (`src/core/units_cargo.c`) no
-longer zeroes the budget for a route hull on a colony tile. Under the switch (every test
-binary) both keep the DOS budget 0. Test: `unit_europe`
-`case_europe_trade_route_leg_boards_dockers`.
-**Status:** fixed (user 2026-11-12).
+longer zeroes the budget for a route hull on a colony tile. Toggle off or under the switch
+(every test binary) both keep the DOS budget 0. Tests: `unit_europe`
+`case_europe_trade_route_leg_boards_dockers`, `unit_units_core`
+`case_trade_route_departure_no_pickup`.
+**Status:** fixed, toggle-gated with DB-109 (user 2026-11-12: base game DOS, fix as mod).
 
 ### DB-105 — A ship beaten attacking out of its own Drydock port is sent elsewhere
 **DOS:** when a ship attacker loses, `FUN_5fef_1b0e` (raw 100566-100567, 100759) hands
@@ -763,5 +765,7 @@ its Europe slot and applies the 03e4 test elsewhere (not traced off-map). Tests:
 `unit_units_core` `ship_switch_quirk` (DOS), `unit_units_ships`
 `unit_tb2_departure_own_riders_only` (fix) and
 `unit_trade_route_sea_departure_pickup` (both, the trade-route arm).
+The same toggle also gates DB-104 (a Trade Route hull boarding no one at a colony
+or in Europe), so toggle off is DOS for every departure.
 **Status:** done (user-approved toggle, default on; 2026-11-12). Golden fixtures and
 idle campaigns keep DOS through `dos_buggy_behavior()`.

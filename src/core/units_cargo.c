@@ -830,8 +830,9 @@ int units_ship_departure_pickup(
   int room = units_ship_capacity(pool, ship_id) - goods;
   /* FUN_1427_10be raw 8630-8644: a Trade Route hull (+0x314c == 2) on a
    * settlement tile (FUN_137f_03e4 >= 0) keeps budget 0, so it takes no one
-   * and its own riders stay ashore. */
-  if (ship->orders == UNITS_ORDER_TRADE_ROUTE && map && map_tile_has_city(map, x, y)) {
+   * and its own riders stay ashore. DB-104: fixed with the DB-109 toggle,
+   * the route hull then boards like any other. */
+  if (!fixed && ship->orders == UNITS_ORDER_TRADE_ROUTE && map && map_tile_has_city(map, x, y)) {
     room = 0;
   }
   if (!route_budget) {

@@ -11,6 +11,7 @@
 #include "core/dos_rng.h"
 #include "core/europe.h"
 #include "core/europe_internal.h"
+#include "core/mods.h"
 #include "core/game_dialogs.h"
 #include "core/howmuch_dialog.h"
 #include "core/game_loop_internal.h"
@@ -4044,15 +4045,19 @@ static int case_europe_trade_route_return_tile(void) {
   return rc;
 }
 
-/* DB-104: a Trade Route leg leaving Europe boards sentried dockers (DOS
- * FUN_1427_10be budget 0 leaves them behind under dos_buggy_behavior()). */
+/* DB-104: a Trade Route leg leaving Europe boards sentried dockers with
+ * mods.riders_keep_ship on (DOS FUN_1427_10be budget 0 leaves them behind with
+ * it off, and always under dos_buggy_behavior()). */
 static int case_europe_trade_route_leg_boards_dockers(void) {
   EuropeScreen* eu = (EuropeScreen*)calloc(1, sizeof(*eu));
   if (!eu) {
     return 1;
   }
   int rc = 0;
-  for (int buggy = 1; buggy >= 0; --buggy) {
+  const uint32_t saved_mask = mods_campaign_mask();
+  /* 2 = buggy (mod on), 1 = mod off, 0 = fixed */
+  for (int mode = 2; mode >= 0; --mode) {
+    const int buggy = mode != 0;
     memset(eu, 0, sizeof(*eu));
     (void)europe_harbor_push_ex(eu, 0, "A", NULL, NULL, 0, NULL, NULL);
     eu->harbor[0].trade_route_plus1 = 2;
@@ -4061,20 +4066,22 @@ static int case_europe_trade_route_leg_boards_dockers(void) {
     eu->dock[0].present = true;
     eu->dock[0].sentry = true;
     eu->dock[0].profession = 19;
-    dos_buggy_behavior_set(buggy != 0);
+    dos_buggy_behavior_set(mode == 2);
+    mods_campaign_set(mode == 1 ? 0u : 1u << MOD_RIDERS_KEEP_SHIP);
     const bool sailed = europe_set_sail_from_harbor_ex(eu, 0, 1, NULL, 0, false);
     const int want_cargo = buggy ? 0 : 1;
     if (!sailed || eu->bound_ships != 1 || eu->bound[0].cargo_count != want_cargo ||
         eu->dock_count != 1 - want_cargo || eu->bound[0].trade_route_plus1 != 2 ||
         eu->bound[0].trade_stop != 1) {
       fprintf(
-        stderr, "route leg buggy=%d: sailed %d bound %d cargo %d dock %d route %d stop %d\n",
-        buggy, sailed, eu->bound_ships, eu->bound[0].cargo_count, eu->dock_count,
+        stderr, "route leg mode=%d: sailed %d bound %d cargo %d dock %d route %d stop %d\n",
+        mode, sailed, eu->bound_ships, eu->bound[0].cargo_count, eu->dock_count,
         eu->bound[0].trade_route_plus1, eu->bound[0].trade_stop
       );
       rc = 1;
     }
   }
+  mods_campaign_set(saved_mask);
   dos_buggy_behavior_set(true);
   europe_free(eu);
   free(eu);
