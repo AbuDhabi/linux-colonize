@@ -1533,7 +1533,7 @@ static int unit_europe_lane_arrival_uses_hull_tile(void) {
 }
 
 /*
- * docs/dos_bugs_ai.md DB-105: with no free High Seas tile anywhere, FUN_48d3_048e
+ * docs/dos_bugs_ai.md DB-108: with no free High Seas tile anywhere, FUN_48d3_048e
  * destroys the unit chain on the hull's saved tile and parks the hull there
  * (raw 77884-77890). The port destroys nothing: the hull waits on its
  * 224+n lane and is placed by the next tick that finds a tile.

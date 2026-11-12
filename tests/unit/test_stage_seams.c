@@ -989,7 +989,7 @@ static int test_trade_route_europe_stop_off_lane_keeps_stop(void) {
   return rc;
 }
 
-/* dos_bugs.md DB-104: DOS binds a colony stop by record index and tests arrival by
+/* dos_bugs.md DB-107: DOS binds a colony stop by record index and tests arrival by
  * tile alone (FUN_479b_0b84 raw 77164-77174), so a captured stop is re-aimed forever.
  * The port skips it: from the stop before it, and while already on the way to it. */
 static int test_trade_route_skips_captured_stop(void) {

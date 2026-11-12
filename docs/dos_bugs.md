@@ -648,7 +648,7 @@ loaded save's 4 bytes are carried over unchanged to the next save. Nothing reads
 DOS or the port, so the slip is invisible.
 **Status:** recorded, not fixed (user 2026-11-11).
 
-### DB-103 — A trade route keeps aiming at a stop colony another nation captured
+### DB-107 — A trade route keeps aiming at a stop colony another nation captured
 **DOS:** FUN_479b_0bd0 binds a colony stop by record index only (`FUN_281f_09e6`, raw
 77233-77236 / 77253: the record's x/y become the goto) and FUN_479b_0b84 (raw
 77164-77174) tests arrival by tile only. Neither checks the owner, so after a capture

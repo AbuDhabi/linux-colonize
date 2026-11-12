@@ -1706,7 +1706,7 @@ void ai_euro_ship_leave_europe(ColonizeTurnContext* ctx, ColonizeUnit* ship) {
  * (07a0). Goto, orders and MP are untouched; the hull then acts as an
  * ordinary on-map ship.
  *
- * DOS bug not reproduced (docs/dos_bugs_ai.md DB-105): with no ring tile at all,
+ * DOS bug not reproduced (docs/dos_bugs_ai.md DB-108): with no ring tile at all,
  * raw 77884-77890 destroys the unit chain on the landfall tile (07e0 -> 083a
  * = FUN_1427_0f30) and places the hull there. The ring runs to
  * max(width, height) (raw 77879-77883), so from an on-map saved tile it
@@ -1801,7 +1801,7 @@ void ai_euro_europe_lane_tick(ColonizeTurnContext* ctx, int nation_id) {
       break;
     }
     /* `tried` bounds the restart loop: a hull with no High Seas tile stays
-     * on the lane (DB-105) and would otherwise be picked again. */
+     * on the lane (DB-108) and would otherwise be picked again. */
     tried[pick] = true;
     ai_euro_europe_place_arrival(ctx, units_get(ctx->units, pick));
   }
