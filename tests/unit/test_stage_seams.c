@@ -6027,6 +6027,71 @@ static int test_indian_land_plot_esc_takes(void) {
 }
 
 /*
+ * A click that dismisses the @BUYME0 popup over the colony BUY button is the popup's alone:
+ * its release must not reach the BUY under it and raise the popup again.
+ */
+static int test_popup_dismiss_click_skips_buy_below(void) {
+  ColonizeGameConfig cfg = {.data_dir = "./COLONIZE", .save_dir = "./build/debug"};
+  ColonizeGameState* game = game_create(&cfg);
+  if (!game || !game_assets_ok(game)) {
+    fprintf(stderr, "SKIP: no COLONIZE/ assets\n");
+    if (game) {
+      game_destroy(game);
+    }
+    return TR_SKIP;
+  }
+  char err[256];
+  if (!game_load_col1_file(
+        game, "tests-automated-regression/colony_tile_native_land/input.sav", err, sizeof(err)
+      )) {
+    fprintf(stderr, "  %s\n", err);
+    game_destroy(game);
+    return fail("fixture save load");
+  }
+  ColonizeColony* col = colonies_get_mut(&game->colonies, colonies_id_at(&game->colonies, 45, 24));
+  if (!col) {
+    game_destroy(game);
+    return fail("fixture: Quebec");
+  }
+  if (col->building_in_production < 0) {
+    col->building_in_production = 0;
+  }
+  col->hammers = 0;
+  game->europe.gold = 0;
+  ai_popup_clear(&game->ai_popups);
+  game->in_colony = true;
+  game->colony_view_id = col->id;
+  ColonyScreenView* csv = &game->colony_screen;
+  csv->multi_mode = COLONY_MULTI_CONSTRUCTION;
+  csv->buy_btn_w = 20; /* set by the renderer */
+
+  ColonizeInputState in;
+  memset(&in, 0, sizeof(in));
+  in.mouse_x = 0xd8 + 4;
+  in.mouse_y = 0x8a + 4;
+  int rc = 0;
+  for (int click = 0; click < 2 && rc == 0; ++click) {
+    in.mouse_left_released = false;
+    in.mouse_left_clicked = true;
+    in.mouse_left_down = true;
+    (void)game_update(game, &in, 16);
+    in.mouse_left_clicked = false;
+    in.mouse_left_down = false;
+    in.mouse_left_released = true;
+    (void)game_update(game, &in, 16);
+    const bool want_open = click == 0;
+    if (game->ai_popups.open != want_open) {
+      fprintf(stderr, "  click %d: popup open %d queue %d\n", click, game->ai_popups.open,
+              game->ai_popups.queue_count);
+      rc = fail(click == 0 ? "BUY without gold raises @BUYME0"
+                           : "the click closing @BUYME0 over BUY does not raise it again");
+    }
+  }
+  game_destroy(game);
+  return rc;
+}
+
+/*
  * campaign8 CN8-B1: clicking (or `activate`) a spent own unit is FUN_2b5a_1b5a + FUN_2b5a_0e52(0):
  * the order clears and the next unit awaiting orders takes control. It used to drop to View
  * Pieces with units still pending, so the turn stalled.
@@ -6904,6 +6969,7 @@ static const TestCase k_cases[] = {
     {"test_colony_jobs_menu_open_has_no_side_effects", test_colony_jobs_menu_open_has_no_side_effects},
     {"test_colony_jobs_menu_outer_plot_tiers", test_colony_jobs_menu_outer_plot_tiers},
     {"test_join_colony_recomputes_plots", test_join_colony_recomputes_plots},
+    {"test_popup_dismiss_click_skips_buy_below", test_popup_dismiss_click_skips_buy_below},
     {"test_game_world_view", test_game_world_view},
     {"test_goto_place_opens_travelplace_list", test_goto_place_opens_travelplace_list},
     {"test_activate_ignores_foreign_unit", test_activate_ignores_foreign_unit},

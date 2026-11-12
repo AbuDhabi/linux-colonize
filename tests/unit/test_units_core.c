@@ -7867,6 +7867,18 @@ static int case_trade_route_departure_no_pickup(void) {
             s->cargo_count);
     return 1;
   }
+  /* DB-104: fixed outside dos_buggy_behavior(), the route hull boards both. */
+  units_get(&pool, rider)->orders = UNITS_ORDER_SENTRY;
+  dos_buggy_behavior_set(false);
+  const int fixed_n = units_ship_departure_pickup(&pool, &map, ship, tx, ty);
+  dos_buggy_behavior_set(true);
+  if (fixed_n != 2 || s->cargo_count != 2) {
+    fprintf(stderr, "trade-route pickup: fixed route hull should board both (%d)\n", fixed_n);
+    return 1;
+  }
+  (void)units_unboard(&pool, ashore);
+  (void)units_unboard(&pool, rider);
+  units_get(&pool, ashore)->orders = UNITS_ORDER_SENTRY;
   s->orders = UNITS_ORDER_NONE;
   units_get(&pool, rider)->orders = UNITS_ORDER_SENTRY;
   if (units_ship_departure_pickup(&pool, &map, ship, tx, ty) != 2 || s->cargo_count != 2) {

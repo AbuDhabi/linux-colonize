@@ -383,6 +383,9 @@ struct ColonizeGameState {
   /* The last press reached the Europe screen itself, not a menu or popup that took it;
    * only then may its release open the dock menu or article (FUN_38fd_3c86). */
   bool europe_press_on_screen;
+  /* The held mouse press went down on a popup / modal; once that closes, the rest of the
+   * press (hold, release) is withheld from the screen under it (game_update). */
+  bool press_taken_by_modal;
   ColonyScreenView colony_screen;
   bool colony_screen_ok;
   bool in_colony;

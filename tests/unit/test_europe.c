@@ -4038,6 +4038,43 @@ static int case_europe_trade_route_return_tile(void) {
   return rc;
 }
 
+/* DB-104: a Trade Route leg leaving Europe boards sentried dockers (DOS
+ * FUN_1427_10be budget 0 leaves them behind under dos_buggy_behavior()). */
+static int case_europe_trade_route_leg_boards_dockers(void) {
+  EuropeScreen* eu = (EuropeScreen*)calloc(1, sizeof(*eu));
+  if (!eu) {
+    return 1;
+  }
+  int rc = 0;
+  for (int buggy = 1; buggy >= 0; --buggy) {
+    memset(eu, 0, sizeof(*eu));
+    (void)europe_harbor_push_ex(eu, 0, "A", NULL, NULL, 0, NULL, NULL);
+    eu->harbor[0].trade_route_plus1 = 2;
+    eu->harbor[0].trade_stop = 1;
+    eu->dock_count = 1;
+    eu->dock[0].present = true;
+    eu->dock[0].sentry = true;
+    eu->dock[0].profession = 19;
+    dos_buggy_behavior_set(buggy != 0);
+    const bool sailed = europe_set_sail_from_harbor_ex(eu, 0, 1, NULL, 0, false);
+    const int want_cargo = buggy ? 0 : 1;
+    if (!sailed || eu->bound_ships != 1 || eu->bound[0].cargo_count != want_cargo ||
+        eu->dock_count != 1 - want_cargo || eu->bound[0].trade_route_plus1 != 2 ||
+        eu->bound[0].trade_stop != 1) {
+      fprintf(
+        stderr, "route leg buggy=%d: sailed %d bound %d cargo %d dock %d route %d stop %d\n",
+        buggy, sailed, eu->bound_ships, eu->bound[0].cargo_count, eu->dock_count,
+        eu->bound[0].trade_route_plus1, eu->bound[0].trade_stop
+      );
+      rc = 1;
+    }
+  }
+  dos_buggy_behavior_set(true);
+  europe_free(eu);
+  free(eu);
+  return rc;
+}
+
 /* FUN_5fef_0352 raw 99642-99644 -> FUN_1427_02ca: the damaged hull is linked at the head of
  * the in-port chain, which FUN_38fd_0666 lists from the head, so it is harbor slot 0. */
 static int case_europe_damaged_hull_heads_harbor(void) {
@@ -4329,6 +4366,7 @@ static const TestCase k_cases[] = {
     {"case_europe_royal_gift_round_trip", case_europe_royal_gift_round_trip},
     {"case_europe_voyage_roll_reseeds_83a6", case_europe_voyage_roll_reseeds_83a6},
     {"case_europe_damaged_hull_heads_harbor", case_europe_damaged_hull_heads_harbor},
+    {"case_europe_trade_route_leg_boards_dockers", case_europe_trade_route_leg_boards_dockers},
     {"case_europe_trade_route_return_tile", case_europe_trade_route_return_tile},
     {"case_europe_arrival_woodcut_first_non_route", case_europe_arrival_woodcut_first_non_route},
     {"case_europe_immigration_counts_offpool_units", case_europe_immigration_counts_offpool_units},

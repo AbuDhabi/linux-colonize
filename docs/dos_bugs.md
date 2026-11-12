@@ -647,3 +647,19 @@ reads the 4 bytes into `local_64` and never uses them (raw 120425).
 loaded save's 4 bytes are carried over unchanged to the next save. Nothing reads them in
 DOS or the port, so the slip is invisible.
 **Status:** recorded, not fixed (user 2026-11-11).
+
+### DB-104 — A Trade Route ship boards no passengers in Europe or at a colony stop
+**DOS:** `FUN_1427_10be` (raw 8630-8644) gives a hull with orders 2 (trade route) a
+boarding budget of 0 when it stands on the Europe dock (`(nation - x) == 0x14`) or on a
+settlement tile (`FUN_137f_03e4` >= 0). The route leg (`FUN_48d3_0346` raw 77741, and the
+map move off a colony) therefore carries no sentried colonist waiting on the dock or in
+the colony, and riders loaded by hand stay behind. Only the manual Sail click in Europe
+(`FUN_38fd_2a92`, which first clears the orders and so the route) boards anyone.
+
+**Port:** fixed outside `dos_buggy_behavior()`. `europe_set_sail_from_harbor_ex(...,
+false)` (`src/core/europe_harbor.c`) boards sentried dockers up to free capacity and keeps
+the riders and the route; `units_ship_departure_pickup` (`src/core/units_cargo.c`) no
+longer zeroes the budget for a route hull on a colony tile. Under the switch (every test
+binary) both keep the DOS budget 0. Test: `unit_europe`
+`case_europe_trade_route_leg_boards_dockers`.
+**Status:** fixed (user 2026-11-12).

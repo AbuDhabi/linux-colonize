@@ -337,8 +337,12 @@ bool europe_set_sail_from_harbor_ex(
     ship.trade_route_plus1 = 0;
     ship.trade_stop = 0;
     europe_board_sentry_dockers(eu, &ship, units, nation_id, europe_ship_cargo_cap(&ship, units));
-  } else {
+  } else if (dos_buggy_behavior()) {
     europe_disembark_passengers_to_dock(eu, &ship, units);
+  } else {
+    /* DB-104 fixed: the route leg boards like the manual Sail, keeping the
+     * route and the riders already aboard. */
+    europe_board_sentry_dockers(eu, &ship, units, nation_id, europe_ship_cargo_cap(&ship, units));
   }
   /*
    * DOS FUN_48d3_0346 sails from the ship's own +0x314d/+0x314e (stamped
