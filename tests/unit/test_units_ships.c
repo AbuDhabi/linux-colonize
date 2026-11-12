@@ -1075,6 +1075,55 @@ static int unit_repair_port_needs_drydock_bit(void) {
   return 0;
 }
 
+/* dos_bugs.md DB-105: a hull beaten while attacking out of its own Drydock
+ * port stays there; DOS (dos_buggy on) skips distance 0 and sends it on. */
+static int unit_attacker_loss_stays_in_own_drydock(void) {
+  ColonizeUnitPool pool;
+  memset(&pool, 0, sizeof(pool));
+  pool.type_count = 1;
+  pool.types[0].domain = COLONIZE_UNIT_DOMAIN_SEA;
+  pool.types[0].movement = 4;
+  pool.types[0].defense = 2; /* guns 0: the loser is always damaged, no draw */
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
+  snprintf(colonies.building_types[0].name, sizeof(colonies.building_types[0].name), "Drydock");
+  colonies.building_type_count = 1;
+  for (int i = 0; i < 2; ++i) {
+    ColonizeColony* c = &colonies.colonies[i];
+    c->active = true;
+    c->id = i;
+    c->nation_id = 0;
+    c->x = c->y = i == 0 ? 2 : 6;
+    c->has_building[0] = true;
+  }
+  colonies.colony_count = 2;
+  units_set_combat_colonies(&colonies);
+  int rc = 0;
+  for (int buggy = 0; buggy <= 1 && rc == 0; ++buggy) {
+    const int lid = units_spawn_allow_stack(&pool, 0, 2, 2);
+    const int wid = units_spawn_allow_stack(&pool, 0, 3, 2);
+    units_get(&pool, lid)->nation_id = 0;
+    units_get(&pool, wid)->nation_id = 1;
+    dos_buggy_behavior_set(buggy != 0);
+    g_units_naval_attacker_lost = true;
+    const int alive = units_apply_naval_loss_outcome(&pool, lid, wid, 0, 0, 0, NULL, NULL);
+    g_units_naval_attacker_lost = false;
+    const ColonizeUnit* l = units_get(&pool, lid);
+    const int want = buggy ? 6 : 2;
+    if (!alive || !l->active || l->x != want || l->y != want) {
+      fprintf(stderr, "DB-105 [buggy %d]: hull at (%d,%d), want (%d,%d)\n", buggy, l->x, l->y,
+              want, want);
+      rc = 1;
+    }
+    units_despawn(&pool, lid);
+    units_despawn(&pool, wid);
+  }
+  dos_buggy_behavior_set(true);
+  units_set_combat_colonies(NULL);
+  return rc;
+}
+
 /* port_bugs.md #1815: FUN_48d3_007a relinks a hull onto the Europe lane and
  * deletes nothing, so DS:0x8cfc keeps it; a real delete (0824) still counts. */
 static int unit_europe_sail_keeps_census(void) {
@@ -1249,6 +1298,7 @@ static const TestCase k_cases[] = {
   {"unit_hs_ring_skips_map_rim", unit_hs_ring_skips_map_rim},
   {"unit_tb2_departure_own_riders_only", unit_tb2_departure_own_riders_only},
   {"unit_repair_port_needs_drydock_bit", unit_repair_port_needs_drydock_bit},
+  {"unit_attacker_loss_stays_in_own_drydock", unit_attacker_loss_stays_in_own_drydock},
   {"unit_europe_sail_keeps_census", unit_europe_sail_keeps_census},
   {"unit_ship_repair_tick_on_map", unit_ship_repair_tick_on_map},
   {"unit_4720_board_gate_and_landfall", unit_4720_board_gate_and_landfall},

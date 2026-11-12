@@ -675,3 +675,23 @@ the meter, which is what walks the recruit price up; Fountain of Youth picks
 **Blocks removal:** not tried ungated; goldens and idle campaigns bank the DOS
 zero on every arrival.
 **Status:** tolerated (user, 2026-11-06). Fixed in opencol 2026-11-06, gated on `!dos_buggy_behavior()`; test binaries still reproduce DOS.
+
+### TB-60 — Go To avoids your own roads after a peaceful rival's unit walks them
+**DOS:** the Go To flood `FUN_6662_00f2` adds +8 to a road or plowed tile
+(mask `& 0x48`) whose layer3 owner nibble is a Euro nation the mover is at peace
+with (`FUN_281f_06e6` = `FUN_1000_88d6`); an AI mover refuses the tile. That
+nibble is not land ownership: `FUN_1427_02ca` stamps it with the nation of the
+last unit to arrive alone on the tile.
+
+**Effect:** one English colonist crossing Dutch roads marks them English, and
+Dutch Go To units then walk beside the road until a Dutch unit stands on each
+tile again (discard campaign turn 148: New Holland -> Curacao / Fort Orange
+skipped the road at (32,48)).
+
+**Port (reproduces it):** `units_flood_owner_term` in `src/core/units_move.c`.
+The fix applies the term only when the tile is in the radius (Chebyshev 1) of
+a colony of that peer nation (`units_flood_in_colony_radius`).
+
+**Blocks removal:** not tried ungated; the AI reject arm feeds every Euro AI
+goto, so goldens and idle campaigns would need re-blessing.
+**Status:** tolerated (user, 2026-11-12). Fixed in opencol 2026-11-12, gated on `!dos_buggy_behavior()`; test binaries still reproduce DOS.

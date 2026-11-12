@@ -357,7 +357,7 @@ static int unit_indian_land_found(void) {
    */
   {
     unit_indian_land_seed_colony(&colonies, nation);
-    for (int i = 1; i < COLONIZE_COLONIES_MAX; ++i) {
+    for (int i = 1; i < COLONIZE_COLONIES_DOS_MAX; ++i) {
       ColonizeColony* c = &colonies.colonies[i];
       c->id = i;
       c->active = true;
@@ -366,8 +366,8 @@ static int unit_indian_land_found(void) {
       c->y = i / 16; /* rows 0..2, far from (fx,fy) */
       c->building_in_production = -1;
     }
-    colonies.colony_count = COLONIZE_COLONIES_MAX;
-    colonies.next_id = COLONIZE_COLONIES_MAX;
+    colonies.colony_count = COLONIZE_COLONIES_DOS_MAX;
+    colonies.next_id = COLONIZE_COLONIES_DOS_MAX;
     units_reset(&units);
     units_set_occupancy_map(NULL);
     units.type_count = 1;
@@ -408,7 +408,7 @@ static int unit_indian_land_found(void) {
       return fail("#1074: full table must leave founder idle and spent");
     }
     if (col1.nation[nation].gold != 500 || (map.layer2[tidx] & MAP_LAYER2_PURCHASED) ||
-        col1.indian[0].lands_bought != 0 || colonies.colony_count != COLONIZE_COLONIES_MAX) {
+        col1.indian[0].lands_bought != 0 || colonies.colony_count != COLONIZE_COLONIES_DOS_MAX) {
       fx_map_free(&map);
       return fail("#1074: full table founding lost gold or stamped purchased");
     }

@@ -46,10 +46,16 @@ static bool test_europe_load(EuropeScreen* eu, const char* dir, char* err, size_
   return true;
 }
 
+/*
+ * Every EuropeScreen (~0.9 MB), ColonizeUnitPool (~0.8 MB) and AiPopupState
+ * (~2.8 MB) in this case is static: an unoptimised build gives each block-scoped
+ * local its own slot, which put the frame at 15 MB, past the default 8 MB stack.
+ * Each one is reset (europe_load / memset / ai_popup_init) before use.
+ */
 static int case_europe_workflow(void) {
   diag_init(0, NULL);
 
-  EuropeScreen eu;
+  static EuropeScreen eu;
   char err[256];
   if (!test_europe_load(&eu, "COLONIZE", err, sizeof(err))) {
     fprintf(stderr, "europe_load failed: %s\n", err);
@@ -932,7 +938,7 @@ static int case_europe_workflow(void) {
   /* port_bugs.md #754: an unaffordable Purchase row is greyed and inert — Enter
    * does nothing, no status text, dialog stays open. */
   {
-    EuropeScreen poor;
+    static EuropeScreen poor;
     if (!test_europe_load(&poor, "COLONIZE", err, sizeof(err))) {
       fprintf(stderr, "europe_load (poor) failed: %s\n", err);
       return 1;
@@ -1377,7 +1383,7 @@ static int case_europe_workflow(void) {
    */
   {
     ColonizeCol1Save* col1 = (ColonizeCol1Save*)calloc(1, sizeof(ColonizeCol1Save));
-    AiPopupState popups;
+    static AiPopupState popups;
     ai_popup_init(&popups);
     if (!col1) {
       europe_free(&eu);
@@ -1421,7 +1427,7 @@ static int case_europe_workflow(void) {
   /* Disembark Treasure passenger: cash-in + do not land as dock immigrant. */
   {
     ColonizeMsgCatalog names;
-    ColonizeUnitPool units;
+    static ColonizeUnitPool units;
     memset(&units, 0, sizeof(units));
     memset(&names, 0, sizeof(names));
     units_reset(&units);
@@ -1497,8 +1503,8 @@ static int case_europe_workflow(void) {
    */
   {
     ColonizeMsgCatalog cap_names;
-    ColonizeUnitPool cap_units;
-    EuropeScreen cap;
+    static ColonizeUnitPool cap_units;
+    static EuropeScreen cap;
     char cerr[128];
     memset(&cap_units, 0, sizeof(cap_units));
     memset(&cap_names, 0, sizeof(cap_names));
@@ -1713,7 +1719,7 @@ static int case_europe_workflow(void) {
    * buy row for the matching sell row.
    */
   {
-    EuropeScreen arm;
+    static EuropeScreen arm;
     char aerr[128];
     if (!test_europe_load(&arm, "COLONIZE", aerr, sizeof(aerr))) {
       fprintf(stderr, "armoptions: reload failed: %s\n", aerr);
@@ -1858,7 +1864,7 @@ static int case_europe_workflow(void) {
    * Cite: NAMES.TXT @CARGO; viceroy_unpacked.c FUN_38fd_0058.
    */
   {
-    EuropeScreen vol;
+    static EuropeScreen vol;
     char verr[128];
     if (!test_europe_load(&vol, "COLONIZE", verr, sizeof(verr))) {
       fprintf(stderr, "volume: reload failed: %s\n", verr);
@@ -1922,7 +1928,7 @@ static int case_europe_workflow(void) {
    * volatility 0 and attrition 0, so the sale terms are the whole delta.
    */
   {
-    EuropeScreen led;
+    static EuropeScreen led;
     if (!test_europe_load(&led, "COLONIZE", err, sizeof(err))) {
       fprintf(stderr, "europe_load (ledger): %s\n", err);
       europe_free(&eu);
@@ -1988,7 +1994,7 @@ static int case_europe_workflow(void) {
 
   /* EOT attrition tick: Trade Goods attrition=+4 kept on nr (0058 all-cargo). */
   {
-    EuropeScreen tick;
+    static EuropeScreen tick;
     char terr[128];
     if (!test_europe_load(&tick, "COLONIZE", terr, sizeof(terr))) {
       fprintf(stderr, "tick: reload failed: %s\n", terr);
@@ -2073,7 +2079,7 @@ static int case_europe_workflow(void) {
     col1.nation[0].trade.tons2[COLONIZE_CARGO_FOOD] = 246;
     col1.nation[1].trade.tons2[COLONIZE_CARGO_FOOD] = -500; /* negative ledgers clamp to 0 */
 
-    EuropeScreen tick;
+    static EuropeScreen tick;
     memset(&tick, 0, sizeof(tick));
     tick.cargo_count = COLONIZE_CARGO_COUNT;
     ColonizeWorld tick_w2 = world_make(NULL, &pool, NULL, &col1, true, NULL, &tick);
@@ -2107,7 +2113,7 @@ static int case_europe_workflow(void) {
     col1.head.market_demand_pool[COLONIZE_CARGO_COTTON] = 10;
     col1.head.market_demand_pool[COLONIZE_CARGO_FURS] = 20; /* halved → 10 */
 
-    EuropeScreen tick;
+    static EuropeScreen tick;
     memset(&tick, 0, sizeof(tick));
     tick.cargo_count = COLONIZE_CARGO_COUNT;
     for (int c = 0; c < COLONIZE_CARGO_COUNT; ++c) {
@@ -2176,7 +2182,7 @@ static int case_europe_workflow(void) {
    */
   {
     ColonizeMsgCatalog names;
-    ColonizeUnitPool units;
+    static ColonizeUnitPool units;
     memset(&units, 0, sizeof(units));
     memset(&names, 0, sizeof(names));
     units_reset(&units);
@@ -2267,7 +2273,7 @@ static int case_europe_workflow(void) {
     ai->population = 1;
     pool.colony_count = 1;
 
-    EuropeScreen dseu;
+    static EuropeScreen dseu;
     memset(&dseu, 0, sizeof(dseu));
     dseu.cargo_count = COLONIZE_CARGO_COUNT;
     for (int i = 0; i < COLONIZE_CARGO_COUNT; ++i) {
@@ -2606,7 +2612,7 @@ static int case_europe_workflow(void) {
    */
   {
     ColonizeMsgCatalog names;
-    ColonizeUnitPool units;
+    static ColonizeUnitPool units;
     memset(&units, 0, sizeof(units));
     memset(&names, 0, sizeof(names));
     units_reset(&units);
@@ -4038,6 +4044,43 @@ static int case_europe_trade_route_return_tile(void) {
   return rc;
 }
 
+/* DB-104: a Trade Route leg leaving Europe boards sentried dockers (DOS
+ * FUN_1427_10be budget 0 leaves them behind under dos_buggy_behavior()). */
+static int case_europe_trade_route_leg_boards_dockers(void) {
+  EuropeScreen* eu = (EuropeScreen*)calloc(1, sizeof(*eu));
+  if (!eu) {
+    return 1;
+  }
+  int rc = 0;
+  for (int buggy = 1; buggy >= 0; --buggy) {
+    memset(eu, 0, sizeof(*eu));
+    (void)europe_harbor_push_ex(eu, 0, "A", NULL, NULL, 0, NULL, NULL);
+    eu->harbor[0].trade_route_plus1 = 2;
+    eu->harbor[0].trade_stop = 1;
+    eu->dock_count = 1;
+    eu->dock[0].present = true;
+    eu->dock[0].sentry = true;
+    eu->dock[0].profession = 19;
+    dos_buggy_behavior_set(buggy != 0);
+    const bool sailed = europe_set_sail_from_harbor_ex(eu, 0, 1, NULL, 0, false);
+    const int want_cargo = buggy ? 0 : 1;
+    if (!sailed || eu->bound_ships != 1 || eu->bound[0].cargo_count != want_cargo ||
+        eu->dock_count != 1 - want_cargo || eu->bound[0].trade_route_plus1 != 2 ||
+        eu->bound[0].trade_stop != 1) {
+      fprintf(
+        stderr, "route leg buggy=%d: sailed %d bound %d cargo %d dock %d route %d stop %d\n",
+        buggy, sailed, eu->bound_ships, eu->bound[0].cargo_count, eu->dock_count,
+        eu->bound[0].trade_route_plus1, eu->bound[0].trade_stop
+      );
+      rc = 1;
+    }
+  }
+  dos_buggy_behavior_set(true);
+  europe_free(eu);
+  free(eu);
+  return rc;
+}
+
 /* FUN_5fef_0352 raw 99642-99644 -> FUN_1427_02ca: the damaged hull is linked at the head of
  * the in-port chain, which FUN_38fd_0666 lists from the head, so it is harbor slot 0. */
 static int case_europe_damaged_hull_heads_harbor(void) {
@@ -4321,7 +4364,37 @@ static int case_europe_howmuch_text_box(void) {
   return 0;
 }
 
+/* FUN_38fd_0058 phase 4 has no rise/fall > 0 guard: raw 58953 tests
+ * nr <= rise * -100 and raw 58970 tests fall * 100 <= nr as written, so a
+ * cargo row with rise 0 steps its bid up whenever the pressure word is <= 0. */
+static int case_europe_phase4_rise_zero(void) {
+  EuropeScreen eu;
+  char err[128];
+  if (!test_europe_load(&eu, "COLONIZE", err, sizeof(err))) {
+    fprintf(stderr, "phase4 rise 0: load failed: %s\n", err);
+    return 1;
+  }
+  const int tg = COLONIZE_CARGO_TRADE_GOODS;
+  eu.cargo[tg].bid = 10;
+  eu.cargo[tg].low = 1;
+  eu.cargo[tg].high = 20;
+  eu.cargo[tg].rise = 0;
+  eu.cargo[tg].fall = 1;
+  eu.cargo[tg].attrition = 0;
+  eu.trade_nr[tg] = 0;
+  ColonizeWorld w = world_make(NULL, NULL, NULL, NULL, false, NULL, &eu);
+  europe_tick_market_prices_w(&w, 0, 0u);
+  const int rc = eu.cargo[tg].bid == 11 && eu.trade_nr[tg] == 0 ? 0 : 1;
+  if (rc) {
+    fprintf(stderr, "phase4 rise 0: bid/nr want 11/0 got %d/%d\n", eu.cargo[tg].bid,
+            (int)eu.trade_nr[tg]);
+  }
+  europe_free(&eu);
+  return rc;
+}
+
 static const TestCase k_cases[] = {
+    {"case_europe_phase4_rise_zero", case_europe_phase4_rise_zero},
     {"case_europe_howmuch_text_box", case_europe_howmuch_text_box},
     {"case_europe_dock_menu_dos_bytes", case_europe_dock_menu_dos_bytes},
     {"case_europe_trade_route_departure_no_dockers", case_europe_trade_route_departure_no_dockers},
@@ -4329,6 +4402,7 @@ static const TestCase k_cases[] = {
     {"case_europe_royal_gift_round_trip", case_europe_royal_gift_round_trip},
     {"case_europe_voyage_roll_reseeds_83a6", case_europe_voyage_roll_reseeds_83a6},
     {"case_europe_damaged_hull_heads_harbor", case_europe_damaged_hull_heads_harbor},
+    {"case_europe_trade_route_leg_boards_dockers", case_europe_trade_route_leg_boards_dockers},
     {"case_europe_trade_route_return_tile", case_europe_trade_route_return_tile},
     {"case_europe_arrival_woodcut_first_non_route", case_europe_arrival_woodcut_first_non_route},
     {"case_europe_immigration_counts_offpool_units", case_europe_immigration_counts_offpool_units},

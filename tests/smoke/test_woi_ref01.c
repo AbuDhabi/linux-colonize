@@ -28,6 +28,7 @@
 #include "core/colony.h"
 #include "core/dos_rng.h"
 #include "core/europe.h"
+#include "core/europe_art.h"
 #include "core/map.h"
 #include "core/turn.h"
 #include "core/units.h"
@@ -104,6 +105,11 @@ int main(void) {
   EuropeScreen europe;
   memset(&europe, 0, sizeof(europe));
   europe.cargo_count = 16;
+  /* The @CARGO quotes the market tick reads, as golden_fixture.c loads them. */
+  if (!europe_load_tables(&europe, &names)) {
+    fprintf(stderr, "europe_load_tables failed\n");
+    return 1;
+  }
   ColonizeCol1BridgeResult br;
   if (!col1_bridge_apply_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&units), .colonies=(ColonizeColonyPool*)(&colonies), .map=(ColonizeWorldMap*)(&map), .col1=(ColonizeCol1Save*)(&save), .col1_ok=true, .europe=(EuropeScreen*)(&europe)}, &br, err, sizeof(err))) {
     fprintf(stderr, "bridge: %s\n", err);

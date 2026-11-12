@@ -1395,6 +1395,9 @@ void game_combat_popup_pump(void* user) {
         (void)woodcut_handle_input(&game->woodcut, &input);
       }
     } else if (game->ai_popups.open) {
+      if (input.mouse_left_clicked || input.mouse_right_clicked) {
+        game->press_taken_by_modal = true; /* its release is not the screen's (game_update) */
+      }
       ai_popup_handle_input(&game->ai_popups, &input);
       game_apply_ai_popup_result(game);
     }
@@ -3885,6 +3888,10 @@ bool game_modal_open(const ColonizeGameState* game) {
  * around it on the map closes it like one unless a modal sits on top of it. */
 bool game_modal_over_screen_open(const ColonizeGameState* game) {
   return game_modal_open_skip(game, game ? &game->trade_screen : NULL);
+}
+
+bool game_modal_besides_popup_open(const ColonizeGameState* game) {
+  return game_modal_open_skip(game, game ? &game->ai_popups : NULL);
 }
 
 bool game_ai_popup_pending(const ColonizeGameState* game) {

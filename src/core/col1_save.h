@@ -395,6 +395,11 @@ bool col1_save_write_memory(
  * memory the save simply has head.unit_count > 300 and no such chunk. */
 #define COLONIZE_COL1_EXT_TAG_UNIT_OVERFLOW 0x54584e55u
 
+/* 'COXT': colony records past COLONIZE_COL1_DOS_COLONY_MAX, verbatim 202-byte
+ * ColonizeCol1Colony records. Handled like 'UNXT': in memory the save simply
+ * has head.colony_count > 48 and no such chunk. */
+#define COLONIZE_COL1_EXT_TAG_COLONY_OVERFLOW 0x54584f43u
+
 /* True when `data` is a well-formed ext block (magic, version, chunk walk). */
 bool col1_save_ext_valid(const uint8_t* data, size_t size);
 

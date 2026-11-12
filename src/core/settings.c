@@ -103,6 +103,7 @@ static const SettingsBoolOpt k_debug_opts[] = {
 /* "divergences": deliberate departures from DOS, all off by default. */
 static const SettingsBoolOpt k_divergence_opts[] = {
   SETTINGS_BOOL(unlimited_units, false),
+  SETTINGS_BOOL(unlimited_colonies, false),
   SETTINGS_BOOL(alternate_map_generator, false),
 };
 

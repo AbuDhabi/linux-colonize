@@ -131,6 +131,14 @@ int combat_unit_base_x8(
 );
 
 /*
+ * FUN_157e_004a for a LAND unit record with no pool unit (the human's Europe
+ * dock rows and lane passengers): base x8 plus the veteran peel. The Drake and
+ * holds peels are hull-only; no damaged bit travels with those records, so
+ * the Artillery -2 peel never applies.
+ */
+int combat_record_base_x8(const ColonizeUnitType* t, int profession, int mode);
+
+/*
  * FUN_157e_015e: engagement strength for unit vs foe (colony/village/terrain/
  * fortify). Calls 004a(unit, 0) for base. out_flags optional.
  */

@@ -2031,6 +2031,23 @@ static int units_flood_edge(
   return edge > 0 ? edge : 1;
 }
 
+/* TB-60 fix: a colony of `nation` on or next to (x,y), i.e. the tile is in
+ * that colony's radius. */
+static bool units_flood_in_colony_radius(
+  const ColonizeColonyPool* colonies, int nation, int x, int y
+) {
+  if (!colonies) {
+    return false;
+  }
+  for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+    const ColonizeColony* c = &colonies->colonies[i];
+    if (c->active && c->nation_id == nation && abs(c->x - x) <= 1 && abs(c->y - y) <= 1) {
+      return true;
+    }
+  }
+  return false;
+}
+
 /*
  * The ownership terms on a candidate tile (raw 103955-103964, re-applied in
  * the neighbour pick raw 104044-104052), keyed on DS:0x1dd6 (`owner`).
@@ -2038,7 +2055,12 @@ static int units_flood_edge(
  * DS:0x1dd6 = -1 callers: 0906, road-connect, AI_MOVE goto) has no terms.
  */
 static int units_flood_owner_term(
-  const ColonizeWorldMap* map, const ColonizeCol1Save* col1, int owner, int nx, int ny
+  const ColonizeWorldMap* map,
+  const ColonizeColonyPool* colonies,
+  const ColonizeCol1Save* col1,
+  int owner,
+  int nx,
+  int ny
 ) {
   if (owner < 0) {
     return 0;
@@ -2056,8 +2078,13 @@ static int units_flood_owner_term(
       map->improve[(size_t)ny * (size_t)map->width + (size_t)nx] != 0) {
     const int peer = units_tile_owner_nibble(map, nx, ny);
     /* DOS 88d6: euro_relation & 0x40 = PEACE (bit map re-derived 2026-08-27). */
+    /* TB-60: the nibble is the nation of the last unit that stood alone on
+     * the tile (FUN_1427_02ca), so a peer's unit walking our roads marks them
+     * as the peer's. DOS reads it as the owner; the fix requires the tile to
+     * be in a colony radius of that peer. */
     if (peer >= 0 && peer <= 3 && peer != owner &&
-        (col1->nation[owner].euro_relation[peer] & AI_DIPLO_PEACE) != 0) {
+        (col1->nation[owner].euro_relation[peer] & AI_DIPLO_PEACE) != 0 &&
+        (dos_buggy_behavior() || units_flood_in_colony_radius(colonies, peer, nx, ny))) {
       /* `3 < owner || DS:0x543f[owner] != 0` (AI) rejects; the human pays +8. */
       if (!col1_nation_is_human(col1, owner, g_units_combat_human_nation)) {
         return -1;
@@ -2288,7 +2315,7 @@ static int units_flood_00f2(
         if (!units_flood_cand_ok(pool, map, colonies, r, g->key_x, g->key_y, nx, ny)) {
           continue;
         }
-        const int term = units_flood_owner_term(map, r->col1, r->owner, nx, ny);
+        const int term = units_flood_owner_term(map, colonies, r->col1, r->owner, nx, ny);
         if (term < 0) {
           continue;
         }
@@ -2315,7 +2342,7 @@ static int units_flood_00f2(
       if (!units_flood_cand_ok(pool, map, colonies, r, g->key_x, g->key_y, nx, ny)) {
         continue;
       }
-      const int term = units_flood_owner_term(map, r->col1, r->owner, nx, ny);
+      const int term = units_flood_owner_term(map, colonies, r->col1, r->owner, nx, ny);
       if (term < 0) {
         continue;
       }

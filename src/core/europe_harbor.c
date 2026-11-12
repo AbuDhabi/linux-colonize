@@ -337,8 +337,12 @@ bool europe_set_sail_from_harbor_ex(
     ship.trade_route_plus1 = 0;
     ship.trade_stop = 0;
     europe_board_sentry_dockers(eu, &ship, units, nation_id, europe_ship_cargo_cap(&ship, units));
-  } else {
+  } else if (dos_buggy_behavior()) {
     europe_disembark_passengers_to_dock(eu, &ship, units);
+  } else {
+    /* DB-104 fixed: the route leg boards like the manual Sail, keeping the
+     * route and the riders already aboard. */
+    europe_board_sentry_dockers(eu, &ship, units, nation_id, europe_ship_cargo_cap(&ship, units));
   }
   /*
    * DOS FUN_48d3_0346 sails from the ship's own +0x314d/+0x314e (stamped
@@ -700,9 +704,6 @@ int europe_cash_treasure(EuropeScreen* eu, int treasure_value) {
     return 0;
   }
   int tax = eu->tax_percent;
-  if (tax < 0) {
-    tax = 0;
-  }
   /*
    * FUN_48d3_06ba: Crown cut = min(tax_rate, 50). GAME.TXT @LOOTCASH still
    * describes tax-rate share; DOS clamps the treasure path at 50%.
@@ -1179,7 +1180,8 @@ static void europe_market_phase4(const EuropeMarketTick* t, int* out_rise, int* 
     int nr = (int)t->nr[c];
     const int rise = q->rise;
     const int fall = q->fall;
-    if (rise > 0 && nr <= -(rise * 100)) {
+    /* raw 58953 / 58970: no rise/fall > 0 guard, so a 0 column fires at nr <= 0 / nr >= 0. */
+    if (nr <= -(rise * 100)) {
       nr += rise * 100;
       if (t->bid[c] < cap) {
         t->bid[c] += 1;
@@ -1193,7 +1195,7 @@ static void europe_market_phase4(const EuropeMarketTick* t, int* out_rise, int* 
         }
       }
     }
-    if (fall > 0 && nr >= fall * 100) {
+    if (nr >= fall * 100) {
       nr -= fall * 100;
       if (t->bid[c] > q->low) {
         t->bid[c] -= 1;

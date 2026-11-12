@@ -186,12 +186,14 @@ bool options_dialog_open_sound(
 /*
  * One data/mods @MODOPTIONS* section per page, grouped by kind of change; the
  * section's rows follow its id list here. With FONTINTR (glyph_h 9) a row
- * advances 12 px and a prompt of up to two 10 px lines, so
- * popup_dos_list_height is 35 + 12 * rows: 13 rows is the most that fits the
- * 200 px screen, and the OK button takes the last two (OPTIONS_MODS_OK_ROWS).
+ * advances 12 px and a prompt line 10 px, and popup_list_render passes no help
+ * footer, so popup_dos_list_height is 12 + 10 * prompt_lines + 12 * rows: with
+ * a two-line prompt 13 rows take 188 px and 14 exactly fill the 200 px screen.
+ * The cap below is 13 rows, the OK button taking the last two
+ * (OPTIONS_MODS_OK_ROWS); all 20 toggles on one page (22 rows) would need 296.
  * The _Static_asserts below hold each page to OPTIONS_MODS_PAGE_ROWS_MAX; a
- * page that outgrows it needs another section. Every ModId
- * sits on exactly one page (checked by the popup dialog tests).
+ * page that outgrows it needs another section. Every ModId sits on exactly one
+ * page (checked by the popup dialog tests).
  */
 #define OPTIONS_MODS_OK_ROWS 2
 #define OPTIONS_MODS_PAGE_ROWS_MAX (13 - OPTIONS_MODS_OK_ROWS)

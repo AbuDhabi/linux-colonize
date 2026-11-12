@@ -2548,7 +2548,11 @@ COLONIZE_INTERNAL GameUpdateStep game_update_colony_screen(ColonizeGameState* ga
      * blink in its on phase. */
     csv->mouse_held = input->mouse_left_down || input->mouse_right_down;
     if (input->mouse_left_clicked || input->mouse_right_clicked) {
-      csv->press_region = colony_screen_dos_region(input->mouse_x, input->mouse_y);
+      /* A sub-panel's press is its own FUN_6f74_2580 loop's, never DS:0x8d54's: the
+       * panel closing on it must not leave the screen under it armed for the release. */
+      csv->press_region = game_colony_bare(csv)
+                            ? colony_screen_dos_region(input->mouse_x, input->mouse_y)
+                            : 0x14;
       if (csv->press_region == 8 && input->mouse_x >= 0x7f && input->mouse_x < 0x7f + 0x48 &&
           input->mouse_y >= 0xa5 && input->mouse_y < 0xa5 + 0x16) {
         csv->press_region = 0x14;
@@ -3534,6 +3538,20 @@ bool game_request_quit(ColonizeGameState* game) {
       break;
     }
   }
+  /* An unanswered popup (e.g. SAVEGOOD) goes back to the queue head behind the
+   * confirm, so the close shows at once and No brings the popup back. */
+  if (game->ai_popups.open && !game->ai_popups.has_result &&
+      game->map_confirm == GAME_MAP_CONFIRM_NONE &&
+      !game_modal_besides_popup_open(game) && ai_popup_requeue_current(&game->ai_popups)) {
+    game_enqueue_yes_no(
+      game, game->in_menu ? GAME_MAP_CONFIRM_TITLE_EXIT : GAME_MAP_CONFIRM_QUIT, -1, "DOSYES", "",
+      NULL
+    );
+    if (game->map_confirm != GAME_MAP_CONFIRM_NONE &&
+        ai_popup_present_now(&game->ai_popups, AI_POPUP_TAG_MAP_CONFIRM)) {
+      return false;
+    }
+  }
   game->quit_ask_pending = true;
   game_quit_ask_service(game);
   return false;
@@ -4250,6 +4268,28 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
   /* A press is the Europe screen's only if game_europe_screen_mouse claims it. */
   if (input->mouse_left_clicked || input->mouse_right_clicked) {
     game->europe_press_on_screen = false;
+  }
+
+  /* An occluded control never sees a press that the popup over it took: when the popup
+   * closes on that press, its hold and release are dropped too, or a release over the
+   * control below acts (colony BUY re-raising its own @BUYME0). */
+  ColonizeInputState unoccluded;
+  {
+    const bool modal_up = game_modal_open(game) || game->ai_popups.open || game->woodcut.open;
+    const bool held = input->mouse_left_down || input->mouse_right_down;
+    if ((input->mouse_left_clicked || input->mouse_right_clicked) && modal_up) {
+      game->press_taken_by_modal = true;
+    } else if (game->press_taken_by_modal && !modal_up) {
+      unoccluded = *input;
+      unoccluded.mouse_left_down = unoccluded.mouse_left_clicked = false;
+      unoccluded.mouse_left_released = false;
+      unoccluded.mouse_right_down = unoccluded.mouse_right_clicked = false;
+      unoccluded.mouse_right_released = false;
+      input = &unoccluded;
+    }
+    if (!held) {
+      game->press_taken_by_modal = false;
+    }
   }
 
   /*

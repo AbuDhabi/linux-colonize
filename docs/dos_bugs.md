@@ -648,7 +648,7 @@ loaded save's 4 bytes are carried over unchanged to the next save. Nothing reads
 DOS or the port, so the slip is invisible.
 **Status:** recorded, not fixed (user 2026-11-11).
 
-### DB-104 — A trade route keeps aiming at a stop colony another nation captured
+### DB-103 — A trade route keeps aiming at a stop colony another nation captured
 **DOS:** FUN_479b_0bd0 binds a colony stop by record index only (`FUN_281f_09e6`, raw
 77233-77236 / 77253: the record's x/y become the goto) and FUN_479b_0b84 (raw
 77164-77174) tests arrival by tile only. Neither checks the owner, so after a capture
@@ -661,3 +661,49 @@ services nothing and advances, stepping past further invalid stops; with no vali
 the aim fails as it did for a missing colony. Ungated: every golden still matches.
 Test: unit_stage_seams `test_trade_route_skips_captured_stop`.
 **Status:** done (user 2026-11-11).
+
+### DB-104 — A Trade Route ship boards no passengers in Europe or at a colony stop
+**DOS:** `FUN_1427_10be` (raw 8630-8644) gives a hull with orders 2 (trade route) a
+boarding budget of 0 when it stands on the Europe dock (`(nation - x) == 0x14`) or on a
+settlement tile (`FUN_137f_03e4` >= 0). The route leg (`FUN_48d3_0346` raw 77741, and the
+map move off a colony) therefore carries no sentried colonist waiting on the dock or in
+the colony, and riders loaded by hand stay behind. Only the manual Sail click in Europe
+(`FUN_38fd_2a92`, which first clears the orders and so the route) boards anyone.
+
+**Port:** fixed outside `dos_buggy_behavior()`. `europe_set_sail_from_harbor_ex(...,
+false)` (`src/core/europe_harbor.c`) boards sentried dockers up to free capacity and keeps
+the riders and the route; `units_ship_departure_pickup` (`src/core/units_cargo.c`) no
+longer zeroes the budget for a route hull on a colony tile. Under the switch (every test
+binary) both keep the DOS budget 0. Test: `unit_europe`
+`case_europe_trade_route_leg_boards_dockers`.
+**Status:** fixed (user 2026-11-12).
+
+### DB-105 — A ship beaten attacking out of its own Drydock port is sent elsewhere
+**DOS:** when a ship attacker loses, `FUN_5fef_1b0e` (raw 100566-100567, 100759) hands
+`FUN_5fef_0ec0` / `FUN_5fef_0352` the attacker's own tile (`+0x3144/+0x3145`) as the
+distance origin. 0352's repair-port scan (raw 99584-99597) takes `dist <= best && dist
+!= 0`, so a Drydock colony on that tile is always skipped: a damaged Privateer that
+attacked from its own Drydock port limps to the nearest other Drydock colony, or to
+Europe (and a WoI human with no other repair port loses the ship).
+
+**Port:** fixed outside `dos_buggy_behavior()`. `units_apply_naval_loss_outcome`
+(`src/core/units_combat.c`) takes the loser's own Drydock colony on its tile as the
+repair port while `g_units_naval_attacker_lost` is set (only the attacker-loss limb of
+`units_resolve_naval_combat_ff_w`). Captured and raided ports keep the distance-0 skip.
+Test: `unit_units_ships` `unit_attacker_loss_stays_in_own_drydock`.
+**Status:** fixed (user 2026-11-12).
+
+### DB-106 — A Trade Route wagon never unloads a boycotted cargo at a colony stop
+**DOS:** `FUN_479b_0bd0` (raw 77256-77267) wraps the whole unload loop in
+`if (FUN_291f_0cd8(cargo) == 0)` (`FUN_38fd_05e8` raw 59010-59016, the nation `+0x20`
+boycott word), above the split between the Europe stop (sell) and a colony stop
+(unload). The load loop has no such gate. Once the Crown boycotts a cargo, a wagon or
+ship on a colony-to-colony route keeps loading it and never unloads it, so its holds
+fill up and it carries nothing else (seen in the discard campaign: sugar boycotted
+autumn 1639, both wagons clogged with sugar at New Amsterdam).
+
+**Port:** fixed unconditionally. `colonies_trade_route_service_stop`
+(`src/core/colony_goods.c`) unloads the stop's unload list whatever the boycott;
+the Europe stop keeps the gate (`europe_sell_commit` refuses a boycotted sale).
+Test: `unit_colonies` `unit_trade_route_stop_load_order_and_boycott`.
+**Status:** fixed (user 2026-11-12).

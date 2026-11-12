@@ -6399,6 +6399,83 @@ static int case_census_live_peel(void) {
 }
 
 /*
+ * FUN_4962_0018 raw 78159-78232 walks every unit record of the nation, Europe
+ * dock rows and lane hulls/passengers included. The human's Europe side lives
+ * in the EuropeScreen: a veteran Soldiers dock row with its (236,236) mirror
+ * (counted once) and a harbor Caravel carrying a veteran Soldier.
+ */
+static int case_census_counts_europe_side(void) {
+  fx_begin();
+  static ColonizeCol1Save col1;
+  memset(&col1, 0, sizeof(col1));
+  col1.player[0].control = 0;
+  ColonizeColonyPool pool;
+  colonies_init(&pool);
+  colonies_set_occupancy_map(NULL);
+  static ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
+  units_reset(&units);
+  units_set_occupancy_map(NULL);
+  units.type_count = 14;
+  snprintf(units.types[0].name, sizeof(units.types[0].name), "Colonists");
+  units.types[0].kind_plus1 = (int)UNITS_KIND_COLONIST + 1;
+  units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  snprintf(units.types[1].name, sizeof(units.types[1].name), "Soldiers");
+  units.types[1].kind_plus1 = (int)UNITS_KIND_SOLDIER + 1;
+  units.types[1].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  units.types[1].attack = 2;
+  units.types[1].defense = 1;
+  snprintf(units.types[13].name, sizeof(units.types[13].name), "Caravel");
+  units.types[13].kind_plus1 = (int)UNITS_KIND_CARAVEL + 1;
+  units.types[13].domain = COLONIZE_UNIT_DOMAIN_SEA;
+  units.types[13].cargo = 2;
+  const int mid = units_spawn(&units, 1, EUROPE_PARK_XY, EUROPE_PARK_XY);
+  ColonizeUnit* mirror = units_get(&units, mid);
+  if (!mirror) {
+    fprintf(stderr, "census europe: mirror spawn failed\n");
+    return 1;
+  }
+  units_set_nation(mirror, 0);
+  mirror->profession = UNITS_JOB_SOLDIER;
+  static EuropeScreen eu;
+  memset(&eu, 0, sizeof(eu));
+  eu.bound_nation = 0;
+  snprintf(eu.dock[0].name, sizeof(eu.dock[0].name), "Soldiers");
+  eu.dock[0].profession = UNITS_JOB_SOLDIER;
+  eu.dock[0].dos_type = EUROPE_DOCK_TYPE_SOLDIERS;
+  eu.dock[0].present = true;
+  eu.dock[0].mirror_unit_id = mid;
+  eu.dock_count = 1;
+  eu.harbor[0].type_index = 13;
+  eu.harbor[0].cargo_count = 1;
+  eu.harbor[0].cargo_types[0] = 1;
+  eu.harbor[0].cargo_professions[0] = UNITS_JOB_SOLDIER;
+  eu.harbor_ships = 1;
+  col1_stuff_census_4962_w(
+    &(ColonizeWorld){.units = &units, .colonies = &pool, .col1 = &col1, .col1_ok = true,
+                     .europe = &eu},
+    &col1.stuff, 0
+  );
+  /* Veteran Soldier: attack 2*8 *1.5 = 24, defense 1*8 *1.5 = 12; two of them
+   * (row + passenger). Off the map, so both are field strength. */
+  const ColonizeCol1Stuff* s = &col1.stuff;
+  if (s->ship_counts[0] != 1 || s->ship_cargo_totals[0] != 2 || s->all_unit_counts[0] != 3 ||
+      s->unit_type_counts[0][1] != 2 || s->unit_type_counts[0][13] != 1 ||
+      s->land_combat_strength[0] != 48 || s->land_combat_totals[0] != 24 ||
+      s->field_combat_totals[0] != 48) {
+    fprintf(stderr,
+            "census europe: ships %u cargo %u units %u soldiers %u caravels %u m1 %u m0 %u "
+            "field %u (want 1/2/3/2/1/48/24/48)\n",
+            (unsigned)s->ship_counts[0], (unsigned)s->ship_cargo_totals[0],
+            (unsigned)s->all_unit_counts[0], (unsigned)s->unit_type_counts[0][1],
+            (unsigned)s->unit_type_counts[0][13], (unsigned)s->land_combat_strength[0],
+            (unsigned)s->land_combat_totals[0], (unsigned)s->field_combat_totals[0]);
+    return 1;
+  }
+  return 0;
+}
+
+/*
  * Phase P: human warehouse spoilage → Europe status + SPOIL1–4 section pick.
  */
 static int case_spoilage_spoil1(void) {
@@ -8395,6 +8472,7 @@ static const TestCase k_cases[] = {
   {"tally_counts_europe_side", case_tally_counts_europe_side},
   {"ai_census_before_immigration", case_ai_census_before_immigration},
   {"census_live_peel", case_census_live_peel},
+  {"census_counts_europe_side", case_census_counts_europe_side},
   {"spoilage_spoil1", case_spoilage_spoil1},
   {"spoilage_spoil2", case_spoilage_spoil2},
   {"spoilage_spoil3", case_spoilage_spoil3},

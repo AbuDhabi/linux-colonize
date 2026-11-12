@@ -352,3 +352,19 @@ that window.
 **Port:** `ai_euro_20e6_goal_fold` / `unload_mask_snapshot` (`src/core/ai_euro_ship.c`)
 zero-init it.
 **Status:** done (user 2026-11-10; port already differed).
+
+### DB-105 — Europe arrival with no free High Seas tile destroys the landfall stack
+**DOS:** `FUN_48d3_048e` (raw 77810-77901) places a hull arriving from Europe on the
+nearest High Seas tile around its saved tile +0x314d/e. The ring runs to
+max(width, height) (raw 77879-77883). On a miss, raw 77884-77890 destroys every unit
+on the saved tile (`FUN_281f_07e0` -> `FUN_281f_083a` = `FUN_1427_0f30`) and places the
+hull there, whoever owns that stack.
+
+**Port:** `ai_euro_europe_place_arrival` (`src/core/ai_euro_ship.c`) destroys nothing.
+After the ring it tries `units_find_high_seas_tile` (nearest free interior High Seas
+tile on the whole map, for a saved tile off the map); with no tile at all the hull
+stays on its 224+n lane and the next `ai_euro_europe_lane_tick` retries. Needs a map
+with no free High Seas tile, so practically unreachable. Test: `unit_ai_euro_20e6`
+`unit_europe_lane_arrival_no_tile_destroys_nothing`.
+**Status:** done (user 2026-10-28). Reverses the port_bugs.md #1669 resolution, which had
+ported the destroy.

@@ -18,7 +18,13 @@ typedef struct ColonizeUnitPool ColonizeUnitPool;
 typedef struct AiPopupState AiPopupState;
 
 /* DOS founding gate is `colony_count < 0x30` (viceroy_unpacked.c:58029). */
-#define COLONIZE_COLONIES_MAX 48
+#define COLONIZE_COLONIES_DOS_MAX 48
+/* Physical pool size. Above COLONIZE_COLONIES_DOS_MAX only with the
+ * settings.json divergences.unlimited_colonies option (colonies_set_unlimited)
+ * or when loading a save that already holds more; records past 48 are saved in
+ * the 'COXT' port extension chunk (docs/savegame.md). Kept under 255: DOS
+ * per-nation colony counts are bytes. */
+#define COLONIZE_COLONIES_MAX 200
 #define COLONIZE_COLONY_NAME_MAX 28
 #define COLONIZE_COLONY_NAMES_MAX 80
 #define COLONIZE_BUILDING_TYPES_MAX 48
@@ -259,6 +265,11 @@ typedef struct ColonizeColonyPool {
 } ColonizeColonyPool;
 
 void colonies_init(ColonizeColonyPool* pool);
+/* Port divergence (settings.json divergences.unlimited_colonies): skip the DOS
+ * `colony_count < 0x30` founding gate; only COLONIZE_COLONIES_MAX remains. */
+void colonies_set_unlimited(bool on);
+/* The founding gate in force: COLONIZE_COLONIES_DOS_MAX, or the pool size. */
+int colonies_cap(void);
 /* Load per-nation colony names from COLONY.TXT (@ENGLISH/@FRENCH/@SPANISH/@DUTCH). */
 bool colonies_load_names(ColonizeColonyPool* pool, const char* colony_txt_path);
 /* Load @BUILDING definitions from NAMES.TXT. */
@@ -1083,16 +1094,14 @@ int colonies_foreign_trade_apply(
 );
 
 /* FUN_479b_0bd0 arrival body (see docs/colony_goods.md#colonies_trade_route_service_stop).
- * sell_price[COLONIZE_CARGO_COUNT] = the unit owner's DS:0x84bc row (NULL = all 0);
- * boycott_bitmap = the bound nation's +0x20 word. */
+ * sell_price[COLONIZE_CARGO_COUNT] = the unit owner's DS:0x84bc row (NULL = all 0). */
 int colonies_trade_route_service_stop(
   ColonizeColonyPool* pool,
   int colony_id,
   ColonizeUnitPool* units,
   int unit_id,
   const ColonizeCol1TradeStop* stop,
-  const int* sell_price,
-  uint16_t boycott_bitmap
+  const int* sell_price
 );
 
 /* Stockade/Fort/Fortress bits as owned (FUN_15eb_038e(0/1/2), literal; no tier fold). */

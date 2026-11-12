@@ -223,8 +223,9 @@ These have each cost a session. Check them before blaming the code.
 - **`port_saves/**` are the user's live player saves.** The user plays while work
   is in progress; unexplained diffs there are his autosaves. **Never**
   `git checkout`-restore them without asking.
-- **Regenerated fixtures.** `test-saves-ai/MID02.SAV`, `LATE01.SAV`,
-  `LATE01_POST.SAV` are rewritten in-tree by `smoke_ai_mid01`/`late01` on every
+- **Regenerated fixtures.** `smoke_ai_mid01` rewrites `test-saves-ai/MID01.SAV`
+  and `MID02.SAV`, and `smoke_ai_late01` (which reads `MID02.SAV`, so ctest runs
+  it after mid01) rewrites `LATE01.SAV` and `LATE01_POST.SAV`, in-tree on every
   run. Binary diffs there after a behaviour change are normal, not corruption.
 - **Line endings.** Historically several `src/core` files were CRLF and Python
   text-mode round-trips silently reflowed them. `.gitattributes` now enforces

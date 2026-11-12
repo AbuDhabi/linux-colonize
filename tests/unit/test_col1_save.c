@@ -636,6 +636,62 @@ static bool test_unit_overflow(char* err, size_t err_size) {
   return ok;
 }
 
+/* More than 48 colonies: DOS section keeps 48, the rest rides in 'COXT' and
+ * comes back on read. An overflow colony's tile loses its city flag on disk
+ * (DOS has no record there) and gets it back on read. */
+static bool test_colony_overflow(char* err, size_t err_size) {
+  ColonizeCol1Save save;
+  if (!build_synthetic(&save, err, err_size)) {
+    return false;
+  }
+  const uint16_t n = (uint16_t)(COLONIZE_COL1_DOS_COLONY_MAX + 3u);
+  ColonizeCol1Colony* colonies = calloc(n, sizeof(*colonies));
+  if (!colonies) {
+    col1_save_free(&save);
+    return false;
+  }
+  for (uint16_t i = 0; i < n; ++i) {
+    colonies[i].x = (uint8_t)(1 + i % 50);
+    colonies[i].y = (uint8_t)(2 + i / 50);
+    save.map.mask[(size_t)colonies[i].y * save.map.width + colonies[i].x] |= 0x02u;
+  }
+  snprintf(colonies[n - 1].name, sizeof(colonies[n - 1].name), "Overflow");
+  free(save.colony);
+  save.colony = colonies;
+  save.head.colony_count = n;
+  const size_t last_tile = (size_t)colonies[n - 1].y * save.map.width + colonies[n - 1].x;
+  const size_t first_tile = (size_t)colonies[0].y * save.map.width + colonies[0].x;
+  uint8_t* data = NULL;
+  size_t size = 0;
+  bool ok = col1_save_write_memory(&save, &data, &size, err, err_size);
+  ColonizeCol1Save back;
+  col1_save_init(&back);
+  if (ok) {
+    ColonizeCol1Head dos_head;
+    memcpy(&dos_head, data, sizeof(dos_head));
+    const size_t mask_at = col1_save_expected_size_counts(
+                             save.head.map_size_x, save.head.map_size_y,
+                             COLONIZE_COL1_DOS_COLONY_MAX, save.head.unit_count,
+                             save.head.tribe_count
+                           ) -
+                           COLONIZE_COL1_TRADE_ROUTE_SIZE * COLONIZE_COL1_TRADE_ROUTE_COUNT -
+                           COLONIZE_COL1_POST_MAP_SIZE - 3u * save.map.tile_count;
+    ok = dos_head.colony_count == COLONIZE_COL1_DOS_COLONY_MAX &&
+         !(data[mask_at + last_tile] & 0x02u) && (data[mask_at + first_tile] & 0x02u) &&
+         col1_save_read_memory(data, size, &back, err, err_size) &&
+         back.head.colony_count == n && strcmp(back.colony[n - 1].name, "Overflow") == 0 &&
+         (back.map.mask[last_tile] & 0x02u) &&
+         !col1_save_ext_find(&back, COLONIZE_COL1_EXT_TAG_COLONY_OVERFLOW, NULL, NULL);
+  }
+  if (!ok) {
+    fprintf(stderr, "colony overflow: round trip failed (%s)\n", err);
+  }
+  free(data);
+  col1_save_free(&back);
+  col1_save_free(&save);
+  return ok;
+}
+
 static bool test_port_ext(char* err, size_t err_size) {
   ColonizeCol1Save save;
   if (!build_synthetic(&save, err, err_size)) {
@@ -2325,6 +2381,12 @@ static bool test_imported_tile_chain_order(char* err, size_t err_size) {
   return true;
 }
 
+/*
+ * Every ColonizeUnitPool (~0.8 MB) and EuropeScreen (~0.9 MB) below is static:
+ * an unoptimised build gives each block-scoped local its own slot, and main
+ * holds dozens of them (45 MB, past the default 8 MB stack). Each one is
+ * memset before use, so static storage changes nothing in a loop body either.
+ */
 int main(void) {
   {
     const int gate = tr_single_flow_gate("col1_save");
@@ -2342,6 +2404,9 @@ int main(void) {
   fprintf(stderr, "col1 layout sizes ok\n");
 
   if (!test_port_ext(err, sizeof(err))) {
+    return 1;
+  }
+  if (!test_colony_overflow(err, sizeof(err))) {
     return 1;
   }
   if (!test_unit_overflow(err, sizeof(err))) {
@@ -2622,7 +2687,7 @@ int main(void) {
 
     ColonizeWorldMap map;
     memset(&map, 0, sizeof(map));
-    ColonizeUnitPool units;
+    static ColonizeUnitPool units;
     memset(&units, 0, sizeof(units));
     units_reset(&units);
     units_set_occupancy_map(NULL);
@@ -2637,7 +2702,7 @@ int main(void) {
     ColonizeColonyPool colonies;
     colonies_init(&colonies);
     colonies_set_occupancy_map(NULL);
-    EuropeScreen europe;
+    static EuropeScreen europe;
     memset(&europe, 0, sizeof(europe));
     europe.cargo_count = 16;
     ColonizeCol1BridgeResult br;
@@ -2763,7 +2828,7 @@ int main(void) {
       }
       ColonizeWorldMap map2;
       memset(&map2, 0, sizeof(map2));
-      ColonizeUnitPool units2;
+      static ColonizeUnitPool units2;
       memset(&units2, 0, sizeof(units2));
       units_reset(&units2);
       units_set_occupancy_map(NULL);
@@ -2772,7 +2837,7 @@ int main(void) {
       ColonizeColonyPool colonies2;
       colonies_init(&colonies2);
       colonies_set_occupancy_map(NULL);
-      EuropeScreen europe2;
+      static EuropeScreen europe2;
       memset(&europe2, 0, sizeof(europe2));
       europe2.cargo_count = 16;
       ColonizeCol1BridgeResult br2;
@@ -2914,7 +2979,7 @@ int main(void) {
         }
         ColonizeWorldMap map3;
         memset(&map3, 0, sizeof(map3));
-        ColonizeUnitPool units3;
+        static ColonizeUnitPool units3;
         memset(&units3, 0, sizeof(units3));
         units_reset(&units3);
         units_set_occupancy_map(NULL);
@@ -2923,7 +2988,7 @@ int main(void) {
         ColonizeColonyPool colonies3;
         colonies_init(&colonies3);
         colonies_set_occupancy_map(NULL);
-        EuropeScreen europe3;
+        static EuropeScreen europe3;
         memset(&europe3, 0, sizeof(europe3));
         europe3.cargo_count = 16;
         ColonizeCol1BridgeResult br3;
@@ -3087,7 +3152,7 @@ int main(void) {
       assets_msg_free(&names);
       return 1;
     }
-    ColonizeUnitPool units;
+    static ColonizeUnitPool units;
     memset(&units, 0, sizeof(units));
     units_reset(&units);
     units_set_occupancy_map(NULL);
@@ -3097,7 +3162,7 @@ int main(void) {
       assets_msg_free(&names);
       return 1;
     }
-    EuropeScreen europe;
+    static EuropeScreen europe;
     memset(&europe, 0, sizeof(europe));
     europe.cargo_count = 16;
     if (!col1_bridge_capture_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&units), .colonies=(ColonizeColonyPool*)(&colonies), .map=(ColonizeWorldMap*)(&map), .col1=(ColonizeCol1Save*)(&save), .col1_ok=true, .europe=(EuropeScreen*)(&europe)}, 1492, 0, 1, 0, fx, fy, fx, fy, -1, true, err, sizeof(err))) {
@@ -3150,12 +3215,12 @@ int main(void) {
       colonies_set_occupancy_map(NULL);
       colonies_load_buildings(&pool2, &names);
       colonies_load_names(&pool2, "COLONIZE/COLONY.TXT");
-      ColonizeUnitPool units2;
+      static ColonizeUnitPool units2;
       memset(&units2, 0, sizeof(units2));
       units_reset(&units2);
       units_set_occupancy_map(NULL);
       units_load_types(&units2, &names);
-      EuropeScreen europe2;
+      static EuropeScreen europe2;
       memset(&europe2, 0, sizeof(europe2));
       europe2.cargo_count = 16;
       ColonizeCol1BridgeResult br2;
@@ -3190,7 +3255,7 @@ int main(void) {
     }
     ColonizeWorldMap map2;
     memset(&map2, 0, sizeof(map2));
-    ColonizeUnitPool units2;
+    static ColonizeUnitPool units2;
     memset(&units2, 0, sizeof(units2));
     units_reset(&units2);
     units_set_occupancy_map(NULL);
@@ -3201,7 +3266,7 @@ int main(void) {
       assets_msg_free(&names);
       return 1;
     }
-    EuropeScreen europe2;
+    static EuropeScreen europe2;
     memset(&europe2, 0, sizeof(europe2));
     europe2.cargo_count = 16;
     ColonizeCol1BridgeResult br;
@@ -3266,7 +3331,7 @@ int main(void) {
     }
     ColonizeWorldMap map;
     memset(&map, 0, sizeof(map));
-    ColonizeUnitPool units;
+    static ColonizeUnitPool units;
     memset(&units, 0, sizeof(units));
     units_reset(&units);
     units_set_occupancy_map(NULL);
@@ -3281,7 +3346,7 @@ int main(void) {
     ColonizeColonyPool colonies;
     colonies_init(&colonies);
     colonies_set_occupancy_map(NULL);
-    EuropeScreen europe;
+    static EuropeScreen europe;
     memset(&europe, 0, sizeof(europe));
     europe.cargo_count = 16;
     ColonizeCol1BridgeResult br;
@@ -3345,6 +3410,7 @@ int main(void) {
       }
     }
     ColonizeCol1Save save;
+    col1_save_init(&save); /* template init frees first */
     if (!col1_bridge_init_template(&save, map.width, map.height, err, sizeof(err))) {
       fprintf(stderr, "newgame export: template: %s\n", err);
       map_free(&map);
@@ -3379,7 +3445,7 @@ int main(void) {
       free(save.tribe);
       save.tribe = neu;
     }
-    ColonizeUnitPool units;
+    static ColonizeUnitPool units;
     memset(&units, 0, sizeof(units));
     units_reset(&units);
     units_set_occupancy_map(NULL);
@@ -3415,7 +3481,7 @@ int main(void) {
     ColonizeColonyPool colonies;
     colonies_init(&colonies);
     colonies_set_occupancy_map(NULL);
-    EuropeScreen europe;
+    static EuropeScreen europe;
     memset(&europe, 0, sizeof(europe));
     europe.cargo_count = 16;
     if (!col1_bridge_capture_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&units), .colonies=(ColonizeColonyPool*)(&colonies), .map=(ColonizeWorldMap*)(&map), .col1=(ColonizeCol1Save*)(&save), .col1_ok=true, .europe=(EuropeScreen*)(&europe)}, 1492, 0, 1, 0, 10, 12, 10, 12, uid, uid < 0, err, sizeof(err))) {
@@ -3812,13 +3878,14 @@ int main(void) {
     /* One land tile at (20,20). */
     map.terrain[20 * (int)map.width + 20] = 1;
     ColonizeCol1Save save;
+    col1_save_init(&save); /* template init frees first */
     if (!col1_bridge_init_template(&save, map.width, map.height, err, sizeof(err))) {
       fprintf(stderr, "dock-garrison: template: %s\n", err);
       map_free(&map);
       assets_msg_free(&names);
       return 1;
     }
-    ColonizeUnitPool units;
+    static ColonizeUnitPool units;
     memset(&units, 0, sizeof(units));
     units_reset(&units);
     units_set_occupancy_map(NULL);
@@ -3860,7 +3927,7 @@ int main(void) {
     ColonizeColonyPool colonies;
     colonies_init(&colonies);
     colonies_set_occupancy_map(NULL);
-    EuropeScreen europe;
+    static EuropeScreen europe;
     memset(&europe, 0, sizeof(europe));
     europe.cargo_count = 16;
     if (!col1_bridge_capture_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&units), .colonies=(ColonizeColonyPool*)(&colonies), .map=(ColonizeWorldMap*)(&map), .col1=(ColonizeCol1Save*)(&save), .col1_ok=true, .europe=(EuropeScreen*)(&europe)}, 1492, 0, 1, 0, 20, 20, 20, 20, ship_id, ship_id < 0, err, sizeof(err))) {
@@ -4213,7 +4280,7 @@ int main(void) {
     }
     ColonizeWorldMap map;
     memset(&map, 0, sizeof(map));
-    ColonizeUnitPool units;
+    static ColonizeUnitPool units;
     memset(&units, 0, sizeof(units));
     units_reset(&units);
     units_set_occupancy_map(NULL);
@@ -4228,7 +4295,7 @@ int main(void) {
     ColonizeColonyPool colonies;
     colonies_init(&colonies);
     colonies_set_occupancy_map(NULL);
-    EuropeScreen europe;
+    static EuropeScreen europe;
     memset(&europe, 0, sizeof(europe));
     europe.cargo_count = 16;
     ColonizeCol1BridgeResult br;
@@ -4281,12 +4348,14 @@ int main(void) {
    */
   {
     ColonizeWorldMap map;
+    memset(&map, 0, sizeof(map)); /* map_alloc frees first */
     char err[256];
     if (!map_alloc(&map, 32, 32, err, sizeof(err))) {
       fprintf(stderr, "brewster on load: map_alloc: %s\n", err);
       return 1;
     }
     ColonizeCol1Save save;
+    col1_save_init(&save); /* template init frees first */
     if (!col1_bridge_init_template(&save, map.width, map.height, err, sizeof(err))) {
       fprintf(stderr, "brewster on load: template: %s\n", err);
       map_free(&map);
@@ -4299,14 +4368,14 @@ int main(void) {
     save.nation[hn].founding_fathers[FF_WILLIAM_BREWSTER / 8] |=
       (uint8_t)(1u << (FF_WILLIAM_BREWSTER % 8));
 
-    ColonizeUnitPool units;
+    static ColonizeUnitPool units;
     memset(&units, 0, sizeof(units));
     units_reset(&units);
     units_set_occupancy_map(NULL);
     ColonizeColonyPool colonies;
     colonies_init(&colonies);
     colonies_set_occupancy_map(NULL);
-    EuropeScreen europe;
+    static EuropeScreen europe;
     memset(&europe, 0, sizeof(europe));
     europe.cargo_count = 16;
     ColonizeCol1BridgeResult br;
@@ -4344,12 +4413,14 @@ int main(void) {
    */
   {
     ColonizeWorldMap map;
+    memset(&map, 0, sizeof(map)); /* map_alloc frees first */
     char err[256];
     if (!map_alloc(&map, 32, 32, err, sizeof(err))) {
       fprintf(stderr, "recruit_count roundtrip: map_alloc: %s\n", err);
       return 1;
     }
     ColonizeCol1Save save;
+    col1_save_init(&save); /* template init frees first */
     if (!col1_bridge_init_template(&save, map.width, map.height, err, sizeof(err))) {
       fprintf(stderr, "recruit_count roundtrip: template: %s\n", err);
       map_free(&map);
@@ -4360,14 +4431,14 @@ int main(void) {
     save.nation[save.head.human_player & 3].current_crosses = 0;
     save.nation[save.head.human_player & 3].needed_crosses = 9;
 
-    ColonizeUnitPool units;
+    static ColonizeUnitPool units;
     memset(&units, 0, sizeof(units));
     units_reset(&units);
     units_set_occupancy_map(NULL);
     ColonizeColonyPool colonies;
     colonies_init(&colonies);
     colonies_set_occupancy_map(NULL);
-    EuropeScreen europe;
+    static EuropeScreen europe;
     memset(&europe, 0, sizeof(europe));
     europe.cargo_count = 16;
     ColonizeCol1BridgeResult br;
@@ -4438,6 +4509,7 @@ int main(void) {
       map.terrain[i] = 1; /* land */
     }
     ColonizeCol1Save save;
+    col1_save_init(&save); /* template init frees first */
     if (!col1_bridge_init_template(&save, map.width, map.height, err, sizeof(err))) {
       fprintf(stderr, "trade-route cursor: template: %s\n", err);
       map_free(&map);
@@ -4452,7 +4524,7 @@ int main(void) {
     save.trade_route[2].stop[0].colony_index = 0;
     save.trade_route[2].stop[1].colony_index = 1;
 
-    ColonizeUnitPool units;
+    static ColonizeUnitPool units;
     memset(&units, 0, sizeof(units));
     units_reset(&units);
     units_set_occupancy_map(NULL);
@@ -4495,7 +4567,7 @@ int main(void) {
     ColonizeColonyPool colonies;
     colonies_init(&colonies);
     colonies_set_occupancy_map(NULL);
-    EuropeScreen europe;
+    static EuropeScreen europe;
     memset(&europe, 0, sizeof(europe));
     europe.cargo_count = 16;
     if (!col1_bridge_capture_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&units), .colonies=(ColonizeColonyPool*)(&colonies), .map=(ColonizeWorldMap*)(&map), .col1=(ColonizeCol1Save*)(&save), .col1_ok=true, .europe=(EuropeScreen*)(&europe)}, 1492, 0, 1, 0, 20, 20, 20, 20, wagon, wagon < 0, err, sizeof(err))) {
@@ -4525,7 +4597,7 @@ int main(void) {
       }
     }
 
-    ColonizeUnitPool units2;
+    static ColonizeUnitPool units2;
     memset(&units2, 0, sizeof(units2));
     units_reset(&units2);
     units_set_occupancy_map(NULL);
@@ -4540,7 +4612,7 @@ int main(void) {
     ColonizeColonyPool colonies2;
     colonies_init(&colonies2);
     colonies_set_occupancy_map(NULL);
-    EuropeScreen europe2;
+    static EuropeScreen europe2;
     memset(&europe2, 0, sizeof(europe2));
     europe2.cargo_count = 16;
     ColonizeWorldMap map2;
@@ -4632,13 +4704,14 @@ int main(void) {
       map.terrain[i] = 1; /* land */
     }
     ColonizeCol1Save save;
+    col1_save_init(&save); /* template init frees first */
     if (!col1_bridge_init_template(&save, map.width, map.height, err, sizeof(err))) {
       fprintf(stderr, "stale hold: template: %s\n", err);
       map_free(&map);
       assets_msg_free(&names);
       return 1;
     }
-    ColonizeUnitPool units;
+    static ColonizeUnitPool units;
     memset(&units, 0, sizeof(units));
     units_reset(&units);
     units_set_occupancy_map(NULL);
@@ -4670,7 +4743,7 @@ int main(void) {
     ColonizeColonyPool colonies;
     colonies_init(&colonies);
     colonies_set_occupancy_map(NULL);
-    EuropeScreen europe;
+    static EuropeScreen europe;
     memset(&europe, 0, sizeof(europe));
     europe.cargo_count = 16;
     const ColonizeWorld w_out = {.units=(ColonizeUnitPool*)(&units), .colonies=(ColonizeColonyPool*)(&colonies), .map=(ColonizeWorldMap*)(&map), .col1=(ColonizeCol1Save*)(&save), .col1_ok=true, .europe=(EuropeScreen*)(&europe)};
@@ -4685,7 +4758,7 @@ int main(void) {
 
     /* Round-trip through apply so the wagon carries the raw +0x0c..+0x15
      * block the capture side restores. */
-    ColonizeUnitPool units2;
+    static ColonizeUnitPool units2;
     memset(&units2, 0, sizeof(units2));
     units_reset(&units2);
     units_set_occupancy_map(NULL);
@@ -4699,7 +4772,7 @@ int main(void) {
     ColonizeColonyPool colonies2;
     colonies_init(&colonies2);
     colonies_set_occupancy_map(NULL);
-    EuropeScreen europe2;
+    static EuropeScreen europe2;
     memset(&europe2, 0, sizeof(europe2));
     europe2.cargo_count = 16;
     ColonizeWorldMap map2;
@@ -4800,6 +4873,7 @@ int main(void) {
       map.terrain[i] = 1; /* land */
     }
     ColonizeCol1Save save;
+    col1_save_init(&save); /* template init frees first */
     if (!col1_bridge_init_template(&save, map.width, map.height, err, sizeof(err))) {
       fprintf(stderr, "decoder bounds: template: %s\n", err);
       map_free(&map);
@@ -4815,7 +4889,7 @@ int main(void) {
     save.trade_route[0].stop[0].colony_index = 0;
     save.trade_route[0].stop[1].colony_index = 1;
 
-    ColonizeUnitPool units;
+    static ColonizeUnitPool units;
     memset(&units, 0, sizeof(units));
     units_reset(&units);
     units_set_occupancy_map(NULL);
@@ -4871,7 +4945,7 @@ int main(void) {
     ColonizeColonyPool colonies;
     colonies_init(&colonies);
     colonies_set_occupancy_map(NULL);
-    EuropeScreen europe;
+    static EuropeScreen europe;
     memset(&europe, 0, sizeof(europe));
     europe.cargo_count = 16;
     if (!col1_bridge_capture_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&units), .colonies=(ColonizeColonyPool*)(&colonies), .map=(ColonizeWorldMap*)(&map), .col1=(ColonizeCol1Save*)(&save), .col1_ok=true, .europe=(EuropeScreen*)(&europe)}, 1492, 0, 1, 0, 20, 20, 20, 20, -1, true, err, sizeof(err))) {
@@ -4942,7 +5016,7 @@ int main(void) {
       return 1;
     }
 
-    ColonizeUnitPool units2;
+    static ColonizeUnitPool units2;
     memset(&units2, 0, sizeof(units2));
     units_reset(&units2);
     units_set_occupancy_map(NULL);
@@ -4956,7 +5030,7 @@ int main(void) {
     ColonizeColonyPool colonies2;
     colonies_init(&colonies2);
     colonies_set_occupancy_map(NULL);
-    EuropeScreen europe2;
+    static EuropeScreen europe2;
     memset(&europe2, 0, sizeof(europe2));
     europe2.cargo_count = 16;
     ColonizeWorldMap map2;
@@ -5043,7 +5117,7 @@ int main(void) {
       fprintf(stderr, "passenger no-profession: NAMES.TXT load failed\n");
       return 1;
     }
-    ColonizeUnitPool units;
+    static ColonizeUnitPool units;
     memset(&units, 0, sizeof(units));
     units_reset(&units);
     units_set_occupancy_map(NULL);
@@ -5074,7 +5148,7 @@ int main(void) {
     for (size_t i = 0; i < map.tile_count; ++i) {
       map.terrain[i] = 1; /* land */
     }
-    EuropeScreen europe;
+    static EuropeScreen europe;
     memset(&europe, 0, sizeof(europe));
     europe.cargo_count = 16;
     europe.harbor_ships = 1;
@@ -5086,6 +5160,7 @@ int main(void) {
     hs->cargo_professions[0] = -1; /* unset -- default from europe.c */
     hs->cargo_treasure_gold[0] = 0;
     ColonizeCol1Save save;
+    col1_save_init(&save); /* template init frees first */
     if (!col1_bridge_init_template(&save, map.width, map.height, err, sizeof(err))) {
       fprintf(stderr, "passenger no-profession: template: %s\n", err);
       units_set_occupancy_map(NULL);
@@ -5159,6 +5234,7 @@ int main(void) {
       return 1;
     }
     ColonizeCol1Save save;
+    col1_save_init(&save); /* template init frees first */
     if (!col1_bridge_init_template(
           &save, COLONIZE_COL1_MAP_W_STD, COLONIZE_COL1_MAP_H_STD, err, sizeof(err)
         )) {
@@ -5201,7 +5277,7 @@ int main(void) {
         assets_msg_free(&names);
         return 1;
       }
-      ColonizeUnitPool units;
+      static ColonizeUnitPool units;
       memset(&units, 0, sizeof(units));
       units_reset(&units);
       units_set_occupancy_map(NULL);
@@ -5216,7 +5292,7 @@ int main(void) {
       ColonizeColonyPool colonies;
       colonies_init(&colonies);
       colonies_set_occupancy_map(NULL);
-      EuropeScreen europe;
+      static EuropeScreen europe;
       memset(&europe, 0, sizeof(europe));
       europe.cargo_count = 16;
       ColonizeCol1BridgeResult br;
@@ -5286,7 +5362,7 @@ int main(void) {
     for (size_t i = 0; i < map.tile_count; ++i) {
       map.terrain[i] = 1;
     }
-    ColonizeUnitPool units;
+    static ColonizeUnitPool units;
     memset(&units, 0, sizeof(units));
     units_reset(&units);
     units_set_occupancy_map(NULL);
@@ -5301,6 +5377,7 @@ int main(void) {
     colonies_set_occupancy_map(NULL);
     EuropeScreen* eu = (EuropeScreen*)calloc(2, sizeof(EuropeScreen));
     ColonizeCol1Save save;
+    col1_save_init(&save); /* template init frees first */
     int rc = 0;
     if (!eu || !col1_bridge_init_template(&save, map.width, map.height, err, sizeof(err))) {
       fprintf(stderr, "docked exit: template/oom\n");
@@ -5448,6 +5525,7 @@ int main(void) {
       map.terrain[i] = 1; /* land */
     }
     ColonizeCol1Save save;
+    col1_save_init(&save); /* template init frees first */
     if (!col1_bridge_init_template(&save, map.width, map.height, err, sizeof(err))) {
       fprintf(stderr, "wagon errand latch: template: %s\n", err);
       map_free(&map);
@@ -5455,7 +5533,7 @@ int main(void) {
       return 1;
     }
 
-    ColonizeUnitPool units;
+    static ColonizeUnitPool units;
     memset(&units, 0, sizeof(units));
     units_reset(&units);
     units_set_occupancy_map(NULL);
@@ -5507,7 +5585,7 @@ int main(void) {
     ColonizeColonyPool colonies;
     colonies_init(&colonies);
     colonies_set_occupancy_map(NULL);
-    EuropeScreen europe;
+    static EuropeScreen europe;
     memset(&europe, 0, sizeof(europe));
     europe.cargo_count = 16;
     if (!col1_bridge_capture_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&units), .colonies=(ColonizeColonyPool*)(&colonies), .map=(ColonizeWorldMap*)(&map), .col1=(ColonizeCol1Save*)(&save), .col1_ok=true, .europe=(EuropeScreen*)(&europe)}, 1492, 0, 1, 0, 20, 20, 20, 20, -1, true, err, sizeof(err))) {
@@ -5552,7 +5630,7 @@ int main(void) {
     ai_euro_wagon_errand_set(errand, 0);
     ai_euro_wagon_errand_set(plain, 1);
 
-    ColonizeUnitPool units2;
+    static ColonizeUnitPool units2;
     memset(&units2, 0, sizeof(units2));
     units_reset(&units2);
     units_set_occupancy_map(NULL);
@@ -5566,7 +5644,7 @@ int main(void) {
     ColonizeColonyPool colonies2;
     colonies_init(&colonies2);
     colonies_set_occupancy_map(NULL);
-    EuropeScreen europe2;
+    static EuropeScreen europe2;
     memset(&europe2, 0, sizeof(europe2));
     europe2.cargo_count = 16;
     ColonizeWorldMap map2;
@@ -5664,6 +5742,7 @@ int main(void) {
       map.terrain[i] = 1; /* land */
     }
     ColonizeCol1Save save;
+    col1_save_init(&save); /* template init frees first */
     if (!col1_bridge_init_template(&save, map.width, map.height, err, sizeof(err))) {
       fprintf(stderr, "moves_spent export: template: %s\n", err);
       map_free(&map);
@@ -5671,7 +5750,7 @@ int main(void) {
       return 1;
     }
 
-    ColonizeUnitPool units;
+    static ColonizeUnitPool units;
     memset(&units, 0, sizeof(units));
     units_reset(&units);
     units_set_occupancy_map(NULL);
@@ -5747,7 +5826,7 @@ int main(void) {
     ColonizeColonyPool colonies;
     colonies_init(&colonies);
     colonies_set_occupancy_map(NULL);
-    EuropeScreen europe;
+    static EuropeScreen europe;
     memset(&europe, 0, sizeof(europe));
     europe.cargo_count = 16;
     if (!col1_bridge_capture_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&units), .colonies=(ColonizeColonyPool*)(&colonies), .map=(ColonizeWorldMap*)(&map), .col1=(ColonizeCol1Save*)(&save), .col1_ok=true, .europe=(EuropeScreen*)(&europe)}, 1492, 0, 1, 0, 30, 20, 30, 20, -1, true, err, sizeof(err))) {
@@ -5788,7 +5867,7 @@ int main(void) {
     }
 
     /* Reload: the exhausted units must come back exhausted, not refunded. */
-    ColonizeUnitPool units2;
+    static ColonizeUnitPool units2;
     memset(&units2, 0, sizeof(units2));
     units_reset(&units2);
     units_set_occupancy_map(NULL);
@@ -5802,7 +5881,7 @@ int main(void) {
     ColonizeColonyPool colonies2;
     colonies_init(&colonies2);
     colonies_set_occupancy_map(NULL);
-    EuropeScreen europe2;
+    static EuropeScreen europe2;
     memset(&europe2, 0, sizeof(europe2));
     europe2.cargo_count = 16;
     ColonizeWorldMap map2;
@@ -5922,7 +6001,7 @@ int main(void) {
 
     ColonizeWorldMap map;
     memset(&map, 0, sizeof(map));
-    ColonizeUnitPool units;
+    static ColonizeUnitPool units;
     memset(&units, 0, sizeof(units));
     units_reset(&units);
     units_set_occupancy_map(NULL);
@@ -5941,7 +6020,7 @@ int main(void) {
       assets_msg_free(&names);
       return 1;
     }
-    EuropeScreen europe;
+    static EuropeScreen europe;
     memset(&europe, 0, sizeof(europe));
     europe.cargo_count = 16;
     ColonizeCol1BridgeResult br;
@@ -6260,7 +6339,7 @@ head_stamp_fail:
     }
     ColonizeWorldMap map;
     memset(&map, 0, sizeof(map));
-    ColonizeUnitPool units;
+    static ColonizeUnitPool units;
     memset(&units, 0, sizeof(units));
     units_reset(&units);
     units_set_occupancy_map(NULL);
@@ -6273,7 +6352,7 @@ head_stamp_fail:
     ColonizeColonyPool colonies;
     colonies_init(&colonies);
     colonies_set_occupancy_map(NULL);
-    EuropeScreen europe;
+    static EuropeScreen europe;
     memset(&europe, 0, sizeof(europe));
     europe.cargo_count = 16;
     ColonizeCol1BridgeResult br;

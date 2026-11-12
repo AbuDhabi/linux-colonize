@@ -222,6 +222,16 @@ void colonies_reveal_founded_w(
 
 
 /* ===================== Pool init & building/name catalog loading (colonies_init .. colonies_building_type) ===================== */
+static bool s_unlimited;
+
+void colonies_set_unlimited(bool on) {
+  s_unlimited = on;
+}
+
+int colonies_cap(void) {
+  return s_unlimited ? COLONIZE_COLONIES_MAX : COLONIZE_COLONIES_DOS_MAX;
+}
+
 void colonies_init(ColonizeColonyPool* pool) {
   if (!pool) {
     return;
@@ -1444,7 +1454,7 @@ int colonies_found(
   if (!colonies_can_found(pool, map, x, y)) {
     return -1;
   }
-  if (pool->colony_count >= COLONIZE_COLONIES_MAX) {
+  if (pool->colony_count >= colonies_cap()) {
     diag_warn("Colony pool full");
     return -1;
   }

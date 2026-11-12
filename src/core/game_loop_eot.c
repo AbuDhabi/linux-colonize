@@ -1267,9 +1267,9 @@ int game_trade_route_aim_stop(ColonizeGameState* game, ColonizeUnit* u, int stop
 }
 
 /*
- * Colony-stop service with the owner's DS:0x84bc sell-price row and boycott
- * word (FUN_479b_0bd0 raw 77256-77316). Europe stops are serviced in the
- * harbor (game_europe_service_trade_harbor). The caller has checked that the
+ * Colony-stop service with the owner's DS:0x84bc sell-price row
+ * (FUN_479b_0bd0 raw 77256-77316; no boycott gate, docs/dos_bugs.md DB-106).
+ * Europe stops are serviced in the harbor (game_europe_service_trade_harbor). The caller has checked that the
  * unit stands on the colony tile (FUN_479b_0b84).
  */
 static void game_trade_route_service_stop(
@@ -1281,15 +1281,11 @@ static void game_trade_route_service_stop(
   const int nation = u->nation_id;
   const EuropeScreen* eu = game->europe_ok ? &game->europe : NULL;
   int price[COLONIZE_CARGO_COUNT];
-  uint16_t boycott = 0;
   for (int c = 0; c < COLONIZE_CARGO_COUNT; ++c) {
     price[c] = europe_nation_sell_price(eu, &game->col1, nation, c);
-    if (europe_cargo_boycotted_ex(eu, &game->col1, nation, c)) {
-      boycott |= (uint16_t)(1u << c);
-    }
   }
   (void)colonies_trade_route_service_stop(
-    &game->colonies, colony_id, &game->units, u->id, st, price, boycott
+    &game->colonies, colony_id, &game->units, u->id, st, price
   );
 }
 
@@ -1541,8 +1537,9 @@ void game_europe_service_trade_harbor(ColonizeGameState* game) {
       ship->exit_east = europe_exit_east_of(&game->world_map, nc->x);
     }
     const int bound_before = eu->bound_ships;
-    /* The route leg sails with orders 2, so FUN_1427_10be boards nobody
-     * (raw 8630-8632; europe_set_sail_from_harbor_ex). */
+    /* The route leg sails with orders 2, so DOS FUN_1427_10be boards nobody
+     * (raw 8630-8632); the port boards sentried dockers unless
+     * dos_buggy_behavior() (DB-104, europe_set_sail_from_harbor_ex). */
     if (!europe_set_sail_from_harbor_ex(
           eu, i, game_voyage_turns(game, ship->exit_x), &game->units, game->human_nation, false
         )) {

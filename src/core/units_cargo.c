@@ -779,8 +779,10 @@ int units_ship_departure_pickup(
    * settlement tile (FUN_137f_03e4 >= 0) keeps budget 0, so it takes no one
    * and its own riders stay ashore. Not ported: the at-sea arm (the
    * FUN_1427_101c pre-pass, where other hulls pick first; the port has no
-   * tile chain to replay). */
-  if (ship->orders == UNITS_ORDER_TRADE_ROUTE && map && map_tile_has_city(map, x, y)) {
+   * tile chain to replay). DB-104: fixed under !dos_buggy_behavior(), the
+   * route hull boards like any other. */
+  if (dos_buggy_behavior() && ship->orders == UNITS_ORDER_TRADE_ROUTE && map &&
+      map_tile_has_city(map, x, y)) {
     room = 0;
   }
   int chosen[COLONIZE_UNIT_CARGO_MAX];

@@ -675,8 +675,9 @@ static int case_map_confirm_second_refused(void) {
 }
 
 /* OS window close asks the @DOSYES confirm first: No keeps playing, Yes quits, a
- * second close while it is up quits. A report is left first; over a player popup
- * the close is remembered and asks once that popup is answered. */
+ * second close while it is up quits. A report is left first; a player popup goes
+ * back behind the confirm; over another modal the close is remembered and asks
+ * once that modal is gone. */
 static int case_os_quit_asks_first(void) {
   ColonizeGameState* game = calloc(1, sizeof(*game));
   if (!game) {
@@ -735,23 +736,39 @@ static int case_os_quit_asks_first(void) {
     game->map_confirm = GAME_MAP_CONFIRM_NONE;
   }
   if (rc == 0) {
-    /* The player's own popup stays up; the confirm follows its answer. */
+    /* An unanswered popup (the SAVEGOOD notice) yields to the confirm; No brings it back. */
     if (!ai_popup_enqueue_ok(&game->ai_popups, AI_POPUP_TAG_INFO, NULL, "x") ||
         !ai_popup_try_present_next(&game->ai_popups)) {
       rc = fail("present a player popup");
     } else if (game_request_quit(game) || !game->ai_popups.open ||
-               game->ai_popups.current.tag != AI_POPUP_TAG_INFO ||
-               game->map_confirm != GAME_MAP_CONFIRM_NONE || !game->quit_ask_pending) {
-      rc = fail("OS quit over a popup must keep it open and remember the close");
-    } else if (!game_request_quit(game) || !game->ai_popups.open) {
+               game->ai_popups.current.tag != AI_POPUP_TAG_MAP_CONFIRM ||
+               game->map_confirm != GAME_MAP_CONFIRM_QUIT || game->quit_ask_pending) {
+      rc = fail("OS quit over a popup must show the confirm at once");
+    } else {
+      ai_popup_cancel_current(&game->ai_popups); /* No */
+      game_apply_ai_popup_result(game);
+      if (game->elapsed_ms == UINT32_MAX || !ai_popup_try_present_next(&game->ai_popups) ||
+          game->ai_popups.current.tag != AI_POPUP_TAG_INFO) {
+        rc = fail("No must bring the popup back");
+      }
+    }
+    ai_popup_clear(&game->ai_popups);
+    game->map_confirm = GAME_MAP_CONFIRM_NONE;
+  }
+  if (rc == 0) {
+    /* Another modal stays up; the close is remembered and asks once it is gone. */
+    game->save_load.open = true;
+    if (game_request_quit(game) || game->map_confirm != GAME_MAP_CONFIRM_NONE ||
+        !game->quit_ask_pending) {
+      rc = fail("OS quit over a modal must remember the close");
+    } else if (!game_request_quit(game)) {
       rc = fail("second OS quit while a close is remembered must quit");
     } else {
-      ai_popup_handle_input(&game->ai_popups, &enter);
-      game_apply_ai_popup_result(game);
+      game->save_load.open = false;
       game_quit_ask_service(game);
       if (game->map_confirm != GAME_MAP_CONFIRM_QUIT || game->ai_popups.queue_count != 1 ||
           game->quit_ask_pending) {
-        rc = fail("the remembered close must ask once the popup is answered");
+        rc = fail("the remembered close must ask once the modal is gone");
       }
     }
   }
