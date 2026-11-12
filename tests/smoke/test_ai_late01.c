@@ -15,6 +15,7 @@
 #include "core/colony.h"
 #include "core/dos_rng.h"
 #include "core/europe.h"
+#include "core/europe_art.h"
 #include "core/map.h"
 #include "core/turn.h"
 #include "core/units_move.h"
@@ -96,6 +97,12 @@ static int run_late01_turn(ColonizeCol1Save* pre_snap) {
   EuropeScreen europe;
   memset(&europe, 0, sizeof(europe));
   europe.cargo_count = 16;
+  /* The @CARGO quotes the market tick reads, as golden_fixture.c loads them. */
+  if (!europe_load_tables(&europe, &names)) {
+    assets_msg_free(&names);
+    col1_save_free(&late);
+    return fail("europe_load_tables");
+  }
   ColonizeCol1BridgeResult br;
   if (!col1_bridge_apply_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&units), .colonies=(ColonizeColonyPool*)(&colonies), .map=(ColonizeWorldMap*)(&map), .col1=(ColonizeCol1Save*)(&late), .col1_ok=true, .europe=(EuropeScreen*)(&europe)}, &br, err, sizeof(err))) {
     fprintf(stderr, "bridge apply LATE01: %s\n", err);
