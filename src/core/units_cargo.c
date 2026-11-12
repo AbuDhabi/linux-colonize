@@ -877,8 +877,21 @@ int units_ship_departure_pickup(
     room -= need;
     chosen[nc++] = u->id;
   }
+  /* Riders this walk takes off other hulls leave them first, so the hand-off
+   * below sees those hulls' real room. */
+  bool moved[COLONIZE_UNIT_CARGO_MAX] = {false};
+  for (int k = 0; k < nc; ++k) {
+    ColonizeUnit* u = units_get(pool, chosen[k]);
+    if (u->aboard_ship_id >= 0 && u->aboard_ship_id != ship_id) {
+      ColonizeUnit* host = units_get(pool, u->aboard_ship_id);
+      moved[k] = host && units_remove_from_cargo(host, u->id);
+      if (!moved[k]) {
+        chosen[k] = -1;
+      }
+    }
+  }
   /* Own riders the walk left behind wait for the next hull on the tile
-   * (its own 10be takes them), or stand on a land tile. */
+   * (its own 10be takes them) if it has room for them, or stand on the tile. */
   for (int c = ship->cargo_count - 1; c >= 0; --c) {
     const int pid = ship->cargo_ids[c];
     bool kept = false;
@@ -889,12 +902,15 @@ int units_ship_departure_pickup(
     if (kept || !pax) {
       continue;
     }
+    const ColonizeUnitType* pt = units_type(pool, pax->type_index);
+    const int need = (pt && pt->space > 0) ? pt->space : 1;
     ColonizeUnit* other = NULL;
     for (int i = 0; i < units_slot_end(pool) && !other; ++i) {
       ColonizeUnit* o = &pool->units[i];
       if (o->active && o->id != ship_id && o->aboard_ship_id < 0 && o->x == x && o->y == y &&
           o->nation_id == ship->nation_id && units_is_sea(pool, o->id) &&
-          o->cargo_count < COLONIZE_UNIT_CARGO_MAX) {
+          o->cargo_count < COLONIZE_UNIT_CARGO_MAX &&
+          units_ship_free_passenger_slots(pool, o->id) >= need) {
         other = o;
       }
     }
@@ -914,15 +930,11 @@ int units_ship_departure_pickup(
   }
   int taken = 0;
   for (int k = 0; k < nc; ++k) {
-    ColonizeUnit* u = units_get(pool, chosen[k]);
-    if (u->aboard_ship_id == ship_id) {
+    ColonizeUnit* u = chosen[k] >= 0 ? units_get(pool, chosen[k]) : NULL;
+    if (!u || u->aboard_ship_id == ship_id) {
       continue;
     }
-    if (u->aboard_ship_id >= 0) {
-      ColonizeUnit* host = units_get(pool, u->aboard_ship_id);
-      if (!host || !units_remove_from_cargo(host, u->id)) {
-        continue;
-      }
+    if (moved[k]) {
       u->aboard_ship_id = ship_id;
       u->x = ship->x;
       u->y = ship->y;

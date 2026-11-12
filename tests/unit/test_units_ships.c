@@ -1115,6 +1115,48 @@ static int unit_trade_route_sea_departure_pickup(void) {
   return rc;
 }
 
+/* DB-106 DOS mode: a departing hull's riders left behind go to another own
+ * hull on the tile only within that hull's room. Caravel A (2 aboard, full),
+ * Merchantman B (4) and C (4, top of the tile): B takes C's four, so its own
+ * four belong on C, not on the full Caravel. */
+static int unit_departure_leftovers_respect_capacity(void) {
+  ColonizeMsgCatalog names;
+  assets_msg_init(&names);
+  if (!assets_msg_load_file(&names, "COLONIZE/NAMES.TXT")) {
+    return TR_SKIP;
+  }
+  static ColonizeUnitPool pool;
+  memset(&pool, 0, sizeof(pool));
+  int rc = 1;
+  if (units_load_types(&pool, &names)) {
+    const int colonist = units_find_type(&pool, "Colonists");
+    const int merchant = units_find_type(&pool, "Merchantman");
+    const int a = units_spawn_allow_stack(&pool, units_find_type(&pool, "Caravel"), 5, 5);
+    const int b = units_spawn_allow_stack(&pool, merchant, 5, 5);
+    const int c = units_spawn_allow_stack(&pool, merchant, 5, 5);
+    const int load[3][2] = {{a, 2}, {b, 4}, {c, 4}};
+    for (int h = 0; h < 3; ++h) {
+      ColonizeUnit* host = units_get(&pool, load[h][0]);
+      for (int r = 0; r < load[h][1]; ++r) {
+        ColonizeUnit* pu = units_get(&pool, units_spawn_allow_stack(&pool, colonist, 5, 5));
+        pu->aboard_ship_id = host->id;
+        pu->orders = UNITS_ORDER_SENTRY;
+        host->cargo_ids[host->cargo_count++] = pu->id;
+      }
+    }
+    (void)units_ship_departure_pickup(&pool, NULL, b, 5, 5);
+    const int na = units_get(&pool, a)->cargo_count;
+    const int nb = units_get(&pool, b)->cargo_count;
+    const int nc = units_get(&pool, c)->cargo_count;
+    rc = (na == 2 && nb == 4 && nc == 4) ? 0 : 1;
+    if (rc) {
+      fprintf(stderr, "leftovers: A %d (cap 2), B %d, C %d; want 2/4/4\n", na, nb, nc);
+    }
+  }
+  assets_msg_free(&names);
+  return rc;
+}
+
 /* port_bugs.md #1330: FUN_5fef_0352 raw 99590 tests the Drydock bit only — a
  * colony holding a Shipyard without its Drydock bit is no repair port. */
 static int unit_repair_port_needs_drydock_bit(void) {
@@ -1372,6 +1414,7 @@ static const TestCase k_cases[] = {
   {"unit_hs_ring_skips_map_rim", unit_hs_ring_skips_map_rim},
   {"unit_tb2_departure_own_riders_only", unit_tb2_departure_own_riders_only},
   {"unit_trade_route_sea_departure_pickup", unit_trade_route_sea_departure_pickup},
+  {"unit_departure_leftovers_respect_capacity", unit_departure_leftovers_respect_capacity},
   {"unit_repair_port_needs_drydock_bit", unit_repair_port_needs_drydock_bit},
   {"unit_attacker_loss_stays_in_own_drydock", unit_attacker_loss_stays_in_own_drydock},
   {"unit_europe_sail_keeps_census", unit_europe_sail_keeps_census},
