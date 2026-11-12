@@ -1533,6 +1533,49 @@ static int unit_europe_lane_arrival_uses_hull_tile(void) {
 }
 
 /*
+ * docs/dos_bugs_ai.md DB-105: with no free High Seas tile anywhere, FUN_48d3_048e
+ * destroys the unit chain on the hull's saved tile and parks the hull there
+ * (raw 77884-77890). The port destroys nothing: the hull waits on its
+ * 224+n lane and is placed by the next tick that finds a tile.
+ */
+static int unit_europe_lane_arrival_no_tile_destroys_nothing(void) {
+  const int nation = 1;
+  Fixture f;
+  if (fixture_init(&f, nation) != 0) return 1;
+  const int hull_id = units_spawn_allow_stack(&f.units, 2, 224 + nation, 224 + nation);
+  const int bystander_id = units_spawn_allow_stack(&f.units, 1, 14, 4);
+  ColonizeUnit* hull = units_get(&f.units, hull_id);
+  ColonizeUnit* bystander = units_get(&f.units, bystander_id);
+  if (!hull || !bystander) {
+    fixture_free(&f);
+    return fail("no-tile arrival spawn");
+  }
+  hull->nation_id = nation;
+  bystander->nation_id = 2;
+  hull->goto_x = 14;
+  hull->goto_y = 4;
+  hull->col1_counter16 = 0;
+  ai_euro_europe_lane_tick(&f.ctx, nation);
+  const ColonizeUnit* still = units_get_const(&f.units, bystander_id);
+  int ok = still && still->active && still->x == 14 && still->y == 4 &&
+           hull->x == 224 + nation && hull->y == 224 + nation;
+  if (!ok) {
+    fprintf(stderr, "no-tile arrival: bystander %s, hull at (%d,%d)\n",
+            still && still->active ? "alive" : "destroyed", hull->x, hull->y);
+  }
+  if (ok) {
+    f.map.terrain[2 * 16 + 14] = 26;
+    ai_euro_europe_lane_tick(&f.ctx, nation);
+    ok = hull->x == 14 && hull->y == 2;
+    if (!ok) {
+      fprintf(stderr, "no-tile arrival retry: hull at (%d,%d), want (14,2)\n", hull->x, hull->y);
+    }
+  }
+  fixture_free(&f);
+  return ok ? 0 : fail("048e ring miss must keep the hull on its lane and destroy nothing");
+}
+
+/*
  * Hold-cargo colony-delivery matrix (raw 2047-2139): a Caravel holding TOOLS
  * with two own coastal colonies in reach. The near one already PRODUCES tools
  * (+0x90 cargo_produced_mask) and sits on 150 of them (> 99), so the raw
@@ -4855,6 +4898,8 @@ static const TestCase k_cases[] = {
     {"unit_berth_puts_unmarked_riders_ashore", unit_berth_puts_unmarked_riders_ashore},
     {"unit_berth_cower_leaves_riders_ashore", unit_berth_cower_leaves_riders_ashore},
     {"unit_europe_lane_arrival_uses_hull_tile", unit_europe_lane_arrival_uses_hull_tile},
+    {"unit_europe_lane_arrival_no_tile_destroys_nothing",
+     unit_europe_lane_arrival_no_tile_destroys_nothing},
     {"unit_europe_lane_arrivals_place_in_chain_order", unit_europe_lane_arrivals_place_in_chain_order},
     {"unit_europe_lane_hop_appends_at_chain_tail", unit_europe_lane_hop_appends_at_chain_tail},
     {"unit_europe_entry_rebuilds_load_from_bucket", unit_europe_entry_rebuilds_load_from_bucket},
