@@ -78,11 +78,16 @@ below it. So DOS stays silent when the blacksmiths ran the ore out and tools did
 grow while a gunsmith made muskets, and it nags whenever the two nets happen to be
 equal, even when tools did grow.
 
-**Port:** the @ORE arm in `turn_run_colony_production_w` (`src/core/turn_production.c`,
-Phase K table) tests `unmet[ore] != 0 && net(tools) == 0`, like the other six arms.
-Message chrome only: no stock, RNG or AI path reads it. Came from port_bugs.md #911.
+**Port:** the @ORE arm in `turn_produce_crumbs` (`src/core/turn_production.c`,
+Phase K table) tests `unmet[ore] != 0 && gross(tools) == 0`: the blacksmiths made no
+tools. For the other six arms net output equals gross, because nothing consumes their
+output. For tools it does not: an earlier `net(tools) == 0` test nagged every turn in
+a colony whose gunsmith ate every tool the blacksmiths made (playtest, Fort Orange
+2026-11-13), and stayed silent when the blacksmiths stood idle while the gunsmith
+drew down the stock. Message chrome only: no stock, RNG or AI path reads it. Came from
+port_bugs.md #911.
 [Tests](archive/dos_bugs_evidence_2026-10-23.md#db-6).
-**Status:** done (2026-10-21).
+**Status:** done (2026-10-21; gross test 2026-11-13).
 
 ### DB-7 — Denounce Heresy tests Cotton Planter instead of Jesuit
 **DOS:** Denounce Heresy (`thunk_FUN_1000_a594`, viceroy_overlays.asm 126507:

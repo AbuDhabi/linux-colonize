@@ -7212,9 +7212,9 @@ static int case_phase_k_build_advisory(void) {
 
   /*
    * @ORE arm, port_bugs.md #911 / docs/dos_bugs.md DB-6: `unmet[ore] != 0 &&
-   * 0b50(tools) == 0`, like every other arm (DOS compares net muskets with net
-   * tools instead). A gunsmith eating the blacksmith's idle stock: tools net
-   * negative, so no nag.
+   * gross(tools) == 0` (DOS compares net muskets with net tools instead). The
+   * blacksmith has no ore while a gunsmith eats the tool stock: tools net
+   * negative, but the blacksmith made nothing, so the port nags.
    */
   snprintf(pool.building_types[0].name, sizeof(pool.building_types[0].name), "Blacksmith's House");
   snprintf(pool.building_types[2].name, sizeof(pool.building_types[2].name), "Armory");
@@ -7235,16 +7235,16 @@ static int case_phase_k_build_advisory(void) {
     assets_msg_free(&game_txt);
     return 1;
   }
-  if (strstr(eu.status, "ore") != NULL) {
-    fprintf(stderr, "K ORE tools-falling want silence got '%s'\n", eu.status);
+  if (strstr(eu.status, "blacksmiths") == NULL) {
+    fprintf(stderr, "K ORE tools-falling want @ORE got '%s'\n", eu.status);
     assets_msg_free(&game_txt);
     return 1;
   }
   fprintf(stderr, "Phase K ORE tools-falling ok\n");
 
-  /* DB-6 discriminator: two blacksmiths run the ore out, the gunsmith eats
-   * exactly what they made (tools net 0, muskets +6). The port nags @ORE;
-   * DOS (net muskets != net tools) stays silent. */
+  /* DB-6: two blacksmiths run the ore out, the gunsmith eats exactly what
+   * they made (tools net 0, muskets +6). They still worked, so no @ORE
+   * (playtest: Fort Orange nagged every turn under a net-tools test). */
   col->colonists[1].building_type = 0;
   col->colonists[1].profession = COLONIZE_PROF_BLACKSMITH;
   col->colonists[2].active = true;
@@ -7267,8 +7267,8 @@ static int case_phase_k_build_advisory(void) {
     assets_msg_free(&game_txt);
     return 1;
   }
-  if (strstr(eu.status, "blacksmiths") == NULL) {
-    fprintf(stderr, "K ORE DB-6 want @ORE got '%s'\n", eu.status);
+  if (strstr(eu.status, "blacksmiths") != NULL) {
+    fprintf(stderr, "K ORE DB-6 want silence got '%s'\n", eu.status);
     assets_msg_free(&game_txt);
     return 1;
   }
@@ -7277,7 +7277,7 @@ static int case_phase_k_build_advisory(void) {
   col->colonists[2].active = false;
   col->colonist_count = 2;
   col->population = 2;
-  fprintf(stderr, "Phase K ORE net-tools-zero ok\n");
+  fprintf(stderr, "Phase K ORE net-tools-zero silent ok\n");
 
   /*
    * port_bugs.md #911: the @TOOLS arm is `unmet[tools] != 0 && 0b50(muskets) == 0`

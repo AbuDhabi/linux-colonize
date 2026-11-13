@@ -1789,6 +1789,7 @@ COLONIZE_INTERNAL void turn_produce_crumbs(TurnProduceCtx* pc) {
   const int lumber_before_hammers = pc->lumber_before_hammers;
   int* const craft_unmet_cap = pc->craft_unmet_cap;
   int* const craft_unmet_gross = pc->craft_unmet_gross;
+  int* const craft_gross = pc->craft_gross;
   int* const craft_net = pc->craft_net;
   /* Phase K demand crumbs: raw / craft empty. */
   /* FUN_364b_0688 raw 57696: gated on DS:0x5384&0x20 only; no other popup
@@ -1851,7 +1852,7 @@ COLONIZE_INTERNAL void turn_produce_crumbs(TurnProduceCtx* pc) {
      *   57713  unmet[furs]    (0x8e62) && 0b50(0x0c coats)   == 0  -> 0xe86 @FURS
      *   57717  unmet[ore]     (0x8e66) && 0b50(0x0f muskets) == 0b50(0x0e tools)
      *                                                            -> 0xe8b @ORE
-     *          (DOS slip; the port tests 0b50(tools) == 0: dos_bugs.md DB-6)
+     *          (DOS slip; the port tests gross(tools) == 0: dos_bugs.md DB-6)
      *   57725  unmet[tools]   (0x8e76) && 0b50(0x0f muskets) == 0  -> 0xe8f @TOOLS
      *
      * (unmet base DS:0x8e5a, stride 2, so 0x8e64 = [5] lumber ... 0x8e76 =
@@ -1874,8 +1875,9 @@ COLONIZE_INTERNAL void turn_produce_crumbs(TurnProduceCtx* pc) {
      * i.e. the NET stock change, which only equals gross for goods nothing
      * else consumes. It differs for TOOLS, whose net is docked by the
      * gunsmith's consumption — exactly the cargo the @ORE and @TOOLS arms
-     * read. craft_net[] (Phase B) is that net; craft_gross[] is not used here
-     * any more.
+     * read. craft_net[] (Phase B) is that net. The @ORE arm alone reads
+     * craft_gross[] (DB-6): net tools is docked by the gunsmith, so a net
+     * test nags whenever he eats every tool the blacksmiths made.
      */
     struct KCrumb {
       const char* sec;
@@ -1899,9 +1901,10 @@ COLONIZE_INTERNAL void turn_produce_crumbs(TurnProduceCtx* pc) {
       {"CANESUGAR", K_UNMET(COLONIZE_CARGO_RUM) && craft_net[COLONIZE_CARGO_RUM] == 0},
       {"FURS", K_UNMET(COLONIZE_CARGO_COATS) && craft_net[COLONIZE_CARGO_COATS] == 0},
       /* DOS raw 57717-57724 compares net muskets against net tools here, a
-       * copy-paste slip; the port tests net tools == 0 like every other arm
-       * (docs/dos_bugs.md DB-6). */
-      {"ORE", K_UNMET(COLONIZE_CARGO_TOOLS) && craft_net[COLONIZE_CARGO_TOOLS] == 0},
+       * copy-paste slip; the port fires when the blacksmiths made no tools,
+       * which is what net == 0 means for the arms above, whose output
+       * nothing consumes (docs/dos_bugs.md DB-6). */
+      {"ORE", K_UNMET(COLONIZE_CARGO_TOOLS) && craft_gross[COLONIZE_CARGO_TOOLS] == 0},
       {"TOOLS", K_UNMET(COLONIZE_CARGO_MUSKETS) && craft_net[COLONIZE_CARGO_MUSKETS] == 0},
     };
 #undef K_UNMET

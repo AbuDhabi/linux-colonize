@@ -66,7 +66,8 @@ the 20e6 entry kept as INT 3 (ENTER emulated, see dos_trace.md):
 ## DB-6
 
 Every golden and idle campaign stays byte-identical. Unit test: `unit_turn_core`
-`phase_k_build_advisory` ("ORE net-tools-zero" fails on the DOS test).
+`phase_k_build_advisory` ("ORE tools-falling" fails on the DOS test; "ORE
+net-tools-zero silent" pins the 2026-11-13 gross test).
 
 ## DB-7
 
