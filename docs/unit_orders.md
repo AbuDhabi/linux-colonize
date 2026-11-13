@@ -241,7 +241,7 @@ Full inventory in [popups.md](popups.md) §3 / `@SECTION` index. Order-related:
 | `@DISBANDSHIP` | Ship carrying units | OK (error) | `AI_POPUP_TAG_INFO` | Done |
 | `@OVERBOARD` | Which cargo to dump | Hold picker (section has no rows) | Same | Done (port_bugs.md #984) |
 | `@LANDFALL` / `@LANDFALL2` | Ship→bare land | Stay / Make Landfall | Done — see [move_enter.md](move_enter.md) |
-| `@SHIPOPTIONS` / `@UNITOPTIONS` | Colony dock icon, 2nd click | Move to front / Clear orders / Sentry / Fortify (+ ship-only Unload all cargo) / No changes | `colony_screen_open_dock_orders`; ineligible rows omitted (matches `2f2b_5746`) | Done |
+| `@SHIPOPTIONS` / `@UNITOPTIONS` | Colony dock icon, 2nd click | Move to front / Clear orders / Sentry / Fortify (+ ship-only Unload all cargo) / No changes | `colony_screen_open_dock_orders`; ineligible rows omitted (matches `2f2b_5746`); Wagon Train also gets Fortify (port QoL, DOS omits it, docs/known_divergences.md) | Done |
 | `@COLONYUNIT` | Title for the above | "Options for {unit}:" | `popup_msg_fill` | Done |
 
 ---

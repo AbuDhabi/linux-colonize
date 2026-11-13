@@ -848,12 +848,16 @@ void colony_screen_open_dock_orders(
       case 3:
         /* port_bugs.md #783 / 99b8 case 4: enabled iff
          * `orders != 5 && orders != 6 && *(char*)(idx*0x1c+0x3146) != '\f'`
-         * — a Wagon Train (@UNIT row 0x0c) never gets the Fortify /
-         * "Anchor in harbor" row. 5746 case 4 has no type test. */
+         * — DOS never offers a Wagon Train (@UNIT row 0x0c) this row.
+         * Port divergence (QoL, ungated, docs/known_divergences.md): the
+         * wagon gets it as the @UNITOPTIONS "Fortify" row, since the map
+         * fortifies a wagon anyway. 5746 case 4 has no type test. */
         action = COLONY_DOCK_ORDER_FORTIFY;
-        enabled =
-          (u->orders != UNITS_ORDER_FORTIFY && u->orders != UNITS_ORDER_FORTIFIED &&
-           !(transport && u->type_index == UNITS_KIND_WAGON));
+        enabled = (u->orders != UNITS_ORDER_FORTIFY && u->orders != UNITS_ORDER_FORTIFIED);
+        if (transport && u->type_index == UNITS_KIND_WAGON) {
+          const ColonizeMsgSection* land = messages ? assets_msg_find(messages, "UNITOPTIONS") : NULL;
+          label = (land && 3 < land->line_count) ? land->lines[3] : "";
+        }
         break;
       case 4: /* @SHIPOPTIONS only: "Unload all cargo" (99b8 case 5: holds_occupied != 0) */
         action = COLONY_DOCK_ORDER_UNLOAD_ALL;

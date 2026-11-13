@@ -168,6 +168,15 @@ too small to notice. The port waits 4 ticks (~99 ms a tile) when the option is
 on (user request 2026-11-10); `game_slide_total_ms`, shared by the move slide
 and the combat lunge. Option off stays DOS-literal.
 
+### Colony-screen Wagon Train gets the Fortify row
+DOS `thunk_FUN_1000_99b8` case 4 (`@SHIPOPTIONS`, port_bugs.md #783) skips the
+Fortify / "Anchor in harbor" row for `@UNIT` row 0x0c, so a docked Wagon Train
+cannot be fortified from the colony screen. The map Fortify order works on it
+anyway, so the port offers the row (user request 2026-11-13, QoL, ungated),
+labelled with the `@UNITOPTIONS` "Fortify" line instead of the ship wording.
+The action is the dock popups' plain `orders = 5` write (no sound, as the 99b8
+path); `colony_screen_open_dock_orders`.
+
 ## Blocked on a live DOS capture
 
 Static reading cannot settle these. Each names exactly what to capture. Do not

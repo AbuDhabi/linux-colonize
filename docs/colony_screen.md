@@ -209,7 +209,9 @@ literal); layout shared between draw and hit-test via
   temporary job chosen while admitting the outside unit is not retained.
 - The docked-unit orders popup uses `@SHIPOPTIONS` for ships and Wagon Trains,
   and `@UNITOPTIONS` for ordinary land units. Artillery therefore receives
-  the land `Fortify` label rather than `Anchor in harbor`.
+  the land `Fortify` label rather than `Anchor in harbor`. A Wagon Train also
+  gets the Fortify row, under the `@UNITOPTIONS` label (DOS omits it; port QoL,
+  docs/known_divergences.md).
 - Building badge name match: `strstr("Carpenter")` missed "Lumber Mill" —
   upgrades rename buildings; match both.
 - Minimap has a 1px black border exactly on the 73×73 grid box.

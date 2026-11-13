@@ -184,26 +184,29 @@ static int unit_dock_orders_menu(void) {
 
   /*
    * port_bugs.md #782/#783. A Wagon Train is a cargo transport and sees the same
-   * six @SHIPOPTIONS rows as a ship; case 4 drops Fortify for type 0x0c.
+   * six @SHIPOPTIONS rows as a ship. DOS case 4 drops Fortify for type 0x0c; the
+   * port offers it (QoL divergence, docs/known_divergences.md) under the
+   * @UNITOPTIONS "Fortify" label, not "Anchor in harbor".
    * Fresh, empty, not selected:
-   * [Activate, Sentry, Cancel] — no Fortify (wagon), no Unload (no cargo).
+   * [Activate, Sentry, Fortify, Cancel] — no Unload (no cargo).
    */
   if (rc == 0) {
     colony_screen_open_dock_orders(&view, &units, &game_txt, wagon_id);
-    if (view.dock_orders_count != 3 ||
+    if (view.dock_orders_count != 4 ||
         view.dock_orders_actions[0] != COLONY_DOCK_ORDER_ACTIVATE ||
         view.dock_orders_actions[1] != COLONY_DOCK_ORDER_SENTRY ||
-        view.dock_orders_actions[2] != COLONY_DOCK_ORDER_CANCEL) {
+        view.dock_orders_actions[2] != COLONY_DOCK_ORDER_FORTIFY ||
+        view.dock_orders_actions[3] != COLONY_DOCK_ORDER_CANCEL) {
       fprintf(
-        stderr, "dock_orders: fresh wagon expected 3 rows got %d\n", view.dock_orders_count
+        stderr, "dock_orders: fresh wagon expected 4 rows got %d\n", view.dock_orders_count
       );
       rc = 1;
     }
-    for (int i = 0; rc == 0 && i < view.dock_orders_count; ++i) {
-      if (view.dock_orders_actions[i] == COLONY_DOCK_ORDER_FORTIFY) {
-        fprintf(stderr, "dock_orders: a Wagon Train must never be offered Fortify\n");
-        rc = 1;
-      }
+    const ColonizeMsgSection* land = assets_msg_find(&game_txt, "UNITOPTIONS");
+    if (rc == 0 && (!land || land->line_count <= 3 ||
+                    strcmp(view.dock_orders_labels[2], land->lines[3]) != 0)) {
+      fprintf(stderr, "dock_orders: wagon Fortify row must use the @UNITOPTIONS label\n");
+      rc = 1;
     }
   }
 
