@@ -133,6 +133,7 @@ static const SettingsBoolOpt k_mod_opts[] = {
   SETTINGS_MOD("modern_prng", MOD_MODERN_PRNG, false),
   SETTINGS_MOD("beg_refusal_alarm", MOD_BEG_REFUSAL_ALARM, true),
   SETTINGS_MOD("riders_keep_ship", MOD_RIDERS_KEEP_SHIP, true),
+  SETTINGS_MOD("no_education_lies", MOD_NO_EDUCATION_LIES, false),
 };
 
 #define SETTINGS_OPT_COUNT(t) ((int)(sizeof(t) / sizeof((t)[0])))

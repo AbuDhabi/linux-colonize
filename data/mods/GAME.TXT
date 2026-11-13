@@ -45,6 +45,7 @@ S~hips Auto-Explore
 Current ~Vision Veil
 ~Construction Queue
 Modern ~Random Numbers
+Full SoL ~Teaches Faster
 
 @MODOPTIONS3
 @width=220

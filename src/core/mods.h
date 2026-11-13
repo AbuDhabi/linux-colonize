@@ -68,6 +68,9 @@ typedef enum ModId {
    * riders and tile sentries, never another own ship's passengers
    * (units_ship_departure_pickup). */
   MOD_RIDERS_KEEP_SHIP = 20,
+  /* Gameplay: a colony holding the SoL 100 latch teaches in half the turns,
+   * as @REBELUNANIMOUS promises (turn_produce_education). */
+  MOD_NO_EDUCATION_LIES = 21,
   MOD_COUNT
 } ModId;
 

@@ -1,6 +1,7 @@
 /* Slice of the former tests/unit/test_turn.c (split by feature 2026-09-23):
  * schoolhouse training arms (veteran, cap, fail, profession, criminal, indentured, phase H). */
 #include "test_turn_common.h"
+#include "core/mods.h"
 
 /*
  * port_bugs.md #380: a Veteran Soldier teaching in a College turns a Free Colonist
@@ -630,6 +631,53 @@ static int unit_phase_h_map_expert_blocks_learn(void) {
   return 0;
 }
 
+/*
+ * Mod no_education_lies: the SoL 100 latch halves a teacher's need (Veteran
+ * Soldier, level 2: 6 -> 3 turns). Off, or without the latch, 3 turns is DOS:
+ * no graduation.
+ */
+static int unit_mod_no_education_lies(void) {
+  ColonizeColonyPool pool;
+  colonies_init(&pool);
+  colonies_set_occupancy_map(NULL);
+  snprintf(pool.building_types[0].name, sizeof(pool.building_types[0].name), "College");
+  pool.building_type_count = 1;
+  ColonizeColony* col = &pool.colonies[0];
+  memset(col, 0, sizeof(*col));
+  col->active = true;
+  col->has_building[0] = true;
+  col->colonists[0].active = true;
+  col->colonists[0].profession = 21; /* Veteran Soldier, school level 2 */
+  col->colonists[0].building_type = 0;
+  col->colonists[0].field_job = -1;
+  col->colonists[1].active = true;
+  col->colonists[1].profession = COLONIZE_PROF_FREE_COLONIST;
+  col->colonists[1].building_type = -1;
+  col->colonist_count = 2;
+  pool.colony_count = 1;
+  static const struct {
+    bool mod, latch, graduates;
+  } k_rows[] = {{false, true, false}, {true, false, false}, {true, true, true}};
+  for (size_t i = 0; i < sizeof(k_rows) / sizeof(k_rows[0]); ++i) {
+    mods_campaign_set(k_rows[i].mod ? 1u << MOD_NO_EDUCATION_LIES : 0u);
+    col->colony_flags = k_rows[i].latch ? COLONIZE_COLONY_FLAG_SOL_100 : 0;
+    col->colonists[0].turns_in_job = 2; /* one tick -> 3 */
+    col->colonists[1].profession = COLONIZE_PROF_FREE_COLONIST;
+    TurnProduceCtx ctx;
+    memset(&ctx, 0, sizeof(ctx));
+    ctx.pool = &pool;
+    ctx.colony = col;
+    turn_produce_education(&ctx);
+    if ((col->colonists[1].profession == 21) != k_rows[i].graduates) {
+      fprintf(stderr, "no_education_lies row %zu: profession %d\n", i, col->colonists[1].profession);
+      mods_campaign_set(0);
+      return 1;
+    }
+  }
+  mods_campaign_set(0);
+  return 0;
+}
+
 static const TestCase k_cases[] = {
     {"unit_phase_h_map_expert_blocks_learn", unit_phase_h_map_expert_blocks_learn},
     {"unit_train_veteran_soldier", unit_train_veteran_soldier},
@@ -639,5 +687,6 @@ static const TestCase k_cases[] = {
     {"unit_traincriminal", unit_traincriminal},
     {"unit_trainindentured", unit_trainindentured},
     {"unit_phase_h_trainprofession", unit_phase_h_trainprofession},
+    {"unit_mod_no_education_lies", unit_mod_no_education_lies},
 };
 TEST_MAIN(k_cases)

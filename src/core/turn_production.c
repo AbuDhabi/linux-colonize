@@ -1199,7 +1199,15 @@ COLONIZE_INTERNAL void turn_produce_education(TurnProduceCtx* pc) {
     if (level < 1 || level > 3) {
       continue;
     }
-    const int need = (level == 1) ? 4 : (level == 2) ? 6 : 8;
+    int need = (level == 1) ? 4 : (level == 2) ? 6 : 8;
+    /* MOD_NO_EDUCATION_LIES (not DOS): @REBELUNANIMOUS says colonists "can
+     * also be educated more quickly" at 100% SoL, which DOS never does. With
+     * the mod the SoL 100 latch (the same bit colony_prod_sol_bonus reads)
+     * halves the need: 2 / 3 / 4 turns. */
+    if (mods_on(MOD_NO_EDUCATION_LIES) &&
+        (colony->colony_flags & COLONIZE_COLONY_FLAG_SOL_100) != 0) {
+      need /= 2;
+    }
     if ((int)c->turns_in_job < need) {
       continue;
     }

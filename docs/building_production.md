@@ -113,7 +113,7 @@ has an @JOB school level of 1–3. The specialty is what gets taught; there is n
 Petty Criminal, Indian Convert) cannot teach.
 
 **Time.** From the **teacher's** profession level, not the building: level 1 → 4 turns,
-level 2 → 6, level 3 → 8. The building tier is enforced only at assignment
+level 2 → 6, level 3 → 8 (halved at the SoL 100 latch under mod `no_education_lies`). The building tier is enforced only at assignment
 (`colonies_assign_workplace` → `@NEEDCOLLEGE` / `@NEEDUNIVERSITY`). The counter
 (`turns_in_job`, DOS `FUN_281f_0d1c`/`0a7e`) ticks for every colonist every turn and is
 zeroed the moment a teacher qualifies — whether or not a student was available.
