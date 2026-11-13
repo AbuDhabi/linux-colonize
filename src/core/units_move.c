@@ -899,7 +899,12 @@ COLONIZE_INTERNAL UnitsMoveStatus units_move_step_gate(units_move_ctx* c) {
     const ColonizeEnterReason after =
       units_enter_probe_w(pw, unit->type_index, dest_x, dest_y, unit_id);
     g_units_last_enter_reason = after;
-    if (after != COLONIZE_ENTER_OK && after != COLONIZE_ENTER_DOCK) {
+    /* The 4720 lane check (reason 5) runs in FUN_4720_015c before 465b;
+     * 1b0e's winner advance is a plain 0948 relink that never re-asks it.
+     * Refusing here returned before the attack exhaust below, so a ship
+     * that won eastward on the lane kept its moves. */
+    const bool lane_advance = c->combat_attack_entry && after == COLONIZE_ENTER_BLOCKED_HS_SAIL;
+    if (after != COLONIZE_ENTER_OK && after != COLONIZE_ENTER_DOCK && !lane_advance) {
       return UNITS_MOVE_RETURN_FALSE;
     }
   }

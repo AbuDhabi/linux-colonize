@@ -2672,6 +2672,78 @@ static int unit_naval_stack_sweep(void) {
   return rc;
 }
 
+/* A ship on the sea lane winning an eastward attack (the step 4720 reason 5
+ * would refuse without a sail order) still pays 1b0e's full exhaust and
+ * advances by the 0948 relink. The step gate's re-probe used to refuse the
+ * advance before the exhaust, so the winner kept its moves. */
+static int unit_naval_win_on_lane_exhausts(void) {
+  ColonizeMsgCatalog names;
+  assets_msg_init(&names);
+  char names_path[512];
+  if (!dos_compat_normalize_asset_path("COLONIZE", "NAMES.TXT", names_path, sizeof(names_path)) ||
+      !assets_msg_load_file(&names, names_path)) {
+    fprintf(stderr, "naval-lane: NAMES.TXT load failed\n");
+    return 1;
+  }
+  ColonizeUnitPool pool;
+  memset(&pool, 0, sizeof(pool));
+  if (!units_load_types(&pool, &names)) {
+    fprintf(stderr, "naval-lane: units_load_types failed\n");
+    assets_msg_free(&names);
+    return 1;
+  }
+  assets_msg_free(&names);
+  const int mow = units_find_type(&pool, "Man-O-War");
+  const int frigate = units_find_type(&pool, "Frigate");
+  ColonizeWorldMap map;
+  if (mow < 0 || frigate < 0 || !fx_map_alloc(&map, 8, 8, T_HIGH_SEAS, false)) {
+    fprintf(stderr, "naval-lane: fixture failed\n");
+    return 1;
+  }
+  units_set_occupancy_map(&map);
+  units_set_combat_colonies(NULL);
+
+  ColonizeCol1Save c1;
+  memset(&c1, 0, sizeof(c1));
+  memset(c1.head.founding_father, 0xff, sizeof(c1.head.founding_father));
+  c1.player[0].control = 0;
+  c1.player[1].control = 1;
+  c1.head.difficulty = 2;
+  c1.head.turn = 10;
+  units_set_ff_col1(&c1);
+  units_set_combat_human_nation(-1);
+
+  const int aid = units_spawn_allow_stack(&pool, mow, 4, 5);
+  const int did = units_spawn_allow_stack(&pool, frigate, 5, 5);
+  if (aid < 0 || did < 0) {
+    fprintf(stderr, "naval-lane: spawn failed\n");
+    return 1;
+  }
+  units_get(&pool, aid)->nation_id = 0;
+  units_get(&pool, did)->nation_id = 1;
+  units_get(&pool, aid)->moves = units_max_mp(&pool, aid);
+  /* rng NULL: deterministic `atk >= def` win. */
+  (void)units_try_move_w(
+    &(ColonizeWorld){.units = &pool, .map = &map, .col1 = &c1, .col1_ok = true, .rng = NULL},
+    aid, 5, 5);
+  int rc = 0;
+  const ColonizeUnit* a = units_get_const(&pool, aid);
+  if (!a || !a->active) {
+    fprintf(stderr, "naval-lane: attacker lost (fixture)\n");
+    rc = 1;
+  } else if (a->moves != 0) {
+    fprintf(stderr, "naval-lane: attacker kept %d MP after a won lane fight\n", a->moves);
+    rc = 1;
+  } else if (a->x != 5 || a->y != 5) {
+    fprintf(stderr, "naval-lane: winner at (%d,%d), expected the 0948 advance to (5,5)\n", a->x, a->y);
+    rc = 1;
+  }
+  units_set_ff_col1(NULL);
+  units_set_occupancy_map(NULL);
+  fx_map_free(&map);
+  return rc;
+}
+
 /* TB-33 fixed path: a Spanish conqueror of a tech-1 tribe rolls 0..1 (the
  * stored bound), DOS rolls 0..2. A seed whose first draw is 0 of 0..1 but not
  * 0 of 0..2 pays nothing under DOS and pays under the fix. */
@@ -3368,6 +3440,7 @@ static const TestCase k_cases[] = {
   {"unit_1b0e_resolve_handicaps", unit_1b0e_resolve_handicaps},
   {"unit_1b0e_defender_bonus_live", unit_1b0e_defender_bonus_live},
   {"unit_naval_stack_sweep", unit_naval_stack_sweep},
+  {"unit_naval_win_on_lane_exhausts", unit_naval_win_on_lane_exhausts},
   {"unit_gunless_winner_never_sinks", unit_gunless_winner_never_sinks},
   {"unit_native_burn_sweeps_square", unit_native_burn_sweeps_square},
   {"unit_naval_win_cue_ships_only", unit_naval_win_cue_ships_only},
