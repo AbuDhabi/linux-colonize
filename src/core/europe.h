@@ -783,7 +783,7 @@ uint32_t europe_nation_gold(
   const EuropeScreen* eu, const struct ColonizeCol1Save* col1, int nation
 );
 void europe_nation_gold_add(
-  EuropeScreen* eu, struct ColonizeCol1Save* col1, int nation, long delta
+  EuropeScreen* eu, struct ColonizeCol1Save* col1, int nation, int64_t delta
 );
 
 /* Crown cut of a sale/cash-in: nation+0x22 += gross-net, +0x26 += net

@@ -3734,6 +3734,20 @@ static int case_europe_purse_single_door(void) {
     fprintf(stderr, "restamp: purse %d record %u\n", eu->gold, (unsigned)col1->nation[0].gold);
     rc = 1;
   }
+  /* Non-purse nation clamps to [0, UINT32_MAX]; a 32-bit long (Windows) once made every add
+   * saturate to UINT32_MAX. */
+  col1->nation[1].gold = 50u;
+  europe_nation_gold_add(eu, col1, 1, 100);
+  const uint32_t added = col1->nation[1].gold;
+  europe_nation_gold_add(eu, col1, 1, -1000);
+  const uint32_t floored = col1->nation[1].gold;
+  col1->nation[1].gold = UINT32_MAX - 5u;
+  europe_nation_gold_add(eu, col1, 1, 100);
+  if (added != 150u || floored != 0u || col1->nation[1].gold != UINT32_MAX) {
+    fprintf(stderr, "clamp: %u %u %u\n", (unsigned)added, (unsigned)floored,
+            (unsigned)col1->nation[1].gold);
+    rc = 1;
+  }
   free(eu);
   free(col1);
   return rc;

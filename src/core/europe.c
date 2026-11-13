@@ -531,7 +531,7 @@ uint32_t europe_nation_gold(
 }
 
 void europe_nation_gold_add(
-  EuropeScreen* eu, struct ColonizeCol1Save* col1, int nation, long delta
+  EuropeScreen* eu, struct ColonizeCol1Save* col1, int nation, int64_t delta
 ) {
   if (nation < 0 || nation >= (int)COLONIZE_COL1_NATION_COUNT) {
     return;
@@ -540,12 +540,12 @@ void europe_nation_gold_add(
     eu = g_europe_live_screen;
   }
   if (eu && nation == europe_purse_nation(eu)) {
-    long v = (long)eu->gold + delta;
+    int64_t v = (int64_t)eu->gold + delta; /* not long: 32-bit on Windows (LLP64) */
     if (v < 0) {
       v = 0;
     }
-    if (v > (long)INT_MAX) {
-      v = (long)INT_MAX;
+    if (v > INT_MAX) {
+      v = INT_MAX;
     }
     eu->gold = (int)v;
     if (col1) {
@@ -556,12 +556,12 @@ void europe_nation_gold_add(
   if (!col1) {
     return;
   }
-  long v = (long)col1->nation[nation].gold + delta;
+  int64_t v = (int64_t)col1->nation[nation].gold + delta;
   if (v < 0) {
     v = 0;
   }
-  if (v > (long)UINT32_MAX) {
-    v = (long)UINT32_MAX;
+  if (v > UINT32_MAX) {
+    v = UINT32_MAX;
   }
   col1->nation[nation].gold = (uint32_t)v;
 }
@@ -591,17 +591,17 @@ void europe_gold_stamp_record(const EuropeScreen* eu, struct ColonizeCol1Save* c
  * go to that nation's record, whereas here it must go to the borrowed purse.
  */
 void europe_purse_move(
-  EuropeScreen* eu, struct ColonizeCol1Save* col1, int nation, long delta
+  EuropeScreen* eu, struct ColonizeCol1Save* col1, int nation, int64_t delta
 ) {
   if (!eu) {
     return;
   }
-  long v = (long)eu->gold + delta;
+  int64_t v = (int64_t)eu->gold + delta; /* not long: 32-bit on Windows (LLP64) */
   if (v < 0) {
     v = 0;
   }
-  if (v > (long)INT_MAX) {
-    v = (long)INT_MAX;
+  if (v > INT_MAX) {
+    v = INT_MAX;
   }
   eu->gold = (int)v;
   if (col1 && nation >= 0 && nation == europe_purse_nation(eu)) {

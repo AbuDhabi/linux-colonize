@@ -67,7 +67,7 @@ void europe_disembark_passengers_to_dock(
 );
 int europe_purse_nation(const EuropeScreen* eu);
 void europe_purse_move(
-  EuropeScreen* eu, struct ColonizeCol1Save* col1, int nation, long delta
+  EuropeScreen* eu, struct ColonizeCol1Save* col1, int nation, int64_t delta
 );
 extern void (*g_europe_sound_play)(int id);
 extern void (*g_europe_set_bgm)(int pool);
