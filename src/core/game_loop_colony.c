@@ -1037,7 +1037,8 @@ void game_colony_plot_land_resume(ColonizeGameState* game, int tile_index) {
  */
 /*
  * Port-only QOL: Shift-click / Shift+Enter on a Construction row queues `bid`
- * behind the current project and leaves the picker open. With nothing in
+ * behind the current project and leaves the picker open; on an already queued
+ * row it un-queues it (colonies_build_queue_remove). With nothing in
  * production there is nothing to queue behind, so it starts the project
  * instead — still without closing, so a follow-up Shift pick queues behind it.
  *
@@ -1066,7 +1067,10 @@ void game_colony_queue_construction(ColonizeGameState* game, int bid) {
   /* colonies_set_construction_ex does not test chain predecessors (the list
    * did), so a row only the plan unlocks must pass the gate first: started
    * only when startable now, queued only when the plan unlocks it. */
-  if (col && game_colony_production_idle(col)) {
+  if (colonies_build_queue_pos(&game->colonies, game->colony_view_id, bid) > 0) {
+    /* Shift on a queued row un-queues it. */
+    acted = colonies_build_queue_remove(&game->colonies, game->colony_view_id, bid);
+  } else if (col && game_colony_production_idle(col)) {
     acted = colonies_build_project_startable(&game->colonies, col->id, bid, &bopts) &&
             colonies_set_construction_ex(&game->colonies, col->id, bid, &bopts);
   } else {
@@ -1076,8 +1080,9 @@ void game_colony_queue_construction(ColonizeGameState* game, int bid) {
   /* The picker stays open, so its highlight follows the row the Shift pick
    * acted on — the new current project when the pick started one, the newly
    * queued row otherwise (row 0 is "(no production)", rows 1.. are
-   * buildable_ids). A refused pick (already built / min-population / queue
-   * full / duplicate) moves nothing, so the highlight never lies. */
+   * buildable_ids), or the un-queued row while it is still listed. A refused
+   * pick (already built / min-population / queue full / in production) moves
+   * nothing, so the highlight never lies. */
   if (!acted) {
     return;
   }

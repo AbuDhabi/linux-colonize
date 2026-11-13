@@ -645,7 +645,9 @@ With the flag off, Shift picks are plain picks and the picker lists only
 Construction picker — or Shift+Enter on the selected row — appends to it
 (`game_colony_queue_construction`) and leaves the picker open; with nothing in
 production that Shift pick starts the project instead, still without closing, so
-the next Shift pick queues behind it. A
+the next Shift pick queues behind it. A Shift pick on a queued row un-queues it
+(`colonies_build_queue_remove`), together with any later entry whose chain
+predecessor it was (Fort behind the removed Stockade). A
 plain pick or "(No Production)" wipes the queue
 (`game_colony_commit_construction`, `colonies_build_queue_clear`). Queued rows
 are drawn with their 1-based position in yellow ahead of the name.

@@ -855,8 +855,11 @@ bool colonies_set_construction_ex(
  * `colonies_build_queue_pos` returns the 1-based queue position of `bid`, or 0.
  * A completion pops the head into the project slot through
  * colonies_set_construction_ex, so a queued start behaves like a manual pick.
+ * Remove drops `bid` plus any later entry whose chain predecessor it was;
+ * false when `bid` is not queued.
  */
 bool colonies_build_queue_push(ColonizeColonyPool* pool, int colony_id, int bid);
+bool colonies_build_queue_remove(ColonizeColonyPool* pool, int colony_id, int bid);
 void colonies_build_queue_clear(ColonizeColonyPool* pool, int colony_id);
 int colonies_build_queue_pos(const ColonizeColonyPool* pool, int colony_id, int bid);
 /*

@@ -2629,6 +2629,12 @@ static int test_colony_shift_pick_moves_highlight_body(void) {
       rc = fail("a refused Shift pick must not move the highlight");
       break;
     }
+    /* Shift on the queued row un-queues it. */
+    game_colony_queue_construction(&game, stockade);
+    if (col->build_queue_count != 0 || col->building_in_production != church) {
+      rc = fail("a Shift pick on a queued row must un-queue it");
+      break;
+    }
     colony_screen_close_construction(csv);
   }
   assets_msg_free(&names);
@@ -2692,6 +2698,19 @@ static int test_colony_picker_lists_planned_unlocks_body(void) {
   if (colonies_build_queue_pos(&game.colonies, col->id, mill) != 1 ||
       csv->construction_selection != picker_row(csv, mill)) {
     return fail("a Shift pick must queue the unlocked project");
+  }
+  /* Un-queueing a predecessor drops what it unlocked: Church in production,
+   * Carpenter's Shop then Lumber Mill queued, Carpenter's Shop removed. */
+  col->building_in_production = church;
+  colonies_build_queue_clear(&game.colonies, col->id);
+  game_colony_queue_construction(&game, carpenter);
+  game_colony_queue_construction(&game, mill);
+  if (colonies_build_queue_pos(&game.colonies, col->id, mill) != 2) {
+    return fail("Lumber Mill must queue behind the queued Carpenter's Shop");
+  }
+  game_colony_queue_construction(&game, carpenter);
+  if (col->build_queue_count != 0) {
+    return fail("un-queueing Carpenter's Shop must drop the Lumber Mill behind it");
   }
   /* A head whose predecessor is not owned (here pushed past the gates) is dropped. */
   colonies_build_queue_clear(&game.colonies, col->id);

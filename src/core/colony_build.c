@@ -1492,6 +1492,32 @@ static void colonies_build_plan(
   }
 }
 
+bool colonies_build_queue_remove(ColonizeColonyPool* pool, int colony_id, int bid) {
+  ColonizeColony* col = colonies_get_mut(pool, colony_id);
+  const int pos = colonies_build_queue_pos(pool, colony_id, bid);
+  if (!col || pos <= 0) {
+    return false;
+  }
+  /* Later entries the removed one unlocked (Fort behind a queued Stockade)
+   * go too: their predecessor must be owned or planned ahead of them. */
+  const int count = col->build_queue_count;
+  int n = 0;
+  for (int i = 0; i < count; ++i) {
+    const int id = col->build_queue[i];
+    if (i == pos - 1) {
+      continue;
+    }
+    ColonizeColony plan;
+    col->build_queue_count = n;
+    colonies_build_plan(pool, col, &plan);
+    if (colonies_build_predecessor_owned(pool, &plan, id)) {
+      col->build_queue[n++] = id;
+    }
+  }
+  col->build_queue_count = n;
+  return true;
+}
+
 bool colonies_build_project_startable(
   const ColonizeColonyPool* pool, int colony_id, int bid, const ColoniesBuildableOpts* opts
 ) {
