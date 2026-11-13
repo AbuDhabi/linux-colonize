@@ -120,7 +120,8 @@ until the count falls back under the DOS limit.
 `divergences.unlimited_colonies` (read at startup, `main.c` ->
 `colonies_set_unlimited`) skips the `FUN_364b_1ba8` founding gate (48
 colonies in all, DS:0x539e `< 0x30`), for the player and for the AI's
-expansion urgency (`FUN_521d_03d0`, same `0x30` test); the pool size
+expansion urgency (`FUN_521d_03d0`, same `0x30` test), and the Build
+command's `@TOOMANYCOLONIES` check (48 in all, 38 per nation); the pool size
 `COLONIZE_COLONIES_MAX` (200) is the only cap left. Colony records past 48 are
 saved in the `COXT` port extension chunk (docs/savegame.md), so DOS still loads
 the first 48 and never sees the rest. Turning the flag off again does not drop

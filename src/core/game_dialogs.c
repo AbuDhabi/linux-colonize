@@ -883,6 +883,7 @@ bool game_try_found_colony_at_cursor(ColonizeGameState* game) {
    * `cmp byte [nation+0x9298],0x26` (38 settlements for this nation); over
    * either cap, and only when there is no colony on the tile (the Join
    * branch is exempt), DOS shows @TOOMANYCOLONIES and drops the order.
+   * divergences.unlimited_colonies lifts both, leaving the pool size.
    */
   {
     int live = 0;
@@ -893,7 +894,8 @@ bool game_try_found_colony_at_cursor(ColonizeGameState* game) {
     }
     const int mine =
       colonies_count_for_nation(&game->colonies, game->human_nation);
-    if (live >= 0x30 || mine >= 0x26) {
+    const bool dos_caps = colonies_cap() == COLONIZE_COLONIES_DOS_MAX;
+    if (live >= colonies_cap() || (dos_caps && mine >= 0x26)) {
       char body[AI_POPUP_BODY_LEN];
       popup_msg_fill(&game->messages, "TOOMANYCOLONIES", NULL, "", body, sizeof(body));
       ai_popup_enqueue_ok(&game->ai_popups, AI_POPUP_TAG_INFO, NULL, body);
