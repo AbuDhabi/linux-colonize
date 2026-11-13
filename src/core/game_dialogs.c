@@ -2438,6 +2438,11 @@ static void game_apply_options_result(ColonizeGameState* game) {
   if (!game->options_dlg.result_cancelled) {
     if (game->options_dlg.result_kind == OPTIONS_KIND_GAME && game->col1_ok) {
       options_dialog_apply_game(&game->options_dlg, &game->col1.head.game_options);
+      if (game->options_dlg.result_count > 8) {
+        ColonizeSettings prefs = *settings_get();
+        prefs.tiny_colony_names = game->options_dlg.result_values[8] != 0;
+        settings_set(&prefs);
+      }
       game_persist_settings(game);
       set_status(game, "", NULL);
     } else if (game->options_dlg.result_kind == OPTIONS_KIND_COLONY && game->col1_ok) {

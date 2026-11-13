@@ -43,7 +43,8 @@ defaults no matter what file is sitting in the build directory.
     "autosave": true,
     "combat_analysis": true,
     "water_color_cycling": true,
-    "tutorial_hints": true
+    "tutorial_hints": true,
+    "tiny_colony_names": false
   },
   "colony_report_options": { "labels_on_buildings": true, "...": true },
   "sound_options": {
@@ -329,6 +330,14 @@ when the chosen difficulty is 0 / Discoverer (`viceroy_unpacked_2.c:111468`);
 to consult, so `settings.json` ships the Discoverer value and, once present,
 is absolute — a stored preference outranking a difficulty default is the point
 of the file.
+
+## Tiny colony names (`tiny_colony_names`)
+
+Port-only Game Options checkbox 8, appended to stock `@GAMEOPTIONS` by
+`data/mods/GAME.TXT` (no overlay, no row). On, the map draws colony names in
+FONTTINY instead of DOS's FONTINTR (`game_colony_name_font`). It has no head
+bit: it lives only in `settings.json`, applies live, and a Load does not
+change it. Default off.
 
 ## Intro cinematic (`skip_intro`)
 

@@ -1738,7 +1738,8 @@ static GameMenuActionStatus game_menu_action_system(ColonizeGameState* game, Map
       if (!game->col1_ok) {
         set_status(game, "Options need a loaded game", NULL);
       } else if (!options_dialog_open_game(
-                   &game->options_dlg, &game->messages, &game->col1.head.game_options
+                   &game->options_dlg, &game->messages, &game->col1.head.game_options,
+                   settings_get()->tiny_colony_names
                  )) {
         set_status(game, "Options unavailable", NULL);
       }

@@ -66,6 +66,7 @@ static const SettingsBoolOpt k_game_opts[] = {
   SETTINGS_BOOL(combat_analysis, true),
   SETTINGS_BOOL(water_color_cycling, true),
   SETTINGS_BOOL(tutorial_hints, true),
+  SETTINGS_BOOL(tiny_colony_names, false),
 };
 
 /* DS:0x5384/0x5385 is all-zero at new game and every bit is a suppress flag,

@@ -66,7 +66,7 @@ static int case_options_release_toggles_barred_row(void) {
   OptionsDialog od;
   ColonizeCol1GameOptions opts;
   memset(&opts, 0, sizeof(opts));
-  if (!options_dialog_open_game(&od, NULL, &opts)) {
+  if (!options_dialog_open_game(&od, NULL, &opts, false)) {
     return fail("options_open_game");
   }
   od.dialog_x = 50;
@@ -136,7 +136,7 @@ static int case_options(void) {
   opts.autosave = 1;
   opts.combat_analysis = 1;
   opts.tutorial_hints = 1;
-  if (!options_dialog_open_game(&od, NULL, &opts)) {
+  if (!options_dialog_open_game(&od, NULL, &opts, false)) {
     return fail("options_open_game");
   }
   if (od.option_count < 8) {
@@ -160,10 +160,10 @@ static int case_options(void) {
       !applied.tutorial_hints) {
     return fail("options apply");
   }
-  if (!options_dialog_open_game(&od, NULL, &applied) ||
+  if (!options_dialog_open_game(&od, NULL, &applied, true) ||
       od.values[0] != 0 || od.values[1] != 1 || od.values[2] != 0 ||
       od.values[3] != 0 || od.values[4] != 1 || od.values[5] != 1 ||
-      od.values[6] != 1 || od.values[7] != 1) {
+      od.values[6] != 1 || od.values[7] != 1 || od.values[8] != 1) {
     return fail("options reopen round-trip");
   }
   /* port_bugs.md #1474: Esc keeps the toggles (FUN_6f74_2580 LAB_6f74_3018). */
@@ -206,7 +206,7 @@ static int case_checkbox_hotkeys(void) {
     return fail("FUN_6f74_0642 hotkey");
   }
   OptionsDialog od;
-  if (!options_dialog_open_game(&od, &cat, NULL) || od.option_count != 3) {
+  if (!options_dialog_open_game(&od, &cat, NULL, false) || od.option_count != 3) {
     return fail("options open from catalog");
   }
   ColonizeInputState in;
@@ -289,7 +289,7 @@ static int case_list_keys_wrap(void) {
   OptionsDialog od;
   ColonizeCol1GameOptions opts;
   memset(&opts, 0, sizeof(opts));
-  if (!options_dialog_open_game(&od, NULL, &opts) || od.option_count < 2) {
+  if (!options_dialog_open_game(&od, NULL, &opts, false) || od.option_count < 2) {
     return fail("options_open_game");
   }
   od.selection = 0;
@@ -393,7 +393,7 @@ static int case_right_click_is_left_click(void) {
   OptionsDialog od;
   ColonizeCol1GameOptions opts;
   memset(&opts, 0, sizeof(opts));
-  options_dialog_open_game(&od, NULL, &opts);
+  options_dialog_open_game(&od, NULL, &opts, false);
   options_dialog_render(&od, &font, NULL, NULL, 68, 149, 138, &fb);
   in.mouse_x = od.dialog_x + 20;
   in.mouse_y = od.list_y0 + 1;

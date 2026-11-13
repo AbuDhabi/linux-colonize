@@ -103,9 +103,10 @@ static bool options_load_section(
 bool options_dialog_open_game(
   OptionsDialog* dlg,
   const ColonizeMsgCatalog* game_txt,
-  const ColonizeCol1GameOptions* opts
+  const ColonizeCol1GameOptions* opts,
+  bool tiny_colony_names
 ) {
-  uint8_t vals[8] = {0};
+  uint8_t vals[9] = {0};
   if (opts) {
     vals[0] = opts->show_indian_moves ? 1 : 0;
     vals[1] = opts->show_foreign_moves ? 1 : 0;
@@ -117,13 +118,15 @@ bool options_dialog_open_game(
     vals[6] = opts->water_color_cycling_off ? 0 : 1;
     vals[7] = opts->tutorial_hints ? 1 : 0;
   }
+  /* Row 8 exists only with the data/mods GAME.TXT overlay. */
+  vals[8] = tiny_colony_names ? 1 : 0;
   return options_load_section(
     dlg,
     OPTIONS_KIND_GAME,
     game_txt,
     "GAMEOPTIONS",
     vals,
-    8,
+    9,
     190
   );
 }

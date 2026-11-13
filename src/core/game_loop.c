@@ -111,6 +111,7 @@
 #include "core/save_load_dialog.h"
 #include "core/savegame.h"
 #include "core/screen_geom.h"
+#include "core/settings.h"
 #include "core/mods.h"
 #include "core/sound.h"
 #include "core/ss.h"
@@ -2249,6 +2250,15 @@ static void game_vision_mark(void* ctx, int x, int y, bool outer) {
   g->lit[(size_t)y * (size_t)g->map->width + (size_t)x] = 1;
 }
 
+/* Map colony-name font: DOS FONTINTR, or FONTTINY under the port-only
+ * settings.json game_options.tiny_colony_names (Game Options checkbox 8). */
+static const ColonizeFont* game_colony_name_font(const ColonizeGameState* game) {
+  if (settings_get()->tiny_colony_names && game->colony_font_ok) {
+    return &game->colony_font;
+  }
+  return game->intro_font_ok ? &game->intro_font : NULL;
+}
+
 /*
  * mods.current_vision (port-only): checkerboard of a 1/4 fog-blue tint on every seen tile that
  * no unit (units_sight_radius, map_sight_each domain gate) or colony (radius
@@ -2613,7 +2623,7 @@ COLONIZE_INTERNAL void game_render_map_composite(
       &game->colonies,
       game->unit_icons_ok ? &game->unit_icons : NULL,
       framebuffer,
-      game->intro_font_ok ? &game->intro_font : NULL,   /* FONTINTR — name */
+      game_colony_name_font(game),                       /* FONTINTR — name */
       game->colony_font_ok ? &game->colony_font : NULL, /* FONTTINY — pop badge */
       view_x,
       view_y,
@@ -2680,7 +2690,7 @@ COLONIZE_INTERNAL void game_render_map_composite(
     }
     if (draw_colonies) {
       colonies_render_on_map(
-        &game->colonies, NULL, framebuffer, game->intro_font_ok ? &game->intro_font : NULL, NULL,
+        &game->colonies, NULL, framebuffer, game_colony_name_font(game), NULL,
         view_x, view_y, view_cols, view_rows, tile_w, tile_h, map_origin_x, map_origin_y,
         &game->world_map, game_fog_nation(game), NULL, COLONY_MAP_DRAW_NAME
       );

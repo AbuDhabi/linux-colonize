@@ -61,6 +61,9 @@ typedef struct ColonizeSettings {
   bool combat_analysis;
   bool water_color_cycling;
   bool tutorial_hints;
+  /* Port-only row 8 (data/mods GAME.TXT): map colony names in FONTTINY, not
+   * DOS's FONTINTR. settings.json only; no save bit. */
+  bool tiny_colony_names;
 
   /* @COLONYOPTIONS — true = report shown (DOS stores the suppress bit). */
   bool labels_on_buildings;
