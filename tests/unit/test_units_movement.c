@@ -2082,6 +2082,80 @@ static int unit_far_bfs_next_step(void) {
 #endif
 }
 
+/* mods.h MOD_WAGON_COLONY_DETOUR: a Go To wagon one tile west of its own
+ * colony on a road row, goal on the far side. Through the colony is 3 road
+ * thirds but exhausts the wagon; round it over plains is 7. Off (DOS) it walks
+ * in; on, the flood's colony toll (6 thirds) sends it round. */
+static int unit_wagon_colony_detour_mod(void) {
+  units_reset_state();
+  ColonizeUnitPool pool;
+  memset(&pool, 0, sizeof(pool));
+  pool.type_count = 1;
+  pool.types[0].kind_plus1 = UNITS_KIND_WAGON + 1;
+  pool.types[0].movement = 2;
+  pool.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  char err[128];
+  if (!map_alloc(&map, 12, 12, err, sizeof(err))) {
+    fprintf(stderr, "wagon_detour: map_alloc failed: %s\n", err);
+    return 1;
+  }
+  for (int i = 0; i < 12 * 12; ++i) {
+    map.terrain[i] = 2; /* plains */
+    map.layer3[i] = 0xf1;
+  }
+  map_tile_set_road(&map, 4, 5, true);
+  map_tile_set_road(&map, 6, 5, true);
+  map_tile_set_road(&map, 7, 5, true);
+  map.layer2[5 * 12 + 5] |= MAP_OCCUPANCY_HAS_CITY;
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+  ColonizeColony* col = &colonies.colonies[0];
+  col->active = true;
+  col->id = 1;
+  col->nation_id = 0;
+  col->x = 5;
+  col->y = 5;
+  colonies.colony_count = 1;
+  const int id = units_spawn_allow_stack(&pool, 0, 4, 5);
+  ColonizeUnit* u = units_get(&pool, id);
+  if (!u) {
+    map_free(&map);
+    return 1;
+  }
+  u->nation_id = 0;
+  u->orders = UNITS_ORDER_GOTO;
+  u->goto_x = 7;
+  u->goto_y = 5;
+  const ColonizeWorld w = {.units = &pool, .colonies = &colonies, .map = &map};
+  const uint32_t saved = mods_campaign_mask();
+  int rc = 0;
+  int nx = -1, ny = -1;
+  mods_campaign_set(saved & ~(1u << MOD_WAGON_COLONY_DETOUR));
+  if (!units_next_goto_step_w(&w, id, &nx, &ny) || nx != 5 || ny != 5) {
+    fprintf(stderr, "wagon_detour off: expected colony (5,5), got (%d,%d)\n", nx, ny);
+    rc = 1;
+  }
+  mods_campaign_set(saved | 1u << MOD_WAGON_COLONY_DETOUR);
+  if (!units_next_goto_step_w(&w, id, &nx, &ny) || nx != 5 || (ny != 4 && ny != 6)) {
+    fprintf(stderr, "wagon_detour on: expected (5,4)/(5,6), got (%d,%d)\n", nx, ny);
+    rc = 1;
+  }
+  /* The colony as the goal pays no toll. */
+  u->goto_x = 5;
+  u->goto_y = 5;
+  u->x = 3;
+  if (!units_next_goto_step_w(&w, id, &nx, &ny) || nx != 4 || ny != 5) {
+    fprintf(stderr, "wagon_detour on, colony goal: expected (4,5), got (%d,%d)\n", nx, ny);
+    rc = 1;
+  }
+  mods_campaign_set(saved);
+  map_free(&map);
+  units_reset_state();
+  return rc;
+}
+
 /* mods.h MOD_GOTO_NATIVE_WAIT: a human Go To whose goal holds a Brave stops
  * next to it with the order and its moves kept. Off: the step goes on to the
  * move/attack resolver as before. */
@@ -2231,6 +2305,7 @@ static const TestCase k_cases[] = {
   {"unit_far_bfs_next_step", unit_far_bfs_next_step},
   {"unit_board_gate_reseed_1443", unit_board_gate_reseed_1443},
   {"unit_goto_native_wait_mod", unit_goto_native_wait_mod},
+  {"unit_wagon_colony_detour_mod", unit_wagon_colony_detour_mod},
   {"unit_ai_undefended_colony_band", unit_ai_undefended_colony_band},
   {"unit_colony_entry_bvar4_reseed_1323", unit_colony_entry_bvar4_reseed_1323},
   {"unit_tb44_flood_key_rules", unit_tb44_flood_key_rules},

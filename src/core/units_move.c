@@ -2119,6 +2119,7 @@ typedef struct UnitsFloodGrid {
   bool native;
   int owner;
   const ColonizeCol1Save* col1;
+  int colony_toll; /* mods.wagon_colony_detour; keyed in every rule mode */
 } UnitsFloodGrid;
 
 static UnitsFloodGrid s_flood = {.key_x = -1, .key_y = -1};
@@ -2151,7 +2152,26 @@ typedef struct UnitsFloodReq {
   bool uniform;     /* DS:0x1dd4 */
   int mover_id;     /* port-only units_can_enter_w filter; -1 = none */
   const ColonizeCol1Save* col1; /* owner-term peace read (units_world_col1) */
+  int colony_toll;  /* port-only, 0 = DOS: see units_flood_colony_toll */
 } UnitsFloodReq;
+
+/*
+ * mods.wagon_colony_detour, not DOS: the FUN_465b_0bd1 colony-enter arm
+ * exhausts a wagon (units_move_colony_arrival), but 00f2 prices a colony tile
+ * like road, so a Go To / trade-route wagon walks into every colony on its way
+ * and loses the rest of its turn there. The flood adds r->colony_toll (one
+ * full turn of MP, in thirds) for stepping into a colony that is not the goal.
+ * ponytail: a flat turn's MP, not the MP actually left on arrival; a
+ * turn-aware search would price it exactly.
+ */
+static int units_flood_colony_toll(
+  const ColonizeColonyPool* colonies, const UnitsFloodReq* r, int x, int y
+) {
+  if (r->colony_toll <= 0 || !colonies || (x == r->goal_x && y == r->goal_y)) {
+    return 0;
+  }
+  return colonies_id_at(colonies, x, y) >= 0 ? r->colony_toll : 0;
+}
 
 /* units_can_enter_w for the flood / BFS / greedy statics, which hold loose
  * const pools (units_can_enter_w reads units / colonies / map only). */
@@ -2278,6 +2298,7 @@ static int units_flood_00f2(
       g->uniform != r->uniform || g->native != (r->type_index >= 0x13) || g->owner != r->owner ||
       g->col1 != r->col1;
   }
+  rebuild = rebuild || g->colony_toll != r->colony_toll;
   if (getenv("UNITS_FLOOD_TRACE")) fprintf(stderr, "[00f2] mover %d (%d,%d) cap %d owner %d type %d key (%d,%d) goal (%d,%d) grid[mover] %d rebuild %d\n", r->mover_id, r->mover_x, r->mover_y, r->cap, r->owner, r->type_index, g->key_x, g->key_y, r->goal_x, r->goal_y, mover_in ? g->cost[mlx][mly] : -1, rebuild);
   if (rebuild) {
     g->map = map;
@@ -2290,6 +2311,7 @@ static int units_flood_00f2(
     g->native = r->type_index >= 0x13;
     g->owner = r->owner;
     g->col1 = r->col1;
+    g->colony_toll = r->colony_toll;
     memset(g->cost, 0, sizeof(g->cost));
     int head = 0;          /* DS:0x2d18, a plain int */
     unsigned tail = 1;     /* DS:0x2d16, byte-wrapped */
@@ -2309,6 +2331,8 @@ static int units_flood_00f2(
         flood_cost_at_mover = e;
         continue;
       }
+      /* The mover steps from each candidate into (cx,cy). */
+      const int toll = units_flood_colony_toll(colonies, r, cx, cy);
       for (int d = 0; d < 8; ++d) {
         const int nx = cx + MAP_DIR8_DX[d];
         const int ny = cy + MAP_DIR8_DY[d];
@@ -2319,7 +2343,7 @@ static int units_flood_00f2(
         if (term < 0) {
           continue;
         }
-        const int c = e + term + units_flood_edge(map, low_move, r->uniform, cx, cy, nx, ny);
+        const int c = e + term + toll + units_flood_edge(map, low_move, r->uniform, cx, cy, nx, ny);
         uint8_t* slot = &g->cost[nx - ox][ny - oy];
         if (*slot == 0 || c < (int)*slot) {
           *slot = (uint8_t)c;
@@ -2352,6 +2376,7 @@ static int units_flood_00f2(
       }
       /* port_bugs.md #700: no MP pre-filter; FUN_465b_0000 owns the overspend. */
       c += units_flood_edge(map, low_move, false, r->mover_x, r->mover_y, nx, ny);
+      c += units_flood_colony_toll(colonies, r, nx, ny);
       if (getenv("UNITS_FLOOD_TRACE")) fprintf(stderr, "[flood] mover %d (%d,%d) goal (%d,%d) d%d cand (%d,%d) grid %d c %d tie %d best %d/%d\n", r->mover_id, r->mover_x, r->mover_y, r->goal_x, r->goal_y, d, nx, ny, g->cost[nx - ox][ny - oy], c, map_dos_dist(r->goal_x - nx, r->goal_y - ny), best_score, best_tie);
       if (c > best_score) {
         continue;
@@ -2474,7 +2499,12 @@ static bool units_flood_next_step(
      * 0972 exit / 0906 restore left (DOSBox america 129->130: the Mounted
      * Warrior's 00f2 at (38,43) has owner -1, the port scored owner 11). */
     .owner = (u->orders == UNITS_ORDER_AI_MOVE || u->nation_id > 3) ? -1 : u->nation_id,
-    .cap = cap, .uniform = false, .mover_id = unit_id, .col1 = col1
+    .cap = cap, .uniform = false, .mover_id = unit_id, .col1 = col1,
+    .colony_toll = (mods_on(MOD_WAGON_COLONY_DETOUR) &&
+                    (u->orders == UNITS_ORDER_GOTO || u->orders == UNITS_ORDER_TRADE_ROUTE) &&
+                    units_type_is_wagon(units_type(pool, u->type_index)))
+                     ? units_max_mp(pool, unit_id)
+                     : 0
   };
   const int d = units_flood_00f2(pool, map, colonies, &r, NULL);
   if (d < 0) {
