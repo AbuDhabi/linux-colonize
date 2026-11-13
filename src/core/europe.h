@@ -711,8 +711,9 @@ bool europe_set_sail_from_harbor(
   int nation_id
 );
 /* As above; board_dockers false = Trade Route departure: the route is kept;
- * under dos_buggy_behavior() no boarding and the riders go back to the dock
- * (DB-104), otherwise sentried dockers board as for the manual Sail. */
+ * with mods.riders_keep_ship off or under dos_buggy_behavior() no boarding and
+ * the riders go back to the dock (DB-104), otherwise sentried dockers board as
+ * for the manual Sail. */
 bool europe_set_sail_from_harbor_ex(
   EuropeScreen* eu,
   int harbor_index,

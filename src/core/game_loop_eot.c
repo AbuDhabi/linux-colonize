@@ -1538,8 +1538,8 @@ void game_europe_service_trade_harbor(ColonizeGameState* game) {
     }
     const int bound_before = eu->bound_ships;
     /* The route leg sails with orders 2, so DOS FUN_1427_10be boards nobody
-     * (raw 8630-8632); the port boards sentried dockers unless
-     * dos_buggy_behavior() (DB-104, europe_set_sail_from_harbor_ex). */
+     * (raw 8630-8632); the port boards sentried dockers with
+     * mods.riders_keep_ship on (DB-104, europe_set_sail_from_harbor_ex). */
     if (!europe_set_sail_from_harbor_ex(
           eu, i, game_voyage_turns(game, ship->exit_x), &game->units, game->human_nation, false
         )) {

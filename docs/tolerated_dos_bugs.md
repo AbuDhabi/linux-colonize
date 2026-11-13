@@ -71,41 +71,9 @@ it from live pathing only (keep the save planes DOS-exact) needs a way to keep
 those gates meaningful, e.g. a switch the golden harnesses turn off.
 **Status:** tolerated (2026-10-21). Fixed in opencol 2026-10-27, gated on `!dos_buggy_behavior()`; test binaries still reproduce DOS.
 
-### TB-2 — Passengers switch ships when another own ship leaves the tile first
-**DOS:** a passenger is not "aboard" anything; it is a sentried land unit in
-the tile's unit chain. When a ship leaves a tile, `FUN_1427_10be` (raw
-8606-8680) sorts the tile with `FUN_1427_04d6` (hulls on top, then Treasure,
-then @UNIT size 6..1, each bucket in chain order) and boards every same-nation
-land unit that fits the hull's room, charging each its @UNIT size column
-(`FUN_4720_00e0`, raw 74655-74661). Riders of other ships on the tile are in
-that chain too, so whichever ship moves off a shared tile first takes them,
-first come, first served, and may leave some of its own passengers behind for
-the next hull. DOSBox-confirmed (independence seed-100 1->2,
-[evidence](archive/tolerated_dos_bugs_evidence_2026-10-24.md#tb-2)).
-
-**Effect:** with two or more own ships on one tile (colony or open sea), units
-loaded on one ship can sail off on another, and a ship can depart without some
-of the units the player loaded on it. Affects human players and the AI alike.
-
-**Port (reproduces it):** `units_ship_departure_pickup`
-(`src/core/units_cargo.c`, declared in `units_cargo.h`) walks the hull's own
-riders, sentried land units on the tile and riders of other own hulls there in
-the 04d6 order; called from the ship move in `src/core/units_move.c` before the
-group moves. The port keeps an explicit `aboard_ship_id`, so this is a
-deliberate re-creation, not a side effect. Unit test: `unit_units_core`
-`ship_switch_quirk`. A rider of another own hull boards when it is sentried or
-the tile is water (`FUN_1427_10be` asm 1427:11d4-1232, port_bugs.md #1780). Not
-reproduced: FUN_1427_10be's trade-route arm off a settlement tile (orders 2)
-runs FUN_1427_101c first, so every other hull on the tile picks before it, and
-the route hull gets a budget only if units are left over; the port gives it full
-room and lets it pick first. The landfall pick re-runs the same pickup first
-(`units_first_landfall_cargo`: FUN_4720_015c's FUN_281f_0916 = FUN_1427_12f6 ->
-10be, raw 75967), so with two own hulls at sea one hull's Make Landfall can put
-another hull's rider ashore (port_bugs.md #1782).
-
-**Blocks removal:** boarding only the hull's own riders breaks
-`golden_idle_independence` from save 2, which depends on the DOS pickup order.
-**Status:** tolerated (2026-10-21). Fixed in opencol 2026-10-27, gated on `!dos_buggy_behavior()`; test binaries still reproduce DOS.
+### TB-2 — moved to dos_bugs.md DB-109
+Passengers switch ships when another own ship leaves the tile first; now a
+toggle-gated fix, see [dos_bugs.md](dos_bugs.md) DB-109.
 
 ### TB-5 — Colony job scoring reads Horses for the Fisherman
 **DOS:** FUN_15eb_28c8 (the work-plot job scorer) calls

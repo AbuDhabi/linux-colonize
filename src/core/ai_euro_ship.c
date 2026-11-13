@@ -701,9 +701,8 @@ int ai_euro_20e6_wagon_village_errand(
  *     head, and 10be uses only that: a trade-route ship at sea (`03e4`
  *     tile_tribe_owner < 0, not in its own Europe slot) gets `free = 0` unless
  *     loose units remain after every other transport on the tile has claimed
- *     its own. Only the settlement-tile budget 0 is ported
- *     (units_ship_departure_pickup); the at-sea pre-pass has no counterpart —
- *     the port has no tile-stack chain, passengers live in `cargo_ids`.
+ *     its own. Both arms are ported in units_ship_departure_pickup (the
+ *     at-sea pre-pass only in DOS mode, dos_bugs.md DB-109).
  *
  * So +0x314c only ever carries 0/1 in this sweep.
  *
@@ -1623,7 +1622,7 @@ int ai_euro_ship_enter_europe(ColonizeTurnContext* ctx, ColonizeUnit* ship) {
   }
   /* raw 77608 FUN_281f_0916 -> FUN_1427_12f6 -> 10be (raw 8722-8737): the
    * hull rebuilds its load from the High Seas tile before the 02ee stamp
-   * walk (TB-2 under dos_buggy_behavior: other hulls' riders too). */
+   * walk (DOS mode, dos_bugs.md DB-109: other hulls' riders too). */
   (void)units_ship_departure_pickup(ctx->units, ctx->map,ship->id, ox, oy);
   ship->col1_counter16 = ai_euro_lane_voyage_turns(ctx, n, ox);
   /* 08da -> FUN_1427_0968 clears the visibility nibble of the hull's whole

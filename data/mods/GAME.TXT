@@ -53,6 +53,7 @@ DOS Bug Fixes
 @options
 ~Go To Waits at Natives
 ~Refused Beg Alarms the Tribe
+~Passengers Keep Their Ship
 
 ;       Button under every @MODOPTIONS page: saves the page, like Enter.
 ;       Row 0 on the pages before the last, row 1 on the last.

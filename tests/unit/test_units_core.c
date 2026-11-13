@@ -1,6 +1,7 @@
 #include "test_units_common.h"
 #include "core/units_internal.h"
 #include "core/dos_buggy.h"
+#include "core/mods.h"
 #include "core/ai_popup_render.h"
 #include "core/europe_internal.h"
 
@@ -7754,7 +7755,7 @@ static int case_selected_passenger_blink(void) {
   return 0;
 }
 
-  /* DOS ship-switch bug (docs/tolerated_dos_bugs.md TB-2): the first ship to leave a shared tile
+  /* DOS ship-switch bug (docs/dos_bugs.md DB-109): the first ship to leave a shared tile
    * scoops the tile's loaded units first come, first served; the rest stay
    * with the remaining ship(s). At sea awake riders go too (#1780). */
 static int case_ship_switch_quirk(void) {
@@ -7867,11 +7868,21 @@ static int case_trade_route_departure_no_pickup(void) {
             s->cargo_count);
     return 1;
   }
-  /* DB-104: fixed outside dos_buggy_behavior(), the route hull boards both. */
+  /* DB-104: fixed with mods.riders_keep_ship (outside dos_buggy_behavior()),
+   * the route hull boards both; toggle off keeps DOS. */
   units_get(&pool, rider)->orders = UNITS_ORDER_SENTRY;
+  const uint32_t saved_mask = mods_campaign_mask();
   dos_buggy_behavior_set(false);
+  mods_campaign_set(0u);
+  const int off_n = units_ship_departure_pickup(&pool, &map, ship, tx, ty);
+  mods_campaign_set(1u << MOD_RIDERS_KEEP_SHIP);
   const int fixed_n = units_ship_departure_pickup(&pool, &map, ship, tx, ty);
+  mods_campaign_set(saved_mask);
   dos_buggy_behavior_set(true);
+  if (off_n != 0) {
+    fprintf(stderr, "trade-route pickup: toggle off must keep DOS budget 0 (%d)\n", off_n);
+    return 1;
+  }
   if (fixed_n != 2 || s->cargo_count != 2) {
     fprintf(stderr, "trade-route pickup: fixed route hull should board both (%d)\n", fixed_n);
     return 1;

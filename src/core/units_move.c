@@ -1016,7 +1016,7 @@ COLONIZE_INTERNAL UnitsMoveStatus units_move_commit_step(units_move_ctx* c) {
   const bool ship = units_is_sea(pool, unit_id);
   /* Departure pickup (FUN_1427_10be) on the old tile, before 040c moves the
    * group: sentried units there and riders of other own hulls (DOS
-   * ship-switch bug, docs/tolerated_dos_bugs.md TB-2). */
+   * ship-switch bug, docs/dos_bugs.md DB-109). */
   if (ship) {
     (void)units_ship_departure_pickup(pool, map, unit_id, ox, oy);
     /* FUN_465b_0000 raw 75706-75710 (asm 465b:080a-082d): every unit behind

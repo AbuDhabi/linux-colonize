@@ -397,7 +397,9 @@ static void test_mods_group(void) {
   check(!s.mods[MOD_WAGON_LOOT], "default mods.wagon_loot off (gameplay mod)");
   check(s.mods[MOD_GOTO_NATIVE_WAIT], "default mods.goto_native_wait on (DOS bug fix)");
   check(s.mods[MOD_BEG_REFUSAL_ALARM], "default mods.beg_refusal_alarm on (DOS bug fix)");
-  check(settings_mods_mask(&s) == (1u << MOD_GOTO_NATIVE_WAIT | 1u << MOD_BEG_REFUSAL_ALARM),
+  check(s.mods[MOD_RIDERS_KEEP_SHIP], "default mods.riders_keep_ship on (DOS bug fix)");
+  check(settings_mods_mask(&s) == (1u << MOD_GOTO_NATIVE_WAIT | 1u << MOD_BEG_REFUSAL_ALARM |
+                                   1u << MOD_RIDERS_KEEP_SHIP),
         "defaults as a mask");
 
   FILE* f = fopen(k_path, "wb");

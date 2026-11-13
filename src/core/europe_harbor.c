@@ -22,6 +22,7 @@
 #include "core/dos_buggy.h"
 #include "core/dos_rng.h"
 #include "core/founding_fathers.h"
+#include "core/mods.h"
 #include "core/popup_msg.h"
 #include "core/reports.h"
 #include "core/reports_names.h"
@@ -337,11 +338,11 @@ bool europe_set_sail_from_harbor_ex(
     ship.trade_route_plus1 = 0;
     ship.trade_stop = 0;
     europe_board_sentry_dockers(eu, &ship, units, nation_id, europe_ship_cargo_cap(&ship, units));
-  } else if (dos_buggy_behavior()) {
+  } else if (dos_buggy_behavior() || !mods_on(MOD_RIDERS_KEEP_SHIP)) {
     europe_disembark_passengers_to_dock(eu, &ship, units);
   } else {
-    /* DB-104 fixed: the route leg boards like the manual Sail, keeping the
-     * route and the riders already aboard. */
+    /* DB-104 fixed (with the DB-109 toggle): the route leg boards like the
+     * manual Sail, keeping the route and the riders already aboard. */
     europe_board_sentry_dockers(eu, &ship, units, nation_id, europe_ship_cargo_cap(&ship, units));
   }
   /*

@@ -64,6 +64,10 @@ typedef enum ModId {
    * tribe's alarm toward the refuser through FUN_4cc6_00f2, instead of DOS's
    * write into another tribe's record (ai_contact_apply_beg_food). */
   MOD_BEG_REFUSAL_ALARM = 19,
+  /* DOS bug fix (dos_bugs.md DB-109): a departing ship boards only its own
+   * riders and tile sentries, never another own ship's passengers
+   * (units_ship_departure_pickup). */
+  MOD_RIDERS_KEEP_SHIP = 20,
   MOD_COUNT
 } ModId;
 

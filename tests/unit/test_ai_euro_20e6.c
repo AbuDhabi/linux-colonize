@@ -1431,7 +1431,8 @@ static int unit_europe_lane_hop_appends_at_chain_tail(void) {
  * 8722-8737) before stamping the riders, so the hull that sails for Europe
  * rebuilds its load from the High Seas tile. A loose sentried colonist on
  * the tile boards in both modes; the rider of the other hull transfers only
- * under dos_buggy_behavior (TB-2).
+ * under dos_buggy_behavior (dos_bugs.md DB-109; the fixed run turns
+ * MOD_RIDERS_KEEP_SHIP on).
  */
 static int europe_entry_bucket_run(int buggy) {
   const int nation = 1;
@@ -1464,9 +1465,12 @@ static int europe_entry_bucket_run(int buggy) {
     fixture_free(&f);
     return fail("bucket entry board");
   }
+  const uint32_t saved_mask = mods_campaign_mask();
+  mods_campaign_set(1u << MOD_RIDERS_KEEP_SHIP);
   dos_buggy_behavior_set(buggy != 0);
   const int entered = ai_euro_ship_enter_europe(&f.ctx, ship);
   dos_buggy_behavior_set(true);
+  mods_campaign_set(saved_mask);
   if (!entered) {
     fixture_free(&f);
     return fail("bucket entry: hull on High Seas must enter the lane");

@@ -67,7 +67,7 @@ defaults no matter what file is sitting in the build directory.
     "kings_audience": false, "tribe_mood": false, "scout_spying": false, "treaty_cancel_popup": false,
     "pioneer_plan": false, "scout_autoexplore": false, "ship_autoexplore": false, "hard_king": false,
     "current_vision": false, "construction_queue": false, "modern_prng": false,
-    "beg_refusal_alarm": true
+    "beg_refusal_alarm": true, "riders_keep_ship": true
   },
   "data_dir": "./COLONIZE",
   "save_dir": "",
@@ -169,7 +169,8 @@ page title naming the group:
    `late_fathers`, `building_upkeep`, `hard_king`, `pioneer_plan`,
    `scout_autoexplore`, `ship_autoexplore`, `current_vision`, `construction_queue`,
    `modern_prng`.
-3. `@MODOPTIONS3` "DOS Bug Fixes": `goto_native_wait`, `beg_refusal_alarm`.
+3. `@MODOPTIONS3` "DOS Bug Fixes": `goto_native_wait`, `beg_refusal_alarm`,
+   `riders_keep_ship`.
 
 Next / Done (the button under the rows, `@MODOPTIONSDONE`, Done on the last page; or Enter) on a page saves
 that page's toggles, flushes the file and opens the next page; Esc on any page
@@ -210,6 +211,7 @@ stock 12 Game Concept pages stay title-only, as in DOS.
 | `construction_queue` | off | Port-only Construction build queue (docs/colony.md "ColonizeColony.build_queue"): Shift-click / Shift+Enter queues a project behind the one in production, and the picker also lists, in grey, projects only that plan unlocks (Drydock behind Docks), which can only be queued. Off = the DOS picker, Shift ignored. The queue rides the `BQUE` chunk. |
 | `modern_prng` | off | Every `dos_rng_next` draw, on any `ColonizeDosRng`, is the top 15 bits of one process-wide xoshiro256** (`src/third_party/xoshiro256starstar.h`, authors' CC0 code) instead of the DOS LCG. `game_commit_new_campaign` seeds it via splitmix64 from the campaign seed (`--seed` / `seed`) if set, else the wall clock, before map generation; DOS reseeds (`dos_rng_seed`, DS:0x83a6, music tick, save/load) then leave the stream alone, so nothing replays. Values re-derived on demand from a stable seed stay on the LCG (`dos_rng_range_lcg`): the colony-screen building layout (every frame) and a village's taught skill (@CHIEFHOWDY, then the visit). The state rides in RTST record 13, written only while on, and a load resumes it (no reseed); a mask without the bit (`mods_campaign_set`) switches the stream off. Off = DOS draws and saves unchanged. |
 | `beg_refusal_alarm` | on | DOS bug fix (tolerated_dos_bugs_ai.md TB-12): a refused native food beg raises the begging tribe's alarm toward the refuser through the whole `FUN_4cc6_00f2` (`ai_contact_alarm_delta_00f2`: France and Pocahontas halve it, clamp 0..100, at 100 under peace the mission expel roll and `@INDIANBURN`). Off = DOS: the add lands in another tribe's record (`ai_diplo_indian_alarm_word_raw` with the Indian nation as index). |
+| `riders_keep_ship` | on | DOS bug fix (dos_bugs.md DB-109): a ship leaving a tile boards its own passengers and the tile's sentried land units, never another own ship's passengers (`units_ship_departure_pickup`, human and AI). Also covers DB-104: a Trade Route ship leaving a colony or Europe boards sentried units like any ship (`europe_set_sail_from_harbor_ex`). Off = DOS: the first ship to leave takes every own rider on the tile that fits, a Trade Route ship at sea lets the other ships there pick first, and one leaving a colony or Europe boards nobody. |
 
 Port-only keys, no DOS bit, no head bridge.
 `save_dir` empty means the platform default (`<exe>/COLONIZE`). `seed` is

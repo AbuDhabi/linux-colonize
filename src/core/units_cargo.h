@@ -303,13 +303,15 @@ int units_find_boardable_ship(
   const ColonizeUnitPool* pool, int x, int y, int nation_id, int need_space
 );
 /*
- * Departure pickup (DOS ship-switch bug, docs/tolerated_dos_bugs.md TB-2):
- * one ascending-id first-come-
- * first-served sweep boarding sentried land units on (x,y) AND passengers
- * riding other own ships still on (x,y), until the departing ship is full.
- * Each rider is charged its @UNIT size column, so a Treasure only transfers
- * to a hull with six free holds. A Trade Route hull leaving a settlement
- * takes nothing (map: settlement test; NULL = none). Returns units taken.
+ * Departure pickup (DOS ship-switch bug, docs/dos_bugs.md DB-109): one
+ * first-come-first-served sweep boarding sentried land units on (x,y) AND
+ * passengers riding other own ships still on (x,y), until the departing ship
+ * is full; with mods.h MOD_RIDERS_KEEP_SHIP (never under dos_buggy_behavior)
+ * other ships' passengers stay. Each rider is charged its @UNIT size column,
+ * so a Treasure only transfers to a hull with six free holds. A Trade Route
+ * hull leaving a settlement takes nothing (map: settlement test; NULL =
+ * none); at sea, DOS mode, the other hulls there pick first and it takes
+ * anything only if a unit is left over. Returns units taken.
  */
 int units_ship_departure_pickup(
   ColonizeUnitPool* pool, const ColonizeWorldMap* map, int ship_id, int x, int y
