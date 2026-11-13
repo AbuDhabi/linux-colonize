@@ -1115,7 +1115,7 @@ static int unit_trade_route_sea_departure_pickup(void) {
   return rc;
 }
 
-/* DB-106 DOS mode: a departing hull's riders left behind go to another own
+/* dos_bugs.md DB-109 DOS mode: a departing hull's riders left behind go to another own
  * hull on the tile only within that hull's room. Caravel A (2 aboard, full),
  * Merchantman B (4) and C (4, top of the tile): B takes C's four, so its own
  * four belong on C, not on the full Caravel. */
