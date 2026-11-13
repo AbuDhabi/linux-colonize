@@ -53,9 +53,10 @@ typedef enum ModId {
   MOD_HARD_KING = 15,
   /* New feature: seen tiles outside live unit/colony sight get a fog-blue veil. */
   MOD_CURRENT_VISION = 16,
-  /* New feature: Shift-pick Construction build queue; the picker lists, in grey,
-   * projects only the queued plan unlocks (docs/colony.md build_queue). */
-  MOD_CONSTRUCTION_QUEUE = 17,
+  /* Retired 2026-11-13, was construction_queue: the build queue is always on,
+   * its plan-only rows listed only while Shift is held (docs/colony.md
+   * build_queue). No settings key, no checkbox; old saves may carry the bit. */
+  MOD_RETIRED_17 = 17,
   /* Gameplay: every draw comes from one xoshiro256** stream the save carries
    * (RTST record 13) instead of the DOS LCG reseeded from the tick on save and
    * load (dos_rng_modern_seed). Off = DOS. */
@@ -73,6 +74,10 @@ typedef enum ModId {
   MOD_NO_EDUCATION_LIES = 21,
   MOD_COUNT
 } ModId;
+
+/* Retired slots: no settings key, no Mods checkbox row. */
+#define MODS_RETIRED_MASK (1u << MOD_RETIRED_17)
+#define MODS_RETIRED_COUNT 1
 
 /* True when `id` is on for the running campaign. */
 bool mods_on(ModId id);

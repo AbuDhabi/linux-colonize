@@ -1831,7 +1831,7 @@ static int case_mods_dialog_pages(void) {
       rc = 1;
     }
   }
-  if (seen != (1u << MOD_COUNT) - 1u) {
+  if (seen != (((1u << MOD_COUNT) - 1u) & ~MODS_RETIRED_MASK)) {
     fprintf(stderr, "mods pages cover ModIds %#x, want every one of %d\n", (unsigned)seen,
             MOD_COUNT);
     rc = 1;

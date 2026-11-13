@@ -195,7 +195,7 @@ bool options_dialog_open_sound(
  * The cap below is 13 rows, the OK button taking the last two
  * (OPTIONS_MODS_OK_ROWS); all 20 toggles on one page (22 rows) would need 296.
  * The _Static_asserts below hold each page to OPTIONS_MODS_PAGE_ROWS_MAX; a
- * page that outgrows it needs another section. Every ModId sits on exactly one
+ * page that outgrows it needs another section. Every live ModId sits on exactly one
  * page (checked by the popup dialog tests).
  */
 #define OPTIONS_MODS_OK_ROWS 2
@@ -207,7 +207,7 @@ static const ModId k_mods_restored[] = {
 static const ModId k_mods_rules[] = {
   MOD_POPULATION_FLOOR,  MOD_LATE_FATHERS,     MOD_BUILDING_UPKEEP, MOD_HARD_KING,
   MOD_PIONEER_PLAN,      MOD_SCOUT_AUTOEXPLORE, MOD_SHIP_AUTOEXPLORE, MOD_CURRENT_VISION,
-  MOD_CONSTRUCTION_QUEUE, MOD_MODERN_PRNG,      MOD_NO_EDUCATION_LIES,
+  MOD_MODERN_PRNG,       MOD_NO_EDUCATION_LIES,
 };
 static const ModId k_mods_fixes[] = {
   MOD_GOTO_NATIVE_WAIT, MOD_BEG_REFUSAL_ALARM, MOD_RIDERS_KEEP_SHIP
@@ -228,8 +228,8 @@ _Static_assert(MODS_PAGE_LEN(k_mods_rules) <= OPTIONS_MODS_PAGE_ROWS_MAX, "mods 
 _Static_assert(MODS_PAGE_LEN(k_mods_fixes) <= OPTIONS_MODS_PAGE_ROWS_MAX, "mods page 3 fits 200 px");
 _Static_assert(
   MODS_PAGE_LEN(k_mods_restored) + MODS_PAGE_LEN(k_mods_rules) + MODS_PAGE_LEN(k_mods_fixes) ==
-    MOD_COUNT,
-  "the mods pages hold MOD_COUNT rows"
+    MOD_COUNT - MODS_RETIRED_COUNT,
+  "the mods pages hold every live ModId"
 );
 
 int options_dialog_mods_page_id(int page, int row) {

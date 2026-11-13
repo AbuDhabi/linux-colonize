@@ -1055,12 +1055,26 @@ static bool game_colony_production_idle(const ColonizeColony* col) {
   return bid < COLONIZE_BUILDING_TYPES_MAX && col->has_building[bid];
 }
 
-void game_colony_queue_construction(ColonizeGameState* game, int bid) {
-  /* Without mods.construction_queue Shift is ignored: a plain pick. */
-  if (!mods_on(MOD_CONSTRUCTION_QUEUE)) {
-    game_colony_commit_construction(game, bid);
-    return;
+/*
+ * Relist the open Construction picker (its plan or the Shift state changed)
+ * with the highlight on `bid`'s row when it is still listed; otherwise the
+ * open default (the current project's row).
+ */
+void game_colony_relist_construction(ColonizeGameState* game, int bid) {
+  ColonyScreenView* csv = &game->colony_screen;
+  const ColoniesBuildableOpts bopts = game_colony_buildable_opts(game);
+  colony_screen_open_construction(csv, &game->colonies, game->colony_view_id, &bopts);
+  for (int i = 0; i < csv->buildable_count; ++i) {
+    if (csv->buildable_ids[i] == bid) {
+      csv->construction_selection = i + 1;
+      csv->construction_page = i + 1 >= 0x10; /* ignored on a one-page list */
+      csv->more_selected = false;
+      break;
+    }
   }
+}
+
+void game_colony_queue_construction(ColonizeGameState* game, int bid) {
   const ColonizeColony* col = colonies_get(&game->colonies, game->colony_view_id);
   const ColoniesBuildableOpts bopts = game_colony_buildable_opts(game);
   bool acted = false;
@@ -1087,16 +1101,7 @@ void game_colony_queue_construction(ColonizeGameState* game, int bid) {
     return;
   }
   /* The plan grew: relist so the rows it unlocks appear. */
-  ColonyScreenView* csv = &game->colony_screen;
-  colony_screen_open_construction(csv, &game->colonies, game->colony_view_id, &bopts);
-  for (int i = 0; i < csv->buildable_count; ++i) {
-    if (csv->buildable_ids[i] == bid) {
-      csv->construction_selection = i + 1;
-      csv->construction_page = i + 1 >= 0x10; /* ignored on a one-page list */
-      csv->more_selected = false;
-      break;
-    }
-  }
+  game_colony_relist_construction(game, bid);
 }
 
 void game_colony_commit_construction(ColonizeGameState* game, int bid) {

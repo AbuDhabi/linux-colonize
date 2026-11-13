@@ -79,8 +79,6 @@ the map; ORDERS Automate sends the pioneer to do the work.
 ^{Scouts and Ships Auto-Explore}: ORDERS Automate (Q) sends a scout to villages
 and rumours, or a ship to uncharted sea, on its own.
 ^{Current Vision}: explored land no unit or colony of yours sees is veiled.
-^{Construction Queue}: Shift-click a project to queue it behind the current
-one. Projects the queue unlocks are listed in grey; they can only be queued.
 ^{Modern Random Numbers}: the save keeps the dice; a load rerolls nothing.
 ^{Full SoL Teaches Faster}: teaching takes half the time at full SoL.
 

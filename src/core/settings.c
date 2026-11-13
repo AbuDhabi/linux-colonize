@@ -108,7 +108,7 @@ static const SettingsBoolOpt k_divergence_opts[] = {
   SETTINGS_BOOL(alternate_map_generator, false),
 };
 
-/* "mods": one row per ModId, in ModId order. DOS bug fixes default on,
+/* "mods": one row per live ModId (retired slots have none), in ModId order. DOS bug fixes default on,
  * gameplay mods and new features default off. */
 #define SETTINGS_MOD(key, id, def_value) \
   {key, offsetof(ColonizeSettings, mods) + (size_t)(id) * sizeof(bool), (def_value)}
@@ -130,7 +130,6 @@ static const SettingsBoolOpt k_mod_opts[] = {
   SETTINGS_MOD("ship_autoexplore", MOD_SHIP_AUTOEXPLORE, false),
   SETTINGS_MOD("hard_king", MOD_HARD_KING, false),
   SETTINGS_MOD("current_vision", MOD_CURRENT_VISION, false),
-  SETTINGS_MOD("construction_queue", MOD_CONSTRUCTION_QUEUE, false),
   SETTINGS_MOD("modern_prng", MOD_MODERN_PRNG, false),
   SETTINGS_MOD("beg_refusal_alarm", MOD_BEG_REFUSAL_ALARM, true),
   SETTINGS_MOD("riders_keep_ship", MOD_RIDERS_KEEP_SHIP, true),
@@ -138,7 +137,8 @@ static const SettingsBoolOpt k_mod_opts[] = {
 };
 
 #define SETTINGS_OPT_COUNT(t) ((int)(sizeof(t) / sizeof((t)[0])))
-_Static_assert(SETTINGS_OPT_COUNT(k_mod_opts) == MOD_COUNT, "one settings row per ModId");
+_Static_assert(SETTINGS_OPT_COUNT(k_mod_opts) == MOD_COUNT - MODS_RETIRED_COUNT,
+               "one settings row per live ModId");
 
 static bool* settings_bool_at(ColonizeSettings* s, const SettingsBoolOpt* opt) {
   return (bool*)((char*)s + opt->offset);

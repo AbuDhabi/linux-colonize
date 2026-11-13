@@ -303,9 +303,10 @@ void colony_screen_open_construction(
     return;
   }
   colony_screen_close_subpanels(view);
-  /* mods.construction_queue: rows the queued plan unlocks are listed too
-   * (Shift queues them; game_colony_commit_construction refuses a plain pick). */
-  const bool queue = mods_on(MOD_CONSTRUCTION_QUEUE);
+  /* Port-only build queue: while Shift is held the rows the queued plan unlocks
+   * are listed too (Shift queues them; game_colony_commit_construction refuses
+   * a plain pick). */
+  const bool queue = view->construction_planned;
   view->buildable_count =
     queue ? colonies_list_buildable_planned(pool, colony_id, view->buildable_ids,
                                             COLONY_BUILDABLE_MAX, buildable_opts)

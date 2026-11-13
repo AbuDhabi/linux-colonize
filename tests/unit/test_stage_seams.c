@@ -2548,7 +2548,7 @@ static int picker_row(const ColonyScreenView* csv, int bid) {
   return -1;
 }
 
-static int test_colony_shift_pick_moves_highlight_body(void) {
+static int test_colony_shift_pick_moves_highlight(void) {
   ColonizeGameState game;
   memset(&game, 0, sizeof(game));
   ColonizeMsgCatalog names;
@@ -2589,6 +2589,7 @@ static int test_colony_shift_pick_moves_highlight_body(void) {
       col->building_in_production = carpenter;
     }
     const ColoniesBuildableOpts bopts = game_colony_buildable_opts(&game);
+    game.colony_screen.construction_planned = true; /* Shift held */
     colony_screen_open_construction(&game.colony_screen, &game.colonies, col->id, &bopts);
     ColonyScreenView* csv = &game.colony_screen;
     /* Nothing in production opens on the (no production) row; a built current
@@ -2642,12 +2643,13 @@ static int test_colony_shift_pick_moves_highlight_body(void) {
 }
 
 /*
- * Port-only build queue: the picker also lists what the plan (project in
- * production + queue) unlocks. Such a row can be queued with Shift, never
- * started by a plain pick, and a queue head whose chain predecessor never got
- * built is dropped instead of started.
+ * Port-only build queue: while Shift is held the picker also lists what the
+ * plan (project in production + queue) unlocks. Such a row can be queued with
+ * Shift, never started by a plain pick, and a queue head whose chain
+ * predecessor never got built is dropped instead of started. Without Shift the
+ * list is DOS's, relisted live as Shift goes down and up.
  */
-static int test_colony_picker_lists_planned_unlocks_body(void) {
+static int test_colony_picker_lists_planned_unlocks(void) {
   ColonizeGameState game;
   memset(&game, 0, sizeof(game));
   ColonizeMsgCatalog names;
@@ -2677,6 +2679,7 @@ static int test_colony_picker_lists_planned_unlocks_body(void) {
   }
   ColonyScreenView* csv = &game.colony_screen;
   const ColoniesBuildableOpts bopts = game_colony_buildable_opts(&game);
+  csv->construction_planned = true; /* Shift held */
   colony_screen_open_construction(csv, &game.colonies, col->id, &bopts);
   if (picker_row(csv, mill) > 0) {
     return fail("Lumber Mill listed with no Carpenter's Shop planned");
@@ -2723,30 +2726,25 @@ static int test_colony_picker_lists_planned_unlocks_body(void) {
   if (col->build_queue_count != 0 || col->building_in_production == mill) {
     return fail("a queue head without its predecessor must be dropped");
   }
-  /* mods.construction_queue off: no plan rows, and a Shift pick is a plain pick. */
-  mods_campaign_set(mods_campaign_mask() & ~(1u << MOD_CONSTRUCTION_QUEUE));
+  /* Shift up and down relists live; the bar stays put. */
   col->building_in_production = carpenter;
-  colony_screen_open_construction(csv, &game.colonies, col->id, &bopts);
-  game_colony_queue_construction(&game, mill);
-  if (picker_row(csv, mill) > 0 || col->build_queue_count != 0) {
-    return fail("with the flag off the picker must neither list nor queue plan rows");
+  game.in_colony = true;
+  ColonizeInputState in;
+  memset(&in, 0, sizeof(in));
+  in.shift_held = true;
+  (void)game_update_colony_screen(&game, &in);
+  csv->construction_selection = 0; /* the (no production) row */
+  in.shift_held = false;
+  (void)game_update_colony_screen(&game, &in);
+  if (picker_row(csv, mill) > 0 || csv->construction_selection != 0) {
+    return fail("without Shift the picker must drop plan rows and keep the bar on (no production)");
+  }
+  in.shift_held = true;
+  (void)game_update_colony_screen(&game, &in);
+  if (picker_row(csv, mill) <= 0 || csv->construction_selection != 0) {
+    return fail("Shift must relist the plan rows and keep the bar on (no production)");
   }
   return 0;
-}
-
-/* The build queue is mods.construction_queue; the picker tests run with it on. */
-static int with_construction_queue(int (*body)(void)) {
-  const uint32_t saved = mods_campaign_mask();
-  mods_campaign_set(saved | 1u << MOD_CONSTRUCTION_QUEUE);
-  const int rc = body();
-  mods_campaign_set(saved);
-  return rc;
-}
-static int test_colony_shift_pick_moves_highlight(void) {
-  return with_construction_queue(test_colony_shift_pick_moves_highlight_body);
-}
-static int test_colony_picker_lists_planned_unlocks(void) {
-  return with_construction_queue(test_colony_picker_lists_planned_unlocks_body);
 }
 
 /* One Prairie plot (ring 3, unowned, unbought) among ocean plots; colonist 0 works in the

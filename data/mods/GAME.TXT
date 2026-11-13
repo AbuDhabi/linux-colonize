@@ -43,7 +43,6 @@ Plan Pi~oneer, Pioneer Automate
 Scouts Auto-~Explore
 S~hips Auto-Explore
 Current ~Vision Veil
-~Construction Queue
 Modern ~Random Numbers
 Full SoL ~Teaches Faster
 

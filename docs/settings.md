@@ -67,7 +67,7 @@ defaults no matter what file is sitting in the build directory.
     "royal_mercy": false, "late_fathers": false, "town_hall_tiers": false, "building_upkeep": false,
     "kings_audience": false, "tribe_mood": false, "scout_spying": false, "treaty_cancel_popup": false,
     "pioneer_plan": false, "scout_autoexplore": false, "ship_autoexplore": false, "hard_king": false,
-    "current_vision": false, "construction_queue": false, "modern_prng": false,
+    "current_vision": false, "modern_prng": false,
     "beg_refusal_alarm": true, "riders_keep_ship": true, "no_education_lies": false
   },
   "data_dir": "./COLONIZE",
@@ -168,7 +168,7 @@ page title naming the group:
    `raid_scalps`, `scout_spying`.
 2. `@MODOPTIONS2` "New Rules and Features": `population_floor`,
    `late_fathers`, `building_upkeep`, `hard_king`, `pioneer_plan`,
-   `scout_autoexplore`, `ship_autoexplore`, `current_vision`, `construction_queue`,
+   `scout_autoexplore`, `ship_autoexplore`, `current_vision`,
    `modern_prng`, `no_education_lies`.
 3. `@MODOPTIONS3` "DOS Bug Fixes": `goto_native_wait`, `beg_refusal_alarm`,
    `riders_keep_ship`.
@@ -209,7 +209,6 @@ stock 12 Game Concept pages stay title-only, as in DOS.
 | `ship_autoexplore` | off | The same for ships (ocean fog only). |
 | `hard_king` | off | Makes the War of Independence REF tougher (`ai_king_ref.c`): (1) `ai_king_ref_wave` runs up to difficulty + 1 FUN_43f7_0982 waves a turn (Discoverer 1 .. Viceroy 5), each spending one Man-O-War from the pool; an empty hull or land pool ends the turn's waves, and later waves skip colonies already invaded this turn while another coastal colony is left; (2) the landing sweep (`ai_king_0982_land_troops`) no longer counts the target's own units in a tile's stack, so occupied tiles tie with empty ones and get seized (FUN_43f7_0512, units destroyed); (3) target scoring adds the target's land units with attack > 1 within Chebyshev 2 of the colony (off its tile) to the tile strength and, outside the Fort/Fortress multiplier, to the garrison score. Off = DOS. Nothing saved. |
 | `current_vision` | off | Dithers (1-pixel checkerboard: 1/4 fog blue, palette 60..62, over 3/4 pixel; palette-nearest LUT) every seen map tile that no unit or colony of the viewed nation currently sees: unit tiles from `units_sight_radius` + the `map_sight_each` domain gate, colonies radius 1. The veil covers explored tiles plus a 1-tile ring into the unexplored. Layering, top first: colony names, fog (pixels the terrain pass left as fog are re-stamped, `s_fog_mask`), the veil (`game_render_current_vision`), everything else. Render-only, nothing saved. |
-| `construction_queue` | off | Port-only Construction build queue (docs/colony.md "ColonizeColony.build_queue"): Shift-click / Shift+Enter queues a project behind the one in production, and the picker also lists, in grey, projects only that plan unlocks (Drydock behind Docks), which can only be queued. Off = the DOS picker, Shift ignored. The queue rides the `BQUE` chunk. |
 | `modern_prng` | off | Every `dos_rng_next` draw, on any `ColonizeDosRng`, is the top 15 bits of one process-wide xoshiro256** (`src/third_party/xoshiro256starstar.h`, authors' CC0 code) instead of the DOS LCG. `game_commit_new_campaign` seeds it via splitmix64 from the campaign seed (`--seed` / `seed`) if set, else the wall clock, before map generation; DOS reseeds (`dos_rng_seed`, DS:0x83a6, music tick, save/load) then leave the stream alone, so nothing replays. Values re-derived on demand from a stable seed stay on the LCG (`dos_rng_range_lcg`): the colony-screen building layout (every frame) and a village's taught skill (@CHIEFHOWDY, then the visit). The state rides in RTST record 13, written only while on, and a load resumes it (no reseed); a mask without the bit (`mods_campaign_set`) switches the stream off. Off = DOS draws and saves unchanged. |
 | `no_education_lies` | off | A colony holding the SoL 100 latch (`COLONIZE_COLONY_FLAG_SOL_100`, the bit behind the +2 production bonus) halves a teacher's turns in `turn_produce_education`: level 1/2/3 need 2/3/4 instead of 4/6/8. `@REBELUNANIMOUS` promises this ("can also be educated more quickly"); DOS FUN_364b_0688 never reads the latch there. Every nation. Off = DOS. Nothing saved. |
 | `beg_refusal_alarm` | on | DOS bug fix (tolerated_dos_bugs_ai.md TB-12): a refused native food beg raises the begging tribe's alarm toward the refuser through the whole `FUN_4cc6_00f2` (`ai_contact_alarm_delta_00f2`: France and Pocahontas halve it, clamp 0..100, at 100 under peace the mission expel roll and `@INDIANBURN`). Off = DOS: the add lands in another tribe's record (`ai_diplo_indian_alarm_word_raw` with the Indian nation as index). |

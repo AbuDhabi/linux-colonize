@@ -308,6 +308,7 @@ ColoniesBuildableOpts game_colony_buildable_opts(const ColonizeGameState* game);
 void game_colony_commit_construction(ColonizeGameState* game, int bid);
 /* Shift pick: queue behind the current project, keep the picker open. */
 void game_colony_queue_construction(ColonizeGameState* game, int bid);
+void game_colony_relist_construction(ColonizeGameState* game, int bid);
 void game_colony_commit_job(ColonizeGameState* game, ColonizeColony* colony, int job);
 /* The jobs menu (FUN_2f2b_348c, param 0) for the selected colonist, `tile_index` his plot or
  * -1, with its build-up side effects (port_bugs.md #1205). */

@@ -637,11 +637,11 @@ every colony — the same as the port's pre-#755 behaviour.
 
 ## ColonizeColony.build_queue
 
-Port-only QOL (no DOS counterpart), gated by
-`mods.construction_queue` (default off; docs/settings.md "Mods"): the projects a
+Port-only QOL (no DOS counterpart), always on but invisible until used (it
+was `mods.construction_queue`, ModId 17, retired 2026-11-13): the projects a
 colony starts, in order, as each completion frees `building_in_production`.
-With the flag off, Shift picks are plain picks and the picker lists only
-`colonies_list_buildable`. Shift-clicking a row in the
+Without Shift the picker is the DOS one (`colonies_list_buildable`, plain
+picks). Shift-clicking a row in the
 Construction picker — or Shift+Enter on the selected row — appends to it
 (`game_colony_queue_construction`) and leaves the picker open; with nothing in
 production that Shift pick starts the project instead, still without closing, so
@@ -652,7 +652,9 @@ plain pick or "(No Production)" wipes the queue
 (`game_colony_commit_construction`, `colonies_build_queue_clear`). Queued rows
 are drawn with their 1-based position in yellow ahead of the name.
 
-The picker lists the plan's unlocks too (`colonies_list_buildable_planned`):
+While Shift is held the picker lists the plan's unlocks too
+(`colonies_list_buildable_planned`; `game_update_colony_screen` relists on every
+Shift change, `ColonyScreenView.construction_planned`):
 whatever `colonies_list_buildable` would list once the current project and every
 queued one were built — Drydock behind Docks, Shipyard behind a queued Drydock,
 ships behind a queued Shipyard. Each Shift pick relists. Such a row can only be

@@ -2540,6 +2540,22 @@ COLONIZE_INTERNAL GameUpdateStep game_update_colony_screen(ColonizeGameState* ga
     if (csv->focus == COLONY_FOCUS_UNITS && csv->multi_mode != COLONY_MULTI_UNITS) {
       csv->focus = COLONY_FOCUS_COLONISTS;
     }
+    /* Port-only build queue: the rows only the queued plan unlocks are listed
+     * while Shift is held (a Shift pick queues them); otherwise the DOS list. */
+    if (csv->construction_planned != input->shift_held) {
+      csv->construction_planned = input->shift_held;
+      if (csv->construction_open) {
+        const int sel = csv->construction_selection;
+        const bool more = csv->more_selected;
+        game_colony_relist_construction(
+          game, sel > 0 && sel <= csv->buildable_count ? csv->buildable_ids[sel - 1] : -1
+        );
+        if (sel == 0 && !more) {
+          csv->construction_selection = 0; /* keep the bar on (no production) */
+          csv->more_selected = false;
+        }
+      }
+    }
 
     /* DOS mouse state for the focus blink (port_bugs.md #1284): DS:0x7ee held,
      * DS:0x8d54 press region (FUN_2f2b_40a0; a holds press counts as none,
