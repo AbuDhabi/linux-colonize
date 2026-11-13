@@ -45,7 +45,6 @@ S~hips Auto-Explore
 Current ~Vision Veil
 ~Construction Queue
 Modern ~Random Numbers
-~Wagons Path Around Colonies
 
 @MODOPTIONS3
 @width=220

@@ -2082,11 +2082,11 @@ static int unit_far_bfs_next_step(void) {
 #endif
 }
 
-/* mods.h MOD_WAGON_COLONY_DETOUR: a Go To wagon one tile west of its own
+/* units_flood_colony_toll: a Go To wagon one tile west of its own
  * colony on a road row, goal on the far side. Through the colony is 3 road
- * thirds but exhausts the wagon; round it over plains is 7. Off (DOS) it walks
- * in; on, the flood's colony toll (6 thirds) sends it round. */
-static int unit_wagon_colony_detour_mod(void) {
+ * thirds plus the 3-third toll. Round it over plains (7) the wagon still walks
+ * in; with a road tile at (5,4) the detour costs 3 and wins. */
+static int unit_wagon_colony_detour(void) {
   units_reset_state();
   ColonizeUnitPool pool;
   memset(&pool, 0, sizeof(pool));
@@ -2129,17 +2129,15 @@ static int unit_wagon_colony_detour_mod(void) {
   u->goto_x = 7;
   u->goto_y = 5;
   const ColonizeWorld w = {.units = &pool, .colonies = &colonies, .map = &map};
-  const uint32_t saved = mods_campaign_mask();
   int rc = 0;
   int nx = -1, ny = -1;
-  mods_campaign_set(saved & ~(1u << MOD_WAGON_COLONY_DETOUR));
   if (!units_next_goto_step_w(&w, id, &nx, &ny) || nx != 5 || ny != 5) {
-    fprintf(stderr, "wagon_detour off: expected colony (5,5), got (%d,%d)\n", nx, ny);
+    fprintf(stderr, "wagon_detour no road: expected colony (5,5), got (%d,%d)\n", nx, ny);
     rc = 1;
   }
-  mods_campaign_set(saved | 1u << MOD_WAGON_COLONY_DETOUR);
-  if (!units_next_goto_step_w(&w, id, &nx, &ny) || nx != 5 || (ny != 4 && ny != 6)) {
-    fprintf(stderr, "wagon_detour on: expected (5,4)/(5,6), got (%d,%d)\n", nx, ny);
+  map_tile_set_road(&map, 5, 4, true);
+  if (!units_next_goto_step_w(&w, id, &nx, &ny) || nx != 5 || ny != 4) {
+    fprintf(stderr, "wagon_detour road: expected (5,4), got (%d,%d)\n", nx, ny);
     rc = 1;
   }
   /* The colony as the goal pays no toll. */
@@ -2150,7 +2148,6 @@ static int unit_wagon_colony_detour_mod(void) {
     fprintf(stderr, "wagon_detour on, colony goal: expected (4,5), got (%d,%d)\n", nx, ny);
     rc = 1;
   }
-  mods_campaign_set(saved);
   map_free(&map);
   units_reset_state();
   return rc;
@@ -2305,7 +2302,7 @@ static const TestCase k_cases[] = {
   {"unit_far_bfs_next_step", unit_far_bfs_next_step},
   {"unit_board_gate_reseed_1443", unit_board_gate_reseed_1443},
   {"unit_goto_native_wait_mod", unit_goto_native_wait_mod},
-  {"unit_wagon_colony_detour_mod", unit_wagon_colony_detour_mod},
+  {"unit_wagon_colony_detour", unit_wagon_colony_detour},
   {"unit_ai_undefended_colony_band", unit_ai_undefended_colony_band},
   {"unit_colony_entry_bvar4_reseed_1323", unit_colony_entry_bvar4_reseed_1323},
   {"unit_tb44_flood_key_rules", unit_tb44_flood_key_rules},

@@ -67,7 +67,7 @@ defaults no matter what file is sitting in the build directory.
     "kings_audience": false, "tribe_mood": false, "scout_spying": false, "treaty_cancel_popup": false,
     "pioneer_plan": false, "scout_autoexplore": false, "ship_autoexplore": false, "hard_king": false,
     "current_vision": false, "construction_queue": false, "modern_prng": false,
-    "beg_refusal_alarm": true, "wagon_colony_detour": false
+    "beg_refusal_alarm": true
   },
   "data_dir": "./COLONIZE",
   "save_dir": "",
@@ -168,7 +168,7 @@ page title naming the group:
 2. `@MODOPTIONS2` "New Rules and Features": `population_floor`,
    `late_fathers`, `building_upkeep`, `hard_king`, `pioneer_plan`,
    `scout_autoexplore`, `ship_autoexplore`, `current_vision`, `construction_queue`,
-   `modern_prng`, `wagon_colony_detour`.
+   `modern_prng`.
 3. `@MODOPTIONS3` "DOS Bug Fixes": `goto_native_wait`, `beg_refusal_alarm`.
 
 Next / Done (the button under the rows, `@MODOPTIONSDONE`, Done on the last page; or Enter) on a page saves
@@ -209,7 +209,6 @@ stock 12 Game Concept pages stay title-only, as in DOS.
 | `current_vision` | off | Dithers (1-pixel checkerboard: 1/4 fog blue, palette 60..62, over 3/4 pixel; palette-nearest LUT) every seen map tile that no unit or colony of the viewed nation currently sees: unit tiles from `units_sight_radius` + the `map_sight_each` domain gate, colonies radius 1. The veil covers explored tiles plus a 1-tile ring into the unexplored. Layering, top first: colony names, fog (pixels the terrain pass left as fog are re-stamped, `s_fog_mask`), the veil (`game_render_current_vision`), everything else. Render-only, nothing saved. |
 | `construction_queue` | off | Port-only Construction build queue (docs/colony.md "ColonizeColony.build_queue"): Shift-click / Shift+Enter queues a project behind the one in production, and the picker also lists, in grey, projects only that plan unlocks (Drydock behind Docks), which can only be queued. Off = the DOS picker, Shift ignored. The queue rides the `BQUE` chunk. |
 | `modern_prng` | off | Every `dos_rng_next` draw, on any `ColonizeDosRng`, is the top 15 bits of one process-wide xoshiro256** (`src/third_party/xoshiro256starstar.h`, authors' CC0 code) instead of the DOS LCG. `game_commit_new_campaign` seeds it via splitmix64 from the campaign seed (`--seed` / `seed`) if set, else the wall clock, before map generation; DOS reseeds (`dos_rng_seed`, DS:0x83a6, music tick, save/load) then leave the stream alone, so nothing replays. Values re-derived on demand from a stable seed stay on the LCG (`dos_rng_range_lcg`): the colony-screen building layout (every frame) and a village's taught skill (@CHIEFHOWDY, then the visit). The state rides in RTST record 13, written only while on, and a load resumes it (no reseed); a mask without the bit (`mods_campaign_set`) switches the stream off. Off = DOS draws and saves unchanged. |
-| `wagon_colony_detour` | off | A wagon train on Go To or a trade route paths around colonies that are not its goal when that is cheaper: the goto flood (`units_flood_00f2`) adds one full turn of the wagon's MP (6 thirds) for stepping into such a colony, because the colony-enter arm exhausts a wagon (`units_move_colony_arrival`). Off = DOS: a colony tile costs like road and the wagon walks in. Only the flood tiers; the adjacent sign-step and greedy fallback are unchanged. Nothing saved, no RNG. |
 | `beg_refusal_alarm` | on | DOS bug fix (tolerated_dos_bugs_ai.md TB-12): a refused native food beg raises the begging tribe's alarm toward the refuser through the whole `FUN_4cc6_00f2` (`ai_contact_alarm_delta_00f2`: France and Pocahontas halve it, clamp 0..100, at 100 under peace the mission expel roll and `@INDIANBURN`). Off = DOS: the add lands in another tribe's record (`ai_diplo_indian_alarm_word_raw` with the Indian nation as index). |
 
 Port-only keys, no DOS bit, no head bridge.

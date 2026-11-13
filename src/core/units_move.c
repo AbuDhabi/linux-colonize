@@ -2119,7 +2119,7 @@ typedef struct UnitsFloodGrid {
   bool native;
   int owner;
   const ColonizeCol1Save* col1;
-  int colony_toll; /* mods.wagon_colony_detour; keyed in every rule mode */
+  int colony_toll; /* port-only wagon detour; keyed in every rule mode */
 } UnitsFloodGrid;
 
 static UnitsFloodGrid s_flood = {.key_x = -1, .key_y = -1};
@@ -2156,13 +2156,12 @@ typedef struct UnitsFloodReq {
 } UnitsFloodReq;
 
 /*
- * mods.wagon_colony_detour, not DOS: the FUN_465b_0bd1 colony-enter arm
+ * Port pathing tweak, not DOS: the FUN_465b_0bd1 colony-enter arm
  * exhausts a wagon (units_move_colony_arrival), but 00f2 prices a colony tile
  * like road, so a Go To / trade-route wagon walks into every colony on its way
  * and loses the rest of its turn there. The flood adds r->colony_toll (one
- * full turn of MP, in thirds) for stepping into a colony that is not the goal.
- * ponytail: a flat turn's MP, not the MP actually left on arrival; a
- * turn-aware search would price it exactly.
+ * move, UNITS_MP_PER_TILE thirds) for stepping into a colony that is not the
+ * goal: enough to prefer a road round it, not enough to prefer open terrain.
  */
 static int units_flood_colony_toll(
   const ColonizeColonyPool* colonies, const UnitsFloodReq* r, int x, int y
@@ -2500,10 +2499,9 @@ static bool units_flood_next_step(
      * Warrior's 00f2 at (38,43) has owner -1, the port scored owner 11). */
     .owner = (u->orders == UNITS_ORDER_AI_MOVE || u->nation_id > 3) ? -1 : u->nation_id,
     .cap = cap, .uniform = false, .mover_id = unit_id, .col1 = col1,
-    .colony_toll = (mods_on(MOD_WAGON_COLONY_DETOUR) &&
-                    (u->orders == UNITS_ORDER_GOTO || u->orders == UNITS_ORDER_TRADE_ROUTE) &&
+    .colony_toll = ((u->orders == UNITS_ORDER_GOTO || u->orders == UNITS_ORDER_TRADE_ROUTE) &&
                     units_type_is_wagon(units_type(pool, u->type_index)))
-                     ? units_max_mp(pool, unit_id)
+                     ? UNITS_MP_PER_TILE
                      : 0
   };
   const int d = units_flood_00f2(pool, map, colonies, &r, NULL);
