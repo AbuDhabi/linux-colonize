@@ -318,8 +318,8 @@ static bool game_service_popup_queue(ColonizeGameState* game, bool zoom_blocked_
    * claimed dies then and no later open replays it (#1733). */
   for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
     ColonizeColony* rc = &game->colonies.colonies[i];
-    if (rc->active && rc->pending_build_reveal > 0 && rc->id >= 0 && rc->id < 64 &&
-        (game->ai_popups.colony_zoom_elected & ((uint64_t)1u << rc->id)) == 0 &&
+    if (rc->active && rc->pending_build_reveal > 0 && rc->id >= 0 &&
+        !ai_popup_colony_zoom_is_elected(&game->ai_popups, rc->id) &&
         !ai_popup_colony_has_pending(&game->ai_popups, rc->id)) {
       rc->pending_build_reveal = 0;
     }

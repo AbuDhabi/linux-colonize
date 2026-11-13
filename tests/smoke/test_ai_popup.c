@@ -327,11 +327,36 @@ static int case_queue_present_now(void) {
   if (!ai_popup_present_now(&st, AI_POPUP_TAG_KING_AUDIENCE) || strcmp(st.current.body, "k") != 0) {
     return fail("present_now must present the asked tag");
   }
-  if (st.colony_zoom_elected != ((uint64_t)1u << 4) || !queue_order_is(&st, "c1,a")) {
+  if (!ai_popup_colony_zoom_is_elected(&st, 4) || ai_popup_colony_zoom_is_elected(&st, 1) ||
+      !queue_order_is(&st, "c1,a")) {
     return fail("present_now must restore the zoom hold and keep the rest in order");
   }
   if (ai_popup_present_now(&st, AI_POPUP_TAG_INFO)) {
     return fail("present_now while a popup is open must fail");
+  }
+  return 0;
+}
+
+/* Zoom latch covers the whole colony pool: unlimited_colonies ids past 63
+ * used to drop the "Zoom to colony." election silently. */
+static int case_zoom_high_colony_id(void) {
+  AiPopupState st;
+  ai_popup_init(&st);
+  ai_popup_enqueue_colony_event(&st, 66, 0, "c66");
+  ai_popup_colony_zoom_elect(&st, 66);
+  if (!ai_popup_colony_zoom_is_elected(&st, 66) || ai_popup_colony_zoom_is_elected(&st, 2)) {
+    return fail("zoom must latch colony 66 only");
+  }
+  if (ai_popup_take_colony_zoom(&st) != -1) {
+    return fail("zoom must wait for the colony's pending messages");
+  }
+  if (!ai_popup_try_present_next(&st) || st.current.choice_count != 0) {
+    return fail("elected colony 66 presents its batch optionless");
+  }
+  ai_popup_cancel_current(&st);
+  ai_popup_consume_result(&st);
+  if (ai_popup_take_colony_zoom(&st) != 66 || ai_popup_colony_zoom_is_elected(&st, 66)) {
+    return fail("zoom must hand over colony 66 once and clear it");
   }
   return 0;
 }
@@ -1198,6 +1223,7 @@ static const TestCase k_cases[] = {
     {"case_queue_drop_tag", case_queue_drop_tag},
     {"case_queue_urgent_pump", case_queue_urgent_pump},
     {"case_queue_present_now", case_queue_present_now},
+    {"case_zoom_high_colony_id", case_zoom_high_colony_id},
     {"case_queue_overflow", case_queue_overflow},
     {"case_chrome_tags", case_chrome_tags},
     {"case_set_last_after_dropped_enqueue", case_set_last_after_dropped_enqueue},

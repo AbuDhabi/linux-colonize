@@ -1,6 +1,7 @@
 #include "core/ai_popup.h"
 #include "core/ai_popup_render.h"
 #include "core/ai_diplo.h"
+#include "core/colony.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -430,11 +431,27 @@ bool ai_popup_enqueue_colony_event(AiPopupState* st, int colony_id, int zoom_tab
   return ai_popup_enqueue_colony_event_at(st, colony_id, zoom_tab, body, true, -1, -1);
 }
 
+_Static_assert(COLONIZE_COLONIES_MAX <= AI_POPUP_ZOOM_COLONIES, "zoom latch narrower than colony pool");
+
 void ai_popup_colony_zoom_elect(AiPopupState* st, int colony_id) {
-  if (!st || colony_id < 0 || colony_id >= 64) {
+  if (!st || colony_id < 0 || colony_id >= AI_POPUP_ZOOM_COLONIES) {
     return;
   }
-  st->colony_zoom_elected |= (uint64_t)1u << colony_id;
+  st->colony_zoom_elected[colony_id / 64] |= (uint64_t)1u << (colony_id % 64);
+}
+
+bool ai_popup_colony_zoom_is_elected(const AiPopupState* st, int colony_id) {
+  return st && colony_id >= 0 && colony_id < AI_POPUP_ZOOM_COLONIES &&
+         (st->colony_zoom_elected[colony_id / 64] & ((uint64_t)1u << (colony_id % 64))) != 0;
+}
+
+static bool ai_popup_colony_zoom_any(const AiPopupState* st) {
+  for (int w = 0; w < AI_POPUP_ZOOM_COLONIES / 64; ++w) {
+    if (st->colony_zoom_elected[w] != 0) {
+      return true;
+    }
+  }
+  return false;
 }
 
 bool ai_popup_colony_has_pending(const AiPopupState* st, int colony_id) {
@@ -458,13 +475,12 @@ bool ai_popup_colony_has_pending(const AiPopupState* st, int colony_id) {
 }
 
 int ai_popup_take_colony_zoom(AiPopupState* st) {
-  if (!st || st->colony_zoom_elected == 0) {
+  if (!st || !ai_popup_colony_zoom_any(st)) {
     return -1;
   }
-  for (int c = 0; c < 64; ++c) {
-    const uint64_t bit = (uint64_t)1u << c;
-    if ((st->colony_zoom_elected & bit) != 0 && !ai_popup_colony_has_pending(st, c)) {
-      st->colony_zoom_elected &= ~bit;
+  for (int c = 0; c < AI_POPUP_ZOOM_COLONIES; ++c) {
+    if (ai_popup_colony_zoom_is_elected(st, c) && !ai_popup_colony_has_pending(st, c)) {
+      st->colony_zoom_elected[c / 64] &= ~((uint64_t)1u << (c % 64));
       return c;
     }
   }
@@ -538,12 +554,13 @@ bool ai_popup_present_now(AiPopupState* st, AiPopupTag tag) {
   if (!ai_popup_move_tag_to_front(st, tag)) {
     return false;
   }
-  const uint64_t saved_zoom = st->colony_zoom_elected;
+  uint64_t saved_zoom[AI_POPUP_ZOOM_COLONIES / 64];
+  memcpy(saved_zoom, st->colony_zoom_elected, sizeof(saved_zoom));
   const int saved_chain = st->active_chain;
-  st->colony_zoom_elected = 0; /* player-initiated: never held by a zoom batch */
+  memset(st->colony_zoom_elected, 0, sizeof(st->colony_zoom_elected)); /* player-initiated: never held by a zoom batch */
   st->active_chain = 0;        /* …nor by another exchange's chain hold */
   const bool ok = ai_popup_try_present_next(st);
-  st->colony_zoom_elected = saved_zoom;
+  memcpy(st->colony_zoom_elected, saved_zoom, sizeof(saved_zoom));
   if (st->active_chain == 0) {
     st->active_chain = saved_chain;
   }
@@ -809,12 +826,11 @@ bool ai_popup_try_present_next(AiPopupState* st) {
    * ai_popup_take_colony_zoom hands the colony to game_loop (which keeps the
    * hold up while the zoomed colony screen is open).
    */
-  if (st->colony_zoom_elected != 0) {
+  if (ai_popup_colony_zoom_any(st)) {
     pick = -1;
     for (int i = 0; i < st->queue_count; ++i) {
       const AiPopupRequest* q = &st->queue[i];
-      if (q->tag == AI_POPUP_TAG_COLONY_EVENT && q->payload >= 0 && q->payload < 64 &&
-          (st->colony_zoom_elected & ((uint64_t)1u << q->payload)) != 0) {
+      if (q->tag == AI_POPUP_TAG_COLONY_EVENT && ai_popup_colony_zoom_is_elected(st, q->payload)) {
         pick = i;
         break;
       }
@@ -891,9 +907,8 @@ static bool ai_popup_present_index(AiPopupState* st, int pick) {
   st->queue_count--;
   /* DOS FUN_364b_0000: choices only while DS:0xa898 is clear — once zoom is
    * elected, the rest of that colony's batch presents as plain messages. */
-  if (st->current.tag == AI_POPUP_TAG_COLONY_EVENT && st->current.payload >= 0 &&
-      st->current.payload < 64 &&
-      (st->colony_zoom_elected & ((uint64_t)1u << st->current.payload)) != 0) {
+  if (st->current.tag == AI_POPUP_TAG_COLONY_EVENT &&
+      ai_popup_colony_zoom_is_elected(st, st->current.payload)) {
     st->current.choice_count = 0;
     st->current.kind = AI_POPUP_KIND_OK;
   }

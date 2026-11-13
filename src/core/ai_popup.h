@@ -355,6 +355,9 @@ enum {
  */
 #define AI_POPUP_BAR_SALE_SPEEDUP 3u
 
+/* colony_zoom_elected width: covers COLONIZE_COLONIES_MAX (checked in ai_popup.c). */
+#define AI_POPUP_ZOOM_COLONIES 256
+
 typedef struct AiPopupState {
   AiPopupRequest queue[AI_POPUP_QUEUE_MAX];
   int queue_count;
@@ -381,8 +384,9 @@ typedef struct AiPopupState {
   /* DOS DS:0xa898 latch, per colony (bit = colony id): once the player picks
    * "Zoom to colony." the rest of that colony's queued messages present
    * optionless, and the colony screen opens after the last one is answered
-   * (FUN_364b_0688 tail FUN_281f_0608). */
-  uint64_t colony_zoom_elected;
+   * (FUN_364b_0688 tail FUN_281f_0608). Sized for the whole colony pool
+   * (COLONIZE_COLONIES_MAX, unlimited_colonies), not the DOS 48. */
+  uint64_t colony_zoom_elected[AI_POPUP_ZOOM_COLONIES / 64];
 
   /*
    * Contact chain currently being presented (AiPopupRequest.chain; 0 = none).
@@ -526,6 +530,7 @@ bool ai_popup_enqueue_colony_event_at(
 void ai_popup_set_colony_event_labels(const char* continue_label, const char* zoom_label);
 /* Latch a "Zoom to colony." election (result_choice_id 2). */
 void ai_popup_colony_zoom_elect(AiPopupState* st, int colony_id);
+bool ai_popup_colony_zoom_is_elected(const AiPopupState* st, int colony_id);
 /*
  * Colony whose zoom was elected and whose queued messages are all answered
  * (DOS: colony screen opens after that colony's message batch). Clears the
