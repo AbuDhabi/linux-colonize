@@ -2237,6 +2237,57 @@ static bool test_bridge_stage_seams(char* err, size_t err_size) {
   return ok;
 }
 
+/* A blank census window is filled at capture (FUN_4962_0018 walk); the human's
+ * Europe side (here a harbor Caravel) counts as in the live census. */
+static bool test_blank_census_counts_europe_side(char* err, size_t err_size) {
+  static ColonizeCol1Save save;
+  col1_save_init(&save);
+  save.head.map_size_x = 8;
+  save.head.map_size_y = 8;
+  save.player[0].control = 0;
+  col1_save_stamp_head(&save.head);
+  if (!col1_save_alloc_sections(&save, err, err_size)) {
+    return false;
+  }
+  memset(save.map.tile, T_OCEAN, save.map.tile_count);
+  static ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
+  units_reset(&units);
+  units.type_count = 14;
+  units.types[13].kind_plus1 = (int)UNITS_KIND_CARAVEL + 1;
+  units.types[13].domain = COLONIZE_UNIT_DOMAIN_SEA;
+  units.types[13].cargo = 2;
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+  static EuropeScreen eu;
+  memset(&eu, 0, sizeof(eu));
+  eu.bound_nation = 0;
+  eu.harbor[0].type_index = 13;
+  eu.harbor_ships = 1;
+  bool ok = true;
+  Col1ApplyCtx a = {.save = &save, .map = &map, .units = &units, .colonies = &colonies,
+                    .err = err, .err_size = err_size};
+  if (col1_bridge_apply_head(&a) != COL1_STAGE_OK) {
+    ok = false;
+  }
+  Col1CaptureCtx c = {.save = &save, .map = &map, .units = &units, .colonies = &colonies,
+                      .europe = &eu, .err = err, .err_size = err_size};
+  if (ok) {
+    col1_bridge_capture_occupancy(&c);
+    if (save.stuff.ship_counts[0] != 1 || save.stuff.unit_type_counts[0][13] != 1) {
+      snprintf(err, err_size, "blank census: ships %u caravels %u (want 1/1)",
+               (unsigned)save.stuff.ship_counts[0], (unsigned)save.stuff.unit_type_counts[0][13]);
+      ok = false;
+    }
+  }
+  units_set_occupancy_map(NULL);
+  col1_save_free(&save);
+  map_free(&map);
+  return ok;
+}
+
 static bool test_imported_tile_chain_order(char* err, size_t err_size) {
   ColonizeCol1Save save;
   col1_save_init(&save);
@@ -2451,6 +2502,10 @@ int main(void) {
     return 1;
   }
   fprintf(stderr, "Col1 bridge apply/capture stage seams ok\n");
+  if (!test_blank_census_counts_europe_side(err, sizeof(err))) {
+    fprintf(stderr, "blank census europe: %s\n", err);
+    return 1;
+  }
   if (!test_imported_tile_chain_order(err, sizeof(err))) {
     fprintf(stderr, "tile-chain order: %s\n", err);
     return 1;
