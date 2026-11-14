@@ -418,7 +418,48 @@ static int case_military_walls_and_growth(void) {
   return 0;
 }
 
+/* At 100% SoL with every Father in (the pool buys nothing), the governor
+ * still keeps a statesman for the 2 * pop bells a turn that hold it there. */
+static int case_bells_keep_full_sol(void) {
+  GovFx f;
+  if (!gov_fx_open(&f)) {
+    return 1;
+  }
+  ColonizeColony* c = f.col;
+  ColonizeCol1Save col1;
+  memset(&col1, 0, sizeof(col1));
+  ColonizeCol1Colony rec;
+  memset(&rec, 0, sizeof(rec));
+  rec.x = (uint8_t)c->x;
+  rec.y = (uint8_t)c->y;
+  rec.population = (uint8_t)c->colonist_count;
+  rec.rebel_dividend = 1000;
+  rec.rebel_divisor = 1000;
+  col1.head.colony_count = 1;
+  col1.colony = &rec;
+  memset(col1.nation[0].founding_fathers, 0xff, sizeof(col1.nation[0].founding_fathers));
+  f.w.col1 = &col1;
+  f.w.col1_ok = true;
+  c->stock[COLONIZE_CARGO_FOOD] = 100;
+  c->stock[COLONIZE_CARGO_LUMBER] = 0; /* no hammers to outbid the Town Hall */
+  c->governor = COLONY_GOVERNOR_INDUSTRY;
+  colony_governor_run_w(&f.w, c->id);
+  const int hall = colonies_building_row(&f.pool, COLONY_BUILDING_TOWN_HALL);
+  int statesmen = 0;
+  for (int i = 0; i < c->colonist_count; ++i) {
+    statesmen += c->colonists[i].building_type == hall;
+  }
+  const int bells = gov_preview(&f).bells;
+  gov_fx_close(&f);
+  if (statesmen == 0) {
+    fprintf(stderr, "Town Hall empty, bells %d\n", bells);
+    return 1;
+  }
+  return 0;
+}
+
 static const TestCase k_cases[] = {
+  {"bells_keep_full_sol", case_bells_keep_full_sol},
   {"military_walls_and_growth", case_military_walls_and_growth},
   {"no_food_low_popup", case_no_food_low_popup},
   {"converts_outdoors", case_converts_outdoors},

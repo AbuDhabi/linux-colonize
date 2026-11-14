@@ -42,8 +42,14 @@ colonies has a Custom House. Cash weights goods at sale value; the others at
 a quarter of it plus their own goods (horses always 1.5x the governor's food weight, so breeding pays): Farming food, Industry
 hammers, tools, muskets, ore, lumber and a bonus per added tool matched by an
 added musket (so blacksmiths feed a gunsmith rather than either working
-alone), Politics bells and crosses (bells 1, Farming 0.75, Politics 6), Military food 3.5 (growth, so horses 5.25), muskets, the tools and ore for them, hammers 3. Bells are weighted by SoL (x1.5 under
-50%, x0.25 at 100%). There is no specialist bonus: a specialist out-produces
+alone), Politics bells and crosses (bells 1, Farming 0.75, Politics 6), Military food 3.5 (growth, so horses 5.25), muskets, the tools and ore for them, hammers 3. Bells are weighted by SoL: x1.5 under
+50%, x1 from 50%. At 100%, the 2 x pop a turn that keeps the colony there
+weigh x1.5, because they hold the +2 for every worker. Below that, SoL slips
+to 99% and calls the statesman back every other turn. Bells past that upkeep
+only feed the nation's pool (DOS clamps the rebel dividend to the divisor,
+FUN_364b_0688), so they get half weight. They get none once every Father is
+elected before the declaration, or once intervention is announced and the
+pool's signed score word is full. There is no specialist bonus: a specialist out-produces
 anyone on his own job, so the swaps seat him there unless his output is
 unwanted or has no room, and then he works elsewhere.
 

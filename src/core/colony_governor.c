@@ -1,5 +1,6 @@
 #include "core/colony_governor.h"
 
+#include <limits.h>
 #include <string.h>
 
 #include "core/col1_save.h"
@@ -47,10 +48,16 @@
  * working the teacher's own expert job. */
 #define GOV_TEACH_VALUE 4.0
 #define GOV_TEACH_NEED 2.0
+/* Bells past a 100% colony's upkeep: DOS clamps the rebel dividend to the
+ * divisor each turn (FUN_364b_0688, viceroy_unpacked.c:57408), so they only
+ * feed the nation's Congress / intervention pool. */
+#define GOV_BELLS_POOL 0.5
 
 typedef struct GovWeights {
   double goods[COLONIZE_CARGO_COUNT]; /* food here = the net surplus */
   double bells;
+  int bells_upkeep;   /* per turn at that weight; INT_MAX under 100% SoL */
+  double bells_pool;  /* weight past bells_upkeep */
   double crosses;
   double hammers;
   double tools_needed; /* a tool the project still lacks */
@@ -222,7 +229,8 @@ static double gov_score(const GovCtx* g, const ColonizeColony* plan) {
     if (g->has_project) {
       s += (h + (pv.hammers - h) * g->hammer_spare) * wt->hammers;
     }
-    s += pv.bells * wt->bells + pv.crosses * wt->crosses;
+    const int kept = pv.bells < wt->bells_upkeep ? pv.bells : wt->bells_upkeep;
+    s += kept * wt->bells + (pv.bells - kept) * wt->bells_pool + pv.crosses * wt->crosses;
   }
   return s;
 }
@@ -342,6 +350,23 @@ static double gov_sale_value(const ColonizeWorld* w, int nation, int cargo, bool
   return price * (100 - tax) / 100.0;
 }
 
+/* Whether the nation's bell pool still buys anything (a Father, intervention). */
+static bool gov_bells_pool_open(const ColonizeCol1Save* col1, int nation) {
+  if (!col1 || nation < 0 || nation > 3) {
+    return true;
+  }
+  if (col1->head.game_options.woi) {
+    return !col1->head.game_options.intervention_announced ||
+           col1->nation[nation].liberty_bells_pool < 0x7fff;
+  }
+  for (unsigned ff = 0; ff < COLONIZE_COL1_FF_COUNT; ++ff) {
+    if (!founding_fathers_nation_has(col1, nation, (int)ff)) {
+      return true;
+    }
+  }
+  return false;
+}
+
 static void gov_weights(const ColonizeWorld* w, const ColonizeColony* col, int gov, GovWeights* wt) {
   memset(wt, 0, sizeof(*wt));
   /* Sale value, scaled down for the governors that are not after money. */
@@ -388,13 +413,20 @@ static void gov_weights(const ColonizeWorld* w, const ColonizeColony* col, int g
       break;
   }
   /* SoL: bells buy the +1 / +2 production bonus (and shed the Tory
-   * penalty) until the colony is at 100%. ponytail: flat factor, not the
-   * bonus each bell actually moves. */
+   * penalty), more so under 50%. At 100% the 2 * pop a turn the divisor grows
+   * by hold the +2 for every worker, so they weigh as much as under 50% (at
+   * less, SoL slipped to 99% and called the statesman back every other turn);
+   * the rest only feed the nation's pool, worth nothing once every Father is
+   * in before the declaration, or once intervention is announced and the
+   * pool's signed score word is full. ponytail: flat factors, not the bonus
+   * each bell moves. */
   /* Horses: half again what the governor pays for food (breeding eats the
    * surplus 1:1); the warehouse cap still stops them counting when full. */
   wt->goods[COLONIZE_CARGO_HORSES] = 1.5 * wt->goods[COLONIZE_CARGO_FOOD];
   const int sol = colony_prod_sol_percent(w->col1, col);
-  wt->bells *= sol < 50 ? 1.5 : sol < 100 ? 1.0 : 0.25;
+  wt->bells_pool = gov_bells_pool_open(w->col1, col->nation_id) ? GOV_BELLS_POOL * wt->bells : 0.0;
+  wt->bells *= sol >= 50 && sol < 100 ? 1.0 : 1.5;
+  wt->bells_upkeep = sol < 100 ? INT_MAX : 2 * col->colonist_count;
   /* A tool the project lacks is worth a tool and a hammer: it needs both. */
   wt->tools_needed = wt->hammers + wt->goods[COLONIZE_CARGO_TOOLS];
 }
