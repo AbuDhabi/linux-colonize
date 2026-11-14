@@ -19,7 +19,8 @@
  * Port-only (MOD_COLONY_GOVERNOR, docs/colony_governor.md). Seating
  * is a hill climb: every colonist tries every free work plot / field job and
  * every indoor job (teaching too), then every pair of colonists tries trading
- * places, and a change is kept when the plan scores better. The score plays
+ * places, then every pair tries a raw job + its processor (gov_chain_pass),
+ * and a change is kept when the plan scores better. The score plays
  * GOV_HORIZON turns of colony_preview_compute_w on a scratch copy, stocking
  * each turn's net goods into the warehouse (clamped to its capacity, so a full
  * good earns nothing) and weighting what went in per governor. Food may run a
@@ -52,9 +53,14 @@
  * divisor each turn (FUN_364b_0688, viceroy_unpacked.c:57408), so they only
  * feed the nation's Congress / intervention pool. */
 #define GOV_BELLS_POOL 0.5
+/* Industry: tools and muskets past a hold's worth in store are a stockpile,
+ * worth what they sell for, so the project's hammers come first. */
+#define GOV_INDUSTRY_STOCK 100
 
 typedef struct GovWeights {
   double goods[COLONIZE_CARGO_COUNT]; /* food here = the net surplus */
+  int full_upto[COLONIZE_CARGO_COUNT]; /* stock that weighs goods[]; INT_MAX = all */
+  double goods_past[COLONIZE_CARGO_COUNT]; /* weight past full_upto */
   double bells;
   int bells_upkeep;   /* per turn at that weight; INT_MAX under 100% SoL */
   double bells_pool;  /* weight past bells_upkeep */
@@ -168,6 +174,12 @@ static double gov_teach_value(const GovCtx* g, const ColonizeColony* c) {
   return s;
 }
 
+/* What a stock of `n` of good k is worth. */
+static double gov_stock_value(const GovWeights* wt, int k, int n) {
+  const int full = n < wt->full_upto[k] ? n : wt->full_upto[k];
+  return full * wt->goods[k] + (n - full) * wt->goods_past[k];
+}
+
 static double gov_score(const GovCtx* g, const ColonizeColony* plan) {
   const GovWeights* wt = g->wt;
   ColonizeColony c = *plan;
@@ -200,6 +212,8 @@ static double gov_score(const GovCtx* g, const ColonizeColony* plan) {
     }
     c.stock[COLONIZE_CARGO_FOOD] = food;
     int added[COLONIZE_CARGO_COUNT] = {0};
+    /* Tools added while under full_upto (the balance counts only those). */
+    const int tools_room = wt->full_upto[COLONIZE_CARGO_TOOLS] - c.stock[COLONIZE_CARGO_TOOLS];
     for (int k = 1; k < COLONIZE_CARGO_COUNT; ++k) {
       int after = c.stock[k] + pv.goods[k];
       if (after < 0) {
@@ -208,18 +222,19 @@ static double gov_score(const GovCtx* g, const ColonizeColony* plan) {
       if (g->cap[k] >= 0 && after > g->cap[k]) {
         after = g->cap[k];
       }
-      int d = after - c.stock[k];
+      const int d = after - c.stock[k];
+      int before = c.stock[k];
       c.stock[k] = after;
       added[k] = d;
       if (k == COLONIZE_CARGO_TOOLS && d > 0 && tools_need > 0) {
         const int u = d < tools_need ? d : tools_need;
         s += u * wt->tools_needed;
         tools_need -= u;
-        d -= u;
+        before += u;
       }
-      s += d * wt->goods[k];
+      s += gov_stock_value(wt, k, after) - gov_stock_value(wt, k, before);
     }
-    const int t = added[COLONIZE_CARGO_TOOLS];
+    const int t = added[COLONIZE_CARGO_TOOLS] < tools_room ? added[COLONIZE_CARGO_TOOLS] : tools_room;
     const int m = added[COLONIZE_CARGO_MUSKETS];
     if (t > 0 && m > 0) {
       s += wt->balance * (t < m ? t : m);
@@ -319,6 +334,72 @@ static bool gov_swap_pass(const GovCtx* g, ColonizeColony* c, double* best) {
   return moved;
 }
 
+/* A raw producer and his processor in one step (@JOB 9..14, Distiller ..
+ * Blacksmith, work the good of field job J - 8): a lumberjack alone stocks
+ * lumber nobody uses and a carpenter alone runs dry, so neither single move
+ * nor swap finds the pair. Colonist i takes the best free plot for the raw
+ * job, j the workplace. */
+static bool gov_chain_pass(const GovCtx* g, ColonizeColony* c, double* best) {
+  const ColonizeColonyPool* pool = g->w->colonies;
+  const ColonizeWorldMap* map = g->w->map;
+  bool moved = false;
+  for (int raw = COLONIZE_JOB_SUGAR_PLANTER; raw <= COLONIZE_JOB_ORE_MINER; ++raw) {
+    const int job = raw + COLONIZE_FIELD_JOB_COUNT - 1;
+    const int b = colonies_job_workplace_building(pool, c, job);
+    if (b < 0 || !colonies_building_workable(pool, b)) {
+      continue;
+    }
+    for (int i = 0; i < c->colonist_count; ++i) {
+      for (int j = 0; j < c->colonist_count; ++j) {
+        if (i == j || g->pinned[i] || g->pinned[j] ||
+            !colonies_job_row_offered(pool, c, job, c->colonists[j].profession)) {
+          continue;
+        }
+        const GovSeat si = gov_seat_of(c, i);
+        const GovSeat sj = gov_seat_of(c, j);
+        if ((si.tile >= 0 && si.job == raw) || sj.building == b) {
+          continue; /* half the pair is there already: the single moves cover it */
+        }
+        gov_seat_put(c, i, (GovSeat){-1, -1, -1});
+        gov_seat_put(c, j, (GovSeat){-1, -1, -1});
+        int plot = -1;
+        int yield = 0;
+        for (int t = 0; t < g->plots; ++t) {
+          int dx = 0;
+          int dy = 0;
+          colonies_field_tile_delta(t, &dx, &dy);
+          const int y = g->plot_ok[t] && c->tiles[t] < 0
+                          ? colony_yield_for_tile_in_colony(pool, c, map, c->x + dx, c->y + dy, raw)
+                          : 0;
+          if (y > yield) {
+            yield = y;
+            plot = t;
+          }
+        }
+        bool kept = false;
+        if (plot >= 0 && colonies_occupation_worker_count(pool, c, job, j) < COLONIZE_BUILDING_MAX_WORKERS) {
+          gov_seat_put(c, i, (GovSeat){plot, raw, -1});
+          gov_seat_put(c, j, (GovSeat){-1, -1, b});
+          const double v = gov_score(g, c);
+          kept = v > *best + 1e-9;
+          if (kept) {
+            *best = v;
+            moved = true;
+          } else {
+            gov_seat_put(c, i, (GovSeat){-1, -1, -1});
+            gov_seat_put(c, j, (GovSeat){-1, -1, -1});
+          }
+        }
+        if (!kept) {
+          gov_seat_put(c, i, si);
+          gov_seat_put(c, j, sj);
+        }
+      }
+    }
+  }
+  return moved;
+}
+
 static bool gov_nation_has_custom_house(const ColonizeColonyPool* pool, int nation) {
   for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
     const ColonizeColony* c = &pool->colonies[i];
@@ -374,6 +455,8 @@ static void gov_weights(const ColonizeWorld* w, const ColonizeColony* col, int g
   for (int k = 1; k < COLONIZE_CARGO_COUNT; ++k) {
     wt->goods[k] = gov_sale_value(w, col->nation_id, k, custom_house) *
                    (gov == COLONY_GOVERNOR_CASH ? 1.0 : 0.25);
+    wt->goods_past[k] = wt->goods[k];
+    wt->full_upto[k] = INT_MAX;
   }
   /* Food grows the colony: 200 make a colonist worth some 500 gold. Every
    * governor wants its project built, listed or not. */
@@ -395,6 +478,8 @@ static void gov_weights(const ColonizeWorld* w, const ColonizeColony* col, int g
       wt->balance = 6.0;
       wt->goods[COLONIZE_CARGO_ORE] = 1.0;
       wt->goods[COLONIZE_CARGO_LUMBER] = 0.5;
+      wt->full_upto[COLONIZE_CARGO_TOOLS] = GOV_INDUSTRY_STOCK;
+      wt->full_upto[COLONIZE_CARGO_MUSKETS] = GOV_INDUSTRY_STOCK;
       break;
     case COLONY_GOVERNOR_MILITARY:
       /* Growth (food, horses via the 1.5x below), muskets with the tools
@@ -414,8 +499,8 @@ static void gov_weights(const ColonizeWorld* w, const ColonizeColony* col, int g
   }
   /* SoL: bells buy the +1 / +2 production bonus (and shed the Tory
    * penalty), more so under 50%. At 100% the 2 * pop a turn the divisor grows
-   * by hold the +2 for every worker, so they weigh as much as under 50% (at
-   * less, SoL slipped to 99% and called the statesman back every other turn);
+   * by weigh as much as under 50% (at less, SoL slipped to 99% and called the
+   * statesman back every other turn; the +2 latch itself holds down to 95%);
    * the rest only feed the nation's pool, worth nothing once every Father is
    * in before the declaration, or once intervention is announced and the
    * pool's signed score word is full. ponytail: flat factors, not the bonus
@@ -494,12 +579,17 @@ static void gov_seat_colonists(const ColonizeWorld* w, ColonizeColony* col, cons
     int dx = 0;
     int dy = 0;
     colonies_field_tile_delta(t, &dx, &dy);
-    /* Native land is the player's call (@INDIANLAND); only plots the colony
-     * already works may stay worked. */
+    /* Native land is the player's call (@INDIANLAND, or Peter Minuit); only
+     * plots the colony already works may stay worked. Unbought homeland of a
+     * tribe not yet met counts too: DOS seats it without asking, and the
+     * seat stamps it bought (colonies_stamp_worked_plot). */
+    const int x = col->x + dx;
+    const int y = col->y + dy;
     g.plot_ok[t] = colonies_plot_blocked_mask(w, col, t) == 0 &&
                    (col->tiles[t] >= 0 ||
-                    colonies_indian_claim_tribe_from_w(w, col->nation_id, col->x, col->y,
-                                                       col->x + dx, col->y + dy) < 0);
+                    (colonies_indian_claim_tribe_from_w(w, col->nation_id, col->x, col->y, x, y) < 0 &&
+                     (map_tile_is_water(w->map, x, y) ||
+                      colonies_indian_land_purchase_gold(col1, w->map, x, y, col->nation_id) <= 0)));
   }
   for (int i = 0; i < col->colonist_count; ++i) {
     g.students += gov_is_student(&col->colonists[i]);
@@ -518,7 +608,8 @@ static void gov_seat_colonists(const ColonizeWorld* w, ColonizeColony* col, cons
   double best = gov_score(&g, &plan);
   for (int pass = 0; pass < GOV_PASSES; ++pass) {
     const bool moved = gov_move_pass(&g, &plan, &best);
-    if (!gov_swap_pass(&g, &plan, &best) && !moved) {
+    const bool swapped = gov_swap_pass(&g, &plan, &best);
+    if (!gov_chain_pass(&g, &plan, &best) && !swapped && !moved) {
       break;
     }
   }

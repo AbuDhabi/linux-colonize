@@ -15,11 +15,18 @@ Order: the project is picked first (below), then the colonists are seated
 to serve it.
 
 Seating: a hill climb on a copy of the colony. Each colonist tries every free
-unblocked plot (`colonies_plot_blocked_mask` 0, and not native land unless the
+unblocked plot (`colonies_plot_blocked_mask` 0, and no tribal land unless the
 colony already works it) with every field job that yields there, and every
 indoor job 9..18 the jobs menu offers (`colonies_job_row_offered`, three per
-building, the faculty cap for teachers); then every pair tries trading seats.
-A change is kept when the score rises.
+building, the faculty cap for teachers); then every pair tries trading seats;
+then every pair tries a chain: one onto the best free plot for a raw job
+(sugar .. ore), the other into the workplace that processes it (@JOB 9..14),
+since a lumberjack without a carpenter, or a carpenter without lumber, is
+worth little alone. A change is kept when the score rises. Tribal land is a
+plot the @INDIANLAND table claims, or any unbought plot inside a village's
+radius (`colonies_indian_land_purchase_gold` > 0) even before the tribe is
+met, where DOS seats without asking and stamps the plot bought: clearing it
+(or Peter Minuit) is the player's call.
 
 Score: three turns (`GOV_HORIZON`) of `colony_preview_compute_w` on a scratch
 copy, each turn's net goods stocked into its warehouse before the next, so a
@@ -42,10 +49,12 @@ colonies has a Custom House. Cash weights goods at sale value; the others at
 a quarter of it plus their own goods (horses always 1.5x the governor's food weight, so breeding pays): Farming food, Industry
 hammers, tools, muskets, ore, lumber and a bonus per added tool matched by an
 added musket (so blacksmiths feed a gunsmith rather than either working
-alone), Politics bells and crosses (bells 1, Farming 0.75, Politics 6), Military food 3.5 (growth, so horses 5.25), muskets, the tools and ore for them, hammers 3. Bells are weighted by SoL: x1.5 under
+alone); tools and muskets past 100 in store (a hold) weigh only their sale
+share, and the bonus stops there, so the project's hammers come first; Politics bells and crosses (bells 1, Farming 0.75, Politics 6), Military food 3.5 (growth, so horses 5.25), muskets, the tools and ore for them, hammers 3. Bells are weighted by SoL: x1.5 under
 50%, x1 from 50%. At 100%, the 2 x pop a turn that keeps the colony there
-weigh x1.5, because they hold the +2 for every worker. Below that, SoL slips
-to 99% and calls the statesman back every other turn. Bells past that upkeep
+weigh x1.5; at less, SoL slipped to 99% and called the statesman back every
+other turn (seat churn only: the +2 latch holds down to 95%,
+`colony_prod_refresh_sol_flags`). Bells past that upkeep
 only feed the nation's pool (DOS clamps the rebel dividend to the divisor,
 FUN_364b_0688), so they get half weight. They get none once every Father is
 elected before the declaration, or once intervention is announced and the

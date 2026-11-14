@@ -458,7 +458,97 @@ static int case_bells_keep_full_sol(void) {
   return 0;
 }
 
+/* Lumberjack and carpenter only pay as a pair (no lumber in store): the
+ * chain move seats both where single moves see each alone as a loss. A hold
+ * of tools in store keeps the blacksmith pair from outbidding them. */
+static int case_chain_lumber_to_hammers(void) {
+  GovFx f;
+  if (!gov_fx_open(&f)) {
+    return 1;
+  }
+  ColonizeColony* c = f.col;
+  const int hall = colonies_building_row(&f.pool, COLONY_BUILDING_TOWN_HALL);
+  c->colonists[3].building_type = hall;
+  c->stock[COLONIZE_CARGO_FOOD] = 100;
+  c->stock[COLONIZE_CARGO_LUMBER] = 0;
+  c->stock[COLONIZE_CARGO_TOOLS] = 100;
+  c->governor = COLONY_GOVERNOR_INDUSTRY;
+  colony_governor_run_w(&f.w, c->id);
+  int lumberjacks = 0;
+  for (int i = 0; i < c->colonist_count; ++i) {
+    lumberjacks += c->colonists[i].field_job == COLONIZE_JOB_LUMBERJACK;
+  }
+  const bool carpenter = gov_has_carpenter(&f);
+  gov_fx_close(&f);
+  if (lumberjacks == 0 || !carpenter) {
+    fprintf(stderr, "lumberjacks %d carpenter %d\n", lumberjacks, carpenter);
+    return 1;
+  }
+  return 0;
+}
+
+/* Tribal land is the player's to clear (or Peter Minuit's), met tribe or
+ * not: a village two tiles off keeps every plot out of the plan. */
+static int case_no_tribal_land(void) {
+  GovFx f;
+  if (!gov_fx_open(&f)) {
+    return 1;
+  }
+  ColonizeColony* c = f.col;
+  int vx = -1;
+  int vy = -1;
+  for (int dy = -1; dy <= 1 && vx < 0; ++dy) {
+    for (int dx = -2; dx <= 2 && vx < 0; dx += 4) {
+      if (map_tile_is_land(&f.map, c->x + dx, c->y + dy) &&
+          map_continent_id_at(&f.map, c->x + dx, c->y + dy) == map_continent_id_at(&f.map, c->x, c->y)) {
+        vx = c->x + dx;
+        vy = c->y + dy;
+      }
+    }
+  }
+  if (vx < 0) {
+    fprintf(stderr, "fixture: no village site\n");
+    gov_fx_close(&f);
+    return 1;
+  }
+  ColonizeCol1Save col1;
+  memset(&col1, 0, sizeof(col1));
+  ColonizeCol1Tribe tribe;
+  memset(&tribe, 0, sizeof(tribe));
+  tribe.x = (uint8_t)vx;
+  tribe.y = (uint8_t)vy;
+  tribe.nation_id = 4;
+  col1.indian[0].tech = 3; /* radius 3: every plot of the colony */
+  col1.head.tribe_count = 1;
+  col1.tribe = &tribe;
+  f.w.col1 = &col1;
+  f.w.col1_ok = true;
+  /* Priced before the run: a seat stamps its plot bought. */
+  bool tribal[COLONIZE_COLONY_FIELD_TILES_MAX] = {false};
+  int claimed = 0;
+  for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES_MAX; ++t) {
+    int dx = 0;
+    int dy = 0;
+    tribal[t] = colonies_field_tile_delta(t, &dx, &dy) &&
+                colonies_indian_land_purchase_gold(&col1, &f.map, c->x + dx, c->y + dy, 0) > 0;
+    claimed += tribal[t];
+  }
+  c->governor = COLONY_GOVERNOR_FARMING;
+  colony_governor_run_w(&f.w, c->id);
+  int rc = claimed == 0;
+  for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES_MAX; ++t) {
+    if (c->tiles[t] >= 0 && tribal[t]) {
+      fprintf(stderr, "plot %d is tribal land\n", t);
+      rc = 1;
+    }
+  }
+  gov_fx_close(&f);
+  return rc;
+}
+
 static const TestCase k_cases[] = {
+  {"chain_lumber_to_hammers", case_chain_lumber_to_hammers},
+  {"no_tribal_land", case_no_tribal_land},
   {"bells_keep_full_sol", case_bells_keep_full_sol},
   {"military_walls_and_growth", case_military_walls_and_growth},
   {"no_food_low_popup", case_no_food_low_popup},
