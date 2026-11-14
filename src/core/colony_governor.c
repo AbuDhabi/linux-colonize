@@ -359,7 +359,6 @@ static void gov_weights(const ColonizeWorld* w, const ColonizeColony* col, int g
   switch (gov) {
     case COLONY_GOVERNOR_FARMING:
       wt->goods[COLONIZE_CARGO_FOOD] = 4.0;
-      wt->goods[COLONIZE_CARGO_HORSES] = 4.0;
       wt->bells = 0.75;
       break;
     case COLONY_GOVERNOR_INDUSTRY:
@@ -382,6 +381,9 @@ static void gov_weights(const ColonizeWorld* w, const ColonizeColony* col, int g
   /* SoL: bells buy the +1 / +2 production bonus (and shed the Tory
    * penalty) until the colony is at 100%. ponytail: flat factor, not the
    * bonus each bell actually moves. */
+  /* Horses: half again what the governor pays for food (breeding eats the
+   * surplus 1:1); the warehouse cap still stops them counting when full. */
+  wt->goods[COLONIZE_CARGO_HORSES] = 1.5 * wt->goods[COLONIZE_CARGO_FOOD];
   const int sol = colony_prod_sol_percent(w->col1, col);
   wt->bells *= sol < 50 ? 1.5 : sol < 100 ? 1.0 : 0.25;
   /* A tool the project lacks is worth a tool and a hammer: it needs both. */

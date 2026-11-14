@@ -36,7 +36,7 @@ turn (a third of the output there, +1 in the field). Sale value
 (`gov_sale_value`) is the Europe sell price after the nation's tax, 0 for a
 boycotted good or during the War of Independence unless one of the nation's
 colonies has a Custom House. Cash weights goods at sale value; the others at
-a quarter of it plus their own goods: Farming food and horses, Industry
+a quarter of it plus their own goods (horses always 1.5x the governor's food weight, so breeding pays): Farming food, Industry
 hammers, tools, muskets, ore, lumber and a bonus per added tool matched by an
 added musket (so blacksmiths feed a gunsmith rather than either working
 alone), Politics bells and crosses (bells 1, Farming 0.75, Politics 6). Bells are weighted by SoL (x1.5 under
