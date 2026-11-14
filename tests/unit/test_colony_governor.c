@@ -1,4 +1,4 @@
-/* MOD_COLONY_GOVERNOR (src/core/colony_governor.c, docs/colony.md "Colony governor"). */
+/* MOD_COLONY_GOVERNOR (src/core/colony_governor.c, docs/colony_governor.md). */
 #include "test_turn_common.h"
 #include "core/colony_governor.h"
 #include "core/mods.h"
@@ -282,7 +282,7 @@ static int case_hammers_only_toward_project(void) {
   return rc;
 }
 
-/* A food stock lets Politics run a deficit nobody starves of. */
+/* A food stock lets Politics run a deficit nobody starves of... */
 static int case_temporary_food_shortfall(void) {
   ColonizeColonyPreview pv[2];
   for (int stocked = 0; stocked < 2; ++stocked) {
@@ -296,7 +296,8 @@ static int case_temporary_food_shortfall(void) {
     pv[stocked] = gov_preview(&f);
     gov_fx_close(&f);
   }
-  if (pv[1].bells <= pv[0].bells || pv[1].food_net >= 0 || 100 + 3 * pv[1].food_net < 0) {
+  /* ...but never one low enough for @FOODLOW (stock under 4 turns of it). */
+  if (pv[1].bells <= pv[0].bells || pv[1].food_net >= 0 || 100 + 7 * pv[1].food_net < 0) {
     fprintf(stderr, "bells %d -> %d, food_net %d -> %d\n", pv[0].bells, pv[1].bells,
             pv[0].food_net, pv[1].food_net);
     return 1;
@@ -353,7 +354,51 @@ static int case_industry_tools_and_muskets(void) {
   return 0;
 }
 
+/* A small stock: no deficit that would raise @FOODLOW on any planned turn. */
+static int case_no_food_low_popup(void) {
+  GovFx f;
+  if (!gov_fx_open(&f)) {
+    return 1;
+  }
+  f.col->stock[COLONIZE_CARGO_FOOD] = 12;
+  f.col->governor = COLONY_GOVERNOR_POLITICS;
+  colony_governor_run_w(&f.w, f.col->id);
+  const int net = gov_preview(&f).food_net;
+  gov_fx_close(&f);
+  for (int turn = 1; turn <= 3 && net < 0; ++turn) {
+    if (12 + turn * net < -4 * net) {
+      fprintf(stderr, "food_net %d raises @FOODLOW on turn %d\n", net, turn);
+      return 1;
+    }
+  }
+  return 0;
+}
+
+/* Converts work the fields while there are plots; free colonists go inside. */
+static int case_converts_outdoors(void) {
+  GovFx f;
+  if (!gov_fx_open(&f)) {
+    return 1;
+  }
+  ColonizeColony* c = f.col;
+  c->colonists[0].profession = COLONIZE_PROF_CONVERT;
+  c->colonists[1].profession = COLONIZE_PROF_CONVERT;
+  c->stock[COLONIZE_CARGO_FOOD] = 100;
+  c->governor = COLONY_GOVERNOR_POLITICS;
+  colony_governor_run_w(&f.w, c->id);
+  const int b0 = c->colonists[0].building_type;
+  const int b1 = c->colonists[1].building_type;
+  gov_fx_close(&f);
+  if (b0 >= 0 || b1 >= 0) {
+    fprintf(stderr, "converts indoors: %d %d\n", b0, b1);
+    return 1;
+  }
+  return 0;
+}
+
 static const TestCase k_cases[] = {
+  {"no_food_low_popup", case_no_food_low_popup},
+  {"converts_outdoors", case_converts_outdoors},
   {"industry_tools_and_muskets", case_industry_tools_and_muskets},
   {"capture_clears", case_capture_clears},
   {"hammers_only_toward_project", case_hammers_only_toward_project},

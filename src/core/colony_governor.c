@@ -7,6 +7,7 @@
 #include "core/colony_preview.h"
 #include "core/colony_production.h"
 #include "core/colony_yield.h"
+#include "core/dos_buggy.h"
 #include "core/europe.h"
 #include "core/founding_fathers.h"
 #include "core/mods.h"
@@ -14,16 +15,18 @@
 #include "core/world.h"
 
 /*
- * Port-only (MOD_COLONY_GOVERNOR, docs/colony.md "Colony governor"). Seating
+ * Port-only (MOD_COLONY_GOVERNOR, docs/colony_governor.md). Seating
  * is a hill climb: every colonist tries every free work plot / field job and
  * every indoor job (teaching too), then every pair of colonists tries trading
  * places, and a change is kept when the plan scores better. The score plays
  * GOV_HORIZON turns of colony_preview_compute_w on a scratch copy, stocking
  * each turn's net goods into the warehouse (clamped to its capacity, so a full
  * good earns nothing) and weighting what went in per governor. Food may run a
- * deficit while the stock covers it; going below zero (starvation) costs far
- * more than anything else is worth. Hammers count only toward the project's
- * remaining cost, tools toward the tools it still lacks first. No specialist
+ * deficit while the stock covers it; starving, or a stock low enough for
+ * turn_produce_food's @FOODLOW popup, costs far more than anything else is
+ * worth. Hammers count fully toward the project and its queue, half beyond;
+ * tools first toward the tools the project still lacks. Converts indoors pay
+ * a per-turn penalty (a third of the output there, a bonus in the field). No specialist
  * bonus: a specialist out-produces anyone on his own job, so the swaps put
  * him there unless his output is unwanted or has no room.
  */
@@ -31,8 +34,12 @@
 #define GOV_STARVE_COST 1000.0
 #define GOV_PASSES 8
 #define GOV_HORIZON 3
-/* Hammers past the project's cost: they bank, but are mostly worthless. */
-#define GOV_HAMMER_SPARE 0.1
+/* Hammers past the project and its queue carry to the next pick (TB-57;
+ * DOS zeroes the bank, so there they are worthless). */
+#define GOV_HAMMER_SPARE 0.5
+/* A convert indoors makes a third of a free colonist; in the field he gets
+ * +1. Per turn, so the swaps send converts out unless indoors pays clearly. */
+#define GOV_CONVERT_INDOORS 3.0
 /* Staying on a cash-crop plot that can still teach the job (turn_produce_
  * discover's roll), so the governor does not shuffle a learner off it. */
 #define GOV_STAY_BONUS 3.0
@@ -61,7 +68,10 @@ typedef struct GovCtx {
   const ColonizeWorld* w;
   const GovWeights* wt;
   int cap[COLONIZE_CARGO_COUNT]; /* warehouse capacity; -1 = unlimited */
-  int hammers_need;              /* project hammers left; 0 = nothing to build */
+  bool has_project;
+  int hammers_need;              /* project and queue hammers left */
+  double hammer_spare;           /* weight factor past hammers_need */
+  bool food_report;              /* @FOODLOW is on (Colony Report options) */
   int tools_need;                /* project tools not yet in stock */
   int students;                  /* colonists a teacher may take */
   bool pinned[COLONIZE_COLONY_POP_MAX];
@@ -158,8 +168,12 @@ static double gov_score(const GovCtx* g, const ColonizeColony* plan) {
   int tools_need = g->tools_need;
   double s = GOV_HORIZON * gov_teach_value(g, plan);
   for (int i = 0; i < plan->colonist_count; ++i) {
+    const ColonizeColonist* p = &plan->colonists[i];
     if (g->learner[i] && gov_seat_eq(gov_seat_of(plan, i), gov_seat_of(g->orig, i))) {
       s += GOV_STAY_BONUS;
+    }
+    if (p->profession == COLONIZE_PROF_CONVERT && p->building_type >= 0) {
+      s -= GOV_HORIZON * GOV_CONVERT_INDOORS;
     }
   }
   for (int turn = 0; turn < GOV_HORIZON; ++turn) {
@@ -170,6 +184,12 @@ static double gov_score(const GovCtx* g, const ColonizeColony* plan) {
     if (food < 0) {
       s += food * GOV_STARVE_COST;
       food = 0;
+    }
+    /* turn_produce_food's @FOODLOW: a shortfall with under four turns of it
+     * left in store. The governor never earns the player that popup. */
+    const int short_by = -pv.food_net;
+    if (g->food_report && short_by > 0 && food < short_by * 4) {
+      s -= (short_by * 4 - food) * GOV_STARVE_COST;
     }
     c.stock[COLONIZE_CARGO_FOOD] = food;
     int added[COLONIZE_CARGO_COUNT] = {0};
@@ -199,8 +219,8 @@ static double gov_score(const GovCtx* g, const ColonizeColony* plan) {
     }
     const int h = pv.hammers < hammers_need ? pv.hammers : hammers_need;
     hammers_need -= h;
-    if (g->hammers_need > 0) {
-      s += (h + (pv.hammers - h) * GOV_HAMMER_SPARE) * wt->hammers;
+    if (g->has_project) {
+      s += (h + (pv.hammers - h) * g->hammer_spare) * wt->hammers;
     }
     s += pv.bells * wt->bells + pv.crosses * wt->crosses;
   }
@@ -330,16 +350,17 @@ static void gov_weights(const ColonizeWorld* w, const ColonizeColony* col, int g
     wt->goods[k] = gov_sale_value(w, col->nation_id, k, custom_house) *
                    (gov == COLONY_GOVERNOR_CASH ? 1.0 : 0.25);
   }
-  wt->goods[COLONIZE_CARGO_FOOD] = 1.0;
-  wt->bells = 1.5;
+  /* Food grows the colony: 200 make a colonist worth some 500 gold. Every
+   * governor wants its project built, listed or not. */
+  wt->goods[COLONIZE_CARGO_FOOD] = 2.5;
+  wt->bells = 1.0;
   wt->crosses = 0.5;
-  wt->hammers = 1.0;
+  wt->hammers = 2.0;
   switch (gov) {
     case COLONY_GOVERNOR_FARMING:
-      wt->goods[COLONIZE_CARGO_FOOD] = 3.0;
+      wt->goods[COLONIZE_CARGO_FOOD] = 4.0;
       wt->goods[COLONIZE_CARGO_HORSES] = 4.0;
-      wt->hammers = 1.5;
-      wt->bells = 1.0;
+      wt->bells = 0.75;
       break;
     case COLONY_GOVERNOR_INDUSTRY:
       /* Tools and muskets in step: two blacksmiths feeding one gunsmith
@@ -363,11 +384,8 @@ static void gov_weights(const ColonizeWorld* w, const ColonizeColony* col, int g
    * bonus each bell actually moves. */
   const int sol = colony_prod_sol_percent(w->col1, col);
   wt->bells *= sol < 50 ? 1.5 : sol < 100 ? 1.0 : 0.25;
-  /* Tools the project lacks come before anything they could be sold for. */
-  wt->tools_needed = 2.0 * wt->hammers;
-  if (wt->tools_needed < wt->goods[COLONIZE_CARGO_TOOLS]) {
-    wt->tools_needed = wt->goods[COLONIZE_CARGO_TOOLS];
-  }
+  /* A tool the project lacks is worth a tool and a hammer: it needs both. */
+  wt->tools_needed = wt->hammers + wt->goods[COLONIZE_CARGO_TOOLS];
 }
 
 /* Warehouse capacity for `cargo`, -1 = unlimited. Food has no cap (DOS
@@ -404,9 +422,22 @@ static void gov_seat_colonists(const ColonizeWorld* w, ColonizeColony* col, cons
   int hammers = 0;
   int tools = 0;
   if (colonies_construction_cost(pool, col, &hammers, &tools)) {
+    /* The queue follows the project, so its hammers are wanted too. */
+    ColonizeColony next = *col;
+    for (int q = 0; q < col->build_queue_count; ++q) {
+      int h = 0;
+      next.building_in_production = col->build_queue[q];
+      if (colonies_construction_cost(pool, &next, &h, NULL)) {
+        hammers += h;
+      }
+    }
+    g.has_project = true;
     g.hammers_need = hammers > col->hammers ? hammers - col->hammers : 0;
     g.tools_need = tools > col->stock[COLONIZE_CARGO_TOOLS] ? tools - col->stock[COLONIZE_CARGO_TOOLS] : 0;
   }
+  g.hammer_spare = dos_buggy_behavior() ? 0.0 : GOV_HAMMER_SPARE;
+  const ColonizeCol1Save* col1 = w->col1_ok ? w->col1 : NULL;
+  g.food_report = !col1 || !col1->head.colony_report_options.report_food_shortages;
   g.teach_cap = colonies_school_owned_tier(pool, col);
   /* On-the-job learning (turn_produce_discover): a non-expert on a cash-crop
    * plot while the nation has no expert of that job yet. */

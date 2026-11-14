@@ -52,6 +52,7 @@
  *   save NAME                   save into DIR/saves/NAME
  *   status | units | colonies   print state (status repeats an open popup's or list's CHOICES) (colonies: `stock GOOD N(+d)`, d = next turn's net
  *                               change before warehouse waste; food after eating)
+ *   govern                      run the colony governors (MOD_COLONY_GOVERNOR) now
  *   advise                      checklist: starving / stalled colonies, idle units, REF size,
  *                               declaration gate, war targets (automated-playtests/RULES.md)
  *   map [R [X Y]]               ASCII map of radius R (default 8) around the cursor (or X,Y)
@@ -168,6 +169,7 @@
 #include "core/settings.h"
 #include "core/units.h"
 #include "core/window_log.h"
+#include "core/colony_governor.h"
 #include "platform/diagnostics.h"
 #include "platform/platform.h"
 
@@ -853,10 +855,10 @@ static void print_colonies(void) {
     ColonizeColonyPreview pv;
     colony_preview_compute_w(&w, c, &pv);
     const int b = c->building_in_production;
-    printf("  build %s hammers %d | SoL %d%% | food %+d bells %d crosses %d hammers +%d\n",
+    printf("  build %s hammers %d | SoL %d%% | food %+d bells %d crosses %d hammers +%d | governor %d\n",
            b >= 0 && b < g_game->colonies.building_type_count ? g_game->colonies.building_types[b].name
            : b >= 0 ? "unit" : "-",
-           c->hammers, colony_prod_sol_percent(&g_game->col1, c), pv.food_net, pv.bells, pv.crosses, pv.hammers);
+           c->hammers, colony_prod_sol_percent(&g_game->col1, c), pv.food_net, pv.bells, pv.crosses, pv.hammers, c->governor);
     for (int q = 0; q < c->build_queue_count; ++q) {
       printf("%s%d", q ? " " : "  queue ", c->build_queue[q]);
       printf(q + 1 == c->build_queue_count ? "\n" : "");
@@ -2336,6 +2338,10 @@ static bool command(char* line) {
     print_advise();
   } else if (strcmp(op, "colonies") == 0) {
     print_colonies();
+  } else if (strcmp(op, "govern") == 0) {
+    /* MOD_COLONY_GOVERNOR's end-of-turn pass now, without ending the turn. */
+    const ColonizeWorld w = game_world(g_game);
+    colony_governor_run_nation_w(&w, g_game->human_nation);
   } else if (strcmp(op, "nestedpick") == 0) {
     set_nested_pick(rest);
   } else if (strcmp(op, "sync") == 0) {

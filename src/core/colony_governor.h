@@ -2,8 +2,8 @@
 #define COLONIZE_COLONY_GOVERNOR_H
 
 /*
- * MOD_COLONY_GOVERNOR (port-only, no DOS counterpart; docs/colony.md
- * "Colony governor"). A human colony's ColonizeColony.governor re-seats its
+ * MOD_COLONY_GOVERNOR (port-only, no DOS counterpart; docs/colony_governor.md).
+ * A human colony's ColonizeColony.governor re-seats its
  * colonists among the work plots and buildings it already has, and picks a
  * project when the current one cannot be built, as the human ends the turn
  * (game_do_end_turn). It moves nobody in or out of the colony.
