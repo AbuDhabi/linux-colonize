@@ -371,6 +371,15 @@ static void gov_weights(const ColonizeWorld* w, const ColonizeColony* col, int g
       wt->goods[COLONIZE_CARGO_ORE] = 1.0;
       wt->goods[COLONIZE_CARGO_LUMBER] = 0.5;
       break;
+    case COLONY_GOVERNOR_MILITARY:
+      /* Growth (food, horses via the 1.5x below), muskets with the tools
+       * that make them, hammers for walls and artillery. */
+      wt->goods[COLONIZE_CARGO_FOOD] = 3.5;
+      wt->goods[COLONIZE_CARGO_MUSKETS] = 5.0;
+      wt->goods[COLONIZE_CARGO_TOOLS] = 2.0;
+      wt->goods[COLONIZE_CARGO_ORE] = 1.0;
+      wt->hammers = 3.0;
+      break;
     case COLONY_GOVERNOR_POLITICS:
       wt->bells = 6.0;
       wt->crosses = 5.0;
@@ -534,6 +543,12 @@ static const int k_gov_industry[] = {
   GOV_UNIT | COLONIZE_UNIT_BUILD_ARTILLERY, GOV_UNIT | COLONIZE_UNIT_BUILD_FRIGATE,
   GOV_UNIT | COLONIZE_UNIT_BUILD_GALLEON, GOV_UNIT | COLONIZE_UNIT_BUILD_MERCHANTMAN, GOV_END,
 };
+static const int k_gov_military[] = {
+  COLONY_BUILDING_STOCKADE, COLONY_BUILDING_ARMORY, COLONY_BUILDING_FORT, COLONY_BUILDING_STABLE,
+  COLONY_BUILDING_FORTRESS, COLONY_BUILDING_MAGAZINE, COLONY_BUILDING_DOCKS,
+  COLONY_BUILDING_LUMBER_MILL, COLONY_BUILDING_ARSENAL, COLONY_BUILDING_PRINTING_PRESS,
+  COLONY_BUILDING_WAREHOUSE, GOV_UNIT | COLONIZE_UNIT_BUILD_ARTILLERY, GOV_END,
+};
 static const int k_gov_politics[] = {
   COLONY_BUILDING_PRINTING_PRESS, COLONY_BUILDING_NEWSPAPER, COLONY_BUILDING_CHURCH,
   COLONY_BUILDING_TOWN_HALL_2, COLONY_BUILDING_TOWN_HALL_3, COLONY_BUILDING_CATHEDRAL,
@@ -619,6 +634,7 @@ static void gov_pick_project(const ColonizeWorld* w, ColonizeColony* col, int go
   const int* list = gov == COLONY_GOVERNOR_FARMING  ? k_gov_farming
                     : gov == COLONY_GOVERNOR_CASH     ? k_gov_cash
                     : gov == COLONY_GOVERNOR_INDUSTRY ? k_gov_industry
+                    : gov == COLONY_GOVERNOR_MILITARY ? k_gov_military
                                                       : k_gov_politics;
   for (int i = 0; list[i] != GOV_END && nw < 48; ++i) {
     want[nw++] = list[i];

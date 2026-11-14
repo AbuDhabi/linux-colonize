@@ -143,3 +143,4 @@ Farming: food and horses.
 Cash: the most profitable goods.
 Industry: tools, muskets, artillery, ships.
 Politics: liberty bells and crosses.
+Military: forts, guns, horses, growth.

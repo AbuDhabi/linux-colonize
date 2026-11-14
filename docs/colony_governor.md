@@ -2,7 +2,7 @@
 
 Port-only, `mods.colony_governor` (docs/settings.md), `colony_governor.c`.
 `ColonizeColony.governor` is a `ColonyGovernor` (none, Farming, Cash,
-Industry, Politics), set from the colony screen's CHANGE button above the
+Industry, Politics, Military), set from the colony screen's CHANGE button above the
 area view (`colony_screen_draw_governor`, `AI_POPUP_TAG_COLONY_GOVERNOR`) and
 saved in RTST record 18. `game_do_end_turn` runs
 `colony_governor_run_nation_w` for the human ending the turn, before the
@@ -39,7 +39,7 @@ colonies has a Custom House. Cash weights goods at sale value; the others at
 a quarter of it plus their own goods (horses always 1.5x the governor's food weight, so breeding pays): Farming food, Industry
 hammers, tools, muskets, ore, lumber and a bonus per added tool matched by an
 added musket (so blacksmiths feed a gunsmith rather than either working
-alone), Politics bells and crosses (bells 1, Farming 0.75, Politics 6). Bells are weighted by SoL (x1.5 under
+alone), Politics bells and crosses (bells 1, Farming 0.75, Politics 6), Military food 3.5 (growth, so horses 5.25), muskets, the tools and ore for them, hammers 3. Bells are weighted by SoL (x1.5 under
 50%, x0.25 at 100%). There is no specialist bonus: a specialist out-produces
 anyone on his own job, so the swaps seat him there unless his output is
 unwanted or has no room, and then he works elsewhere.
@@ -59,7 +59,7 @@ Construction: only when no project is queued and the current one is "(No
 Production)", a built building, or no longer startable. When a good has no
 room left, or fills within three turns at its current rate, Warehouse and
 Warehouse Expansion go first; then the governor's list (Cash first tries the
-chain of its most valuable raw crop; Industry ends with Artillery and ships).
+chain of its most valuable raw crop; Industry ends with Artillery and ships; Military puts Stockade, Armory, Fort, Stable, Fortress first and ends with Artillery).
 The first startable row is picked; with none, "(No Production)", and the
 hammers bank for a later turn. A capture (`colonies_capture_show_ex`) resets
 the governor to none. Covered by `unit_colony_governor`.

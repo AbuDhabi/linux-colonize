@@ -396,7 +396,30 @@ static int case_converts_outdoors(void) {
   return 0;
 }
 
+/* Military: a colony without walls starts on the Stockade; with a food
+ * stock it still grows rather than runs a deficit. */
+static int case_military_walls_and_growth(void) {
+  GovFx f;
+  if (!gov_fx_open(&f)) {
+    return 1;
+  }
+  ColonizeColony* c = f.col;
+  c->building_in_production = -1;
+  c->governor = COLONY_GOVERNOR_MILITARY;
+  colony_governor_run_w(&f.w, c->id);
+  const int project = c->building_in_production;
+  const int stockade = colonies_building_row(&f.pool, COLONY_BUILDING_STOCKADE);
+  const int food = gov_preview(&f).food_net;
+  gov_fx_close(&f);
+  if (project != stockade || food < 0) {
+    fprintf(stderr, "project %d (stockade %d), food_net %d\n", project, stockade, food);
+    return 1;
+  }
+  return 0;
+}
+
 static const TestCase k_cases[] = {
+  {"military_walls_and_growth", case_military_walls_and_growth},
   {"no_food_low_popup", case_no_food_low_popup},
   {"converts_outdoors", case_converts_outdoors},
   {"industry_tools_and_muskets", case_industry_tools_and_muskets},
