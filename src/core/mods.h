@@ -72,6 +72,9 @@ typedef enum ModId {
   /* Gameplay: a colony holding the SoL 100 latch teaches in half the turns,
    * as @REBELUNANIMOUS promises (turn_produce_education). */
   MOD_NO_EDUCATION_LIES = 21,
+  /* New feature: a per-colony governor (colony_governor.h) re-seats the
+   * colonists and fills an unbuildable project as the human ends the turn. */
+  MOD_COLONY_GOVERNOR = 22,
   MOD_COUNT
 } ModId;
 

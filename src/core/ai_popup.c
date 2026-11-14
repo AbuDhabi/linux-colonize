@@ -718,6 +718,8 @@ static const char* ai_popup_tag_name(AiPopupTag tag) {
       return "KING_SPECIALIST";
     case AI_POPUP_TAG_DECLARATION_SIGNING:
       return "DECLARATION_SIGNING";
+    case AI_POPUP_TAG_COLONY_GOVERNOR:
+      return "COLONY_GOVERNOR";
   }
   return "UNKNOWN";
 }

@@ -207,6 +207,11 @@ void colony_screen_draw_multifunction(
   const ColonizeMsgCatalog* labels,
   ColonizeFramebuffer8* framebuffer
 );
+/* MOD_COLONY_GOVERNOR: "Governor: <setting> [CHANGE]" above the area view. */
+void colony_screen_draw_governor(
+  ColonyScreenView* view, const ColonizeColony* colony, const ColonizeFont* font,
+  const ColonizeMsgCatalog* labels, ColonizeFramebuffer8* framebuffer
+);
 void colony_screen_draw_outlined_number(
   const ColonizeFont* font,
   ColonizeFramebuffer8* framebuffer,

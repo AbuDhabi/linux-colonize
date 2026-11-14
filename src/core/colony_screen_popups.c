@@ -1391,6 +1391,13 @@ COLONIZE_INTERNAL bool colony_screen_hit_building_workers(ColonyScreenHitCtx* a)
 COLONIZE_INTERNAL bool colony_screen_hit_area_tiles(ColonyScreenHitCtx* a) {
   const int mx = a->mx;
   const int my = a->my;
+  /* MOD_COLONY_GOVERNOR CHANGE (drawn over the 5x5 area view's top row). */
+  if (a->view && a->view->governor_btn_w > 0 && mx >= a->view->governor_btn_x &&
+      mx < a->view->governor_btn_x + a->view->governor_btn_w && my >= COLONY_GOVERNOR_Y &&
+      my < COLONY_GOVERNOR_Y + 9) {
+    a->hit.kind = COLONY_HIT_GOVERNOR;
+    return true;
+  }
   /* Area-view tiles (surround only; center is not assignable). */
   int origin_x = 0;
   int origin_y = 0;
@@ -1651,6 +1658,9 @@ void colony_screen_render_w(
       colony->x, colony->y, framebuffer
     );
     colony_screen_draw_area_overlays(view, pool, colony, units, map, col1, font, framebuffer);
+  }
+  if (view) {
+    colony_screen_draw_governor(view, colony, font, labels, framebuffer);
   }
   if (view && view->bottom_panel_ok) {
     pik_blit(&view->bottom_panel, framebuffer, 0, COLONY_BOTTOM_PANEL_Y);

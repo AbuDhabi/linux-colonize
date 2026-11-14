@@ -81,6 +81,8 @@ and rumours, or a ship to uncharted sea, on its own.
 ^{Current Vision}: explored land no unit or colony of yours sees is veiled.
 ^{Modern Random Numbers}: the save keeps the dice; a load rerolls nothing.
 ^{Full SoL Teaches Faster}: teaching takes half the time at full SoL.
+^{Colony Governor}: a governor picked on the colony screen rearranges its
+workers as you end the turn, and picks a project when none can be built.
 
 @;
 @MODMISC14

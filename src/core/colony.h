@@ -145,6 +145,9 @@ typedef struct ColonizeColony {
    */
   int build_queue[COLONIZE_COLONY_BUILD_QUEUE_MAX];
   int build_queue_count;
+  /* MOD_COLONY_GOVERNOR ColonyGovernor (colony_governor.h), 0 = none. Port
+   * only: rides RTST record 18 (runtime_ext.c). */
+  uint8_t governor;
   /* Custom House per-cargo enable mask layout (see docs/colony.md#colonize_custom_house_default_mask) */
 #define COLONIZE_CUSTOM_HOUSE_DEFAULT_MASK 0x1edeu
   uint16_t custom_house_bits;

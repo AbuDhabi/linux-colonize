@@ -550,6 +550,36 @@ static int colony_screen_dos_button(
   return w;
 }
 
+/*
+ * MOD_COLONY_GOVERNOR (not DOS): "Governor: <setting>" and a CHANGE button
+ * (@CTITLE 3, the Construction tab's) centred on the wood above the area
+ * view. Wording from data/mods LABELS.TXT @MODGOVERNOR; a missing caption
+ * draws nothing. The 5x5 area view (MOD_TOWN_HALL_TIERS) runs under it.
+ */
+void colony_screen_draw_governor(
+  ColonyScreenView* view, const ColonizeColony* colony, const ColonizeFont* font,
+  const ColonizeMsgCatalog* labels, ColonizeFramebuffer8* framebuffer
+) {
+  view->governor_btn_w = 0;
+  const char* caption = assets_msg_line_or(labels, "MODGOVERNOR", 0, "");
+  const char* chg_lbl = assets_msg_line_or(labels, "CTITLE", 3, "");
+  if (!font || !colony || view->spy_view || !caption[0] || !chg_lbl[0] ||
+      !mods_on(MOD_COLONY_GOVERNOR)) {
+    return;
+  }
+  char text[64];
+  snprintf(text, sizeof(text), "%s %s", caption,
+           assets_msg_line_or(labels, "MODGOVERNOR", 1 + colony->governor, ""));
+  const int text_w = font_text_width(font, text);
+  const int btn_w = font_text_width(font, chg_lbl) + 5;
+  const int x = COLONY_MINIMAP_SECTION_X + (COLONY_MINIMAP_SECTION_W - text_w - 4 - btn_w) / 2;
+  font_draw_text(font, framebuffer, x, COLONY_GOVERNOR_Y + 2, text, 0x0f);
+  view->governor_btn_x = x + text_w + 4;
+  view->governor_btn_w = colony_screen_dos_button(
+    framebuffer, font, view->governor_btn_x, COLONY_GOVERNOR_Y, chg_lbl, false
+  );
+}
+
 /* The colony's project (+0x94) by name: an @BUILDING row, a buildable unit (only codes past
  * the @BUILDING table, colonies_unit_build_info), or "" with none (+0x94 < 0). */
 static void colony_screen_project_name(

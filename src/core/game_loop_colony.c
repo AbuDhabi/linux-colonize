@@ -1007,6 +1007,32 @@ void game_colony_area_tile_drop(
   }
 }
 
+/* MOD_COLONY_GOVERNOR (not DOS): the governor picker, answered in
+ * game_apply_popup_map_and_colony. */
+void game_colony_open_governor(ColonizeGameState* game, const ColonizeColony* colony) {
+  PopupMsgTokens tok;
+  memset(&tok, 0, sizeof(tok));
+  tok.string0 = colony->name;
+  char body[AI_POPUP_BODY_LEN];
+  popup_msg_fill(&game->messages, "MODGOVERNOR", &tok, "", body, sizeof(body));
+  char choices[AI_POPUP_CHOICE_MAX][AI_POPUP_CHOICE_LEN];
+  const int n = popup_msg_choices(
+    assets_msg_find(&game->messages, "MODGOVERNOR"), choices, AI_POPUP_CHOICE_MAX
+  );
+  const char* labels[AI_POPUP_CHOICE_MAX];
+  int ids[AI_POPUP_CHOICE_MAX];
+  for (int i = 0; i < n; ++i) {
+    labels[i] = choices[i];
+    ids[i] = i + 1;
+  }
+  if (n > 0 && ai_popup_enqueue_choice_ctx(
+                 &game->ai_popups, AI_POPUP_TAG_COLONY_GOVERNOR, 0, 0, colony->id, NULL, body,
+                 labels, ids, n
+               )) {
+    (void)ai_popup_present_now(&game->ai_popups, AI_POPUP_TAG_COLONY_GOVERNOR);
+  }
+}
+
 /*
  * @INDIANLAND answered offer / take (the offer already paid in
  * game_apply_popup_contact): DOS carries on into the assignment, so re-run the

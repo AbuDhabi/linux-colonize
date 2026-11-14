@@ -303,6 +303,8 @@ void game_colony_area_tile_drop(
 );
 /* @INDIANLAND answered (offer / take): re-run the plot drop past the gate. */
 void game_colony_plot_land_resume(ColonizeGameState* game, int tile_index);
+/* MOD_COLONY_GOVERNOR: the @MODGOVERNOR picker for the viewed colony. */
+void game_colony_open_governor(ColonizeGameState* game, const ColonizeColony* colony);
 void game_colony_assign_building_drop(ColonizeGameState* game, int building_index);
 ColoniesBuildableOpts game_colony_buildable_opts(const ColonizeGameState* game);
 void game_colony_commit_construction(ColonizeGameState* game, int bid);

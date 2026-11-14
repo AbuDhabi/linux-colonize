@@ -113,6 +113,8 @@ add_library(colonize_sim STATIC
   src/core/colony_yield.c
   src/core/colony_production.c
   src/core/colony_craft.c
+  src/core/colony_preview.c
+  src/core/colony_governor.c
   src/core/combat_strength.c
   src/core/combat_analysis.c
   src/core/turn.c
@@ -221,7 +223,6 @@ add_library(colonize_ui STATIC
   src/core/colony_screen_panels.c
   src/core/colony_screen_popups.c
   src/core/colony_chrome.c
-  src/core/colony_preview.c
   src/core/combat_analysis_render.c
   src/core/ai_popup_render.c
   src/core/trade_screen.c
@@ -924,6 +925,11 @@ foreach(_test_turn_slice core school colony)
     LIBS colonize_core
   )
 endforeach()
+
+colonize_add_test(NAME unit_colony_governor
+  SOURCES tests/unit/test_colony_governor.c
+  LIBS colonize_core
+)
 
 colonize_add_test(NAME unit_font_file
   SOURCES

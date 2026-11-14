@@ -8,3 +8,14 @@
 ;       abandons the colony (no MicroProse string exists for it).
 @MODABANDON
 ABANDON
+
+;       mods.colony_governor: the colony screen's line above the area view.
+;       Row 0 = the caption, rows 1..5 = the settings in ColonyGovernor
+;       order (none, Farming, Cash, Industry, Politics).
+@MODGOVERNOR
+Governor:
+none
+Farming
+Cash
+Industry
+Politics

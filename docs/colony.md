@@ -684,6 +684,46 @@ payload from a deeper build is truncated on load. Covered by `unit_colonies`
 picker) and `colony_build_queue_complete` (BQUE load, the head starting on each
 completion through the Space cheat tick, a head dropped for population).
 
+## Colony governor
+
+Port-only, `mods.colony_governor` (docs/settings.md), `colony_governor.c`.
+`ColonizeColony.governor` is a `ColonyGovernor` (none, Farming, Cash,
+Industry, Politics), set from the colony screen's CHANGE button above the
+area view (`colony_screen_draw_governor`, `AI_POPUP_TAG_COLONY_GOVERNOR`) and
+saved in RTST record 18. `game_do_end_turn` runs
+`colony_governor_run_nation_w` for the human ending the turn, before the
+turn processor starts, so the changes land as that human's own last moves.
+
+Seating: a hill climb on a copy of the colony. Each colonist tries every free
+unblocked plot (`colonies_plot_blocked_mask` 0, and not native land unless the
+colony already works it) with every field job that yields there, and every
+indoor job 9..17 the jobs menu offers (`colonies_job_row_offered`, three per
+building); then every pair tries trading seats. A change is kept when the
+score rises. The score is `colony_preview_compute_w`'s net goods times
+per-governor weights, bells, crosses and hammers, and a food deficit at 1000 a
+unit. A good's gain counts only up to the warehouse room left for it (none
+for Food, none for a good this colony's Custom House exports), so workers
+move off goods that cannot be stored. Sale value (`gov_sale_value`) is the
+Europe sell price after the nation's tax (0 during the war), and 0 for a
+boycotted good unless one of the nation's colonies has a Custom House. Cash
+weights goods at sale value; the others at a quarter of it plus their own
+goods: Farming food and horses, Industry hammers, tools, muskets, ore,
+Politics bells and crosses. Bells are weighted by SoL (x1.5 under 50%, x0.25
+at 100%). There is no specialist bonus: a specialist out-produces anyone on
+his own job, so the swaps seat him there unless his output is unwanted or has
+no room, and then he works elsewhere. Teachers and unseated workers
+(`idle_job1`) are not moved; no one enters or leaves the colony. The result is
+committed through `colonies_assign_field_w` / `colonies_assign_workplace`, the
+player's own calls, for the colonists that move.
+
+Construction: only when no project is queued and the current one is "(No
+Production)", a built building, or no longer startable. When a good has no
+room left, or fills within three turns at its current rate, Warehouse and
+Warehouse Expansion go first; then the governor's list (Cash first tries the
+chain of its most valuable raw crop; Industry ends with Artillery and ships).
+The first startable row is picked; with none, "(No Production)", and the
+hammers bank for a later turn. Covered by `unit_colony_governor`.
+
 ## colonies_buy_construction
 
 Rush-buy the current project: tops hammers up to the completion

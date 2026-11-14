@@ -45,6 +45,7 @@ S~hips Auto-Explore
 Current ~Vision Veil
 Modern ~Random Numbers
 Full SoL ~Teaches Faster
+Colony ~Governor
 
 @MODOPTIONS3
 @width=220
@@ -129,3 +130,16 @@ colonists ({%STRING1}), now available in %STRING0.
 @MODCANCELTREATY
 @width=190
 The {%STRING0} cancel their peace treaty with the {%STRING1}.
+
+;       mods.colony_governor: the colony screen's governor CHANGE button.
+;       %STRING0 = the colony. Rows in ColonyGovernor order (none, Farming,
+;       Cash, Industry, Politics).
+@MODGOVERNOR
+@width=190
+Who shall govern %STRING0?
+
+No governor.
+Farming: food and horses.
+Cash: the most profitable goods.
+Industry: tools, muskets, artillery, ships.
+Politics: liberty bells and crosses.

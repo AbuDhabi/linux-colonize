@@ -37,6 +37,7 @@ enum {
   RT_TRIBE_MOOD = 15,  /* v1: MOD_TRIBE_MOOD per-cause alarm tally (ai_contact_mood_export); written only when non-zero */
   RT_SCOUT_INTEL = 16, /* v1: MOD_SCOUT_SPYING 8-byte {nation, x, y, 0, i16 strength, u16 turn} entries; written only when non-empty */
   RT_MODS = 17,        /* v1: u32 campaign mod mask (mods.h); written only when non-zero */
+  RT_GOVERNOR = 18,    /* v1: MOD_COLONY_GOVERNOR {u8 x, u8 y, u8 governor} per governed colony; written only when non-empty */
 };
 
 #define RT_UNIT_TAIL_ENTRY 17
@@ -256,6 +257,19 @@ uint8_t* runtime_ext_serialize(
       rt_record(&b, RT_SCOUT_INTEL, 1, p, n);
     }
   }
+  if (colonies) {
+    /* Keyed by tile like BQUE; absent = no governors (mod-off saves unchanged). */
+    uint8_t p[COLONIZE_COLONIES_MAX * 3];
+    size_t n = 0;
+    for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+      const ColonizeColony* c = &colonies->colonies[i];
+      if (!c->active || !c->governor) continue;
+      p[n++] = (uint8_t)c->x;
+      p[n++] = (uint8_t)c->y;
+      p[n++] = c->governor;
+    }
+    if (n) rt_record(&b, RT_GOVERNOR, 1, p, n);
+  }
   if (mods_campaign_mask()) {
     /* Absent = every toggle off, which keeps mod-free saves byte-identical. */
     uint8_t p[4];
@@ -283,6 +297,7 @@ void runtime_ext_deserialize(
 ) {
   s_rng_restored = false;
   mods_campaign_set(0); /* a save without RT_MODS (DOS, older port saves) plays with every toggle off */
+  for (int i = 0; colonies && i < COLONIZE_COLONIES_MAX; ++i) colonies->colonies[i].governor = 0;
   if (!data) return;
   uint64_t xo[4] = {0, 0, 0, 0};
   size_t off = 0;
@@ -379,6 +394,13 @@ void runtime_ext_deserialize(
         break;
       case RT_MODS:
         if (len == 4) mods_campaign_set(rd_u32_le(p));
+        break;
+      case RT_GOVERNOR:
+        for (size_t k = 0; colonies && len % 3 == 0 && k + 3 <= len; k += 3) {
+          const int cid = colonies_id_at(colonies, p[k], p[k + 1]);
+          ColonizeColony* c = colonies_get_mut(colonies, cid);
+          if (c) c->governor = p[k + 2];
+        }
         break;
       case RT_XOSHIRO:
         if (len == 32) {

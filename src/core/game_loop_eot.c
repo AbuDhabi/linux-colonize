@@ -32,6 +32,7 @@
 #include "core/col1_bridge.h"
 #include "core/col1_save.h"
 #include "core/colony.h"
+#include "core/colony_governor.h"
 #include "core/colony_production.h"
 #include "core/colony_screen.h"
 #include "core/colony_yield.h"
@@ -812,6 +813,11 @@ void game_do_end_turn(ColonizeGameState* game) {
   }
   if (game_defer_turn_flow(game)) {
     return;
+  }
+  /* MOD_COLONY_GOVERNOR: the governors act as the human's last moves. */
+  {
+    const ColonizeWorld w = game_world(game);
+    colony_governor_run_nation_w(&w, game->human_nation);
   }
   units_set_move_watch(game_move_watch, game);
   units_set_combat_watch(game_combat_watch, game);

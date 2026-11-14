@@ -1,5 +1,6 @@
 #include "core/game_dialogs.h"
 #include "core/game_loop_internal.h"
+#include "core/colony_governor.h"
 #include "core/reports_names.h"
 #include "core/dos_buggy.h"
 #include <strings.h>
@@ -3197,6 +3198,15 @@ static bool game_apply_popup_map_and_colony(ColonizeGameState* game) {
       colony_screen_close_eject(&game->colony_screen);
       game_colony_finish_eject(game, who, role);
     }
+  return true;
+  }
+  if (game->ai_popups.result_tag == AI_POPUP_TAG_COLONY_GOVERNOR) {
+    ColonizeColony* col = colonies_get_mut(&game->colonies, game->ai_popups.result_payload);
+    const int id = game->ai_popups.result_choice_id;
+    if (col && !game->ai_popups.result_cancelled && id >= 1 && id <= COLONY_GOVERNOR_COUNT) {
+      col->governor = (uint8_t)(id - 1);
+    }
+    ai_popup_consume_result(&game->ai_popups);
   return true;
   }
   if (game->ai_popups.result_tag == AI_POPUP_TAG_COLONY_WAREHOUSE) {

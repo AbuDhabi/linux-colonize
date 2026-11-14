@@ -253,6 +253,10 @@ typedef enum AiPopupTag {
                                          * @SEIZURE notices and the @INDEPENDENCE letter
                                          * (#1665). Never drawn: game_loop closes it the
                                          * moment it is presented and plays the cinematic. */
+  ,
+  AI_POPUP_TAG_COLONY_GOVERNOR = 82 /* mods.colony_governor: data/mods GAME.TXT @MODGOVERNOR
+                                     * picker. Choice id = ColonyGovernor + 1; payload =
+                                     * colony id. Esc keeps the governor. */
 } AiPopupTag;
 
 typedef struct AiPopupRequest {
