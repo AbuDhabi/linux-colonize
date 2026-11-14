@@ -7,6 +7,9 @@ area view (`colony_screen_draw_governor`, `AI_POPUP_TAG_COLONY_GOVERNOR`) and
 saved in RTST record 18. `game_do_end_turn` runs
 `colony_governor_run_nation_w` for the human ending the turn, before the
 turn processor starts, so the changes land as that human's own last moves.
+The Colony Advisor report (both pages) lifts a governed colony's name by 4 px
+and prints "Governor: <setting>" under it (`reports_render_colony_sidebar`);
+ungoverned rows keep the DOS layout.
 
 Order: the project is picked first (below), then the colonists are seated
 to serve it.

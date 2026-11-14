@@ -10,6 +10,7 @@
 #include "core/colony_production.h"
 #include "core/combat_strength.h"
 #include "core/founding_fathers.h"
+#include "core/mods.h"
 #include "core/reports.h"
 #include "core/reports_names.h"
 
@@ -330,6 +331,8 @@ void reports_render_economic_cargo(
  * yellow (index differs per background palette; see reports_render_colony
  * palette probe). */
 #define REPORTS_COLONY_LABEL_COLOR 146
+/* MOD_COLONY_GOVERNOR: name up / governor line down by this much. */
+#define REPORTS_COLONY_GOV_DY 4
 #define REPORTS_COLONY_DIGIT_WHITE 15
 #define REPORTS_COLONY_DIGIT_GREEN 10
 #define REPORTS_COLONY_DIGIT_BLUE 11
@@ -508,7 +511,27 @@ static void reports_render_colony_sidebar(
     font, fb, REPORTS_COLONY_ICON_X + REPORTS_COLONY_POP_DX, row_top,
     line, reports_colony_pop_color(colony)
   );
-  reports_draw_line(font, fb, REPORTS_COLONY_NAME_X, row_top, c->name, REPORTS_COLONY_LABEL_COLOR);
+  /* MOD_COLONY_GOVERNOR: a governed colony's name moves up to make room for
+   * "Governor: <setting>" (LABELS @MODGOVERNOR) under it. */
+  char gov[48] = "";
+  if (colony && colony->governor && mods_on(MOD_COLONY_GOVERNOR)) {
+    const char* caption = reports_labels_field("MODGOVERNOR", 0);
+    snprintf(gov, sizeof(gov), "%s ", caption ? caption : "");
+    const char* setting = reports_labels_field("MODGOVERNOR", 1 + colony->governor);
+    if (!caption || !setting) {
+      gov[0] = '\0';
+    } else {
+      snprintf(gov + strlen(gov), sizeof(gov) - strlen(gov), "%s", setting);
+    }
+  }
+  if (!gov[0]) {
+    reports_draw_line(font, fb, REPORTS_COLONY_NAME_X, row_top, c->name, REPORTS_COLONY_LABEL_COLOR);
+    return;
+  }
+  reports_draw_line(font, fb, REPORTS_COLONY_NAME_X, row_top - REPORTS_COLONY_GOV_DY, c->name,
+                    REPORTS_COLONY_LABEL_COLOR);
+  reports_draw_line(font, fb, REPORTS_COLONY_NAME_X, row_top + REPORTS_COLONY_GOV_DY, gov,
+                    REPORTS_COLONY_LABEL_COLOR);
 }
 
 /* FUN_1427_04d6 with param_2 == 1: the @UNIT size column, overridden to 2
