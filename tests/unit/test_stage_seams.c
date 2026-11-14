@@ -2744,6 +2744,13 @@ static int test_colony_picker_lists_planned_unlocks(void) {
   if (picker_row(csv, mill) <= 0 || csv->construction_selection != 0) {
     return fail("Shift must relist the plan rows and keep the bar on (no production)");
   }
+  /* A colony with a queue lists the plan rows without Shift. */
+  game_colony_queue_construction(&game, mill);
+  in.shift_held = false;
+  (void)game_update_colony_screen(&game, &in);
+  if (colonies_build_queue_pos(&game.colonies, col->id, mill) != 1 || picker_row(csv, mill) <= 0) {
+    return fail("with a queue the plan rows must stay listed without Shift");
+  }
   return 0;
 }
 

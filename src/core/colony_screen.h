@@ -361,7 +361,8 @@ typedef struct ColonyScreenView {
   /* Port-only build queue: row only the plan unlocks (queue-only, drawn grey). */
   bool buildable_queue_only[COLONY_BUILDABLE_MAX];
   /* Shift was held when the list was built: the plan-only rows are listed
-   * (game_update_colony_screen relists when Shift changes). Off = DOS list. */
+   * (game_update_colony_screen relists when Shift changes). Off = DOS list,
+   * unless the colony has a queue (then the plan rows are always listed). */
   bool construction_planned;
   ColonyDialogRect construction_rect;
   /* The open jobs / construction page's "(More)" row has the bar (FUN_6f74_2580 box+0x4c);

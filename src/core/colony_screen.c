@@ -303,10 +303,11 @@ void colony_screen_open_construction(
     return;
   }
   colony_screen_close_subpanels(view);
-  /* Port-only build queue: while Shift is held the rows the queued plan unlocks
-   * are listed too (Shift queues them; game_colony_commit_construction refuses
-   * a plain pick). */
-  const bool queue = view->construction_planned;
+  /* Port-only build queue: while Shift is held, or once something is queued,
+   * the rows the queued plan unlocks are listed too (Shift queues them;
+   * game_colony_commit_construction refuses a plain pick). */
+  const ColonizeColony* qcol = colonies_get(pool, colony_id);
+  const bool queue = view->construction_planned || (qcol && qcol->build_queue_count > 0);
   view->buildable_count =
     queue ? colonies_list_buildable_planned(pool, colony_id, view->buildable_ids,
                                             COLONY_BUILDABLE_MAX, buildable_opts)
