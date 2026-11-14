@@ -332,6 +332,7 @@ bool colonies_capture_show_ex(
   const int old_nation = col->nation_id;
   col->nation_id = new_nation_id;
   if (old_nation != new_nation_id) {
+    col->governor = 0; /* MOD_COLONY_GOVERNOR: the captor starts with none */
     /* dos_bugs.md DB-66: AI ticks zero the export bits (FUN_5952_035e), so a
      * colony a human takes from the AI would export nothing; re-arm the
      * founding set. AI captors keep DOS's 0 (they re-zero it every tick). */
@@ -745,7 +746,7 @@ bool colonies_destroy_building(ColonizeColonyPool* pool, int colony_id, int buil
  * the current project's hammers/tools_cost, whether it's a real building or
  * a unit-type project (colonies_unit_build_info). False if there's no
  * project or its cost can't be resolved either way. */
-static bool colonies_construction_cost(
+bool colonies_construction_cost(
   const ColonizeColonyPool* pool,
   const ColonizeColony* colony,
   int* hammers,

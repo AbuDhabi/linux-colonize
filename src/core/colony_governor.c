@@ -10,28 +10,44 @@
 #include "core/europe.h"
 #include "core/founding_fathers.h"
 #include "core/mods.h"
+#include "core/turn.h"
 #include "core/world.h"
 
 /*
  * Port-only (MOD_COLONY_GOVERNOR, docs/colony.md "Colony governor"). Seating
  * is a hill climb: every colonist tries every free work plot / field job and
- * every indoor job, then every pair of colonists tries trading places, and a
- * change is kept when colony_preview_compute_w scores better. The score is a
- * per-governor weighting of the preview's net goods, bells, crosses and
- * hammers; a good counts only up to the warehouse room left for it, and a food
- * deficit costs far more than anything else is worth. No specialist bonus: a
- * specialist out-produces anyone on his own job, so the swaps put him there
- * unless his output is unwanted or has no room.
+ * every indoor job (teaching too), then every pair of colonists tries trading
+ * places, and a change is kept when the plan scores better. The score plays
+ * GOV_HORIZON turns of colony_preview_compute_w on a scratch copy, stocking
+ * each turn's net goods into the warehouse (clamped to its capacity, so a full
+ * good earns nothing) and weighting what went in per governor. Food may run a
+ * deficit while the stock covers it; going below zero (starvation) costs far
+ * more than anything else is worth. Hammers count only toward the project's
+ * remaining cost, tools toward the tools it still lacks first. No specialist
+ * bonus: a specialist out-produces anyone on his own job, so the swaps put
+ * him there unless his output is unwanted or has no room.
  */
 
-#define GOV_FOOD_DEFICIT_COST 1000.0
+#define GOV_STARVE_COST 1000.0
 #define GOV_PASSES 8
+#define GOV_HORIZON 3
+/* Hammers past the project's cost: they bank, but are mostly worthless. */
+#define GOV_HAMMER_SPARE 0.1
+/* Staying on a cash-crop plot that can still teach the job (turn_produce_
+ * discover's roll), so the governor does not shuffle a learner off it. */
+#define GOV_STAY_BONUS 3.0
+/* A teacher with a student, per turn, plus this per non-expert colonist
+ * working the teacher's own expert job. */
+#define GOV_TEACH_VALUE 4.0
+#define GOV_TEACH_NEED 2.0
 
 typedef struct GovWeights {
   double goods[COLONIZE_CARGO_COUNT]; /* food here = the net surplus */
   double bells;
   double crosses;
   double hammers;
+  double tools_needed; /* a tool the project still lacks */
+  double balance;      /* Industry: per added tool matched by an added musket */
 } GovWeights;
 
 /* One seat: a work plot with a field job, or an indoor workplace. */
@@ -44,11 +60,17 @@ typedef struct GovSeat {
 typedef struct GovCtx {
   const ColonizeWorld* w;
   const GovWeights* wt;
-  int room[COLONIZE_CARGO_COUNT]; /* warehouse room left; -1 = unlimited */
+  int cap[COLONIZE_CARGO_COUNT]; /* warehouse capacity; -1 = unlimited */
+  int hammers_need;              /* project hammers left; 0 = nothing to build */
+  int tools_need;                /* project tools not yet in stock */
+  int students;                  /* colonists a teacher may take */
   bool pinned[COLONIZE_COLONY_POP_MAX];
+  bool learner[COLONIZE_COLONY_POP_MAX]; /* sits where he may learn the job */
   /* Plots the governor may seat on (unblocked, unclaimed or already ours). */
   bool plot_ok[COLONIZE_COLONY_FIELD_TILES_MAX];
   int plots;
+  int teach_cap; /* faculty: colonies_school_owned_tier */
+  const ColonizeColony* orig;
 } GovCtx;
 
 static int gov_colonist_tile(const ColonizeColony* c, int i) {
@@ -91,17 +113,97 @@ static void gov_seat_put(ColonizeColony* c, int i, GovSeat s) {
   }
 }
 
-static double gov_score(const GovCtx* g, const ColonizeColony* c) {
-  ColonizeColonyPreview pv;
-  colony_preview_compute_w(g->w, c, &pv);
-  const GovWeights* wt = g->wt;
-  double s = pv.food_net < 0 ? pv.food_net * GOV_FOOD_DEFICIT_COST
-                             : pv.food_net * wt->goods[COLONIZE_CARGO_FOOD];
-  for (int k = 1; k < COLONIZE_CARGO_COUNT; ++k) {
-    const int d = pv.goods[k] > g->room[k] && g->room[k] >= 0 ? g->room[k] : pv.goods[k];
-    s += d * wt->goods[k];
+static bool gov_is_teacher(const ColonizeColonyPool* pool, const ColonizeColonist* p) {
+  return p->building_type >= 0 &&
+         colonies_building_occupation(pool, p->building_type) == COLONIES_JOB_TEACHER;
+}
+
+/* Free colonists, servants and criminals: whom a school can teach. */
+static bool gov_is_student(const ColonizeColonist* p) {
+  return p->active && (p->profession == COLONIZE_PROF_FREE_COLONIST ||
+                       p->profession == UNITS_JOB_COLONIST || p->profession == UNITS_JOB_NONE ||
+                       p->profession == COLONIZE_PROF_INDENTURED ||
+                       p->profession == COLONIZE_PROF_CRIMINAL);
+}
+
+/* One turn of teaching: every teacher with a student, worth more the more
+ * non-experts work his own job (@JOB row = expert profession). */
+static double gov_teach_value(const GovCtx* g, const ColonizeColony* c) {
+  const ColonizeColonyPool* pool = g->w->colonies;
+  double s = 0.0;
+  int taught = 0;
+  for (int i = 0; i < c->colonist_count && taught < g->students; ++i) {
+    const ColonizeColonist* t = &c->colonists[i];
+    if (!gov_is_teacher(pool, t)) {
+      continue;
+    }
+    ++taught;
+    s += GOV_TEACH_VALUE;
+    for (int j = 0; j < c->colonist_count; ++j) {
+      const ColonizeColonist* p = &c->colonists[j];
+      const int job = p->building_type >= 0 ? colonies_building_occupation(pool, p->building_type)
+                                            : p->field_job;
+      if (j != i && job == t->profession && p->profession != t->profession) {
+        s += GOV_TEACH_NEED;
+      }
+    }
   }
-  s += pv.bells * wt->bells + pv.crosses * wt->crosses + pv.hammers * wt->hammers;
+  return s;
+}
+
+static double gov_score(const GovCtx* g, const ColonizeColony* plan) {
+  const GovWeights* wt = g->wt;
+  ColonizeColony c = *plan;
+  int hammers_need = g->hammers_need;
+  int tools_need = g->tools_need;
+  double s = GOV_HORIZON * gov_teach_value(g, plan);
+  for (int i = 0; i < plan->colonist_count; ++i) {
+    if (g->learner[i] && gov_seat_eq(gov_seat_of(plan, i), gov_seat_of(g->orig, i))) {
+      s += GOV_STAY_BONUS;
+    }
+  }
+  for (int turn = 0; turn < GOV_HORIZON; ++turn) {
+    ColonizeColonyPreview pv;
+    colony_preview_compute_w(g->w, &c, &pv);
+    int food = c.stock[COLONIZE_CARGO_FOOD] + pv.food_net;
+    s += pv.food_net * wt->goods[COLONIZE_CARGO_FOOD];
+    if (food < 0) {
+      s += food * GOV_STARVE_COST;
+      food = 0;
+    }
+    c.stock[COLONIZE_CARGO_FOOD] = food;
+    int added[COLONIZE_CARGO_COUNT] = {0};
+    for (int k = 1; k < COLONIZE_CARGO_COUNT; ++k) {
+      int after = c.stock[k] + pv.goods[k];
+      if (after < 0) {
+        after = 0;
+      }
+      if (g->cap[k] >= 0 && after > g->cap[k]) {
+        after = g->cap[k];
+      }
+      int d = after - c.stock[k];
+      c.stock[k] = after;
+      added[k] = d;
+      if (k == COLONIZE_CARGO_TOOLS && d > 0 && tools_need > 0) {
+        const int u = d < tools_need ? d : tools_need;
+        s += u * wt->tools_needed;
+        tools_need -= u;
+        d -= u;
+      }
+      s += d * wt->goods[k];
+    }
+    const int t = added[COLONIZE_CARGO_TOOLS];
+    const int m = added[COLONIZE_CARGO_MUSKETS];
+    if (t > 0 && m > 0) {
+      s += wt->balance * (t < m ? t : m);
+    }
+    const int h = pv.hammers < hammers_need ? pv.hammers : hammers_need;
+    hammers_need -= h;
+    if (g->hammers_need > 0) {
+      s += (h + (pv.hammers - h) * GOV_HAMMER_SPARE) * wt->hammers;
+    }
+    s += pv.bells * wt->bells + pv.crosses * wt->crosses;
+  }
   return s;
 }
 
@@ -143,12 +245,14 @@ static bool gov_move_pass(const GovCtx* g, ColonizeColony* c, double* best) {
         moved |= gov_try(g, c, i, (GovSeat){t, job, -1}, best);
       }
     }
-    /* Indoor jobs 9..17; teaching is left to the player. */
-    for (int job = COLONIZE_FIELD_JOB_COUNT; job < COLONIES_JOB_TEACHER; ++job) {
+    /* Indoor jobs 9..18; a teacher only while someone is left to teach. */
+    for (int job = COLONIZE_FIELD_JOB_COUNT; job <= COLONIES_JOB_TEACHER; ++job) {
       const int b = colonies_job_workplace_building(pool, c, job);
+      const int cap = job == COLONIES_JOB_TEACHER ? (g->students > 0 ? g->teach_cap : 0)
+                                                  : COLONIZE_BUILDING_MAX_WORKERS;
       if (b < 0 || !colonies_building_workable(pool, b) ||
           !colonies_job_row_offered(pool, c, job, c->colonists[i].profession) ||
-          colonies_occupation_worker_count(pool, c, job, i) >= COLONIZE_BUILDING_MAX_WORKERS) {
+          colonies_occupation_worker_count(pool, c, job, i) >= cap) {
         continue;
       }
       moved |= gov_try(g, c, i, (GovSeat){-1, -1, b}, best);
@@ -198,15 +302,17 @@ static bool gov_nation_has_custom_house(const ColonizeColonyPool* pool, int nati
   return false;
 }
 
-/* What a unit of `cargo` fetches after tax: 0 while Europe boycotts it and no
- * colony of the nation has a Custom House (which sells past a boycott). */
+/* What a unit of `cargo` fetches after tax: 0 while Europe boycotts it, or
+ * during the War of Independence, and no colony of the nation has a Custom
+ * House (which sells past both). */
 static double gov_sale_value(const ColonizeWorld* w, int nation, int cargo, bool custom_house) {
   const ColonizeCol1Save* col1 = w->col1_ok ? w->col1 : NULL;
   int price = europe_nation_sell_price(w->europe, col1, nation, cargo);
   if (!col1 && !w->europe) {
     price = 1; /* no market bound (headless): every good alike */
   }
-  if (!custom_house && europe_cargo_boycotted_ex(w->europe, col1, nation, cargo)) {
+  if (!custom_house && ((col1 && col1->head.game_options.woi) ||
+                        europe_cargo_boycotted_ex(w->europe, col1, nation, cargo))) {
     return 0.0;
   }
   int tax = w->europe ? w->europe->tax_percent : 0;
@@ -236,11 +342,14 @@ static void gov_weights(const ColonizeWorld* w, const ColonizeColony* col, int g
       wt->bells = 1.0;
       break;
     case COLONY_GOVERNOR_INDUSTRY:
+      /* Tools and muskets in step: two blacksmiths feeding one gunsmith
+       * beat either alone (tools are the musket input). */
       wt->hammers = 4.0;
-      wt->goods[COLONIZE_CARGO_TOOLS] = 5.0;
-      wt->goods[COLONIZE_CARGO_MUSKETS] = 7.0;
-      wt->goods[COLONIZE_CARGO_ORE] = 2.0;
-      wt->goods[COLONIZE_CARGO_LUMBER] = 1.0;
+      wt->goods[COLONIZE_CARGO_TOOLS] = 4.0;
+      wt->goods[COLONIZE_CARGO_MUSKETS] = 4.0;
+      wt->balance = 6.0;
+      wt->goods[COLONIZE_CARGO_ORE] = 1.0;
+      wt->goods[COLONIZE_CARGO_LUMBER] = 0.5;
       break;
     case COLONY_GOVERNOR_POLITICS:
       wt->bells = 6.0;
@@ -254,19 +363,32 @@ static void gov_weights(const ColonizeWorld* w, const ColonizeColony* col, int g
    * bonus each bell actually moves. */
   const int sol = colony_prod_sol_percent(w->col1, col);
   wt->bells *= sol < 50 ? 1.5 : sol < 100 ? 1.0 : 0.25;
+  /* Tools the project lacks come before anything they could be sold for. */
+  wt->tools_needed = 2.0 * wt->hammers;
+  if (wt->tools_needed < wt->goods[COLONIZE_CARGO_TOOLS]) {
+    wt->tools_needed = wt->goods[COLONIZE_CARGO_TOOLS];
+  }
 }
 
-/* Warehouse room left for `cargo`, -1 = unlimited. Food has no cap (DOS
+/* Warehouse capacity for `cargo`, -1 = unlimited. Food has no cap (DOS
  * clamps every good but Food); a Custom House sells an exported good down to
  * 50 each turn, so it never fills. */
-static int gov_room(const ColonizeColonyPool* pool, const ColonizeColony* col, int cargo) {
+static int gov_cap(const ColonizeColonyPool* pool, const ColonizeColony* col, int cargo) {
   const bool exported = colonies_has_building_row(pool, col, COLONY_BUILDING_CUSTOM_HOUSE) &&
                         (col->custom_house_bits & (1u << cargo)) != 0;
   if (cargo == COLONIZE_CARGO_FOOD || exported) {
     return -1;
   }
-  const int left = colonies_warehouse_capacity(pool, col, cargo) - col->stock[cargo];
-  return left > 0 ? left : 0;
+  return colonies_warehouse_capacity(pool, col, cargo);
+}
+
+/* Warehouse room left for `cargo`, -1 = unlimited. */
+static int gov_room(const ColonizeColonyPool* pool, const ColonizeColony* col, int cargo) {
+  const int cap = gov_cap(pool, col, cargo);
+  if (cap < 0) {
+    return -1;
+  }
+  return cap > col->stock[cargo] ? cap - col->stock[cargo] : 0;
 }
 
 static void gov_seat_colonists(const ColonizeWorld* w, ColonizeColony* col, const GovWeights* wt) {
@@ -275,9 +397,21 @@ static void gov_seat_colonists(const ColonizeWorld* w, ColonizeColony* col, cons
   memset(&g, 0, sizeof(g));
   g.w = w;
   g.wt = wt;
+  g.orig = col;
   for (int k = 0; k < COLONIZE_CARGO_COUNT; ++k) {
-    g.room[k] = gov_room(pool, col, k);
+    g.cap[k] = gov_cap(pool, col, k);
   }
+  int hammers = 0;
+  int tools = 0;
+  if (colonies_construction_cost(pool, col, &hammers, &tools)) {
+    g.hammers_need = hammers > col->hammers ? hammers - col->hammers : 0;
+    g.tools_need = tools > col->stock[COLONIZE_CARGO_TOOLS] ? tools - col->stock[COLONIZE_CARGO_TOOLS] : 0;
+  }
+  g.teach_cap = colonies_school_owned_tier(pool, col);
+  /* On-the-job learning (turn_produce_discover): a non-expert on a cash-crop
+   * plot while the nation has no expert of that job yet. */
+  uint8_t census[32];
+  turn_tally_professions_w(w, col->nation_id, census);
   g.plots = colonies_work_plot_count(pool, col);
   if (g.plots > COLONIZE_COLONY_FIELD_TILES_MAX) {
     g.plots = COLONIZE_COLONY_FIELD_TILES_MAX;
@@ -294,11 +428,16 @@ static void gov_seat_colonists(const ColonizeWorld* w, ColonizeColony* col, cons
                                                        col->x + dx, col->y + dy) < 0);
   }
   for (int i = 0; i < col->colonist_count; ++i) {
+    g.students += gov_is_student(&col->colonists[i]);
+  }
+  for (int i = 0; i < col->colonist_count; ++i) {
     const ColonizeColonist* p = &col->colonists[i];
-    /* Teachers keep their class; an unseated worker waits for his building. */
-    g.pinned[i] = !p->active || p->idle_job1 != 0 ||
-                  (p->building_type >= 0 &&
-                   colonies_building_occupation(pool, p->building_type) == COLONIES_JOB_TEACHER);
+    /* Teachers keep their class while anyone is left to teach; an unseated
+     * worker waits for his building. */
+    g.pinned[i] = !p->active || p->idle_job1 != 0 || (g.students > 0 && gov_is_teacher(pool, p));
+    g.learner[i] = gov_is_student(p) &&
+                   gov_colonist_tile(col, i) >= 0 && p->field_job >= 1 &&
+                   p->field_job <= COLONIZE_JOB_FUR_TRAPPER && census[p->field_job] == 0;
   }
 
   ColonizeColony plan = *col;
@@ -471,8 +610,9 @@ void colony_governor_run_w(const ColonizeWorld* w, int colony_id) {
   }
   GovWeights wt;
   gov_weights(w, col, col->governor, &wt);
-  gov_seat_colonists(w, col, &wt);
+  /* Project first: the seating aims its hammers and tools at it. */
   gov_pick_project(w, col, col->governor);
+  gov_seat_colonists(w, col, &wt);
 }
 
 void colony_governor_run_nation_w(const ColonizeWorld* w, int nation) {

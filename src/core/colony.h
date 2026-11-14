@@ -822,6 +822,10 @@ const char* colonies_eject_role_name(int role);
 
 /* unit construction project info wrapper (see docs/colony.md#colonies_unit_build_info) */
 bool colonies_unit_build_info(int raw_code, const char** name, int* hammers, int* tools_cost);
+/* The current project's hammers / tools_cost, building or unit; false if none. */
+bool colonies_construction_cost(
+  const ColonizeColonyPool* pool, const ColonizeColony* colony, int* hammers, int* tools_cost
+);
 
 /* Set construction target; building_type must be unowned and meet min_population. */
 bool colonies_set_construction(ColonizeColonyPool* pool, int colony_id, int building_type);

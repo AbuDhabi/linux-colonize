@@ -227,7 +227,138 @@ static int case_rtst_round_trip(void) {
   return 0;
 }
 
+/* A capture hands the colony over with no governor. */
+static int case_capture_clears(void) {
+  GovFx f;
+  if (!gov_fx_open(&f)) {
+    return 1;
+  }
+  f.col->governor = COLONY_GOVERNOR_INDUSTRY;
+  const bool ok = colonies_capture_show_ex(&f.pool, f.col->id, 1, NULL, false);
+  const int gov = f.col->governor;
+  gov_fx_close(&f);
+  if (!ok || gov != COLONY_GOVERNOR_NONE) {
+    fprintf(stderr, "capture %d, governor %d\n", ok, gov);
+    return 1;
+  }
+  return 0;
+}
+
+static bool gov_has_carpenter(const GovFx* f) {
+  const int shop = colonies_building_row(&f->pool, COLONY_BUILDING_CARPENTERS_SHOP);
+  for (int i = 0; i < f->col->colonist_count; ++i) {
+    if (f->col->colonists[i].building_type == shop) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/* Hammers are worth working for only while the project still lacks them. */
+static int case_hammers_only_toward_project(void) {
+  int rc = 0;
+  for (int banked = 0; banked < 2; ++banked) {
+    GovFx f;
+    if (!gov_fx_open(&f)) {
+      return 1;
+    }
+    ColonizeColony* c = f.col;
+    c->stock[COLONIZE_CARGO_FOOD] = 100;
+    int hammers = 0;
+    if (!colonies_construction_cost(&f.pool, c, &hammers, NULL)) {
+      fprintf(stderr, "fixture has no project\n");
+      gov_fx_close(&f);
+      return 1;
+    }
+    c->hammers = banked ? hammers : 0;
+    c->governor = COLONY_GOVERNOR_INDUSTRY;
+    colony_governor_run_w(&f.w, c->id);
+    if (gov_has_carpenter(&f) == (banked != 0)) {
+      fprintf(stderr, "banked %d: carpenter %d\n", banked, gov_has_carpenter(&f));
+      rc = 1;
+    }
+    gov_fx_close(&f);
+  }
+  return rc;
+}
+
+/* A food stock lets Politics run a deficit nobody starves of. */
+static int case_temporary_food_shortfall(void) {
+  ColonizeColonyPreview pv[2];
+  for (int stocked = 0; stocked < 2; ++stocked) {
+    GovFx f;
+    if (!gov_fx_open(&f)) {
+      return 1;
+    }
+    f.col->stock[COLONIZE_CARGO_FOOD] = stocked ? 100 : 0;
+    f.col->governor = COLONY_GOVERNOR_POLITICS;
+    colony_governor_run_w(&f.w, f.col->id);
+    pv[stocked] = gov_preview(&f);
+    gov_fx_close(&f);
+  }
+  if (pv[1].bells <= pv[0].bells || pv[1].food_net >= 0 || 100 + 3 * pv[1].food_net < 0) {
+    fprintf(stderr, "bells %d -> %d, food_net %d -> %d\n", pv[0].bells, pv[1].bells,
+            pv[0].food_net, pv[1].food_net);
+    return 1;
+  }
+  return 0;
+}
+
+/* A teacher keeps his class while there is a student; with none he works. */
+static int case_teacher_sticky(void) {
+  int rc = 0;
+  for (int students = 1; students >= 0; --students) {
+    GovFx f;
+    if (!gov_fx_open(&f)) {
+      return 1;
+    }
+    ColonizeColony* c = f.col;
+    const int school = colonies_building_row(&f.pool, COLONY_BUILDING_SCHOOLHOUSE);
+    c->has_building[school] = true;
+    c->colonists[3].profession = COLONIZE_JOB_LUMBERJACK; /* Expert Lumberjack, tier 1 */
+    c->colonists[3].building_type = school;
+    for (int i = 0; i < 3 && !students; ++i) {
+      c->colonists[i].profession = COLONIZE_JOB_FARMER; /* Expert Farmers */
+    }
+    c->governor = COLONY_GOVERNOR_FARMING;
+    colony_governor_run_w(&f.w, c->id);
+    if ((c->colonists[3].building_type == school) != (students != 0)) {
+      fprintf(stderr, "students %d: teacher seat %d\n", students, c->colonists[3].building_type);
+      rc = 1;
+    }
+    gov_fx_close(&f);
+  }
+  return rc;
+}
+
+/* Industry with ore and an Armory makes tools and muskets both. */
+static int case_industry_tools_and_muskets(void) {
+  GovFx f;
+  if (!gov_fx_open(&f)) {
+    return 1;
+  }
+  ColonizeColony* c = f.col;
+  c->has_building[colonies_building_row(&f.pool, COLONY_BUILDING_ARMORY)] = true;
+  c->stock[COLONIZE_CARGO_FOOD] = 100;
+  c->stock[COLONIZE_CARGO_ORE] = 90;
+  c->hammers = 1000; /* nothing left to build: no carpenter competes */
+  c->governor = COLONY_GOVERNOR_INDUSTRY;
+  colony_governor_run_w(&f.w, c->id);
+  const ColonizeColonyPreview pv = gov_preview(&f);
+  gov_fx_close(&f);
+  if (pv.goods[COLONIZE_CARGO_TOOLS] <= 0 || pv.goods[COLONIZE_CARGO_MUSKETS] <= 0) {
+    fprintf(stderr, "tools %d muskets %d\n", pv.goods[COLONIZE_CARGO_TOOLS],
+            pv.goods[COLONIZE_CARGO_MUSKETS]);    return 1;
+  }
+  return 0;
+}
+
 static const TestCase k_cases[] = {
+  {"industry_tools_and_muskets", case_industry_tools_and_muskets},
+  {"capture_clears", case_capture_clears},
+  {"hammers_only_toward_project", case_hammers_only_toward_project},
+  {"temporary_food_shortfall", case_temporary_food_shortfall},
+  {"teacher_sticky", case_teacher_sticky},
   {"feeds_colonists", case_feeds_colonists},
   {"priorities_differ", case_priorities_differ},
   {"project_only_when_unbuildable", case_project_only_when_unbuildable},
