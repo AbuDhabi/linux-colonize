@@ -362,6 +362,13 @@ bool units_pioneer_work_tick_w(
   const ColonizeMsgCatalog* messages
 );
 
+/* mods.pioneer_plan: an automated Pioneer that just used up its tools (now a
+ * Colonist, Automate off): plain Go To the own colony on its continent with at
+ * least 20 tools that scores best on min(tools, 100) / (distance + 1); arrival
+ * ends it there.
+ * No such colony, or already standing in the best one: nothing. */
+void units_pioneer_resupply(const ColonizeWorld* w, ColonizeUnit* u);
+
 /* True for high-seas / sea-lane tiles (terrain index 26). */
 bool units_on_high_seas(const ColonizeWorldMap* map, int x, int y);
 bool units_find_water_tile(

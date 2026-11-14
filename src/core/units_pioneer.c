@@ -18,6 +18,7 @@
 #include "core/combat_strength.h"
 #include "core/europe.h"
 #include "core/founding_fathers.h"
+#include "core/mods.h"
 #include "core/popup_msg.h"
 #include "core/reports.h"
 #include "core/sound.h"
@@ -352,6 +353,43 @@ static void units_pioneer_emit_order_gate(
   ai_popup_enqueue_ok(ai_popups, AI_POPUP_TAG_INFO, NULL, body);
 }
 
+void units_pioneer_resupply(const ColonizeWorld* w, ColonizeUnit* u) {
+  if (!w || !w->map || !w->colonies || !u || !u->active || !mods_on(MOD_PIONEER_PLAN)) {
+    return;
+  }
+  const int continent = map_continent_id_at(w->map, u->x, u->y);
+  bool tried[COLONIZE_COLONIES_MAX] = {false};
+  for (int attempt = 0; attempt < 8; ++attempt) { /* refused Go Tos skip to the next */
+    /* Score min(tools, 100) / (distance + 1), compared cross-multiplied. */
+    int best = -1;
+    int best_tools = 0;
+    int best_d = 0;
+    for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+      const ColonizeColony* c = &w->colonies->colonies[i];
+      if (tried[i] || !c->active || c->nation_id != u->nation_id ||
+          c->stock[COLONIZE_CARGO_TOOLS] < UNITS_PIONEER_TOOL_COST ||
+          map_continent_id_at(w->map, c->x, c->y) != continent) {
+        continue;
+      }
+      const int t = c->stock[COLONIZE_CARGO_TOOLS] < 100 ? c->stock[COLONIZE_CARGO_TOOLS] : 100;
+      const int d = map_dos_dist(c->x - u->x, c->y - u->y);
+      if (best < 0 || t * (best_d + 1) > best_tools * (d + 1)) {
+        best = i;
+        best_tools = t;
+        best_d = d;
+      }
+    }
+    if (best < 0) {
+      return;
+    }
+    const ColonizeColony* c = &w->colonies->colonies[best];
+    if (best_d == 0 || units_set_goto_w(w, u->id, c->x, c->y)) {
+      return;
+    }
+    tried[best] = true;
+  }
+}
+
 bool units_pioneer_work_tick_w(
   const ColonizeWorld* w,
   int unit_id,
@@ -407,6 +445,7 @@ bool units_pioneer_work_tick_w(
   if (u->col1_counter16 < 255) {
     u->col1_counter16++;
   }
+  const bool was_automated = u->automated;
   const int needed = units_pioneer_work_needed(u, map, road);
   if (u->col1_counter16 < needed) {
     /* port_bugs.md #633: DOS's work bodies write nothing to the status channel
@@ -562,6 +601,9 @@ bool units_pioneer_work_tick_w(
       }
       /* port_bugs.md #633: DOS's plow completion writes no status text. */
     }
+  }
+  if (was_automated && !u->automated && u->tools == 0) {
+    units_pioneer_resupply(w, u); /* mods.pioneer_plan: walk to fresh tools */
   }
   return true;
 }

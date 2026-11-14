@@ -140,6 +140,38 @@ static int case_automate(void) {
     (void)units_pioneer_work_tick_w(&w, u->id, NULL, NULL, NULL);
   }
   CHECK(u->tools == 0 && !u->automated);
+  CHECK(u->orders == UNITS_ORDER_NONE); /* no colony with tools: just stops */
+  /* Resupply: min(tools, 100) / (distance + 1). From (4,1): A (2,1) d2 60
+   * tools scores 20, B (6,6) d6 200 tools scores 100/7, C (5,1) under 20.
+   * (Edge tiles refuse a Go To, hence 6,6.) */
+  ColonizeColony* ca = colonies_get_mut(&s_colonies, colonies_found(&s_colonies, &s_map, 2, 1, 0, 0, 0, 60, 0, 0));
+  ColonizeColony* cb = colonies_get_mut(&s_colonies, colonies_found(&s_colonies, &s_map, 6, 6, 0, 0, 0, 200, 0, 0));
+  ColonizeColony* cc = colonies_get_mut(&s_colonies, colonies_found(&s_colonies, &s_map, 5, 1, 0, 0, 0, 10, 0, 0));
+  CHECK(ca && cb && cc);
+  ca->stock[COLONIZE_CARGO_TOOLS] = 60;
+  cb->stock[COLONIZE_CARGO_TOOLS] = 200;
+  cc->stock[COLONIZE_CARGO_TOOLS] = 10;
+  units_pioneer_resupply(&w, u);
+  CHECK(u->orders == UNITS_ORDER_GOTO && u->goto_x == 2 && u->goto_y == 1 && !u->automated);
+  ca->stock[COLONIZE_CARGO_TOOLS] = 30; /* 30/3 now loses to 100/7 */
+  units_pioneer_resupply(&w, u);
+  CHECK(u->orders == UNITS_ORDER_GOTO && u->goto_x == 6 && u->goto_y == 6);
+  units_clear_orders(&s_pool, u->id);
+  /* Through the work tick: the last-tools job sends the Colonist off. */
+  ca->stock[COLONIZE_CARGO_TOOLS] = 60;
+  const int pid2 = units_spawn(&s_pool, units_find_type(&s_pool, "Pioneers"), 4, 2);
+  ColonizeUnit* u2 = units_get(&s_pool, pid2);
+  CHECK(u2);
+  u2->nation_id = 0;
+  u2->tools = 20;
+  u2->automated = true;
+  u2->orders = UNITS_ORDER_BUILD_ROAD;
+  for (int t = 0; t < 16 && u2->orders == UNITS_ORDER_BUILD_ROAD; ++t) {
+    u2->moves = units_max_mp(&s_pool, u2->id);
+    (void)units_pioneer_work_tick_w(&w, u2->id, NULL, NULL, NULL);
+  }
+  CHECK(u2->tools == 0 && !u2->automated);
+  CHECK(u2->orders == UNITS_ORDER_GOTO && u2->goto_x == 2 && u2->goto_y == 1);
   /* Out of tools cancels. */
   u->automated = true;
   u->orders = UNITS_ORDER_NONE;

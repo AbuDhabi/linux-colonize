@@ -42,4 +42,9 @@ per-test `settings.json`).
   the player; same tests as `game_request_indian_land_choice`).
 - Cancels on: no tools / no longer a Pioneer, no reachable plan, waking or clicking
   the unit (`units_wake`), or any other ORDERS command given to it.
+- Resupply (`units_pioneer_resupply`, units_pioneer.c): the job that uses up the last tools (unit
+  demotes to Colonist, Automate off) gives it a plain Go To the own colony on its
+  continent holding at least 20 tools that scores best on
+  `min(tools, 100) / (map_dos_dist + 1)`; arrival ends it there (the player
+  re-equips). No such colony, or already in the best one: it just stops.
 - Saved in `PPLN` with the plan (docs/savegame.md); a DOS re-save drops both.
