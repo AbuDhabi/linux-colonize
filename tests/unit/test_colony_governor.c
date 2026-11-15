@@ -458,6 +458,66 @@ static int case_bells_keep_full_sol(void) {
   return 0;
 }
 
+/* Cash builds crop chains for every crop the colony can grow, worked or not
+ * (nobody here works a plot): the site's forests grow furs, and one plot made
+ * grassland grows tobacco. Two picks, two chains: with one built through
+ * what it can start (its factory needs Adam Smith), the other follows. */
+static int case_cash_crop_chains(void) {
+  static const int k_tier2[] = {
+    COLONY_BUILDING_RUM_DISTILLERY, COLONY_BUILDING_TOBACCONISTS_SHOP,
+    COLONY_BUILDING_WEAVERS_SHOP, COLONY_BUILDING_FUR_TRADING_POST,
+  };
+  GovFx f;
+  if (!gov_fx_open(&f)) {
+    return 1;
+  }
+  int rc = 0;
+  ColonizeColony* c = f.col;
+  int fur_plots = 0;
+  int grass = -1;
+  for (int t = 0; t < 8; ++t) {
+    int dx = 0;
+    int dy = 0;
+    colonies_field_tile_delta(t, &dx, &dy);
+    const int x = c->x + dx;
+    const int y = c->y + dy;
+    if (colony_yield_for_tile_in_colony(&f.pool, c, &f.map, x, y, COLONIZE_JOB_FUR_TRAPPER) > 0 &&
+        ++fur_plots == 2) {
+      grass = y * (int)f.map.width + x;
+    }
+  }
+  if (grass < 0) {
+    fprintf(stderr, "fixture: under two fur plots\n");
+    gov_fx_close(&f);
+    return 1;
+  }
+  f.map.terrain[grass] = T_GRASSLAND;
+  c->governor = COLONY_GOVERNOR_CASH;
+  int picked[2] = {-1, -1};
+  for (int round = 0; round < 2 && rc == 0; ++round) {
+    c->building_in_production = -1;
+    colony_governor_run_w(&f.w, c->id);
+    for (int i = 0; i < 4; ++i) {
+      if (c->building_in_production == colonies_building_row(&f.pool, k_tier2[i])) {
+        picked[round] = i;
+      }
+    }
+    if (picked[round] < 0) {
+      fprintf(stderr, "pick %d: project %d is no crop chain's second tier\n", round,
+              c->building_in_production);
+      rc = 1;
+    } else {
+      c->has_building[c->building_in_production] = true;
+    }
+  }
+  if (rc == 0 && picked[0] + picked[1] != 1 + 3) {
+    fprintf(stderr, "chains %d and %d, not tobacco and furs\n", picked[0], picked[1]);
+    rc = 1;
+  }
+  gov_fx_close(&f);
+  return rc;
+}
+
 /* Lumberjack and carpenter only pay as a pair (no lumber in store): the
  * chain move seats both where single moves see each alone as a loss. A hold
  * of tools in store keeps the blacksmith pair from outbidding them. */
@@ -547,6 +607,7 @@ static int case_no_tribal_land(void) {
 }
 
 static const TestCase k_cases[] = {
+  {"cash_crop_chains", case_cash_crop_chains},
   {"chain_lumber_to_hammers", case_chain_lumber_to_hammers},
   {"no_tribal_land", case_no_tribal_land},
   {"bells_keep_full_sol", case_bells_keep_full_sol},

@@ -76,8 +76,11 @@ player's own calls, for the colonists that move.
 Construction: only when no project is queued and the current one is "(No
 Production)", a built building, or no longer startable. When a good has no
 room left, or fills within three turns at its current rate, Warehouse and
-Warehouse Expansion go first; then the governor's list (Cash first tries the
-chain of its most valuable raw crop; Industry ends with Artillery and ships; Military puts Stockade, Armory, Fort, Stable, Fortress first and ends with Artillery).
+Warehouse Expansion go first; then the governor's list (Cash first tries every
+crop chain that pays, most valuable first, each through all its tiers, house,
+shop and factory, the Fur Trading Post included: a chain is worth the crop
+the colony grows now, or its best seatable plot if more, at the processed
+good's sale value, so a boycotted good with no Custom House drops out; Industry ends with Artillery and ships; Military puts Stockade, Armory, Fort, Stable, Fortress first and ends with Artillery).
 The first startable row is picked; with none, "(No Production)", and the
 hammers bank for a later turn. A capture (`colonies_capture_show_ex`) resets
 the governor to none. Covered by `unit_colony_governor`.

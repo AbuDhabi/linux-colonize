@@ -537,6 +537,24 @@ static int gov_room(const ColonizeColonyPool* pool, const ColonizeColony* col, i
   return cap > col->stock[cargo] ? cap - col->stock[cargo] : 0;
 }
 
+/* Whether the governor may seat plot t. Native land is the player's call
+ * (@INDIANLAND, or Peter Minuit); only plots the colony already works may
+ * stay worked. Unbought homeland of a tribe not yet met counts too: DOS seats
+ * it without asking, and the seat stamps it bought (colonies_stamp_worked_plot). */
+static bool gov_plot_ok(const ColonizeWorld* w, const ColonizeColony* col, int t) {
+  const ColonizeCol1Save* col1 = w->col1_ok ? w->col1 : NULL;
+  int dx = 0;
+  int dy = 0;
+  colonies_field_tile_delta(t, &dx, &dy);
+  const int x = col->x + dx;
+  const int y = col->y + dy;
+  return colonies_plot_blocked_mask(w, col, t) == 0 &&
+         (col->tiles[t] >= 0 ||
+          (colonies_indian_claim_tribe_from_w(w, col->nation_id, col->x, col->y, x, y) < 0 &&
+           (map_tile_is_water(w->map, x, y) ||
+            colonies_indian_land_purchase_gold(col1, w->map, x, y, col->nation_id) <= 0)));
+}
+
 static void gov_seat_colonists(const ColonizeWorld* w, ColonizeColony* col, const GovWeights* wt) {
   ColonizeColonyPool* pool = w->colonies;
   GovCtx g;
@@ -576,20 +594,7 @@ static void gov_seat_colonists(const ColonizeWorld* w, ColonizeColony* col, cons
     g.plots = COLONIZE_COLONY_FIELD_TILES_MAX;
   }
   for (int t = 0; t < g.plots; ++t) {
-    int dx = 0;
-    int dy = 0;
-    colonies_field_tile_delta(t, &dx, &dy);
-    /* Native land is the player's call (@INDIANLAND, or Peter Minuit); only
-     * plots the colony already works may stay worked. Unbought homeland of a
-     * tribe not yet met counts too: DOS seats it without asking, and the
-     * seat stamps it bought (colonies_stamp_worked_plot). */
-    const int x = col->x + dx;
-    const int y = col->y + dy;
-    g.plot_ok[t] = colonies_plot_blocked_mask(w, col, t) == 0 &&
-                   (col->tiles[t] >= 0 ||
-                    (colonies_indian_claim_tribe_from_w(w, col->nation_id, col->x, col->y, x, y) < 0 &&
-                     (map_tile_is_water(w->map, x, y) ||
-                      colonies_indian_land_purchase_gold(col1, w->map, x, y, col->nation_id) <= 0)));
+    g.plot_ok[t] = gov_plot_ok(w, col, t);
   }
   for (int i = 0; i < col->colonist_count; ++i) {
     g.students += gov_is_student(&col->colonists[i]);
@@ -678,29 +683,55 @@ static const int k_gov_politics[] = {
   COLONY_BUILDING_LUMBER_MILL, COLONY_BUILDING_DOCKS, COLONY_BUILDING_WAREHOUSE, GOV_END,
 };
 
-/* Cash: the processing chain of the colony's most valuable raw crop. */
-static int gov_cash_chain(const ColonizeWorld* w, const ColonizeColony* col) {
-  static const struct { int cargo; int row; } k_chain[] = {
-    {COLONIZE_CARGO_SUGAR, COLONY_BUILDING_RUM_DISTILLERS_HOUSE},
-    {COLONIZE_CARGO_TOBACCO, COLONY_BUILDING_TOBACCONISTS_HOUSE},
-    {COLONIZE_CARGO_COTTON, COLONY_BUILDING_WEAVERS_HOUSE},
-    {COLONIZE_CARGO_FURS, COLONY_BUILDING_FUR_TRADERS_HOUSE},
+/* Cash: every crop chain that pays, most valuable first, each with all its
+ * tiers (house, shop, factory; the buildable list keeps out what is built or
+ * needs Adam Smith). A chain is worth the crop the colony grows now, or its
+ * best seatable plot if more, sold as the processed good (rum .. coats, cargo
+ * raw + 8). Appends to want[] and returns the new count. */
+static int gov_cash_chains(const ColonizeWorld* w, const ColonizeColony* col, int* want, int nw, int max) {
+  static const int k_house[] = {
+    COLONY_BUILDING_RUM_DISTILLERS_HOUSE, COLONY_BUILDING_TOBACCONISTS_HOUSE,
+    COLONY_BUILDING_WEAVERS_HOUSE, COLONY_BUILDING_FUR_TRADERS_HOUSE,
   };
+  const ColonizeColonyPool* pool = w->colonies;
+  const bool custom_house = gov_nation_has_custom_house(pool, col->nation_id);
+  int plots = colonies_work_plot_count(pool, col);
+  if (plots > COLONIZE_COLONY_FIELD_TILES_MAX) {
+    plots = COLONIZE_COLONY_FIELD_TILES_MAX;
+  }
   ColonizeColonyPreview pv;
   colony_preview_compute_w(w, col, &pv);
-  int best = -1;
-  double best_value = 0.0;
-  for (size_t i = 0; i < sizeof(k_chain) / sizeof(k_chain[0]); ++i) {
-    const double value =
-      pv.field_gross[k_chain[i].cargo] *
-      gov_sale_value(w, col->nation_id, k_chain[i].cargo,
-                     gov_nation_has_custom_house(w->colonies, col->nation_id));
-    if (value > best_value) {
-      best_value = value;
-      best = colonies_building_row_chain(k_chain[i].row);
+  double value[4];
+  for (int i = 0; i < 4; ++i) {
+    const int raw = COLONIZE_CARGO_SUGAR + i; /* = field job SUGAR_PLANTER + i */
+    int grow = pv.field_gross[raw];
+    for (int t = 0; t < plots; ++t) {
+      int dx = 0;
+      int dy = 0;
+      colonies_field_tile_delta(t, &dx, &dy);
+      if (gov_plot_ok(w, col, t)) {
+        const int y = colony_yield_for_tile_in_colony(pool, col, w->map, col->x + dx, col->y + dy, raw);
+        grow = y > grow ? y : grow;
+      }
+    }
+    value[i] = grow * gov_sale_value(w, col->nation_id, raw + 8, custom_house);
+  }
+  for (;;) {
+    int best = -1;
+    for (int i = 0; i < 4; ++i) {
+      if (value[i] > 0.0 && (best < 0 || value[i] > value[best])) {
+        best = i;
+      }
+    }
+    if (best < 0) {
+      return nw;
+    }
+    value[best] = 0.0;
+    const int* rows = colonies_building_chain_rows(colonies_building_row_chain(k_house[best]));
+    for (int r = 0; rows && rows[r] >= 0 && nw < max; ++r) {
+      want[nw++] = rows[r];
     }
   }
-  return best;
 }
 
 static bool gov_listed(const int* ids, int n, int bid) {
@@ -749,10 +780,7 @@ static void gov_pick_project(const ColonizeWorld* w, ColonizeColony* col, int go
     }
   }
   if (gov == COLONY_GOVERNOR_CASH) {
-    const int* rows = colonies_building_chain_rows(gov_cash_chain(w, col));
-    for (int i = 0; rows && rows[i] >= 0 && nw < 8; ++i) {
-      want[nw++] = rows[i];
-    }
+    nw = gov_cash_chains(w, col, want, nw, 48);
   }
   const int* list = gov == COLONY_GOVERNOR_FARMING  ? k_gov_farming
                     : gov == COLONY_GOVERNOR_CASH     ? k_gov_cash
