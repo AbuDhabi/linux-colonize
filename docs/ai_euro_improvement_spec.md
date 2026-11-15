@@ -374,3 +374,23 @@ population 23.9 / 23.8, gold 3686 / 1915, units 32 / 23, improved ring plots
 handouts; it has less gold, fewer units and fewer improvements (real Pioneers
 walk and take turns; small colonies post few jobs). Demo runs to 1650/1700
 (section 5) not done yet.
+
+Seating fix (2026-11-15, after the scratchpad playtest): AI colonies stalled
+a few hammers short of a project (Docks at 48 of 52) and rarely seated a
+lumberjack, because the governor priced the last hammers of a project, and
+any hammer with no project, below a field worker's food. `colony_governor_seat_w`
+now counts every hammer as project hammers (the DOS cascade re-picks each
+turn) at twice the human governor's hammer weight (`GOV_AI_HAMMERS`). The
+focus rules are unchanged; dropping Military, the SoL arm or the Farming arm
+all measured worse. `ai_replay` (with the `buildings` column: owned rows
+Stockade..Iron Works, about 7 at founding), sums over three AI nations, mean
+per run, mod off / mod on before / mod on after:
+
+| Run | colonies | population | buildings |
+|-----|----------|------------|-----------|
+| TURN1.SAV, 100 turns, seeds 1-8 | 7.9 / 8.2 / 7.8 | 24.9 / 22.8 / 23.5 | 66.9 / 59.9 / 62.4 |
+| 1646 playtest autosave, 120 turns, seeds 1-4 | 22.5 / 14.5 / 15.2 | 135.0 / 72.8 / 83.8 | 253.5 / 121.8 / 202.0 |
+
+Buildings per colony on the 1646 run now pass DOS (13.3 vs 11.3); the
+remaining gap is colony count (expansion), not seating. Seed noise is about
++-15 buildings on the 1646 run.

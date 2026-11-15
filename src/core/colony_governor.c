@@ -39,6 +39,10 @@
 /* Hammers past the project and its queue carry to the next pick (TB-57;
  * DOS zeroes the bank, so there they are worthless). */
 #define GOV_HAMMER_SPARE 0.5
+/* AI colonies (colony_governor_seat_w): their hammers, at the human
+ * weights, lost to food, so projects stalled a few hammers short. Measured
+ * with ai_replay (docs/ai_euro_improvement_spec.md section 7). */
+#define GOV_AI_HAMMERS 2.0
 /* A convert indoors makes a third of a free colonist; in the field he gets
  * +1. Per turn, so the swaps send converts out unless indoors pays clearly. */
 #define GOV_CONVERT_INDOORS 3.0
@@ -555,7 +559,9 @@ static bool gov_plot_ok(const ColonizeWorld* w, const ColonizeColony* col, int t
             colonies_indian_land_purchase_gold(col1, w->map, x, y, col->nation_id) <= 0)));
 }
 
-static void gov_seat_colonists(const ColonizeWorld* w, ColonizeColony* col, const GovWeights* wt) {
+/* rolling: the caller re-picks the project every turn (the AI build
+ * cascade), so every hammer counts as project hammers. */
+static void gov_seat_colonists(const ColonizeWorld* w, ColonizeColony* col, const GovWeights* wt, bool rolling) {
   ColonizeColonyPool* pool = w->colonies;
   GovCtx g;
   memset(&g, 0, sizeof(g));
@@ -582,6 +588,10 @@ static void gov_seat_colonists(const ColonizeWorld* w, ColonizeColony* col, cons
     g.tools_need = tools > col->stock[COLONIZE_CARGO_TOOLS] ? tools - col->stock[COLONIZE_CARGO_TOOLS] : 0;
   }
   g.hammer_spare = dos_buggy_behavior() ? 0.0 : GOV_HAMMER_SPARE;
+  if (rolling) {
+    g.has_project = true;
+    g.hammers_need = INT_MAX;
+  }
   const ColonizeCol1Save* col1 = w->col1_ok ? w->col1 : NULL;
   g.food_report = !col1 || !col1->head.colony_report_options.report_food_shortages;
   g.teach_cap = colonies_school_owned_tier(pool, col);
@@ -812,7 +822,7 @@ void colony_governor_run_w(const ColonizeWorld* w, int colony_id) {
   gov_weights(w, col, col->governor, &wt);
   /* Project first: the seating aims its hammers and tools at it. */
   gov_pick_project(w, col, col->governor);
-  gov_seat_colonists(w, col, &wt);
+  gov_seat_colonists(w, col, &wt, false);
 }
 
 void colony_governor_seat_w(const ColonizeWorld* w, int colony_id, int gov) {
@@ -822,7 +832,9 @@ void colony_governor_seat_w(const ColonizeWorld* w, int colony_id, int gov) {
   }
   GovWeights wt;
   gov_weights(w, col, gov, &wt);
-  gov_seat_colonists(w, col, &wt);
+  wt.hammers *= GOV_AI_HAMMERS;
+  wt.tools_needed = wt.hammers + wt.goods[COLONIZE_CARGO_TOOLS];
+  gov_seat_colonists(w, col, &wt, true);
 }
 
 void colony_governor_run_nation_w(const ColonizeWorld* w, int nation) {

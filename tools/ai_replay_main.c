@@ -59,6 +59,7 @@ typedef struct AiReplayCounts {
   int improved; /* plowed or road plots in the colonies' rings */
   int pioneers;
   int tools; /* colony stock */
+  int buildings; /* @BUILDING rows 0..41 owned, summed over colonies */
   long gold;
 } AiReplayCounts;
 
@@ -77,6 +78,9 @@ static void ai_replay_count(
       out->colonies++;
       out->population += c->population;
       out->tools += c->stock[COLONIZE_CARGO_TOOLS];
+      for (int row = COLONY_BUILDING_STOCKADE; row <= COLONY_BUILDING_IRON_WORKS; ++row) {
+        out->buildings += colonies_has_building_row(colonies, c, row) ? 1 : 0;
+      }
       for (int ti = 0; ti < 8; ++ti) {
         int dx = 0;
         int dy = 0;
@@ -229,9 +233,9 @@ int main(int argc, char** argv) {
       ai_replay_count(&units, &colonies, &map, &save, n, &c);
       printf(
         "turn %4u nation %d  colonies %2d pop %3d units %3d hulls %2d  inEurope %2d (hulls %d)  "
-        "gold %ld  improved %3d pioneers %d tools %d\n",
+        "gold %ld  improved %3d pioneers %d tools %d buildings %d\n",
         turn_number, n, c.colonies, c.population, c.units, c.ships, c.parked, c.parked_ships,
-        c.gold, c.improved, c.pioneers, c.tools
+        c.gold, c.improved, c.pioneers, c.tools, c.buildings
       );
     }
     fflush(stdout);
