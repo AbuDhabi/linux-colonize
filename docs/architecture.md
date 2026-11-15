@@ -56,6 +56,8 @@ Col1 field atlases — those stay in their owning docs (see the
 | Map editor (MAPEDIT.EXE, `opencol-mapedit`, .MP writer) | [mapedit.md](mapedit.md) |
 | Alternate map generator (`divergences.alternate_map_generator`, plate tectonics / winds / rainfall) | [map_gen_alt.md](map_gen_alt.md) |
 | Difficulty level effects | [difficulty.md](difficulty.md) |
+| Euro AI rules that differ from the player (free gold, phantom pioneering, colony buys) | [ai_euro_advantages.md](ai_euro_advantages.md) |
+| Euro AI improvement plan (mod-gated removal of those shortcuts) | [ai_euro_improvement_spec.md](ai_euro_improvement_spec.md) |
 | Fandom wiki digest (1994 Col only; tier-3) | [fandom_col1994.md](fandom_col1994.md) |
 | Retired VICEROY DS table extract (DS offset notes) | [viceroy_tables.md](viceroy_tables.md) |
 | Decomp function catalog (all `FUN_*`, light) | [`../original_sources_annotated/FUNCTION_CATALOG.md`](../original_sources_annotated/FUNCTION_CATALOG.md) · [`MODULE_MAP.md`](../original_sources_annotated/MODULE_MAP.md) |
