@@ -531,7 +531,7 @@ static void reports_render_colony_sidebar(
   reports_draw_line(font, fb, REPORTS_COLONY_NAME_X, row_top - REPORTS_COLONY_GOV_DY, c->name,
                     REPORTS_COLONY_LABEL_COLOR);
   reports_draw_line(font, fb, REPORTS_COLONY_NAME_X, row_top + REPORTS_COLONY_GOV_DY, gov,
-                    REPORTS_COLONY_LABEL_COLOR);
+                    REPORTS_COLONY_DIGIT_WHITE);
 }
 
 /* FUN_1427_04d6 with param_2 == 1: the @UNIT size column, overridden to 2
