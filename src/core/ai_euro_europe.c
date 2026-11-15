@@ -1862,9 +1862,16 @@ static int ai_euro_5d04_nation_planning_structural(ColonizeTurnContext* ctx, int
   if (!ctx || !ctx->col1 || nation_id < 0 || nation_id >= 4) {
     return 0;
   }
-  ai_euro_5d04_treasury_bump(ctx, nation_id);
+  /* MOD_AI_IMPROVEMENTS 4.6 G1 / 4.5 G2 (not DOS): no free gold, no gold
+   * topped up to a ship's price; the ladder buys only what the purse holds. */
+  const bool improved = ai_euro_improved(ctx, nation_id);
+  if (!improved) {
+    ai_euro_5d04_treasury_bump(ctx, nation_id);
+  }
   const Ai5d04PlanningFlags f = ai_euro_5d04_compute_flags(ctx, nation_id);
-  ai_euro_5d04_apply_naval_gold_floors(ctx, nation_id, &f);
+  if (!improved) {
+    ai_euro_5d04_apply_naval_gold_floors(ctx, nation_id, &f);
+  }
   int abort_early = 0;
   const int candidate = ai_euro_5d04_ship_buy_ladder(ctx, nation_id, &f, &abort_early);
   if (abort_early) {

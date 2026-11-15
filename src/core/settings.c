@@ -135,6 +135,7 @@ static const SettingsBoolOpt k_mod_opts[] = {
   SETTINGS_MOD("riders_keep_ship", MOD_RIDERS_KEEP_SHIP, true),
   SETTINGS_MOD("no_education_lies", MOD_NO_EDUCATION_LIES, false),
   SETTINGS_MOD("colony_governor", MOD_COLONY_GOVERNOR, false),
+  SETTINGS_MOD("ai_improvements", MOD_AI_IMPROVEMENTS, false),
 };
 
 #define SETTINGS_OPT_COUNT(t) ((int)(sizeof(t) / sizeof((t)[0])))

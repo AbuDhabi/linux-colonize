@@ -212,6 +212,7 @@ static const ModId k_mods_rules[] = {
 static const ModId k_mods_fixes[] = {
   MOD_GOTO_NATIVE_WAIT, MOD_BEG_REFUSAL_ALARM, MOD_RIDERS_KEEP_SHIP
 };
+static const ModId k_mods_ai[] = {MOD_AI_IMPROVEMENTS};
 #define MODS_PAGE_LEN(a) ((int)(sizeof(a) / sizeof((a)[0])))
 static const struct {
   const char* section;
@@ -221,13 +222,16 @@ static const struct {
   {"MODOPTIONS", k_mods_restored, MODS_PAGE_LEN(k_mods_restored)},
   {"MODOPTIONS2", k_mods_rules, MODS_PAGE_LEN(k_mods_rules)},
   {"MODOPTIONS3", k_mods_fixes, MODS_PAGE_LEN(k_mods_fixes)},
+  {"MODOPTIONS4", k_mods_ai, MODS_PAGE_LEN(k_mods_ai)},
 };
 _Static_assert(OPTIONS_MODS_PAGE_ROWS_MAX <= OPTIONS_DIALOG_MAX, "a mods page fits the dialog");
 _Static_assert(MODS_PAGE_LEN(k_mods_restored) <= OPTIONS_MODS_PAGE_ROWS_MAX, "mods page 1 fits 200 px");
 _Static_assert(MODS_PAGE_LEN(k_mods_rules) <= OPTIONS_MODS_PAGE_ROWS_MAX, "mods page 2 fits 200 px");
 _Static_assert(MODS_PAGE_LEN(k_mods_fixes) <= OPTIONS_MODS_PAGE_ROWS_MAX, "mods page 3 fits 200 px");
+_Static_assert(MODS_PAGE_LEN(k_mods_ai) <= OPTIONS_MODS_PAGE_ROWS_MAX, "mods page 4 fits 200 px");
 _Static_assert(
-  MODS_PAGE_LEN(k_mods_restored) + MODS_PAGE_LEN(k_mods_rules) + MODS_PAGE_LEN(k_mods_fixes) ==
+  MODS_PAGE_LEN(k_mods_restored) + MODS_PAGE_LEN(k_mods_rules) + MODS_PAGE_LEN(k_mods_fixes) +
+      MODS_PAGE_LEN(k_mods_ai) ==
     MOD_COUNT - MODS_RETIRED_COUNT,
   "the mods pages hold every live ModId"
 );

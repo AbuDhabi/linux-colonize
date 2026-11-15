@@ -1022,6 +1022,59 @@ static void ai_euro_0a60_foreign_colony_producers(
   *io_mask_found = mask_found;
 }
 
+/*
+ * MOD_AI_IMPROVEMENTS 4.9 (not DOS): the beachhead for continent `cont`,
+ * found from the village at (vx, vy). The open-sea tile within
+ * AI_EURO_BEACHHEAD_RADIUS of that village with the most colony-free land
+ * neighbours on `cont` that are not next to any village (DOS distance >= 2);
+ * ties go to the tile nearer the village. 0 when the coast has no such tile.
+ */
+#define AI_EURO_BEACHHEAD_RADIUS 12
+static int ai_euro_0a60_beachhead_away(
+  const ColonizeTurnContext* ctx, const ColonizeWorldMap* map, int cont, int vx, int vy,
+  int* out_x, int* out_y
+) {
+  const ColonizeCol1Save* col1 = ctx->col1;
+  int best = 0;
+  int best_d = 0;
+  int found = 0;
+  for (int ty = vy - AI_EURO_BEACHHEAD_RADIUS; ty <= vy + AI_EURO_BEACHHEAD_RADIUS; ++ty) {
+    for (int tx = vx - AI_EURO_BEACHHEAD_RADIUS; tx <= vx + AI_EURO_BEACHHEAD_RADIUS; ++tx) {
+      if (!ai_euro_0a60_open_sea(map, tx, ty)) {
+        continue;
+      }
+      int cnt = 0;
+      for (int m = 0; m < 8; ++m) {
+        const int nx = tx + MAP_DIR8_DX[m];
+        const int ny = ty + MAP_DIR8_DY[m];
+        if (nx < 0 || ny < 0 || nx >= map->width || ny >= map->height ||
+            !map_tile_is_land(map, nx, ny) || map_continent_id_at(map, nx, ny) != cont ||
+            (ctx->colonies && colonies_id_at(ctx->colonies, nx, ny) >= 0)) {
+          continue;
+        }
+        int near = 0;
+        for (uint16_t i = 0; i < col1->head.tribe_count && !near; ++i) {
+          const ColonizeCol1Tribe* t = &col1->tribe[i];
+          near = t->nation_id >= 4 && t->nation_id <= 11 &&
+                 map_dos_dist(nx - (int)t->x, ny - (int)t->y) <= 1;
+        }
+        if (!near) {
+          cnt++;
+        }
+      }
+      const int d = map_dos_dist(tx - vx, ty - vy);
+      if (cnt > best || (cnt == best && cnt > 0 && d < best_d)) {
+        best = cnt;
+        best_d = d;
+        *out_x = tx;
+        *out_y = ty;
+        found = 1;
+      }
+    }
+  }
+  return found;
+}
+
 /* Village producer loop (raw 1215-1276) of
  * ai_euro_0a60_settlement_goal_producers; same mask threading as above. */
 static void ai_euro_0a60_village_producers(
@@ -1032,6 +1085,9 @@ static void ai_euro_0a60_village_producers(
 ) {
   uint16_t mask_mil_expand = *io_mask_mil_expand;
   uint16_t mask_found = *io_mask_found;
+  /* Spain keeps the DOS village staging (ai_euro_improvement_spec.md 4.9). */
+  const bool improved_beachhead = nation_id != 2 && ai_euro_improved(ctx, nation_id);
+  uint16_t tried = 0;
 
   /* Village loop (raw 1215-1276). */
   if (have_col1 && ctx->col1->tribe) {
@@ -1066,6 +1122,18 @@ static void ai_euro_0a60_village_producers(
        * adjacent open-sea tile by count of same-continent land neighbours
        * (a zero-count ocean tile still qualifies — DOS init is −1). */
       if ((mask_mil_expand & (1u << cont)) == 0 && (mask_found & (1u << cont)) == 0 &&
+          col_cnt[nation_id][cont] == 0 && improved_beachhead) {
+        /* MOD_AI_IMPROVEMENTS 4.9: stage at a coast away from the villages. */
+        if ((tried & (1u << cont)) == 0) {
+          tried |= (uint16_t)(1u << cont);
+          int bx = -1;
+          int by = -1;
+          if (ai_euro_0a60_beachhead_away(ctx, map, cont, vx, vy, &bx, &by)) {
+            ai_goals_upsert_primary(nation_id, bx, by, AI_GOAL_FOUND, 2);
+            mask_found |= (uint16_t)(1u << cont);
+          }
+        }
+      } else if ((mask_mil_expand & (1u << cont)) == 0 && (mask_found & (1u << cont)) == 0 &&
           col_cnt[nation_id][cont] == 0) {
         int best = -1;
         int bx = -1;
@@ -1633,6 +1701,12 @@ COLONIZE_INTERNAL void ai_euro_5952_absorb_equip(
           take = ((c->ai_flags & COLONIZE_COLONY_AI_WANTS_PIONEER_WORK) != 0 &&
                   tools_latch == 0) ||
                  stance == 0;
+          /* MOD_AI_IMPROVEMENTS 4.2 (P3): a Pioneer with tools stays out
+           * while its continent has open jobs. */
+          if (take && ai_euro_improved(ctx, c->nation_id) && u->tools >= UNITS_EQUIP_TOOLS_STEP &&
+              ai_euro_pjob_open_on(ctx, c->nation_id, map_continent_id_at(ctx->map, c->x, c->y)) > 0) {
+            take = 0;
+          }
         } else if (dtype == 0x16) { /* Scout, raw 94264-94270 */
           take = (stance == 0 || c->stock[COLONIZE_CARGO_HORSES] < 0x34);
         } else if (dtype == 0x13) { /* Free Colonist, raw 94271-94274 */
@@ -1786,6 +1860,21 @@ static void ai_euro_5952_equip_arm(
     if (wants_pioneer_roll && pioneers_afield == 0 &&
         ai_goals_founding_expansion_urgency(nation_id, total_colonies) != 0 &&
         c->stock[COLONIZE_CARGO_TOOLS] > 0x13) {
+      equip_target_job = UNITS_JOB_PIONEER;
+      have_equip_target = 1;
+    }
+  }
+  /* MOD_AI_IMPROVEMENTS 4.2 (not DOS): open Pioneer jobs on this continent and
+   * no Pioneer there to take them: equip one from the colony's own tools. */
+  if (!have_equip_target && ai_euro_improved(ctx, nation_id) &&
+      c->stock[COLONIZE_CARGO_TOOLS] >= UNITS_EQUIP_TOOLS_STEP) {
+    const int cid = map_continent_id_at(ctx->map, c->x, c->y);
+    if (getenv("AI_IMPROVED_TRACE")) {
+      fprintf(stderr, "[pjob] n%d colony %d pop %d tools %d open %d pioneers %d\n", nation_id, c->id,
+              (int)c->population, c->stock[COLONIZE_CARGO_TOOLS], ai_euro_pjob_open_on(ctx, nation_id, cid),
+              ai_euro_pioneers_on(ctx, nation_id, cid));
+    }
+    if (ai_euro_pjob_open_on(ctx, nation_id, cid) > 0 && ai_euro_pioneers_on(ctx, nation_id, cid) == 0) {
       equip_target_job = UNITS_JOB_PIONEER;
       have_equip_target = 1;
     }
@@ -2007,7 +2096,9 @@ static void ai_euro_5952_build_pref_0306(
    * (`labor_running`), `+0xb8` the colony's Muskets stock, `+0x49` the
    * nation's musket-LOT bank that FUN_521d_5d04's hire arm spends to arm a
    * recruit for free (ai_euro_internal.h Ai5d04HireScratch). */
-  if (labor_running == 0 && c->stock[COLONIZE_CARGO_MUSKETS] > 199 && nation_id >= 0 &&
+  /* MOD_AI_IMPROVEMENTS 4.1 C4: no muskets move colony -> Europe unshipped. */
+  if (!ai_euro_improved(ctx, nation_id) &&
+      labor_running == 0 && c->stock[COLONIZE_CARGO_MUSKETS] > 199 && nation_id >= 0 &&
       nation_id < 4 && ctx->col1 && ctx->col1->nation[nation_id].musket_bank_lots < 0x14) {
     ctx->col1->nation[nation_id].musket_bank_lots++;
     c->stock[COLONIZE_CARGO_MUSKETS] -= 0x32;

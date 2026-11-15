@@ -75,6 +75,10 @@ typedef enum ModId {
   /* New feature: a per-colony governor (colony_governor.h) re-seats the
    * colonists and fills an unbuildable project as the human ends the turn. */
   MOD_COLONY_GOVERNOR = 22,
+  /* Gameplay: the colonial Euro AIs play by the player's mechanics: no free
+   * gold, goods, tile work or expertise (docs/ai_euro_improvement_spec.md).
+   * The King AI is untouched. */
+  MOD_AI_IMPROVEMENTS = 23,
   MOD_COUNT
 } ModId;
 

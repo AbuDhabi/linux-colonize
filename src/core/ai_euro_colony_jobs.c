@@ -25,6 +25,7 @@
 #include "core/assets.h"
 #include "core/ai_euro_internal.h"
 #include "core/colony.h"
+#include "core/colony_governor.h"
 #include "core/colony_craft.h"
 #include "core/colony_yield.h"
 #include "core/colony_production.h"
@@ -3189,8 +3190,10 @@ COLONIZE_INTERNAL void ai_euro_5952_specialist_arms(
     (((col->population / 2) < food_workers && food_workers > 1) || food_short);
 
   /* ---- ARM 1: improve_timer-gated expert election (asm 0x274b) ---- */
+  /* MOD_AI_IMPROVEMENTS 4.3 S2: no promotion without a teacher. */
+  const bool improved = ai_euro_improved(ctx, nation);
   const int school_chain = ai_euro_5952_chain_owned(pool, col, COLONIES_CHAIN_SCHOOL, NULL, NULL);
-  if (school_chain != 0 &&
+  if (!improved && school_chain != 0 &&
       ((school_chain == 3 ? 1 : 0) + school_chain) * 4 <= (int)col->improve_timer) {
     int target = -1; /* iStack_8a */
     if (col->population < 10 && food_experts <= food_workers) {
@@ -3282,6 +3285,17 @@ COLONIZE_INTERNAL void ai_euro_5952_specialist_arms(
   const int trained =
     ai_euro_5952_train_pick(col, n, colony_yield_colony_has_docks(pool, col), &last);
   if (trained == COLONIZE_PROF_FREE_COLONIST) {
+    return;
+  }
+  if (improved) {
+    /* MOD_AI_IMPROVEMENTS 4.3 S1 (not DOS): the expert is trained in Europe
+     * at its own @JOB price and waits on the dock for a ship; no tax bump
+     * (R3). One waiting expert of a kind at a time. */
+    const int price = ai_euro_5952_job_price(trained);
+    if (price != INT_MIN && (long)(int32_t)europe_nation_gold(ctx->europe, ctx->col1, nation) >= price &&
+        ai_euro_europe_train_expert(ctx, nation, trained)) {
+      europe_nation_gold_add(ctx->europe, ctx->col1, nation, -(long)price);
+    }
     return;
   }
   col->colonists[last].profession = trained;
@@ -3869,6 +3883,23 @@ static void ai_euro_colony_tick_run(
     }
     t.col = col;
     ai_euro_colony_tick_open(&t);
+    if (ai_euro_improved(ctx, nation_id)) {
+      /* MOD_AI_IMPROVEMENTS 4.8 (not DOS): the governor's seating replaces
+       * the job passes (food, pass 2, forced lumberjack, carpenter, indoor);
+       * the DOS cascade still picks the project and seats after it. */
+      col = t.col;
+      if (whole_tick) {
+        ai_euro_5952_build_cascade_for_owner(ctx, col, t.improvement_owner);
+      }
+      colony_governor_seat_w(&t.world, col->id, ai_euro_colony_focus(ctx, col));
+      ai_euro_5952_specialist_arms(
+        ctx, col, col->colonist_count < COLONIZE_COLONY_POP_MAX ? col->colonist_count : COLONIZE_COLONY_POP_MAX
+      );
+      if (whole_tick) {
+        ai_euro_6d8e_prelude_read(nation_id, col);
+      }
+      continue;
+    }
     ai_euro_colony_tick_unseat_all(&t);
     ai_euro_colony_tick_food_pass(&t);
     ai_euro_colony_tick_pass2(&t);
@@ -3883,11 +3914,13 @@ static void ai_euro_colony_tick_run(
     if ((col->build_ai_flags & COLONIZE_BUILD_AI_WANTS_CONSTRUCTION) == 0) {
       /* raw 94659-94679 then 94680-94689, both ahead of the carpenter arm. */
       const bool lumber_placed = ai_euro_5952_forced_lumberjack(ctx, col, t.placed, n);
-      ai_euro_5952_lumber_purchase(
-        ctx->europe, (ctx->col1_ok && ctx->col1) ? ctx->col1 : NULL, col,
-        /* DS:0x538e — the port's turn counter is ctx->turn_number. */
-        ctx->turn_number ? (int)*ctx->turn_number : 0, lumber_placed
-      );
+      if (!ai_euro_improved(ctx, nation_id)) { /* MOD_AI_IMPROVEMENTS 4.1 C2 */
+        ai_euro_5952_lumber_purchase(
+          ctx->europe, (ctx->col1_ok && ctx->col1) ? ctx->col1 : NULL, col,
+          /* DS:0x538e — the port's turn counter is ctx->turn_number. */
+          ctx->turn_number ? (int)*ctx->turn_number : 0, lumber_placed
+        );
+      }
       carpenter_arm_seats = ai_euro_5952_carpenter_arm(ctx, col, t.placed, n);
     }
 
@@ -3907,7 +3940,9 @@ static void ai_euro_colony_tick_run(
     /* DOS raw ~95860-95958, the tick's last two arms (port_bugs.md #571/#572). */
     ai_euro_5952_specialist_arms(ctx, col, n);
     if (whole_tick) {
-      ai_euro_5952_seed_horses(ctx, col);
+      if (!ai_euro_improved(ctx, nation_id)) { /* MOD_AI_IMPROVEMENTS 4.1 C3 */
+        ai_euro_5952_seed_horses(ctx, col);
+      }
       ai_euro_6d8e_prelude_read(nation_id, col);
     }
   }

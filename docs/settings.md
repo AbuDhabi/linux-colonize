@@ -69,7 +69,7 @@ defaults no matter what file is sitting in the build directory.
     "pioneer_plan": false, "scout_autoexplore": false, "ship_autoexplore": false, "hard_king": false,
     "current_vision": false, "modern_prng": false,
     "beg_refusal_alarm": true, "riders_keep_ship": true, "no_education_lies": false,
-    "colony_governor": false
+    "colony_governor": false, "ai_improvements": false
   },
   "data_dir": "./COLONIZE",
   "save_dir": "",
@@ -161,7 +161,7 @@ RTST record 13 is ignored without the record 17 bit. Leaving to the title clears
 The defaults are edited on the title menu only (the in-game GAME pulldown stays
 stock): `data/mods/GAME.TXT` `@MODBEGINMENU` adds one row after every
 `@BEGINMENU` row (after a data dir's quit row too, so stock rows keep their
-numbers). It opens a checklist of three pages, one per kind of change, the
+numbers). It opens a checklist of four pages, one per kind of change, the
 page title naming the group:
 
 1. `@MODOPTIONS` "Restored Cut Content": `kings_audience`, `royal_mercy`,
@@ -173,6 +173,7 @@ page title naming the group:
    `modern_prng`, `no_education_lies`, `colony_governor`.
 3. `@MODOPTIONS3` "DOS Bug Fixes": `goto_native_wait`, `beg_refusal_alarm`,
    `riders_keep_ship`.
+4. `@MODOPTIONS4` "Computer Players": `ai_improvements`.
 
 Next / Done (the button under the rows, `@MODOPTIONSDONE`, Done on the last page; or Enter) on a page saves
 that page's toggles, flushes the file and opens the next page; Esc on any page
@@ -185,9 +186,9 @@ up to two lines that is what fits the 200 px screen. `data/mods/*.TXT` is a text
 row of a stock section, never replace a stock row (refused with a warning).
 
 The Colonizopedia's Game Concept list gets one article per checklist page:
-`data/mods/PEDIA.TXT` appends keys 13-15 to `@MISCELLANEOUS` (line 0 is the count,
-so these are articles 12-14: "Mods: Restored", "Mods: New Rules", "Mods: Bug Fixes"),
-bodies `@MODMISC12`-`@MODMISC14` (`pedia_set_misc_catalog`). They are listed only while
+`data/mods/PEDIA.TXT` appends keys 13-16 to `@MISCELLANEOUS` (line 0 is the count,
+so these are articles 12-15: "Mods: Restored", "Mods: New Rules", "Mods: Bug Fixes",
+"Mods: Computer Players"), bodies `@MODMISC12`-`@MODMISC15` (`pedia_set_misc_catalog`). They are listed only while
 the campaign has a mod on; with every mod off the list is the stock 12, as in DOS. The
 stock 12 Game Concept pages stay title-only, as in DOS.
 
@@ -215,6 +216,7 @@ stock 12 Game Concept pages stay title-only, as in DOS.
 | `colony_governor` | off | Port-only colony governor (docs/colony_governor.md, `colony_governor.c`): the colony screen shows `Governor: <setting>` and a CHANGE button (LABELS `@MODGOVERNOR`, `@CTITLE` 3) on the wood above the area view; CHANGE opens GAME `@MODGOVERNOR` (none, Farming, Cash, Industry, Politics, Military). As the human ends the turn (`game_do_end_turn`) each governed colony of that nation is re-seated (a three-turn plan: nobody starves or earns a @FOODLOW popup, goods only up to warehouse room, hammers and tools toward the project and its queue, converts in the fields, teachers kept while there are students; Cash prices after tax and boycott, nothing for sale in the War of Independence without a Custom House) and, when it has "(No Production)" or a project that cannot be built, given one (Warehouse first when storage runs short) or left on "(No Production)". The Colony Advisor report shows `Governor: <setting>` under a governed colony's name. Human colonies only; a capture resets it to none. The setting rides RTST record 18. Off = nothing drawn, nothing run. |
 | `beg_refusal_alarm` | on | DOS bug fix (tolerated_dos_bugs_ai.md TB-12): a refused native food beg raises the begging tribe's alarm toward the refuser through the whole `FUN_4cc6_00f2` (`ai_contact_alarm_delta_00f2`: France and Pocahontas halve it, clamp 0..100, at 100 under peace the mission expel roll and `@INDIANBURN`). Off = DOS: the add lands in another tribe's record (`ai_diplo_indian_alarm_word_raw` with the Indian nation as index). |
 | `riders_keep_ship` | on | DOS bug fix (dos_bugs.md DB-109): a ship leaving a tile boards its own passengers and the tile's sentried land units, never another own ship's passengers (`units_ship_departure_pickup`, human and AI). Also covers DB-104: a Trade Route ship leaving a colony or Europe boards sentried units like any ship (`europe_set_sail_from_harbor_ex`). Off = DOS: the first ship to leave takes every own rider on the tile that fits, a Trade Route ship at sea lets the other ships there pick first, and one leaving a colony or Europe boards nobody. |
+| `ai_improvements` | off | Rival Europeans (not the human, not the crown in the WoI) play by the player's rules: no free gold, goods, food or bells, no in-colony experts or promotions, Pioneer units do the tile work (job list in RTST record 19), the colony governor seats their colonists, sites avoid native villages (Spain excepted), and on Governor/Viceroy they start with a Veteran Soldier. Full list and measurements: docs/ai_euro_improvement_spec.md section 7. Off = DOS. |
 
 Port-only keys, no DOS bit, no head bridge.
 `save_dir` empty means the platform default (`<exe>/COLONIZE`). `seed` is

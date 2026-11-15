@@ -5,7 +5,7 @@
 ;
 
 ;       Title menu: one row appended after every @BEGINMENU row; it opens
-;       @MODOPTIONS, then @MODOPTIONS2, then @MODOPTIONS3 (each page
+;       @MODOPTIONS, then @MODOPTIONS2, @MODOPTIONS3, @MODOPTIONS4 (each page
 ;       saves on its own OK; Esc stops the chain).
 @MODBEGINMENU
 @options
@@ -55,6 +55,13 @@ DOS Bug Fixes
 ~Go To Waits at Natives
 ~Refused Beg Alarms the Tribe
 ~Passengers Keep Their Ship
+
+@MODOPTIONS4
+@width=220
+@checkbox
+Computer Players
+@options
+Rivals Play by ~Player Rules
 
 ;       Game Options checkbox 8 (port-only, settings.json tiny_colony_names):
 ;       map colony names in FONTTINY. 12 = stock line count (directives

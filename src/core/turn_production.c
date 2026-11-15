@@ -81,6 +81,9 @@ static bool turn_emit_inefficient_gov_chrome(
     diff = 4;
   }
   int thresh = 10 - diff;
+  if (ai_euro_improved_nation(col1, human_nation, colony->nation_id)) {
+    thresh = 6 + diff; /* MOD_AI_IMPROVEMENTS 4.4 F4: the AI's mirrored threshold */
+  }
   if (thresh < 1) {
     thresh = 1;
   }
@@ -753,9 +756,11 @@ COLONIZE_INTERNAL void turn_produce_food(TurnProduceCtx* pc) {
    * FUN_364b_0688 Phase B: AI Euro food += difficulty>>1 (DS 0x53a6).
    * Cite: colony_eot_production.md; difficulty.md.
    */
+  /* MOD_AI_IMPROVEMENTS 4.6 F1 (not DOS): no subsidy; food comes from seating. */
   if (col1 && colony->nation_id >= 0 &&
       colony->nation_id < (int)COLONIZE_COL1_NATION_COUNT &&
-      col1->player[colony->nation_id].control != 0) {
+      col1->player[colony->nation_id].control != 0 &&
+      !ai_euro_improved_nation(col1, pc->human_nation, colony->nation_id)) {
     int diff = (int)col1->head.difficulty;
     if (diff < 0) {
       diff = 0;
@@ -894,7 +899,10 @@ COLONIZE_INTERNAL void turn_produce_horses(TurnProduceCtx* pc) {
      * the whole potential and the warehouse overflow is dump-sold later
      * (DOSBox 1508: Spain's capped herd still +8, horse tonnage +8); the
      * human path (FUN_281f_0b50) applies the capped figure. */
-    const int horses_gain = colony_ai_controlled ? breed.bred + breed.shortfall : breed.bred;
+    /* MOD_AI_IMPROVEMENTS 4.1 F3 (not DOS): the AI breeds the capped figure too. */
+    const bool uncapped = colony_ai_controlled &&
+      !ai_euro_improved_nation(pc->col1, pc->human_nation, colony->nation_id);
+    const int horses_gain = uncapped ? breed.bred + breed.shortfall : breed.bred;
     if (horses_gain > 0) {
       colony->stock[COLONIZE_CARGO_FOOD] =
         clamp_int(colony->stock[COLONIZE_CARGO_FOOD] - breed.bred, 0, 65535);
@@ -1530,8 +1538,10 @@ COLONIZE_INTERNAL TurnProduceStatus turn_produce_starve(TurnProduceCtx* pc) {
   if (food_shortfall_8e5a < 0) {
     food_shortfall_8e5a = 0;
   }
+  /* MOD_AI_IMPROVEMENTS 4.4 F2 (not DOS): an AI colony starves like the player's. */
   if (food_shortfall_8e5a < 3 && (colony_nation_id > 3 ||
-                         (col1 && col1->player[colony_nation_id].control != 0))) {
+                         (col1 && col1->player[colony_nation_id].control != 0)) &&
+      !ai_euro_improved_nation(col1, pc->human_nation, colony_nation_id)) {
     food_shortfall_8e5a = 0;
   }
   int starve_mercy = 0;
@@ -1989,9 +1999,13 @@ COLONIZE_INTERNAL void turn_produce_spoilage(TurnProduceCtx* pc) {
   AiPopupState* const ai_popups = pc->ai_popups;
   const ColonizeMsgCatalog* const messages = pc->messages;
   if (europe) {
-    /* Phase O: AI dump-sell surplus for gold before spoilage clamp. */
-    const ColonizeWorld sw = world_make(NULL, pool, NULL, col1, col1 != NULL, NULL, europe);
-    (void)europe_ai_colony_dump_sell_w(&sw, colony, human_nation);
+    /* Phase O: AI dump-sell surplus for gold before spoilage clamp.
+     * MOD_AI_IMPROVEMENTS 4.1 G3 (not DOS): no sale without transport; the
+     * surplus is hauled to the dock or spoils. */
+    if (!ai_euro_improved_nation(col1, human_nation, colony->nation_id)) {
+      const ColonizeWorld sw = world_make(NULL, pool, NULL, col1, col1 != NULL, NULL, europe);
+      (void)europe_ai_colony_dump_sell_w(&sw, colony, human_nation);
+    }
   }
   /* Spoilage after Custom House / AI dump-sell (wiki Custom House before spoilage). */
   {

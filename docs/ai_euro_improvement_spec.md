@@ -1,6 +1,6 @@
 # Euro AI improvement spec
 
-STATUS: planning, started 2026-11-15. Nothing implemented.
+STATUS: implemented 2026-11-15 behind `mods.ai_improvements` (section 7). Tuning open.
 
 Goal: the computer Europeans play under the same mechanics the player has.
 Goods travel by wagon or ship, tiles are improved by Pioneer units, colonists
@@ -334,3 +334,43 @@ Made 2026-11-15:
   4.2 pioneering (most visible, reuse available), 4.1 logistics (largest),
   4.3 training (takes R3 with S1), 4.8 colony automation with 4.4 rules and
   F1/F5, 4.5 ship gold, 4.6 G1 last (needs 4.1 income).
+
+## 7. Implementation (2026-11-15)
+
+Gate: `ai_euro_improved_nation(col1, human, nation)` (`ai_euro_improved_gate.c`,
+linked into slim targets too): mod on, nation 0..3, not the human, AI
+controlled, not the crown slot during the WoI. Mod off, every path below is the
+DOS path unchanged (ctest and `make golden` green, no re-bless).
+
+| Item | Where | What runs mod on |
+|------|-------|------------------|
+| C1 | `ai_euro_5952_tools_supply_and_connect` | no 20-tool buy; road connect still runs on `turn % 7 == 0` |
+| C2, C3 | `ai_euro_colony_jobs.c` | lumber and starter-horse arms skipped |
+| C4 | `ai_euro_goals.c` | no bank deposit; the hire arm with no lot buys muskets at the dock price (DOS path) |
+| G3, F3 | `turn_production.c` | no dump-sell; capped horse breeding |
+| P1, P2 | `ai_euro_land.c` | improve / road arms post a job (CLEAR on forest, PLOW, ROAD) to the per-nation list in `ai_euro_improved.c` (32 per nation, RTST record 19); no phantom, no tools charge |
+| P3 | `ai_euro_goals.c`, `ai_euro.c` | a Pioneer with 20+ tools is not absorbed while its continent has open jobs; `ai_euro_pioneer_act` (before 20e6) walks it to the nearest live unclaimed job and runs the player Pioneer body; dead jobs drop |
+| Pioneer source | `ai_euro_goals.c` equip arm | open jobs and no Pioneer on the continent: equip one from the colony's 20+ tools; the 20e6 labor band charges 20 tools from the home colony |
+| Forest reserve | `ai_euro_improved.c` | workable ring forests (inset, unblocked, not native-claimed, not posted for clearing); reserve `2 + (pop >= 8)`; resource forests and forests at the reserve get a road instead of a clear; the clear flag needs workable > reserve |
+| S1, R3 | `ai_euro_5952_specialist_arms` ARM 2 | pays the trained job's @JOB price and spawns the expert on the Europe dock (sentried, `ai_euro_europe_train_expert`); no in-place rewrite, no tax rise |
+| S2-S4 | `ai_euro_colony_tick_run` | ARM 1 off; seating passes (unseat, food, pass2, lumberjack, carpenter, restore, indoor) replaced by `colony_governor_seat_w` with `ai_euro_colony_focus`: Military when the garrison flags are set, Politics at `tories + 1 >= 6 + diff` or SoL < 50 with pop 4+, Farming below pop 4, else Industry. Teachers come from the governor |
+| F1, F2, F4, F5 | `turn_production.c`, `colony_production.c` | no food subsidy, no shortfall forgiveness, Tory threshold `6 + diff` with Tories counted, no Bolivar bells; inefficient-government latch at `6 + diff` |
+| G1, G2 | `ai_euro_5d04_nation_planning_structural` | no treasury bump, no naval gold floors |
+| R2 | `units_starter_skills` | AI Veteran on Governor and Viceroy (`starter_ai_improvements_veteran`) |
+| Q2 | `ai_euro_land_explore_scan_target`, 0a60 village producer | non-Spain: skip a site at distance 1 from a village; per-village DOS penalty over every village within 6 (capital x2, Pocahontas and fatigue halving kept, combat discount not for France) plus 3 per native-claimed ring tile; the beachhead goal picks the open-sea tile within 12 with the most free same-continent land not next to a village |
+
+Choices made here, not in the spec: claim penalty 3, beachhead radius 12,
+forest reserve `2 + (pop >= 8)`, the focus rules above (Cash never chosen).
+`AI_IMPROVED_TRACE=1` prints job posts, Pioneer picks and the equip-arm tally.
+G3 surplus hauling relies on the existing departing-ship loop; nothing new
+hauls inland overflow.
+
+Measured with `ai_replay test-saves-ai/TURN1.SAV 100 --seed 1..12 [--mods
+0x800000]` (TURN1.SAV's human holds no colony, so it loses in 1600 and the
+processor stops at the day top after about turn 107; measure below that).
+Mean per run, three AI nations summed, mod off vs on: colonies 7.9 / 8.1,
+population 23.9 / 23.8, gold 3686 / 1915, units 32 / 23, improved ring plots
+15.8 / 10.6. The mod-on AI keeps pace on colonies and population without the
+handouts; it has less gold, fewer units and fewer improvements (real Pioneers
+walk and take turns; small colonies post few jobs). Demo runs to 1650/1700
+(section 5) not done yet.

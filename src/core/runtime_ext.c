@@ -38,6 +38,7 @@ enum {
   RT_SCOUT_INTEL = 16, /* v1: MOD_SCOUT_SPYING 8-byte {nation, x, y, 0, i16 strength, u16 turn} entries; written only when non-empty */
   RT_MODS = 17,        /* v1: u32 campaign mod mask (mods.h); written only when non-zero */
   RT_GOVERNOR = 18,    /* v1: MOD_COLONY_GOVERNOR {u8 x, u8 y, u8 governor} per governed colony; written only when non-empty */
+  RT_AI_PIONEER_JOBS = 19, /* v1: MOD_AI_IMPROVEMENTS {u8 nation, x, y, kind} per Pioneer job; written only when non-empty */
 };
 
 #define RT_UNIT_TAIL_ENTRY 17
@@ -270,6 +271,11 @@ uint8_t* runtime_ext_serialize(
     }
     if (n) rt_record(&b, RT_GOVERNOR, 1, p, n);
   }
+  {
+    uint8_t p[AI_EURO_PJOB_EXPORT_MAX];
+    const size_t n = ai_euro_pjob_export(p, sizeof p);
+    if (n) rt_record(&b, RT_AI_PIONEER_JOBS, 1, p, n); /* absent = no jobs (mod-off saves unchanged) */
+  }
   if (mods_campaign_mask()) {
     /* Absent = every toggle off, which keeps mod-free saves byte-identical. */
     uint8_t p[4];
@@ -298,6 +304,7 @@ void runtime_ext_deserialize(
   s_rng_restored = false;
   mods_campaign_set(0); /* a save without RT_MODS (DOS, older port saves) plays with every toggle off */
   for (int i = 0; colonies && i < COLONIZE_COLONIES_MAX; ++i) colonies->colonies[i].governor = 0;
+  ai_euro_pjob_reset();
   if (!data) return;
   uint64_t xo[4] = {0, 0, 0, 0};
   size_t off = 0;
@@ -401,6 +408,9 @@ void runtime_ext_deserialize(
           ColonizeColony* c = colonies_get_mut(colonies, cid);
           if (c) c->governor = p[k + 2];
         }
+        break;
+      case RT_AI_PIONEER_JOBS:
+        if (len % 4 == 0) ai_euro_pjob_import(p, len);
         break;
       case RT_XOSHIRO:
         if (len == 32) {

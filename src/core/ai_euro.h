@@ -189,6 +189,12 @@ void ai_euro_reset(void);
 /* mods.scout_spying (ai_euro_spy.c): computer Scouts infiltrate the human's
  * colonies. Intel persists in runtime_ext keyed by colony tile. */
 void ai_euro_spy_reset(void);
+
+/* MOD_AI_IMPROVEMENTS (docs/ai_euro_improvement_spec.md) applies to `nation`:
+ * the mod is on and it is a computer colonial nation, not the human and not
+ * the crown slot during the War of Independence. For code without a turn
+ * context (production, Europe market); the AI turn uses ai_euro_improved. */
+bool ai_euro_improved_nation(const ColonizeCol1Save* col1, int human_nation, int nation);
 #define AI_EURO_SPY_EXPORT_MAX (4 * COLONIZE_COLONIES_MAX * 8)
 size_t ai_euro_spy_export(uint8_t out[AI_EURO_SPY_EXPORT_MAX]); /* bytes written, 0 = none */
 void ai_euro_spy_import(const uint8_t* in, size_t len, const ColonizeColonyPool* colonies);

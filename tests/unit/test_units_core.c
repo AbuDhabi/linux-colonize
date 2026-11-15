@@ -650,6 +650,37 @@ static int case_starter_conquistador_dutch(void) {
   return 0;
 }
 
+/* MOD_AI_IMPROVEMENTS (ai_euro_improvement_spec.md 4.7 R2): the AI gets the
+ * starter Veteran Soldier on Governor/Viceroy only, the mirror of the human's
+ * Discoverer/Explorer gate; the human gate does not change. */
+static int case_starter_ai_improvements_veteran(void) {
+  if (fx_open() != 0) {
+    return 1;
+  }
+  int rc = 0;
+  mods_campaign_set(1u << MOD_AI_IMPROVEMENTS);
+  for (int diff = 0; diff <= 4 && rc == 0; ++diff) {
+    for (int human = 0; human <= 1 && rc == 0; ++human) {
+      ColonizeUnitPool p;
+      memset(&p, 0, sizeof(p));
+      p.type_count = pool.type_count;
+      memcpy(p.types, pool.types, sizeof(pool.types));
+      const int fid = units_spawn_euro_starter_fleet(&p, 0, diff, human != 0, ship->x + 2, ship->y, 40, 10);
+      const ColonizeUnit* f = units_get_const(&p, fid);
+      const ColonizeUnit* soldier = f && f->cargo_count >= 2 ? units_get_const(&p, f->cargo_ids[1]) : NULL;
+      const bool want = human ? diff < 2 : diff > 2;
+      if (!soldier || (soldier->profession == UNITS_JOB_SOLDIER) != want) {
+        fprintf(stderr, "diff %d human %d: soldier profession %d, want veteran %d\n", diff, human,
+                soldier ? soldier->profession : -1, want);
+        rc = 1;
+      }
+    }
+  }
+  mods_campaign_set(0);
+  fx_close();
+  return rc;
+}
+
 static int case_boarding_caravel(void) {
   if (fx_open() != 0 || fx_stage2() != 0) {
     return 1;
@@ -8902,6 +8933,7 @@ static const TestCase k_cases[] = {
   {"starter_discoverer_french", case_starter_discoverer_french},
   {"starter_discoverer_ai_english", case_starter_discoverer_ai_english},
   {"starter_conquistador_dutch", case_starter_conquistador_dutch},
+  {"starter_ai_improvements_veteran", case_starter_ai_improvements_veteran},
   {"domain_stack_despawn", case_domain_stack_despawn},
   {"boarding_caravel", case_boarding_caravel},
   {"landfall_unload", case_landfall_unload},

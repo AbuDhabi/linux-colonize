@@ -38,6 +38,7 @@
 #include "core/europe.h"
 #include "core/founding_fathers.h"
 #include "core/map.h"
+#include "core/pioneer_plan.h"
 #include "core/popup_msg.h"
 #include "core/reports.h"
 #include "core/reports_names.h"
@@ -272,7 +273,8 @@ void ai_euro_5952_improve_best_plot(
   if ((col->ai_flags & COLONIZE_COLONY_AI_WANTS_PIONEER_WORK) == 0) {
     return; /* raw 94402: colony+0x1b & 0x80 */
   }
-  if (ai_euro_5952_tools_latch == 0) {
+  const bool improved = ai_euro_improved(ctx, nation);
+  if (ai_euro_5952_tools_latch == 0 && !improved) {
     /* raw 94403 local_16: the tick latch (seeded at raw 93978, set by the
      * Pioneer join 94261 and the tools buy 94385, never lowered), not the
      * live stock — the equip arm may have taken the tools since
@@ -314,6 +316,15 @@ void ai_euro_5952_improve_best_plot(
     int value = (res != -1) ? ai_euro_5952_resource_site_byte(ctx->names, res)
                             : (int)k_20e6_terr_site_byte[cls & 31];
     const int forest = (cls >= 8 && cls <= 0x17);
+    if (improved) {
+      /* MOD_AI_IMPROVEMENTS 4.2: a posted plot waits for its Pioneer; a kept
+       * forest can only take a road. */
+      if (ai_euro_pjob_listed(nation, tx, ty) ||
+          (forest && ai_euro_5952_tile_road_or_settlement(ctx->map, tx, ty) != 0 &&
+           ai_euro_forest_keep(ctx, col, tx, ty))) {
+        continue;
+      }
+    }
     if (!wants_clear || !forest) {
       const int job = ai_euro_5952_plot_job(col, ti);
       if (job >= 0) {
@@ -402,6 +413,33 @@ void ai_euro_5952_improve_best_plot(
     allow = 1; /* raw 94488-94491, after the loop */
   }
   if (!allow) {
+    return;
+  }
+  if (improved) {
+    /* MOD_AI_IMPROVEMENTS 4.2 (not DOS): post the job for a Pioneer unit
+     * instead of the phantom, with the same plow/road choice; no tools
+     * charged, no work-turns threshold (the Pioneer works the real turns). */
+    const int cls_p = map_dos_terr_class_at(ctx->map, tx, ty);
+    const int forest_p = cls_p >= 8 && cls_p <= 0x17;
+    const int no_road = ai_euro_5952_tile_road_or_settlement(ctx->map, tx, ty) == 0;
+    const int unplowed = !map_tile_is_plowed(ctx->map, tx, ty);
+    const int job = ai_euro_5952_plot_job(col, best_plot);
+    int plow = 0;
+    if (forest_p && wants_clear) {
+      plow = 1;
+    } else if (job >= 0 && job < 4 && unplowed) {
+      plow = 1;
+    } else if (!(job > 3 && no_road) && !(cls_p < 2 || cls_p > 7)) {
+      plow = unplowed;
+    }
+    if (plow && forest_p && ai_euro_forest_keep(ctx, col, tx, ty)) {
+      plow = 0; /* the reserve: a road, never a clear */
+    }
+    if (plow) {
+      ai_euro_pjob_post(nation, tx, ty, forest_p ? PIONEER_PLAN_CLEAR : PIONEER_PLAN_PLOW);
+    } else if (no_road) {
+      ai_euro_pjob_post(nation, tx, ty, PIONEER_PLAN_ROAD);
+    }
     return;
   }
   /*
@@ -637,6 +675,11 @@ static int ai_euro_5952_road_connect_0000(ColonizeTurnContext* ctx, ColonizeColo
     if (peer >= 0 && peer != nation) {
       continue;
     }
+    if (ai_euro_improved(ctx, nation)) {
+      /* MOD_AI_IMPROVEMENTS 4.2: the gap is a Pioneer job, no phantom. */
+      ai_euro_pjob_post(nation, cx, cy, PIONEER_PLAN_ROAD);
+      return 0;
+    }
     /* raw 93663-93666: DOS *returns 0* here, it does not try another colony. */
     const int cls = map_dos_terr_class_at(ctx->map, cx, cy);
     const int threshold = map_dos_terr_pioneer_threshold_byte(cls) + 2;
@@ -725,6 +768,15 @@ ColonizeColony* ai_euro_5952_tools_supply_and_connect(
    * resync 80->81: Fort Nassau bought 20 tools after a Pioneer joined). */
   int have_tools = ai_euro_5952_tools_latch;
   const int wants_work = (col->ai_flags & COLONIZE_COLONY_AI_WANTS_PIONEER_WORK) != 0;
+  const bool improved = ai_euro_improved(ctx, nation);
+  if (improved) {
+    /* MOD_AI_IMPROVEMENTS 4.1 C1: no tools appear in the colony; 4.2: the
+     * road gap becomes a Pioneer job, so no tools are needed to post it. */
+    if (turn % 7 == 0) {
+      (void)ai_euro_5952_road_connect_0000(ctx, col);
+    }
+    return col;
+  }
   if ((wants_work || turn % 10 == 0) && !have_tools && ctx->col1_ok && ctx->col1) {
     /*
      * DS:0x84bc[nation*0x10 + 0x0e] — every writer of that row stores
@@ -1579,7 +1631,16 @@ static int ai_euro_20e6_labor_arm(ColonizeTurnContext* ctx, ColonizeUnit* u, Ai2
     ai_euro_set_goto(u, AI_EURO_ACT_GOAL, c->x, c->y);
     return 1;
   }
-  if (s->home_dist == 0 && s->home_colony >= 0) {
+  /* MOD_AI_IMPROVEMENTS (not DOS): the 20 tools come out of the colony's
+   * stock; without them the colonist stays a colonist. */
+  const bool improved = ai_euro_improved(ctx, u->nation_id);
+  ColonizeColony* labor_home =
+    s->home_colony >= 0 ? colonies_get_mut(ctx->colonies, s->home_colony) : NULL;
+  if (s->home_dist == 0 && s->home_colony >= 0 &&
+      (!improved || (labor_home && labor_home->stock[COLONIZE_CARGO_TOOLS] >= UNITS_EQUIP_TOOLS_STEP))) {
+    if (improved) {
+      labor_home->stock[COLONIZE_CARGO_TOOLS] -= UNITS_EQUIP_TOOLS_STEP;
+    }
     /*
      * DOS-LITERAL FUN_521d_20e6 raw 89350-89357 — the labor-band fall-through
      * for a unit standing on its own colony with nothing left to staff:
@@ -1606,6 +1667,83 @@ static int ai_euro_20e6_labor_arm(ColonizeTurnContext* ctx, ColonizeUnit* u, Ai2
     s->explorer = 1; /* DOS: iStack_6a = 1, re-run the ring as an explorer */
   }
   return 0;
+}
+
+/*
+ * MOD_AI_IMPROVEMENTS 4.9 (not DOS; ai_euro_improvement_spec.md): the site
+ * scan's native term for England, France and the Netherlands. Returns -1 for
+ * a site next to a village (distance 1), however strong the nation is;
+ * otherwise the DOS per-village penalty summed over every village within
+ * range instead of the nearest one, with no France halving and no combat
+ * discount for France, plus AI_EURO_SITE_CLAIM_PENALTY per ring plot a tribe
+ * claims (colonies_indian_claim_tribe_from_w).
+ */
+#define AI_EURO_SITE_CLAIM_PENALTY 3
+static int ai_euro_land_site_native_penalty(
+  const ColonizeTurnContext* ctx, int nation_id, int cid, int tx, int ty, int rival_strength_fatigue
+) {
+  const ColonizeCol1Save* col1 = ctx->col1_ok ? ctx->col1 : NULL;
+  if (!col1 || !col1->tribe) {
+    return 0;
+  }
+  int total = 0;
+  for (uint16_t i = 0; i < col1->head.tribe_count; ++i) {
+    const ColonizeCol1Tribe* v = &col1->tribe[i];
+    if (v->nation_id < 4 || v->nation_id > 11) {
+      continue;
+    }
+    const int vd = map_dos_dist(tx - (int)v->x, ty - (int)v->y);
+    if (vd <= 1) {
+      return -1;
+    }
+    const int vcid = map_continent_id_at(ctx->map, (int)v->x, (int)v->y);
+    int d = vd;
+    if (ai_euro_20e6_own_colonies_on(ctx, nation_id, vcid) == 0) {
+      d += 1;
+    }
+    if (d >= 6) {
+      continue;
+    }
+    const int rel = ai_diplo_indian_alarm(col1, (int)v->nation_id, nation_id);
+    const int quart = rel < 25 ? 0 : rel < 50 ? 1 : rel < 75 ? 2 : 3;
+    const int tech = col1->indian[(int)v->nation_id - 4].tech;
+    int base = (tech + quart + 3) * 2;
+    if (vcid != cid) {
+      base >>= 1;
+    }
+    int pen = base >> 1;
+    if (d < 5) {
+      pen += base;
+    }
+    if (d < 4) {
+      pen += base * 2;
+    }
+    if (d < 3) {
+      pen += base * 4;
+    }
+    if (v->state.capital) {
+      pen <<= 1;
+    }
+    if (founding_fathers_nation_has(col1, nation_id, FF_POCAHONTAS)) {
+      pen >>= 1;
+    }
+    if (rival_strength_fatigue > 0x28) {
+      pen >>= 1;
+    }
+    if (nation_id != 1) {
+      pen -= ai_euro_20e6_combat_value_on(ctx, nation_id, vcid);
+    }
+    if (pen > 0) {
+      total += pen;
+    }
+  }
+  const ColonizeWorld w = world_from_turn_ctx(ctx);
+  for (int k = 0; k < 8; ++k) {
+    if (colonies_indian_claim_tribe_from_w(&w, nation_id, tx, ty, tx + MAP_DIR8_DX[k], ty + MAP_DIR8_DY[k]) >= 0) {
+      total += AI_EURO_SITE_CLAIM_PENALTY;
+    }
+  }
+  return total;
 }
 
 /*
@@ -1676,6 +1814,8 @@ static int ai_euro_land_explore_scan_target(
    * DOS's own code-6 writer (`0214`, raw 89278) is dead too — see the note at
    * ai_goals.h:24-31. Faithful dead arithmetic; keep it as DOS spells it. */
   const int explore_goal = ai_goals_max_primary_prio(nation_id, u->x, u->y, AI_GOAL_EXPLORE);
+  /* Spain keeps the DOS terms (ai_euro_improvement_spec.md 4.9). */
+  const bool improved_sites = nation_id != 2 && ai_euro_improved(ctx, nation_id);
   int best = -999;
   int best_nib = 0;
   int bx = u->x;
@@ -1763,7 +1903,15 @@ static int ai_euro_land_explore_scan_target(
         /* Village proximity penalty (raw ~1395-1440). */
         int vd = 9999;
         const int vi = ai_euro_20e6_nearest_village(ctx, tx, ty, &vd);
-        if (vi >= 0 && vd < 9999) {
+        if (improved_sites) {
+          /* MOD_AI_IMPROVEMENTS 4.9 (not DOS): never next to a village;
+           * every village in range and every claimed ring plot costs. */
+          const int pen = ai_euro_land_site_native_penalty(ctx, nation_id, s.cid, tx, ty, rival_strength_fatigue);
+          if (pen < 0) {
+            continue;
+          }
+          score -= pen;
+        } else if (vi >= 0 && vd < 9999) {
           const ColonizeCol1Tribe* v = &ctx->col1->tribe[vi];
           const int vcid = map_continent_id_at(ctx->map, (int)v->x, (int)v->y);
           int d = vd;

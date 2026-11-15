@@ -22,6 +22,10 @@ typedef enum ColonyGovernor {
 
 /* One colony, whatever its governor (NONE does nothing). */
 void colony_governor_run_w(const struct ColonizeWorld* w, int colony_id);
+/* Seating only, as governor `gov` would seat it, whatever the colony's own
+ * governor field; the project is left alone. MOD_AI_IMPROVEMENTS AI
+ * colonies (ai_euro_colony_jobs.c), so it does not test MOD_COLONY_GOVERNOR. */
+void colony_governor_seat_w(const struct ColonizeWorld* w, int colony_id, int gov);
 /* Every governed colony of `nation`; no-op while the mod is off. */
 void colony_governor_run_nation_w(const struct ColonizeWorld* w, int nation);
 

@@ -925,6 +925,11 @@ void ai_euro_refresh_colony_ai_flags(
         }
       }
     }
+    if (ai_euro_improved(ctx, c->nation_id)) {
+      /* MOD_AI_IMPROVEMENTS 4.2 forest reserve: only workable forests above
+       * the reserve count, so the colony keeps its lumberjacks' plots. */
+      forests = ai_euro_forest_workable(ctx, c) > ai_euro_forest_reserve(c) ? 2 : 0;
+    }
     /* raw 94200-94202 */
     if (ring_5952 - 1 <= unproductive && forests > 1) {
       c->ai_flags |= (uint8_t)(COLONIZE_COLONY_AI_WANTS_PIONEER_WORK |
@@ -1194,6 +1199,12 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
 
   if (is_ship) {
     ai_euro_act_ship_dos(ctx, u, nation_id);
+    return;
+  }
+
+  /* MOD_AI_IMPROVEMENTS 4.2 (not DOS): a Pioneer with tools works the
+   * nation's posted jobs before 20e6 can re-plan it. */
+  if (ai_euro_improved(ctx, nation_id) && ai_euro_pioneer_act(ctx, u, nation_id)) {
     return;
   }
 
@@ -1694,6 +1705,7 @@ void ai_euro_reset(void) {
   s_sticky_unit = -1;
   s_sticky_count = 0;
   ai_euro_spy_reset(); /* mods.scout_spying intel belongs to one campaign */
+  ai_euro_pjob_reset(); /* mods.ai_improvements Pioneer jobs, likewise */
   memset(ai_euro_s_5952_ring1, 0, sizeof(ai_euro_s_5952_ring1));
   memset(ai_euro_s_5952_docks_started, 0, sizeof(ai_euro_s_5952_docks_started));
   memset(ai_euro_s_5952_arty_plot, 0, sizeof(ai_euro_s_5952_arty_plot)); /* port_bugs.md #1103 */

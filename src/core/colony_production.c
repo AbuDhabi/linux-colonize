@@ -12,6 +12,7 @@
 
 #include <string.h>
 
+#include "core/ai_euro.h"
 #include "core/ai_king.h"
 #include "core/col1_save.h"
 #include "core/colony_craft.h"
@@ -355,6 +356,10 @@ int colony_prod_sol_bonus(const ColonizeCol1Save* col1, const ColonizeColony* co
        * floor(12/6)=2 — both land on -2, hiding the bug).
        */
       thresh = 10 - diff;
+    } else if (ai_euro_improved_nation(col1, -1, colony->nation_id)) {
+      /* MOD_AI_IMPROVEMENTS 4.4 F4 (not DOS): the AI's Tories count, at the
+       * mirrored threshold 6 + difficulty (hardest on the easy levels). */
+      thresh = 6 + (int)col1->head.difficulty;
     } else {
       /* FUN_15eb_1d4c 15eb:1dbf-1dd7 and FUN_15eb_18ec raw 11874-11882: an
        * AI or withdrawn nation's Tory count is zeroed; only the latch steps
@@ -805,8 +810,10 @@ int colony_prod_colony_bells_nation(
     (in_range && founding_fathers_nation_has(col1, nation_id, FF_THOMAS_PAINE))
       ? (int)col1->nation[nation_id].tax_rate
       : 0;
+  /* MOD_AI_IMPROVEMENTS 4.6 F5 (not DOS): no subsidy; bells come from seating. */
   const bool ai_subsidy = in_range && col1->player[nation_id].control != 0 &&
-                          founding_fathers_nation_has(col1, nation_id, FF_SIMON_BOLIVAR);
+                          founding_fathers_nation_has(col1, nation_id, FF_SIMON_BOLIVAR) &&
+                          !ai_euro_improved_nation(col1, -1, nation_id);
   return colony_prod_colony_bells_ff(
     pool, colony, statesmen_pct, paine_tax_pct, ai_subsidy, sol_bonus
   );

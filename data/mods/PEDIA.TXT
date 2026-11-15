@@ -25,13 +25,14 @@ colony has a town hall expansion. {The colony can work 20 plots: every
 plot within two squares except the four corners.}
 
 @;
-;       Game Concept articles 12-14 (keys 13-15: line 0 is the count), one
+;       Game Concept articles 12-15 (keys 13-16: line 0 is the count), one
 ;       per page of the title menu MODS for New Games checklist; bodies
-;       @MODMISC12-14 (src/core/pedia.c), listed only while a mod is on.
+;       @MODMISC12-15 (src/core/pedia.c), listed only while a mod is on.
 @MISCELLANEOUS
 13=Mods: Restored
 14=Mods: New Rules
 15=Mods: Bug Fixes
+16=Mods: Computer Players
 
 @;
 @MODMISC12
@@ -102,5 +103,18 @@ square, the first one to sail takes every passenger there that fits, including
 those loaded on the other ship, and a ship on a trade route boards nobody when
 it leaves a colony or Europe. With the fix each ship sails with its own
 passengers, and a trade route ship boards like any other.
+
+@;
+@MODMISC15
+@width=300
+^{COMPUTER PLAYERS}
+Changes to how rival European nations play. Choose them on the title menu
+(MODS for New Games); each new game keeps its own choice.
+^{Rivals Play by Player Rules}: rival nations get no free gold, goods, food
+or bells, and buy no experts in the colony. Their pioneers walk to the land
+they improve and keep some forest standing; colonists are trained in Europe
+and shipped over. Rivals found colonies away from native villages, and on
+Conquistador and Viceroy start with a veteran soldier, as you do on the easy
+levels. The King's forces play as before.
 
 @;

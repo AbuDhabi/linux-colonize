@@ -84,8 +84,9 @@ bool options_dialog_open_sound(
 /* Mod toggle defaults as a ModId bit mask (mods.h), one row per ModId. The
  * toggles are grouped by kind of change, one page per group (they do not fit
  * one 200 px dialog anyway): page 0 = @MODOPTIONS (the title menu row), then
- * @MODOPTIONS2 and @MODOPTIONS3, each opened by OK on the page before. */
-#define OPTIONS_MODS_PAGE_COUNT 3
+ * @MODOPTIONS2, @MODOPTIONS3 and @MODOPTIONS4, each opened by OK on the page
+ * before. */
+#define OPTIONS_MODS_PAGE_COUNT 4
 /* The ModId on `row` of mods page `page`, or -1 past the page. */
 int options_dialog_mods_page_id(int page, int row);
 bool options_dialog_open_mods(

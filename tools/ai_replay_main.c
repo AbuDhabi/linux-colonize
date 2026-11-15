@@ -12,12 +12,14 @@
  * and Europe-freeze investigations kept rewriting (port_bugs.md #953).
  *
  * Usage:
- *   ai_replay <save.SAV> [turns] [--units] [--seed N]
+ *   ai_replay <save.SAV> [turns] [--units] [--seed N] [--mods MASK]
  *
  *   turns    number of turn_end calls (default 20)
  *   --units  also dump every AI unit (id / nation / type / xy / orders / MP /
  *            goto / carrier / cargo) before the first turn and after the last
  *   --seed   DOS RNG seed (default 100, the value the AI goldens use)
+ *   --mods   campaign mod mask (mods.h bit per ModId) set after the load,
+ *            e.g. 0x800000 for ai_improvements
  *
  * Run from the repo root: NAMES.TXT and COLONY.TXT are read from COLONIZE/.
  *
@@ -37,6 +39,7 @@
 #include "core/dos_rng.h"
 #include "core/europe.h"
 #include "core/map.h"
+#include "core/mods.h"
 #include "core/turn.h"
 #include "tests/common/golden_fixture.h"
 #include "core/units.h"
@@ -53,12 +56,16 @@ typedef struct AiReplayCounts {
   int ships;
   int parked;
   int parked_ships;
+  int improved; /* plowed or road plots in the colonies' rings */
+  int pioneers;
+  int tools; /* colony stock */
   long gold;
 } AiReplayCounts;
 
 static void ai_replay_count(
   const ColonizeUnitPool* units,
   const ColonizeColonyPool* colonies,
+  const ColonizeWorldMap* map,
   const ColonizeCol1Save* save,
   int nation_id,
   AiReplayCounts* out
@@ -69,6 +76,16 @@ static void ai_replay_count(
     if (c->active && c->nation_id == nation_id) {
       out->colonies++;
       out->population += c->population;
+      out->tools += c->stock[COLONIZE_CARGO_TOOLS];
+      for (int ti = 0; ti < 8; ++ti) {
+        int dx = 0;
+        int dy = 0;
+        if (colonies_field_tile_delta(ti, &dx, &dy) &&
+            (map_tile_is_plowed(map, c->x + dx, c->y + dy) ||
+             map_tile_has_road(map, c->x + dx, c->y + dy))) {
+          out->improved++;
+        }
+      }
     }
   }
   for (int i = 0; i < units_slot_end(units); ++i) {
@@ -79,6 +96,7 @@ static void ai_replay_count(
     const int sea = units_is_sea(units, u->id) ? 1 : 0;
     const int parked = units_coords_in_europe_park(u->x, u->y) ? 1 : 0;
     out->units++;
+    out->pioneers += units_is_pioneer(units, u->id) ? 1 : 0;
     out->ships += sea;
     out->parked += parked;
     out->parked_ships += (sea && parked) ? 1 : 0;
@@ -109,11 +127,14 @@ int main(int argc, char** argv) {
   int turns = 20;
   int dump_units = 0;
   unsigned seed = 100u;
+  long mods_mask = -1;
   for (int a = 1; a < argc; ++a) {
     if (strcmp(argv[a], "--units") == 0) {
       dump_units = 1;
     } else if (strcmp(argv[a], "--seed") == 0 && a + 1 < argc) {
       seed = (unsigned)strtoul(argv[++a], NULL, 10);
+    } else if (strcmp(argv[a], "--mods") == 0 && a + 1 < argc) {
+      mods_mask = (long)strtoul(argv[++a], NULL, 0);
     } else if (!path) {
       path = argv[a];
     } else {
@@ -121,7 +142,7 @@ int main(int argc, char** argv) {
     }
   }
   if (!path) {
-    fprintf(stderr, "usage: ai_replay <save.SAV> [turns] [--units] [--seed N]\n");
+    fprintf(stderr, "usage: ai_replay <save.SAV> [turns] [--units] [--seed N] [--mods MASK]\n");
     return 2;
   }
   if (turns < 0) {
@@ -160,6 +181,9 @@ int main(int argc, char** argv) {
     return 1;
   }
 
+  if (mods_mask >= 0) {
+    mods_campaign_set((uint32_t)mods_mask);
+  }
   uint32_t turn_number = br.turn_number;
   uint16_t year = br.year;
   uint16_t autumn = br.autumn;
@@ -202,12 +226,12 @@ int main(int argc, char** argv) {
         continue;
       }
       AiReplayCounts c;
-      ai_replay_count(&units, &colonies, &save, n, &c);
+      ai_replay_count(&units, &colonies, &map, &save, n, &c);
       printf(
         "turn %4u nation %d  colonies %2d pop %3d units %3d hulls %2d  inEurope %2d (hulls %d)  "
-        "gold %ld\n",
+        "gold %ld  improved %3d pioneers %d tools %d\n",
         turn_number, n, c.colonies, c.population, c.units, c.ships, c.parked, c.parked_ships,
-        c.gold
+        c.gold, c.improved, c.pioneers, c.tools
       );
     }
     fflush(stdout);

@@ -815,6 +815,16 @@ void colony_governor_run_w(const ColonizeWorld* w, int colony_id) {
   gov_seat_colonists(w, col, &wt);
 }
 
+void colony_governor_seat_w(const ColonizeWorld* w, int colony_id, int gov) {
+  ColonizeColony* col = w ? colonies_get_mut(w->colonies, colony_id) : NULL;
+  if (!col || !col->active || gov <= COLONY_GOVERNOR_NONE || gov >= COLONY_GOVERNOR_COUNT) {
+    return;
+  }
+  GovWeights wt;
+  gov_weights(w, col, gov, &wt);
+  gov_seat_colonists(w, col, &wt);
+}
+
 void colony_governor_run_nation_w(const ColonizeWorld* w, int nation) {
   if (!w || !w->colonies || !mods_on(MOD_COLONY_GOVERNOR) || nation < 0 || nation > 3) {
     return;

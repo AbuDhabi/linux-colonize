@@ -681,4 +681,43 @@ void ai_euro_colony_tick_pass2(AiEuroColonyTick* t);
 void ai_euro_colony_tick_specialist_restore(AiEuroColonyTick* t);
 #endif /* COLONIZE_TESTING */
 
+/* MOD_AI_IMPROVEMENTS (not DOS, docs/ai_euro_improvement_spec.md) applies to
+ * this nation: the mod is on and `nation_id` is a computer colonial nation,
+ * not the crown slot during the War of Independence (ground rule 3). */
+bool ai_euro_improved(const ColonizeTurnContext* ctx, int nation_id);
+
+/* MOD_AI_IMPROVEMENTS 4.2 Pioneer jobs (ai_euro_improved.c): per-nation
+ * (tile, PIONEER_PLAN_* kind) list the colony tick posts and AI Pioneers do. */
+#define AI_EURO_PJOB_MAX 32
+void ai_euro_pjob_reset(void);
+void ai_euro_pjob_post(int nation, int x, int y, uint8_t kind);
+bool ai_euro_pjob_listed(int nation, int x, int y);
+/* Open jobs of `nation` on continent `cid`. */
+int ai_euro_pjob_open_on(const ColonizeTurnContext* ctx, int nation, int cid);
+/* Pioneers with tools `nation` has on continent `cid`. */
+int ai_euro_pioneers_on(const ColonizeTurnContext* ctx, int nation, int cid);
+/* RTST record: {u8 nation, x, y, kind} per job. */
+#define AI_EURO_PJOB_EXPORT_MAX (4 * AI_EURO_PJOB_MAX * 4)
+size_t ai_euro_pjob_export(uint8_t* out, size_t cap);
+void ai_euro_pjob_import(const uint8_t* in, size_t len);
+/* An AI Pioneer with tools takes the nearest open job on its continent: works
+ * it when standing on it, else walks there. 1 = the act is spent. */
+int ai_euro_pioneer_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nation_id);
+
+/* MOD_AI_IMPROVEMENTS 4.3 S1: a Free Colonist with `profession` on the
+ * nation's Europe dock, unless one already waits there. 1 = trained (the
+ * caller charges the price). */
+int ai_euro_europe_train_expert(ColonizeTurnContext* ctx, int nation, int profession);
+
+/* MOD_AI_IMPROVEMENTS 4.8: the governor focus (ColonyGovernor) an AI
+ * colony is seated with this tick. */
+int ai_euro_colony_focus(const ColonizeTurnContext* ctx, const ColonizeColony* col);
+
+/* MOD_AI_IMPROVEMENTS 4.2 forest reserve: ring forests the colony can work
+ * (not blocked, not native-claimed), the reserve it keeps, and whether
+ * clearing the forest at (tx,ty) is refused (reserve reached, or a resource). */
+int ai_euro_forest_workable(const ColonizeTurnContext* ctx, const ColonizeColony* col);
+int ai_euro_forest_reserve(const ColonizeColony* col);
+bool ai_euro_forest_keep(const ColonizeTurnContext* ctx, const ColonizeColony* col, int tx, int ty);
+
 #endif /* COLONIZE_CORE_AI_EURO_INTERNAL_H */

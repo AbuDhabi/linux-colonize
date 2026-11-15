@@ -142,6 +142,8 @@ add_library(colonize_sim STATIC
   src/core/ai_euro_goals.c
   src/core/ai_euro_land.c
   src/core/ai_euro_spy.c
+  src/core/ai_euro_improved.c
+  src/core/ai_euro_improved_gate.c
   src/core/ai_euro_ship.c
   src/core/ai_euro_act.c
   src/core/ai_diplo.c
@@ -839,6 +841,7 @@ set(COLONIZE_SLIM_SOURCES
   src/core/dos_rng.c
   src/core/dos_buggy.c
   src/core/mods.c
+  src/core/ai_euro_improved_gate.c
   src/core/strutil.c
   src/core/col1_save.c
   src/core/assets.c

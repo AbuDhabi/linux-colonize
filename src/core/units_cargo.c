@@ -1653,7 +1653,10 @@ static void units_starter_skills(
 ) {
   const bool easy = difficulty <= 1;
   const bool hardy = nation_id == 1;
-  const bool veteran = (is_human && easy) || nation_id == 2;
+  /* MOD_AI_IMPROVEMENTS (not DOS, ai_euro_improvement_spec.md 4.7 R2): the
+   * mirror of the human's easy-level gate, an AI Veteran on Governor/Viceroy. */
+  const bool ai_hard = !is_human && mods_on(MOD_AI_IMPROVEMENTS) && difficulty > 2;
+  const bool veteran = (is_human && easy) || ai_hard || nation_id == 2;
   if (pioneer_job) {
     *pioneer_job = hardy ? UNITS_JOB_PIONEER : UNITS_JOB_NONE;
   }
