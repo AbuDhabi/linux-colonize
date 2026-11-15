@@ -44,7 +44,7 @@ Save field: `ColonizeCol1Head.difficulty` (`uint8_t`, clamp 0..4). Runtime:
 | REF seed / growth | New-game pools `8*diff+15` / `5*(diff+1)` / `3*diff+2` / `6*diff+2`; purse `diff*8+10` per peacetime turn | Wired |
 | Tory uprising | Fires on `rng(0,diff+1)!=0`; colony score `+diff+1` | Wired |
 | Intervention pools | `1a26` census seed uses `−diff` / `(4−diff)/2`; landing size fixed | Wired |
-| Euro AI gold / hire | Harder → less free gold, higher hire gate | Wired |
+| Euro AI free gold | Harder → **more**: `4·diff·(colonies + (year−1500)/50)` per turn, Discoverer 0; see [Euro AI planning](#euro-ai-planning) | Wired (`ai_euro_5d04_treasury_bump`) |
 | AI immigration pressure | `((8-diff)*score)>>3` | Wired (AI only) |
 | Indian alarm prelude | — (invented table retired 2026-09-09; real terms are the `465b` trespass bump `diff+5` and the WoI defect roll) | Retired |
 | Raid kind demote | Discoverer only: harsh → STORES/NOTHING | Wired |
@@ -321,6 +321,17 @@ See [`king_ref.md`](../original_sources_annotated/ai/king_ref.md).
 `FUN_521d_5d04` structural port. The old `gold_bump = 10 + (4-diff)*5` free-gold
 tick and `hire_cost = 200 + diff*25` treasury gate were inventions, retired
 2026-09-07e (comment in `ai_euro_nation_planning`).
+
+The real difficulty term is the `5d04` head treasury bump
+(`ai_euro_5d04_treasury_bump`):
+
+```
+score = colonies + (year-1500)/50     /* 0 before turn 20; doubled after 1699 */
+bonus = diff * score                  /* Governor x1.5, Viceroy x2 */
+gold += bonus * 4
+```
+
+Discoverer gets nothing; harder levels get more.
 
 ---
 
