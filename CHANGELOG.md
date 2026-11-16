@@ -3,6 +3,50 @@
 Player-facing changes. Bracketed numbers are [docs/port_bugs.md](docs/port_bugs.md) row ids (closed
 rows live in [docs/archive/bugs_closed.md](docs/archive/bugs_closed.md)).
 
+## 1.2 — 2026-11-16
+
+Covers `1.1.5` (2026-11-10) to 2026-11-16: 105 commits. Not exhaustive.
+
+### New
+
+- Mod: colony governors (Farming, Cash, Industry, Politics, Military),
+  set from the colony screen's CHANGE button. They seat colonists, pick
+  builds, teach, and can autobuy missing tools; shown on the Colony
+  Advisor report.
+- Mod: AI improvements. Rival Europeans play by the player's rules (no
+  free gold, goods or experts), use pioneers and governors, avoid native
+  village sites.
+- Mod: alternate map generator (plate tectonics, erosion, winds, rainfall,
+  temperature) for NEW WORLD and CUSTOMIZE.
+- Mod: passengers keep their ship (DOS ship switch now a toggle).
+- Option: unlimited colonies (past DOS's 48; extra colonies saved in a
+  port extension chunk DOS ignores).
+- Option: tiny colony names.
+- Construction queue: always available, clearer queue display.
+- Wagon Trains can Fortify from the colony screen.
+- Score screen fits empires with very many colonists.
+- Faster unit moves with Fast Piece Slide on.
+- Ask before quitting on window close, from reports or over open popups.
+- Window icon.
+
+### Fixes
+
+- Screens closer to DOS: sidebar minimap, orders lines, wood grain, menu
+  bar, colony centre tile, Europe buttons and market strip, Colonizopedia
+  lists. [1844]-[1853]
+- Ship winning a high-seas attack kept its moves. [1854]
+- AI land units froze in long sessions until reload. [1855]
+- Silent war after an AI Privateer seized cargo. [1856]
+- Join Colony works after the declaration of independence.
+- Break Treaty no longer sticks when the attack is called off.
+- Buying a project no longer cuts hammers already past its cost.
+- Trade routes: skip stops another nation captured, pick up passengers,
+  boycott fix; wagon routing and pathfinding fixes.
+- Census counts Europe-side units; Europe arrival with a full high seas
+  destroys nothing.
+- Event zoom works for colonies past the 64th; stuck drags after a quick
+  click.
+
 ## 1.1.5 — 2026-11-10
 
 Covers `1.1` (2026-11-06) to 2026-11-10: 77 commits, 382 bug rows
