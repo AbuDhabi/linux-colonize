@@ -492,6 +492,8 @@ void reports_compute_score_w(
 #define REPORTS_SCORE_ICON_PITCH_X 8
 #define REPORTS_SCORE_ICON_X_MAX 0x123
 #define REPORTS_SCORE_ICON_Y_MAX 0x90
+#define REPORTS_SCORE_ICON_ROWS_MAX 12
+#define REPORTS_SCORE_ICON_PACK_FROM 413 /* 34+34+35+34+... over 12 DOS rows */
 static int reports_score_draw_citizen_icons(
   const ColonizeReportsView* view,
   ColonizeFramebuffer8* fb,
@@ -503,6 +505,30 @@ static int reports_score_draw_citizen_icons(
   const ColonizeSpriteSheet* icons = reports_icons_for(view, COLONIZE_REPORT_SCORE);
   if (!view || !icons || count <= 0) {
     return y;
+  }
+  if (count > REPORTS_SCORE_ICON_PACK_FROM) {
+    /* docs/dos_bugs_ui.md DB-112: past 12 rows DOS keeps advancing the
+     * cursor without drawing, pushing Congress and the score lines off
+     * screen. Port: 12 brick-offset rows, horizontal pitch squeezed so
+     * each row holds ceil(count/12) icons across DOS's 16..288 span. */
+    const int per_row = (count + REPORTS_SCORE_ICON_ROWS_MAX - 1) / REPORTS_SCORE_ICON_ROWS_MAX;
+    const int span = REPORTS_SCORE_ICON_X_MAX - 3 - REPORTS_SCORE_ICON_X - 4; /* 16+4 .. 288 */
+    for (int i = 0; i < count; ++i) {
+      const int row = i / per_row;
+      const int col = i % per_row;
+      const int icon = icon_ids[i];
+      if (icon < 0 || icon >= icons->sprite_count) {
+        continue;
+      }
+      ss_blit_sprite(
+        icons,
+        icon,
+        fb,
+        REPORTS_SCORE_ICON_X + ((row & 1) ? 0 : 4) + col * span / (per_row - 1),
+        y + row * REPORTS_SCORE_ICON_PITCH_X
+      );
+    }
+    return y + (REPORTS_SCORE_ICON_ROWS_MAX - 1) * REPORTS_SCORE_ICON_PITCH_X;
   }
   for (int i = 0; i < count; ++i) {
     x += REPORTS_SCORE_ICON_PITCH_X;

@@ -326,3 +326,18 @@ the shortcut, with a message that does not fit the order.
 is a human order only, no AI or golden path. Test: `unit_stage_seams`
 `test_join_colony_recomputes_plots` (runs with the WoI flag set).
 **Status:** done (user report, 2026-11-16).
+
+### DB-112 — Score screen pushes everything off screen with very many colonists
+**DOS:** FUN_41f2_0048 (raw 71050) advances the citizen-strip cursor DS:0x2d10 for every
+citizen but only draws while y < 0x90, and FUN_41f2_0092 hangs the Congress line, the
+Founding Father grid and the score lines off that cursor. Past 12 rows (413 citizens) the
+score lines start moving down, from about 450 the Total line runs into the progress bar,
+and a big end-game empire (user save, ~2000 citizens) has every line below the strip off
+screen.
+
+**Port:** `reports_score_draw_citizen_icons` (`src/core/reports_score.c`) keeps the DOS
+walk up to 413 citizens; above that it draws 12 brick-offset rows of ceil(n/12) icons,
+squeezing the horizontal pitch across the same 16..288 span, so the cursor ends on row 12
+and the lines below stay where they are at 413. Cosmetic, score screen only. No test: the
+icon strip has no pixel fixture; checked by rendering 413/414/1000/1023 citizens.
+**Status:** done (user 2026-11-16).
