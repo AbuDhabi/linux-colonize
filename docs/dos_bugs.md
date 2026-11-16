@@ -774,3 +774,16 @@ The same toggle also gates DB-104 (a Trade Route hull boarding no one at a colon
 or in Europe), so toggle off is DOS for every departure.
 **Status:** done (user-approved toggle, default on; 2026-11-12). Golden fixtures and
 idle campaigns keep DOS through `dos_buggy_behavior()`.
+
+### DB-110 — Buying a project cuts a hammer bank already past its cost
+**DOS:** `FUN_2f2b_5e44` (raw 52683-52756) on Buy writes the hammer bank
+`+0x92 = cost` outright. When the bank already holds more than the project
+needs and only tools are short (switch from a dear project to a cheap one
+with tools due), the buy throws the surplus away: a 300-hammer Fortress bank
+switched to a Drydock (80) and bought comes back as 80/320.
+
+**Port:** `colonies_buy_construction_impl` (`src/core/colony_build.c`) adds
+the hammer deficit instead, so a bank past the cost stays. Price and the
++0x98 purchased tally are unchanged (deficit 0 in that case). Ungated: no AI
+or golden path buys. Test: `unit_colonies` `unit_buy_keeps_surplus_hammers`.
+**Status:** done (user report, 2026-11-16).

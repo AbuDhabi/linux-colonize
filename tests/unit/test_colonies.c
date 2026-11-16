@@ -143,6 +143,31 @@ static int unit_hammers_purchased_wraps(void) {
   return 0;
 }
 
+/* DB-110: a tools-only buy on a bank past the project's cost keeps the bank. */
+static int unit_buy_keeps_surplus_hammers(void) {
+  ColonizeColonyPool pool;
+  colonies_init(&pool);
+  colonies_set_occupancy_map(NULL);
+  pool.building_types[0].hammers = 80;
+  pool.building_types[0].tools_cost = 50;
+  pool.building_type_count = 1;
+  ColonizeColony* c = &pool.colonies[0];
+  memset(c, 0, sizeof(*c));
+  c->id = 0;
+  c->active = true;
+  c->building_in_production = 0;
+  c->hammers = 200;
+  pool.colony_count = 1;
+  int gold = 5000;
+  if (!colonies_buy_construction(&pool, 0, 0, &gold) || c->hammers != 200 ||
+      c->stock[COLONIZE_CARGO_TOOLS] != 50 || c->hammers_purchased != 0) {
+    fprintf(stderr, "buy cut surplus bank: hammers=%d tools=%d purchased=%u\n",
+            c->hammers, c->stock[COLONIZE_CARGO_TOOLS], (unsigned)c->hammers_purchased);
+    return 1;
+  }
+  return 0;
+}
+
 static int unit_carpenter_fallback_ignores_shop_ownership_and_cap(void) {
   ColonizeColonyPool pool;
   colonies_init(&pool);
@@ -4338,6 +4363,7 @@ static const TestCase k_cases[] = {
     {"unit_hammers_purchased_buy", unit_hammers_purchased_buy},
     {"unit_rush_buy_uses_nation_tools_price", unit_rush_buy_uses_nation_tools_price},
     {"unit_hammers_purchased_wraps", unit_hammers_purchased_wraps},
+    {"unit_buy_keeps_surplus_hammers", unit_buy_keeps_surplus_hammers},
     {"unit_carpenter_fallback_ignores_shop_ownership_and_cap", unit_carpenter_fallback_ignores_shop_ownership_and_cap},
     {"unit_warehouse_capitol_levels", unit_warehouse_capitol_levels},
     {"unit_build_complete_latch", unit_build_complete_latch},
