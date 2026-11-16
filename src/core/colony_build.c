@@ -334,6 +334,7 @@ bool colonies_capture_show_ex(
   if (old_nation != new_nation_id) {
     col->governor = 0; /* MOD_COLONY_GOVERNOR: the captor starts with none */
     col->governor_autobuy = false;
+    col->governor_rethink = false;
     /* dos_bugs.md DB-66: AI ticks zero the export bits (FUN_5952_035e), so a
      * colony a human takes from the AI would export nothing; re-arm the
      * founding set. AI captors keep DOS's 0 (they re-zero it every tick). */
@@ -1050,7 +1051,11 @@ int colonies_try_complete_unit_construction(
   } else {
     col->hammers -= hammers_need;
   }
+  const int built_code = col->building_in_production;
   colonies_build_queue_advance(pool, col, col1);
+  /* MOD_COLONY_GOVERNOR: a project that repeats (no queued plan took over)
+   * gets one rethink per unit. */
+  col->governor_rethink = col->governor != 0 && col->building_in_production == built_code;
   return uid;
 }
 

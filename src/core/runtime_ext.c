@@ -37,7 +37,7 @@ enum {
   RT_TRIBE_MOOD = 15,  /* v1: MOD_TRIBE_MOOD per-cause alarm tally (ai_contact_mood_export); written only when non-zero */
   RT_SCOUT_INTEL = 16, /* v1: MOD_SCOUT_SPYING 8-byte {nation, x, y, 0, i16 strength, u16 turn} entries; written only when non-empty */
   RT_MODS = 17,        /* v1: u32 campaign mod mask (mods.h); written only when non-zero */
-  RT_GOVERNOR = 18,    /* v1: MOD_COLONY_GOVERNOR {u8 x, u8 y, u8 governor | 0x80 autobuy} per governed colony; written only when non-empty */
+  RT_GOVERNOR = 18,    /* v1: MOD_COLONY_GOVERNOR {u8 x, u8 y, u8 governor | 0x40 rethink | 0x80 autobuy} per governed colony; written only when non-empty */
   RT_AI_PIONEER_JOBS = 19, /* v1: MOD_AI_IMPROVEMENTS {u8 nation, x, y, kind} per Pioneer job; written only when non-empty */
 };
 
@@ -264,10 +264,11 @@ uint8_t* runtime_ext_serialize(
     size_t n = 0;
     for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
       const ColonizeColony* c = &colonies->colonies[i];
-      if (!c->active || (!c->governor && !c->governor_autobuy)) continue;
+      if (!c->active || (!c->governor && !c->governor_autobuy && !c->governor_rethink)) continue;
       p[n++] = (uint8_t)c->x;
       p[n++] = (uint8_t)c->y;
-      p[n++] = (uint8_t)(c->governor | (c->governor_autobuy ? 0x80 : 0));
+      p[n++] = (uint8_t)(c->governor | (c->governor_autobuy ? 0x80 : 0) |
+                         (c->governor_rethink ? 0x40 : 0));
     }
     if (n) rt_record(&b, RT_GOVERNOR, 1, p, n);
   }
@@ -306,6 +307,7 @@ void runtime_ext_deserialize(
   for (int i = 0; colonies && i < COLONIZE_COLONIES_MAX; ++i) {
     colonies->colonies[i].governor = 0;
     colonies->colonies[i].governor_autobuy = false;
+    colonies->colonies[i].governor_rethink = false;
   }
   ai_euro_pjob_reset();
   if (!data) return;
@@ -410,7 +412,8 @@ void runtime_ext_deserialize(
           const int cid = colonies_id_at(colonies, p[k], p[k + 1]);
           ColonizeColony* c = colonies_get_mut(colonies, cid);
           if (c) {
-            c->governor = p[k + 2] & 0x7f;
+            c->governor = p[k + 2] & 0x3f;
+            c->governor_rethink = (p[k + 2] & 0x40) != 0;
             c->governor_autobuy = (p[k + 2] & 0x80) != 0;
           }
         }

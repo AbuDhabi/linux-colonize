@@ -861,7 +861,9 @@ static bool gov_listed(const int* ids, int n, int bid) {
   return false;
 }
 
-static void gov_pick_project(const ColonizeWorld* w, ColonizeColony* col, int gov) {
+/* rethink: a repeating unit project just completed; pick anew once, keeping
+ * it when nothing on the lists is wanted. */
+static void gov_pick_project(const ColonizeWorld* w, ColonizeColony* col, int gov, bool rethink) {
   ColonizeColonyPool* pool = w->colonies;
   /* Never over a player's choice: only "(No Production)" or a project that
    * cannot be built (a finished building DOS leaves in the slot, a lost
@@ -879,7 +881,8 @@ static void gov_pick_project(const ColonizeWorld* w, ColonizeColony* col, int go
   /* The list keeps a finished current project (port_bugs.md #1218). */
   const bool built = colonies_building_type(pool, cur) && cur < COLONIZE_BUILDING_TYPES_MAX &&
                      col->has_building[cur];
-  if (cur >= 0 && !built && colonies_build_project_startable(pool, col->id, cur, &opts)) {
+  const bool keep = cur >= 0 && !built && colonies_build_project_startable(pool, col->id, cur, &opts);
+  if (keep && !rethink) {
     return;
   }
   int ids[64];
@@ -918,7 +921,9 @@ static void gov_pick_project(const ColonizeWorld* w, ColonizeColony* col, int go
     }
   }
   /* Nothing wanted: "(No Production)"; the hammers bank for a later pick. */
-  colonies_clear_construction(pool, col->id);
+  if (!keep) {
+    colonies_clear_construction(pool, col->id);
+  }
 }
 
 void colony_governor_run_w(const ColonizeWorld* w, int colony_id) {
@@ -930,7 +935,8 @@ void colony_governor_run_w(const ColonizeWorld* w, int colony_id) {
   GovWeights wt;
   gov_weights(w, col, col->governor, &wt);
   /* Project first: the seating aims its hammers and tools at it. */
-  gov_pick_project(w, col, col->governor);
+  gov_pick_project(w, col, col->governor, col->governor_rethink);
+  col->governor_rethink = false;
   gov_seat_colonists(w, col, &wt, false);
 }
 

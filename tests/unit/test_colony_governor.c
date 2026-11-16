@@ -211,17 +211,22 @@ static int case_rtst_round_trip(void) {
     return 1;
   }
   f.col->governor = COLONY_GOVERNOR_CASH;
+  f.col->governor_autobuy = true;
+  f.col->governor_rethink = true;
   size_t n = 0;
   uint8_t* p = runtime_ext_serialize(NULL, &f.pool, &n);
   f.col->governor = 0;
+  f.col->governor_autobuy = false;
+  f.col->governor_rethink = false;
   runtime_ext_deserialize(NULL, &f.pool, &f.map, p, n);
   const int back = f.col->governor;
+  const bool flags = f.col->governor_autobuy && f.col->governor_rethink;
   free(p);
   runtime_ext_deserialize(NULL, &f.pool, &f.map, NULL, 0);
   const int cleared = f.col->governor;
   gov_fx_close(&f);
-  if (back != COLONY_GOVERNOR_CASH || cleared != 0) {
-    fprintf(stderr, "round trip %d, cleared %d\n", back, cleared);
+  if (back != COLONY_GOVERNOR_CASH || !flags || cleared != 0) {
+    fprintf(stderr, "round trip %d (flags %d), cleared %d\n", back, (int)flags, cleared);
     return 1;
   }
   return 0;
@@ -856,7 +861,33 @@ static int case_no_crosses_in_war(void) {
   return 0;
 }
 
+/* A repeating unit project: after a unit completes (governor_rethink) the
+ * governor picks anew once; otherwise the project it let run stays. */
+static int case_unit_project_rethink(void) {
+  GovFx f;
+  if (!gov_fx_open(&f)) {
+    return 1;
+  }
+  ColonizeColony* c = f.col;
+  c->governor = COLONY_GOVERNOR_INDUSTRY;
+  c->building_in_production = COLONIZE_UNIT_BUILD_WAGON_TRAIN;
+  colony_governor_run_w(&f.w, c->id);
+  const int kept = c->building_in_production;
+  c->governor_rethink = true;
+  colony_governor_run_w(&f.w, c->id);
+  const int picked = c->building_in_production;
+  const bool spent = !c->governor_rethink;
+  gov_fx_close(&f);
+  if (kept != COLONIZE_UNIT_BUILD_WAGON_TRAIN || picked == COLONIZE_UNIT_BUILD_WAGON_TRAIN ||
+      picked < 0 || !spent) {
+    fprintf(stderr, "kept %d picked %d spent %d\n", kept, picked, (int)spent);
+    return 1;
+  }
+  return 0;
+}
+
 static const TestCase k_cases[] = {
+  {"unit_project_rethink", case_unit_project_rethink},
   {"no_crosses_in_war", case_no_crosses_in_war},
   {"field_expert_teaches", case_field_expert_teaches},
   {"idle_worker_leaves", case_idle_worker_leaves},
