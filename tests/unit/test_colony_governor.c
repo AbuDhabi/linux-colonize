@@ -737,7 +737,66 @@ static int case_autobuy_tools(void) {
   return fail;
 }
 
+/* A worker idle in a house with no input leaves it for a job that makes
+ * something, even when the weights value that something at 0: here no
+ * prices (an unbound market), no project (hammers 0), water all round. */
+/* A worker idle in a house with no input leaves it for a job that makes
+ * something, even when the weights value that something at 0: a full-SoL
+ * colony with every Father in (its upkeep bells already made, the rest worth
+ * nothing), no prices (an unbound market), water all round. */
+static int case_idle_worker_leaves(void) {
+  GovFx f;
+  if (!gov_fx_open(&f)) {
+    return 1;
+  }
+  static EuropeScreen eu;
+  memset(&eu, 0, sizeof(eu));
+  f.w.europe = &eu;
+  ColonizeColony* c = f.col;
+  static ColonizeCol1Save col1;
+  memset(&col1, 0, sizeof(col1));
+  static ColonizeCol1Colony rec;
+  memset(&rec, 0, sizeof(rec));
+  rec.x = (uint8_t)c->x;
+  rec.y = (uint8_t)c->y;
+  rec.population = (uint8_t)c->colonist_count;
+  rec.rebel_dividend = 1000;
+  rec.rebel_divisor = 1000;
+  col1.head.colony_count = 1;
+  col1.colony = &rec;
+  memset(col1.nation[0].founding_fathers, 0xff, sizeof(col1.nation[0].founding_fathers));
+  f.w.col1 = &col1;
+  f.w.col1_ok = true;
+  for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES_MAX; ++t) {
+    int dx = 0;
+    int dy = 0;
+    colonies_field_tile_delta(t, &dx, &dy);
+    if (dx || dy) {
+      f.map.terrain[(c->y + dy) * (int)f.map.width + c->x + dx] = T_OCEAN;
+    }
+  }
+  const int furs = colonies_building_row(&f.pool, COLONY_BUILDING_FUR_TRADERS_HOUSE);
+  c->colonists[2].building_type = furs;
+  c->colonists[3].building_type = furs;
+  c->stock[COLONIZE_CARGO_FOOD] = 100;
+  c->stock[COLONIZE_CARGO_LUMBER] = 0;
+  c->building_in_production = -1;
+  colony_governor_seat_w(&f.w, c->id, COLONY_GOVERNOR_CASH);
+  int idle = 0;
+  for (int i = 0; i < c->colonist_count; ++i) {
+    idle += c->colonists[i].building_type == furs;
+  }
+  const int bells = gov_preview(&f).bells;
+  gov_fx_close(&f);
+  if (furs < 0 || idle != 1) {
+    fprintf(stderr, "%d idle in the fur house, bells %d\n", idle, bells);
+    return 1;
+  }
+  return 0;
+}
+
 static const TestCase k_cases[] = {
+  {"idle_worker_leaves", case_idle_worker_leaves},
   {"autobuy_tools", case_autobuy_tools},
   {"cash_crop_chains", case_cash_crop_chains},
   {"chain_lumber_to_hammers", case_chain_lumber_to_hammers},

@@ -46,7 +46,9 @@ copy, each turn's net goods stocked into its warehouse before the next, so a
 stored input runs out and a good stops counting once it reaches capacity
 (none for Food, none for a good this colony's Custom House exports). Each
 turn adds the goods that went in times per-governor weights, plus bells and
-crosses. Food: the net counts at its weight (2.5, a colonist per 200),
+crosses, plus 0.01 per unit of any output (goods gained, bells, crosses,
+hammers), so a worker idle in a building with no input moves to anything
+that makes something, even output weighted 0. Food: the net counts at its weight (2.5, a colonist per 200),
 deficits included; a stock below zero (starvation), or a shortfall with
 under four turns of it left in store (`turn_produce_food`'s @FOODLOW, unless
 the Colony Report option hides it), costs 1000 a unit, so a stocked colony may

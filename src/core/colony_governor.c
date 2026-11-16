@@ -63,6 +63,11 @@
  * divisor each turn (FUN_364b_0688, viceroy_unpacked.c:57408), so they only
  * feed the nation's Congress / intervention pool. */
 #define GOV_BELLS_POOL 0.5
+/* Per unit of any output (goods gained, bells, crosses, hammers), so when
+ * nothing better is on offer a worker idle in a building without its input
+ * moves to one that makes something, even something the weights value at 0
+ * (bells past a closed pool, say). Small next to every real weight. */
+#define GOV_OUTPUT_TIEBREAK 0.01
 /* Industry: tools and muskets past a hold's worth in store are a stockpile,
  * worth what they sell for, so the project's hammers come first. */
 #define GOV_INDUSTRY_STOCK 100
@@ -254,6 +259,11 @@ static double gov_score(const GovCtx* g, const ColonizeColony* plan) {
     if (g->has_project) {
       s += (h + (pv.hammers - h) * g->hammer_spare) * wt->hammers;
     }
+    int output = pv.bells + pv.crosses + pv.hammers;
+    for (int k = 1; k < COLONIZE_CARGO_COUNT; ++k) {
+      output += pv.goods[k] > 0 ? pv.goods[k] : 0;
+    }
+    s += output * GOV_OUTPUT_TIEBREAK;
     const int kept = pv.bells < wt->bells_upkeep ? pv.bells : wt->bells_upkeep;
     s += kept * wt->bells + (pv.bells - kept) * wt->bells_pool + pv.crosses * wt->crosses;
   }
