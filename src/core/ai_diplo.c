@@ -3192,7 +3192,11 @@ void ai_euro_465b_privateer_sighting(
       (their_strength < our_strength) ? AI_DIPLO_WAR : AI_DIPLO_AMICABLE;
     const uint8_t cur = ai_diplo_read(col1, tn, mn);
     ai_diplo_write(col1, tn, mn, (uint8_t)(cur | follow));
-    if (follow == AI_DIPLO_WAR && !dos_buggy_behavior()) {
+    /* TB-54 mirror, but not onto a human victim: the human's own row takes
+     * DOS's WAR, while mirroring it would put the AI at war with the player
+     * with no contact and no declaration (playtest pt4 L6). */
+    if (follow == AI_DIPLO_WAR && !dos_buggy_behavior() &&
+        !col1_nation_is_human(col1, tn, (int16_t)col1->head.human_player)) {
       ai_diplo_or_both(col1, tn, mn, AI_DIPLO_WAR); /* TB-54 */
     }
   }

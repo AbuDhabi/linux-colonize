@@ -554,6 +554,11 @@ and `ai_diplo_2b5a_1112_break_treaty`, all in `src/core/ai_diplo.c`. The fix wri
 (`ai_diplo_or_both` / `ai_diplo_clear_both`). Bilateral already: 13b0 sign and
 cancel, 153e PROVOKE/WARMANLY, @KINGNEWWAR (FUN_38fd_5930), the WoI declaration,
 FUN_43f7_0108, the year-end rename peace, TB-52/TB-53 arms.
+Exception: the Privateer arm does not mirror WAR onto a human victim. The
+human's own row still takes DOS's WAR, but mirroring would put the AI at war
+with the player with no contact and no declaration (playtest pt4: England
+silently at war with Spain from t125). Test: `unit_ai_euro_war_naval`
+`unit_privateer_sighting_bit`.
 
 **Blocks removal:** goldens and idle campaigns lock the DOS rows; not tried ungated.
 **Status:** tolerated (user, 2026-10-30). Fixed in opencol 2026-10-30, gated on `!dos_buggy_behavior()`; test binaries still reproduce DOS.

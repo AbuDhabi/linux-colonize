@@ -2,6 +2,8 @@
  * naval hunt, fort fire flee, privateer hunts and sighting bit, multistep sail, ambush. */
 #include "test_ai_euro_war_common.h"
 
+#include "core/dos_buggy.h"
+
 /* Two nations at war, idle ocean ships — expect AI_SAIL toward foe / closer / combat. */
 static int unit_naval_war_hunt(void) {
   const int nation = 1;
@@ -755,6 +757,32 @@ static int unit_privateer_sighting_bit(void) {
   ai_euro_465b_privateer_sighting(&col1, &units, NULL, priv, priv2);
   if (ai_diplo_read(&col1, 2, 1) & AI_DIPLO_PRIVATEER_SIGHTED) {
     return fail("Privateer-on-Privateer must not set the sighting bit");
+  }
+
+  /* TB-54 mirror of the follow-up WAR (difficulty 200: the roll always
+   * passes; the victim is the weaker side). AI victim: both rows. Human
+   * victim: the victim's row only, so the AI is not put at war unannounced. */
+  {
+    ColonizeDosRng rng;
+    dos_rng_seed(&rng, 1);
+    col1.head.difficulty = 200;
+    col1.stuff.land_combat_strength[1] = 50;
+    col1.stuff.land_combat_strength[2] = 5;
+    dos_buggy_behavior_set(false);
+    for (int human = 0; human < 2; ++human) {
+      ai_diplo_write(&col1, 1, 2, 0);
+      ai_diplo_write(&col1, 2, 1, 0);
+      col1.head.human_player = human ? 2 : 0xffffu;
+      ai_euro_465b_privateer_sighting(&col1, &units, &rng, priv, car);
+      const int victim_war = (ai_diplo_read(&col1, 2, 1) & AI_DIPLO_WAR) != 0;
+      const int owner_war = (ai_diplo_read(&col1, 1, 2) & AI_DIPLO_WAR) != 0;
+      if (!victim_war || owner_war != !human) {
+        dos_buggy_behavior_set(true);
+        fprintf(stderr, "human %d: victim war %d owner war %d\n", human, victim_war, owner_war);
+        return fail("Privateer WAR mirror: both rows for an AI victim, one row for a human victim");
+      }
+    }
+    dos_buggy_behavior_set(true);
   }
 
   fprintf(stderr, "unit_ai_euro_war: 465b privateer sighting bit ok\n");
