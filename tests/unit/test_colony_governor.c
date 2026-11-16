@@ -664,7 +664,81 @@ static int case_no_tribal_land(void) {
   return rc;
 }
 
+/* "Autobuy tools": a project with its hammers in and tools short buys them at
+ * the BUY price instead of raising @NEEDTOOLS, says so on the status strip,
+ * and completes the next turn; an empty treasury gets the notice as before. */
+static int case_autobuy_tools(void) {
+  colonies_set_occupancy_map(NULL);
+  colonies_set_col1_context(NULL);
+  static ColonizeColonyPool pool;
+  colonies_init(&pool);
+  snprintf(pool.building_types[0].name, sizeof(pool.building_types[0].name), "Press");
+  pool.building_types[0].hammers = 52;
+  pool.building_types[0].tools_cost = 20;
+  pool.building_types[0].row_plus1 = COLONY_BUILDING_PRINTING_PRESS + 1;
+  pool.building_type_count = 1;
+  ColonizeColony* col = &pool.colonies[0];
+  memset(col, 0, sizeof(*col));
+  col->active = true;
+  col->id = 1;
+  snprintf(col->name, sizeof(col->name), "Salem");
+  col->building_in_production = 0;
+  col->governor_autobuy = true;
+  col->stock[COLONIZE_CARGO_FOOD] = 100;
+  col->colonists[0].active = true;
+  col->colonists[0].building_type = -1;
+  col->colonists[0].field_job = -1;
+  col->colonist_count = 1;
+  col->population = 1;
+  for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES_MAX; ++t) {
+    col->tiles[t] = -1;
+  }
+  pool.colony_count = 1;
+  static EuropeScreen eu;
+  memset(&eu, 0, sizeof(eu));
+  ColonizeMsgCatalog game_txt;
+  assets_msg_init(&game_txt);
+  (void)assets_msg_load_file(&game_txt, "COLONIZE/GAME.TXT");
+  static AiPopupState pops;
+  mods_campaign_set(1u << MOD_COLONY_GOVERNOR);
+  int fail = 0;
+  for (int rich = 0; rich < 2 && !fail; ++rich) {
+    col->hammers = 52;
+    col->stock[COLONIZE_CARGO_TOOLS] = 5;
+    eu.gold = rich ? 5000 : 0;
+    ai_popup_init(&pops);
+    ColonizeTurnResult prod;
+    memset(&prod, 0, sizeof(prod));
+    turn_run_colony_production_w(&(ColonizeWorld){.colonies = &pool, .europe = &eu}, 0, &prod,
+                                 &pops, &game_txt);
+    const int tools = col->stock[COLONIZE_CARGO_TOOLS];
+    if (rich ? (tools != 20 || eu.gold >= 5000 || pops.queue_count != 0 ||
+                pops.bar_msg_count != 1 || strncmp(pops.bar_msg[0], "Salem ", 6) != 0 ||
+                col->has_building[0])
+             : (tools != 5 || eu.gold != 0 || pops.queue_count != 1 || pops.bar_msg_count != 0)) {
+      fprintf(stderr, "autobuy rich=%d: tools %d gold %d q=%d bar=%d built=%d\n", rich, tools,
+              eu.gold, pops.queue_count, pops.bar_msg_count, (int)col->has_building[0]);
+      fail = 1;
+    }
+  }
+  if (!fail) {
+    ai_popup_init(&pops);
+    ColonizeTurnResult prod;
+    memset(&prod, 0, sizeof(prod));
+    turn_run_colony_production_w(&(ColonizeWorld){.colonies = &pool, .europe = &eu}, 0, &prod,
+                                 &pops, &game_txt);
+    if (!col->has_building[0]) {
+      fprintf(stderr, "autobuy: not built the turn after\n");
+      fail = 1;
+    }
+  }
+  mods_campaign_set(0);
+  assets_msg_free(&game_txt);
+  return fail;
+}
+
 static const TestCase k_cases[] = {
+  {"autobuy_tools", case_autobuy_tools},
   {"cash_crop_chains", case_cash_crop_chains},
   {"chain_lumber_to_hammers", case_chain_lumber_to_hammers},
   {"no_tribal_land", case_no_tribal_land},

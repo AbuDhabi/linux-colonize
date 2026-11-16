@@ -555,12 +555,14 @@ static int colony_screen_dos_button(
  * (@CTITLE 3, the Construction tab's) centred on the wood above the area
  * view. Wording from data/mods LABELS.TXT @MODGOVERNOR; a missing caption
  * draws nothing. The 5x5 area view (MOD_TOWN_HALL_TIERS) runs under it.
+ * Under the area view, mirrored, the "Autobuy tools" checkbox.
  */
 void colony_screen_draw_governor(
   ColonyScreenView* view, const ColonizeColony* colony, const ColonizeFont* font,
   const ColonizeMsgCatalog* labels, ColonizeFramebuffer8* framebuffer
 ) {
   view->governor_btn_w = 0;
+  view->governor_autobuy_w = 0;
   const char* caption = assets_msg_line_or(labels, "MODGOVERNOR", 0, "");
   const char* chg_lbl = assets_msg_line_or(labels, "CTITLE", 3, "");
   if (!font || !colony || view->spy_view || !caption[0] || !chg_lbl[0] ||
@@ -578,6 +580,17 @@ void colony_screen_draw_governor(
   view->governor_btn_w = colony_screen_dos_button(
     framebuffer, font, view->governor_btn_x, COLONY_GOVERNOR_Y, chg_lbl, false
   );
+  /* "Autobuy tools" (row 7) under the area view, the box in FONTTINY's
+   * checkbox glyphs: ']' filled = on, '[' hollow = off (as @CUSTOM's rows). */
+  const char* autobuy = assets_msg_line_or(labels, "MODGOVERNOR", 7, "");
+  if (autobuy[0]) {
+    snprintf(text, sizeof(text), "%c %s", colony->governor_autobuy ? ']' : '[', autobuy);
+    view->governor_autobuy_w = font_text_width(font, text);
+    view->governor_autobuy_x =
+      COLONY_MINIMAP_SECTION_X + (COLONY_MINIMAP_SECTION_W - view->governor_autobuy_w) / 2;
+    font_draw_text(font, framebuffer, view->governor_autobuy_x, COLONY_GOVERNOR_AUTOBUY_Y + 2,
+                   text, 0x0f);
+  }
 }
 
 /* The colony's project (+0x94) by name: an @BUILDING row, a buildable unit (only codes past

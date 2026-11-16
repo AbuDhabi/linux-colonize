@@ -11,6 +11,19 @@ The Colony Advisor report (both pages) lifts a governed colony's name by 4 px
 and prints "Governor: <setting>" in white under it (`reports_render_colony_sidebar`);
 ungoverned rows keep the DOS layout.
 
+Autobuy tools: a checkbox line (@MODGOVERNOR row 7, FONTTINY's ']' / '['
+glyphs) in the wood under the area view, mirroring the governor line, shown
+whenever the mod is on, governor or not; `ColonizeColony.governor_autobuy`,
+bit 7 of the RTST record 18 byte. At EOT, where Phase L would raise
+@NEEDTOOLS (hammers in, tools short; the Colony Report option does not
+matter), a checked human colony that can pay the BUY price
+(`colonies_construction_gold_cost_ex`) skips the notice and, after that
+tick's completion attempts, buys the tools through
+`colonies_buy_construction_ex`, so the project completes next turn as after
+the player's BUY. The status strip says "<colony> buys <n> tools for <gold>."
+(@MODGOVERNOR row 8, @MISC 48), like a Custom House sale. Short of gold, the
+notice fires as before (`turn_autobuy_tools`, turn_production.c).
+
 Order: the project is picked first (below), then the colonists are seated
 to serve it.
 

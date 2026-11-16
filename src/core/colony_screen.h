@@ -223,7 +223,8 @@ typedef enum ColonyScreenHit {
   COLONY_HIT_CUSTOM_HOUSE_OUTSIDE,
   COLONY_HIT_TITLE, /* name bar (0,0)-(320,7): DOS zone 10, @RENAMECOLONY */
   COLONY_HIT_MULTI_ABANDON, /* MOD_POPULATION_FLOOR ABANDON button, Units tab */
-  COLONY_HIT_GOVERNOR       /* MOD_COLONY_GOVERNOR CHANGE button above the area view */
+  COLONY_HIT_GOVERNOR,      /* MOD_COLONY_GOVERNOR CHANGE button above the area view */
+  COLONY_HIT_GOVERNOR_AUTOBUY /* MOD_COLONY_GOVERNOR "Autobuy tools" box under it */
 } ColonyScreenHit;
 
 typedef enum ColonyMessageKind {
@@ -463,6 +464,10 @@ typedef struct ColonyScreenView {
    * (COLONY_GOVERNOR_Y, 9 tall); w 0 = not drawn. */
   int governor_btn_x;
   int governor_btn_w;
+  /* MOD_COLONY_GOVERNOR "Autobuy tools" checkbox line under the area view
+   * (COLONY_GOVERNOR_AUTOBUY_Y, 9 tall); w 0 = not drawn. */
+  int governor_autobuy_x;
+  int governor_autobuy_w;
   /* BUY / CHANGE button widths as last drawn (FUN_291f_057c: label width + 5; 0 = no BUY),
    * the FUN_2f2b_5fc6 hit boxes at (0xd8, 0x8a) / (0x10e, 0x8a), 9 tall. */
   int buy_btn_w;
@@ -475,6 +480,8 @@ typedef struct ColonyScreenView {
 #define COLONY_ABANDON_BTN_H 9
 /* MOD_COLONY_GOVERNOR line: in the 24 px of wood above the 3x3 area view. */
 #define COLONY_GOVERNOR_Y (COLONY_MINIMAP_SECTION_Y + 8)
+/* Its mirror in the wood under the 3x3: 8 px above the section's end. */
+#define COLONY_GOVERNOR_AUTOBUY_Y (COLONY_BOTTOM_SEPARATOR_Y - 8 - 9)
 #define COLONY_ABANDON_BTN_RIGHT (COLONY_MULTI_X + 2 + COLONY_MULTI_W - 19)
 #define COLONY_ABANDON_BTN_Y (COLONY_PANEL_CONTENT_Y + COLONY_PANEL_CONTENT_H - COLONY_ABANDON_BTN_H)
 

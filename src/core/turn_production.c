@@ -317,6 +317,45 @@ void turn_emit_built_chrome(
  * where an idle-carpenter or BUY-topped colony (and every unit project) went
  * silent.
  */
+/* The Phase L test: the project's hammers are in and its tools are not.
+ * Returns the tools required (0 = no shortfall); *out_name = project name. */
+static int turn_needtools_cost(
+  const ColonizeColonyPool* pool, const ColonizeColony* colony, const char** out_name
+) {
+  if (!pool || !colony || colony->building_in_production < 0) {
+    return 0;
+  }
+  const int bip = colony->building_in_production;
+  const char* pname = NULL;
+  int hammers_need = 0;
+  int tools_cost = 0;
+  if (!colonies_unit_build_info(bip, &pname, &hammers_need, &tools_cost)) {
+    const ColonizeBuildingType* bt = colonies_building_type(pool, bip);
+    if (!bt) {
+      return 0;
+    }
+    /* Already-owned project takes DOS's @ALREADYHAVE arm instead (09fc bit
+     * test, never set for Warehouse Expansion). */
+    if (bip < COLONIZE_BUILDING_TYPES_MAX && colony->has_building[bip] &&
+        colonies_building_type_row(pool, bip) != COLONY_BUILDING_WAREHOUSE_EXPANSION) {
+      return 0;
+    }
+    pname = colonies_building_name(pool, bip);
+    hammers_need = bt->hammers;
+    tools_cost = bt->tools_cost;
+  }
+  if (hammers_need <= 0 || colony->hammers < hammers_need) {
+    return 0;
+  }
+  if (tools_cost <= 0 || colony->stock[COLONIZE_CARGO_TOOLS] >= tools_cost) {
+    return 0;
+  }
+  if (out_name) {
+    *out_name = pname;
+  }
+  return tools_cost;
+}
+
 static bool turn_emit_needtools_notice(
   const ColonizeColonyPool* pool,
   const ColonizeColony* colony,
@@ -326,40 +365,17 @@ static bool turn_emit_needtools_notice(
   AiPopupState* ai_popups,
   const ColonizeMsgCatalog* messages
 ) {
-  if (!pool || !colony || colony->building_in_production < 0) {
-    return false;
-  }
-  if (colony->nation_id != human_nation) {
+  if (!colony || colony->nation_id != human_nation) {
     return false;
   }
   /* Gate !(DS:0x5384 & 0x10). */
   if (col1 && col1->head.colony_report_options.report_tools_needed_for_production) {
     return false;
   }
-  const int bip = colony->building_in_production;
   const char* pname = NULL;
-  int hammers_need = 0;
-  int tools_cost = 0;
-  if (!colonies_unit_build_info(bip, &pname, &hammers_need, &tools_cost)) {
-    const ColonizeBuildingType* bt = colonies_building_type(pool, bip);
-    if (!bt) {
-      return false;
-    }
-    /* Already-owned project takes DOS's @ALREADYHAVE arm instead (09fc bit
-     * test, never set for Warehouse Expansion). */
-    if (bip < COLONIZE_BUILDING_TYPES_MAX && colony->has_building[bip] &&
-        colonies_building_type_row(pool, bip) != COLONY_BUILDING_WAREHOUSE_EXPANSION) {
-      return false;
-    }
-    pname = colonies_building_name(pool, bip);
-    hammers_need = bt->hammers;
-    tools_cost = bt->tools_cost;
-  }
-  if (hammers_need <= 0 || colony->hammers < hammers_need) {
-    return false;
-  }
+  const int tools_cost = turn_needtools_cost(pool, colony, &pname);
   const int tools_have = colony->stock[COLONIZE_CARGO_TOOLS];
-  if (tools_cost <= 0 || tools_have >= tools_cost) {
+  if (tools_cost <= 0) {
     return false;
   }
   if (!europe && !ai_popups) {
@@ -386,6 +402,52 @@ static bool turn_emit_needtools_notice(
     ai_popup_enqueue_colony_event(ai_popups, colony->id, AI_POPUP_ZOOM_TAB_CONSTRUCTION, body);
   }
   return europe != NULL;
+}
+
+/*
+ * MOD_COLONY_GOVERNOR autobuy (not DOS): a human colony with "Autobuy tools"
+ * checked pays the Phase L tools shortfall at the colony screen's BUY price
+ * (colonies_construction_gold_cost_ex; tools only, the hammers are in)
+ * instead of raising @NEEDTOOLS. Returns that price, -1 when it does not
+ * apply or the treasury cannot cover it (the notice then fires as usual).
+ */
+static int turn_autobuy_tools_price(const TurnProduceCtx* pc) {
+  const ColonizeColony* colony = pc->colony;
+  if (!mods_on(MOD_COLONY_GOVERNOR) || !colony || !colony->governor_autobuy ||
+      colony->nation_id != pc->human_nation || turn_needtools_cost(pc->pool, colony, NULL) <= 0) {
+    return -1;
+  }
+  const int price = colonies_construction_gold_cost_ex(pc->pool, colony, pc->col1);
+  const long gold = (long)europe_nation_gold(pc->europe, pc->col1, colony->nation_id);
+  return price >= 0 && gold >= price ? price : -1;
+}
+
+/* The purchase, after this tick's completion attempts, so the project
+ * completes next turn as after the player's BUY (game_do_buy_construction).
+ * Status strip worded like a Custom House sale: "<colony> buys <n> tools for <gold>." */
+static void turn_autobuy_tools(TurnProduceCtx* pc) {
+  if (turn_autobuy_tools_price(pc) < 0) {
+    return;
+  }
+  ColonizeColony* colony = pc->colony;
+  const int tools_before = colony->stock[COLONIZE_CARGO_TOOLS];
+  const int gold_before = (int)europe_nation_gold(pc->europe, pc->col1, colony->nation_id);
+  int gold = gold_before;
+  if (!colonies_buy_construction_ex(pc->pool, colony->id, pc->col1, &gold)) {
+    return;
+  }
+  europe_nation_gold_add(pc->europe, pc->col1, colony->nation_id, (int64_t)gold - gold_before);
+  if (pc->ai_popups) {
+    const EuropeScreen* europe = pc->europe;
+    const char* cargo_name = (europe && COLONIZE_CARGO_TOOLS < europe->cargo_count)
+                               ? europe->cargo[COLONIZE_CARGO_TOOLS].name
+                               : reports_cargo_display_name(COLONIZE_CARGO_TOOLS);
+    char line[AI_POPUP_BAR_MSG_LEN];
+    snprintf(line, sizeof(line), "%s %s %d %s %s %d.", colony->name,
+             turn_label("MODGOVERNOR", 8, ""), colony->stock[COLONIZE_CARGO_TOOLS] - tools_before,
+             cargo_name, turn_label("MISC", 48, ""), gold_before - gold);
+    ai_popup_enqueue_bar_sale(pc->ai_popups, line);
+  }
 }
 
 /*
@@ -1746,7 +1808,9 @@ COLONIZE_INTERNAL void turn_produce_hammers(TurnProduceCtx* pc) {
    * unit projects as well as buildings (port_bugs.md #537). It precedes the
    * tools debit + FUN_364b_0114 call (raw 57748-57771).
    */
-  (void)turn_emit_needtools_notice(pool, colony, col1, europe, human_nation, ai_popups, messages);
+  if (turn_autobuy_tools_price(pc) < 0) {
+    (void)turn_emit_needtools_notice(pool, colony, col1, europe, human_nation, ai_popups, messages);
+  }
   if (colony->building_in_production >= 0) {
     const int bip = colony->building_in_production;
     const ColonizeBuildingType* bt = colonies_building_type(pool, bip);
@@ -2222,6 +2286,7 @@ void turn_produce_one_colony(
    * and FUN_364b_0114 builds it here, before the cap re-read (raw 57743) and
    * the spoilage / AI-sell loop (raw 57807). */
   turn_colony_unit_construction_one(ctx.world, ctx.colony);
+  turn_autobuy_tools(&ctx); /* MOD_COLONY_GOVERNOR: completes next turn */
   turn_produce_produced_mask(&ctx);
   turn_produce_spoilage(&ctx);
   turn_produce_cargo_ready(&ctx);

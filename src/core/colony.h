@@ -148,6 +148,9 @@ typedef struct ColonizeColony {
   /* MOD_COLONY_GOVERNOR ColonyGovernor (colony_governor.h), 0 = none. Port
    * only: rides RTST record 18 (runtime_ext.c). */
   uint8_t governor;
+  /* MOD_COLONY_GOVERNOR "Autobuy tools" box under the area view: pay for the
+   * @NEEDTOOLS shortfall at EOT (turn_production.c). Bit 7 of record 18's byte. */
+  bool governor_autobuy;
   /* Custom House per-cargo enable mask layout (see docs/colony.md#colonize_custom_house_default_mask) */
 #define COLONIZE_CUSTOM_HOUSE_DEFAULT_MASK 0x1edeu
   uint16_t custom_house_bits;

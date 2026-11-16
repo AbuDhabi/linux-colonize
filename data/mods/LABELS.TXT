@@ -10,8 +10,10 @@
 ABANDON
 
 ;       mods.colony_governor: the colony screen's line above the area view.
-;       Row 0 = the caption, rows 1..5 = the settings in ColonyGovernor
-;       order (none, Farming, Cash, Industry, Politics).
+;       Row 0 = the caption, rows 1..6 = the settings in ColonyGovernor
+;       order (none, Farming, Cash, Industry, Politics, Military); row 7 =
+;       the checkbox under the area view; row 8 = the status-line verb of
+;       its purchase ("<colony> buys <n> tools for <gold>.").
 @MODGOVERNOR
 Governor:
 none
@@ -20,3 +22,5 @@ Cash
 Industry
 Politics
 Military
+Autobuy tools
+buys

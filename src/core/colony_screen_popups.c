@@ -1398,6 +1398,12 @@ COLONIZE_INTERNAL bool colony_screen_hit_area_tiles(ColonyScreenHitCtx* a) {
     a->hit.kind = COLONY_HIT_GOVERNOR;
     return true;
   }
+  if (a->view && a->view->governor_autobuy_w > 0 && mx >= a->view->governor_autobuy_x &&
+      mx < a->view->governor_autobuy_x + a->view->governor_autobuy_w &&
+      my >= COLONY_GOVERNOR_AUTOBUY_Y && my < COLONY_GOVERNOR_AUTOBUY_Y + 9) {
+    a->hit.kind = COLONY_HIT_GOVERNOR_AUTOBUY;
+    return true;
+  }
   /* Area-view tiles (surround only; center is not assignable). */
   int origin_x = 0;
   int origin_y = 0;

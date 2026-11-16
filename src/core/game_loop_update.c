@@ -1761,6 +1761,9 @@ static GameUpdateStep game_colony_screen_mouse_click(
     case COLONY_HIT_GOVERNOR:
       game_colony_open_governor(game, colony);
       break;
+    case COLONY_HIT_GOVERNOR_AUTOBUY:
+      colony->governor_autobuy = !colony->governor_autobuy;
+      break;
     case COLONY_HIT_AREA_TILE: {
       /* DOS FUN_2f2b_47bc: pressing on a worked plot picks its colonist up
        * (FUN_2f2b_4284, drag mode 6), so it can be dropped on a building,
