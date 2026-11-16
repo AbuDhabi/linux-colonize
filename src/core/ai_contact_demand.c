@@ -510,7 +510,7 @@ int ai_contact_meet_economics_2154(
   memset(out, 0, sizeof(*out));
 
   /* Phase 1: tribe-local 25-cell cover from colony relative overlap.
-   * DOS bug, reproduced for now (docs/tolerated_dos_bugs_ai.md TB-29). */
+   * DOS bug, reproduced in DOS mode only (docs/tolerated_dos_bugs_ai.md TB-29). */
   uint8_t cover[25];
   memset(cover, 0, sizeof(cover));
   const int tx = (int)tribe->x;
@@ -1961,7 +1961,7 @@ void ai_contact_indian_prelude(ColonizeTurnContext* ctx, int nation_id) {
  *       c = FUN_281f_081c(unit)             // = FUN_1427_0f0e = continent
  *       if (c >= 0) tribe_dwellings_91cc[slot*16+c] = min(255, +v)
  *
- * **DOS bug, reproduced for now (docs/tolerated_dos_bugs_ai.md TB-7):**
+ * **DOS bug, reproduced in DOS mode only (docs/tolerated_dos_bugs_ai.md TB-7):**
  * `village_counts_by_continent[]` is zeroed on every call but only refilled
  * from the *current* tribe type, so after the eight 1816 calls it holds the
  * last surviving tribe type's villages only. FUN_4962_0018 (the Euro census)

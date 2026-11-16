@@ -453,7 +453,7 @@ static void colonies_assign_field_land_reaction(
    * for the colony that owns the cache (see g_colonies_plot_cache_colony). */
   const ColonizeColony* cc = g_colonies_plot_cache_colony ? g_colonies_plot_cache_colony : col;
   bool snap = false;
-  /* DOS bug, reproduced for now (docs/tolerated_dos_bugs.md TB-43). */
+  /* DOS bug, reproduced in DOS mode only (docs/tolerated_dos_bugs.md TB-43). */
   int ti = colonies_claim_snapshot_take(dx, dy, &snap);
   /* TB-43: the seat re-tests the purchased bit the table builder used, under
    * !dos_buggy_behavior(); a plot bought since the snapshot is not claimed. */
@@ -1355,7 +1355,7 @@ static int colonies_eject_colonist_impl(
   /* port_bugs.md #1132: FUN_15eb_1068 zeroes the +0x60 nibble (0cbc, raw
    * ~11250) before the spawn, and a refused spawn (`local_1a < 0`) jumps to
    * LAB_15eb_1236, which still subtracts the target job's gear, clamped at 0.
-   * DOS bug, reproduced for now (docs/tolerated_dos_bugs.md TB-47). */
+   * DOS bug, reproduced in DOS mode only (docs/tolerated_dos_bugs.md TB-47). */
   /* TB-47: under !dos_buggy_behavior() a refused eject keeps the gear and the
    * job counter (the success path below zeroes the counter itself). */
   if (dos_buggy_behavior()) {

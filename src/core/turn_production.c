@@ -1450,7 +1450,7 @@ COLONIZE_INTERNAL void turn_produce_birth(TurnProduceCtx* pc) {
        * DOS raw 57617-57619: food is debited before FUN_281f_095c, so a
        * birth refused at the unit limit loses the 200 food and the colonist
        * (no fallback into the colony); @NEWCOLONIST still follows.
-       * DOS bug, reproduced for now (docs/tolerated_dos_bugs.md TB-47). */
+       * DOS bug, reproduced in DOS mode only (docs/tolerated_dos_bugs.md TB-47). */
       const int ct = units_kind_type_index(turn_birth_units, UNITS_KIND_COLONIST);
       born_on_tile = ct >= 0;
       /* raw 57618: FUN_281f_095c(0, uVar7, x, y) -- the ticking nation. */

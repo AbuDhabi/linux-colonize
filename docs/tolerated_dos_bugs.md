@@ -57,7 +57,7 @@ isthmus), the coarse BFS sees them as disconnected or far apart and the unit
 falls back to the scored 8-neighbour step: odd detours, back-and-forth
 wandering, or a Go To that never arrives. Frequency on real maps not measured.
 
-**Port (reproduces it):**
+**Port (DOS arm, under `dos_buggy_behavior()`):**
 - Saves: `col1_post_map_rebuild_connectivity` (`src/core/col1_post_map.c`,
   `PostCheapCache`) writes the planes byte-exact, quirk included (COLONY00
   planes match), so DOS loading a port save reads what it would have built.
@@ -91,7 +91,7 @@ emergency branch does not read the cargo and still favours both). 28c8 places
 AI colonists every tick and seats every new colonist joining a colony, human
 or AI (`colonies_seat_new_colonist`).
 
-**Port (reproduces it):** `ai_euro_28c8_score_full`
+**Port (DOS arm, under `dos_buggy_behavior()`):** `ai_euro_28c8_score_full`
 (`src/core/ai_euro_colony_jobs.c`, `const int cargo = job;`). Came from
 port_bugs.md #582. The fix is `colony_yield_job_cargo(job)`.
 
@@ -115,7 +115,7 @@ nibble.
 record sits at index = attacker nation (usually a native Brave for nations
 0..3), not on the real attacker. Every game, human and AI.
 
-**Port (reproduces it):** `units_best_defender_at`
+**Port (DOS arm, under `dos_buggy_behavior()`):** `units_best_defender_at`
 (`src/core/units_combat.c`, `pick_foe_id` / `pick_foe_nat`). Came from
 dos_bug_candidates_2026-10-22.md C-35. The fix is `pick_foe_id = attacker_id`.
 
@@ -137,7 +137,7 @@ war clears the captor's own war flag toward the loser. Intent is probably
 whenever it was set before, so the pair is left at war on one side only. Every
 capture, human and AI.
 
-**Port (reproduces it):** `colonies_capture_col1_effects`
+**Port (DOS arm, under `dos_buggy_behavior()`):** `colonies_capture_col1_effects`
 (`src/core/colony_build.c`, the `ai_diplo_read` / `ai_diplo_write` pair after
 `ai_diplo_clear_both`). Came from dos_bug_candidates_2026-10-22.md C-36. The
 fix is to drop the else arm.
@@ -161,7 +161,7 @@ use the stored bound.
 "0 of 0..2" (1 in 3) instead of "0 of 0..1" (1 in 2), and
 the paid amount and RNG stream differ. Needs a tech-1 tribe (non-rich, no Cortes) to matter.
 
-**Port (reproduces it):** `units_conquest_treasure_gold`
+**Port (DOS arm, under `dos_buggy_behavior()`):** `units_conquest_treasure_gold`
 (`src/core/units_combat.c`, tech-1 arm). Came from
 dos_bug_candidates_2026-10-22.md C-38. The fix is `dos_rng_range(rng, 0,
 spanish ? 1 : 2)`.
@@ -187,7 +187,7 @@ save) stays one too high for the rest of the turn after each sinking, and the
 Euro AI Europe code that reads `ship_counts` (the "no ships" check) sees the
 same stale count.
 
-**Port (reproduces it):** `units_apply_naval_loss_outcome`
+**Port (DOS arm, under `dos_buggy_behavior()`):** `units_apply_naval_loss_outcome`
 (`src/core/units_combat.c`, census block after `units_naval_damage_gate`).
 Came from dos_bug_candidates_2026-10-22.md C-40. The fix is
 `st->ship_counts[n]--`.
@@ -211,7 +211,7 @@ nothing and spends its latch on it.
 when the protection said "nothing". Changes the LCR outcome, the RNG stream and
 the saved latch bit. Every game, human and AI.
 
-**Port (reproduces it):** `units_lcr_roll_outcome` (`src/core/units_combat.c`,
+**Port (DOS arm, under `dos_buggy_behavior()`):** `units_lcr_roll_outcome` (`src/core/units_combat.c`,
 case-5 block; `lcr_case5_bonus_used`). Came from
 dos_bug_candidates_2026-10-22.md C-41. The fix is to test the latch only while
 `raw == 5`.
@@ -235,7 +235,7 @@ seen bit is never cleared first.
 seen bit after the declaration; for crowns 1..3 the low-nibble bits are wiped
 on every tile. The REF pathfinder reads this layer.
 
-**Port (reproduces it):** the seen-plane sweep in the declaration step of
+**Port (DOS arm, under `dos_buggy_behavior()`):** the seen-plane sweep in the declaration step of
 `ai_king_audience.c` (`keep = ~crown_fold`).
 
 **Blocks removal:** tried 2026-10-22 (`keep = ~(0x10 << crown)`); fails
@@ -253,7 +253,7 @@ are never scored, weighted or picked.
 **Effect:** once the human owns more than ten coastal colonies the King only
 ever attacks or lands next to the oldest ten.
 
-**Port (reproduces it):** `AI_KING_0982_MAX_TARGETS` and
+**Port (DOS arm, under `dos_buggy_behavior()`):** `AI_KING_0982_MAX_TARGETS` and
 `AI_KING_10F0_CANDIDATES` (`src/core/ai_king_ref.c`), both 10.
 
 **Blocks removal:** tried 2026-10-22 (both caps lifted); fails
@@ -275,7 +275,7 @@ was meant to read it.
 tax rates move as if they had the human's independence movement. Also, the
 Simon Bolivar elect bump to `DS:0x53d0` counts in the human's score.
 
-**Port (reproduces it):** `ai_king_audience_roll` (`src/core/ai_king_audience.c`,
+**Port (DOS arm, under `dos_buggy_behavior()`):** `ai_king_audience_roll` (`src/core/ai_king_audience.c`,
 `col1->head.rebel_sentiment_report`).
 
 **Blocks removal:** tried 2026-10-22 (`nat->rebel_sentiment` in place of
@@ -299,7 +299,7 @@ play: a colony work plot always has the land colony tile as a neighbour, so
 neighbours) or -1 (6 or 7). A fishing plot in a sheltered bay yields the same
 as one on an open coast.
 
-**Port (reproduces it):** `colony_yield_fisherman_distance_mod`
+**Port (DOS arm, under `dos_buggy_behavior()`):** `colony_yield_fisherman_distance_mod`
 (`src/core/colony_yield.c`). Came from dos_bug_candidates_2026-10-22.md C-47.
 The fix is the cascade in the right order: `n >= 8: -2; n >= 6: -1; n < 1: +4;
 n < 3: +3; n < 4: +2; else +1`.
@@ -324,7 +324,7 @@ the extra step. The condition looks like a slip for "river is major".
 step, no road or colony bit and no plow. A major-river Farmer, or a plowed or
 roaded plot on a major river, yields the same as on a minor river.
 
-**Port (reproduces it):** the improvement stack in `colony_yield_pipeline`
+**Port (DOS arm, under `dos_buggy_behavior()`):** the improvement stack in `colony_yield_pipeline`
 (`src/core/colony_yield.c`, `map_tile_has_major_river(...) && add ==
 improvement_step`). Came from dos_bug_candidates_2026-10-22.md C-48. The fix is
 dropping the `add == improvement_step` test.
@@ -349,7 +349,7 @@ a second time. The seat never re-tests the bit the table builder used.
 Pioneer just bought. Seen in real DOS (America seed-100 save 12,
 [evidence](archive/tolerated_dos_bugs_evidence_2026-10-24.md#tb-43)).
 
-**Port (reproduces it):** `colonies_assign_field_land_reaction`
+**Port (DOS arm, under `dos_buggy_behavior()`):** `colonies_assign_field_land_reaction`
 (`src/core/colony_workers.c`) takes the entry from the claim snapshot
 (`colonies_claim_snapshot_take`, `src/core/colony.c`) and prices it with
 `colonies_indian_land_purchase_gold_stale_claim`, which skips the purchased
@@ -375,7 +375,7 @@ mover (a land probe's grid used by a ship, another nation's owner terms), so
 the route can differ from the one the mover's own rules would give. TB-1 is a
 special case (the coarse-plane populator).
 
-**Port (reproduces it):** `units_flood_00f2` (`src/core/units_move.c`), shared
+**Port (DOS arm, under `dos_buggy_behavior()`):** `units_flood_00f2` (`src/core/units_move.c`), shared
 grid `s_flood`. The save-plane build (`col1_post_map_rebuild_connectivity`,
 `src/core/col1_post_map.c`) has its own cache and is not affected by a change
 here, so a live-only fix is possible. The live coarse build
@@ -408,7 +408,7 @@ sign flip the value from the second draw is negated by the first draw's test,
 so some tiles get a band that no single draw would give. The map-generation RNG
 stream also takes two draws per tile.
 
-**Port (reproduces it):** `latitude_terrain` (`src/core/map_gen.c`), called for
+**Port (DOS arm, under `dos_buggy_behavior()`):** `latitude_terrain` (`src/core/map_gen.c`), called for
 every tile by `paint_terrain`.
 
 **Blocks removal:** tried 2026-10-22, two variants: (1) one draw per tile,
@@ -439,7 +439,7 @@ human player loses stock or crosses visibly. AI nations reach their cap late
 (America seed-100 around saves 181-199) and from then on keep losing food,
 hammers, tools, gear and crosses.
 
-**Port (reproduces it):** `colonies_try_complete_unit_construction`
+**Port (DOS arm, under `dos_buggy_behavior()`):** `colonies_try_complete_unit_construction`
 (`src/core/colony_build.c`, `COLONIZE_UNIT_BUILD_REFUSED`),
 `colonies_eject_colonist` (`src/core/colony_workers.c`, port_bugs.md #1132),
 the birth block of `src/core/turn_production.c` (Phase I), the immigrant arm
@@ -464,7 +464,7 @@ orders byte +0x314c (38fd:326f). The crossing counter +0x315a is not touched.
 Europe (and the other way round): turning back costs the remaining turns of the
 voyage, not the turns already sailed.
 
-**Port (reproduces it):** `europe_reverse_transit` (`src/core/europe_harbor.c`),
+**Port (DOS arm, under `dos_buggy_behavior()`):** `europe_reverse_transit` (`src/core/europe_harbor.c`),
 port_bugs.md #1153; unit test `case_europe_reverse_transit_keeps_turns`,
 regression `europe_reverse_sailing_ship`.
 
@@ -482,7 +482,7 @@ The 2026-08-15 Hudson capture confirms DOS pays both.
 **Effect:** a Fur Trapper on a road or river tile is paid for the road and
 the river twice, once of it expert-doubled.
 
-**Port (reproduces it):** `colony_yield_pipeline` (`src/core/colony_yield.c`), the
+**Port (DOS arm, under `dos_buggy_behavior()`):** `colony_yield_pipeline` (`src/core/colony_yield.c`), the
 job-4 block before the zero-base gate.
 
 **Blocks removal:** tried 2026-10-23: dropping the job-4 block fails every idle
@@ -503,7 +503,7 @@ peace, and FUN_5bfb_13b0 sets it to 1 at signing.
 is asked whether to break the treaty, picks "Break Treaty", and nothing
 happens: the unit does not attack and no reason is given.
 
-**Port (reproduces it):** the AI_POPUP_TAG_CONTACT_EURO_WAR answer in
+**Port (DOS arm, under `dos_buggy_behavior()`):** the AI_POPUP_TAG_CONTACT_EURO_WAR answer in
 `src/core/game_dialogs.c` (Break Treaty arm), port_bugs.md #1258.
 
 **Blocks removal:** nothing known; not tried. Options: skip @HAVETREATY while the
@@ -519,7 +519,7 @@ crown's Man-O-War attacks and its row stays 0x20.
 **Effect:** two nations that met but never signed a treaty can fight forever
 while the Foreign Affairs report shows neither peace nor war.
 
-**Port (reproduces it):** `ai_diplo_465b_band_ctx` (`src/core/ai_diplo.c`, the
+**Port (DOS arm, under `dos_buggy_behavior()`):** `ai_diplo_465b_band_ctx` (`src/core/ai_diplo.c`, the
 no-treaty `else` arm). Callers: `units_move_combat_pre` (`units_move.c`),
 `ai_euro_try_attack` (`ai_euro_land.c`), `ai_contact_try_euro_attack_confirm`
 (`ai_contact.c`). The fix announces @DECLAREWAR (when no row had WAR yet) and
@@ -548,7 +548,7 @@ calls `ai_diplo_declare_war` (WAR|MET both ways, DS:0x53c8 zeroed).
 **Effect:** Foreign Affairs (viewer row only) and the attack gates disagree by
 side: one nation reads war or no treaty while the other still reads peace.
 
-**Port (reproduces it):** `ai_diplo_465b_band_ctx`, `ai_talk_resume` (THIRD and
+**Port (DOS arm, under `dos_buggy_behavior()`):** `ai_diplo_465b_band_ctx`, `ai_talk_resume` (THIRD and
 ALLY_PAY arms), `ai_diplo_treaty_timers` (6d8e), `ai_euro_465b_privateer_sighting`
 and `ai_diplo_2b5a_1112_break_treaty`, all in `src/core/ai_diplo.c`. The fix writes the same bit both ways
 (`ai_diplo_or_both` / `ai_diplo_clear_both`). Bilateral already: 13b0 sign and
@@ -577,7 +577,7 @@ a land trade-route wagon (port_saves/discard COLONY07.SAV, wagon on
 "Hartford Trans", (47,18) <-> (48,19), goal Hartford (41,18)). The #1040
 reversal guard covers only AI_SAIL units.
 
-**Port (reproduces it):** `units_goto_director` (`src/core/units_move.c`). The
+**Port (DOS arm, under `dos_buggy_behavior()`):** `units_goto_director` (`src/core/units_move.c`). The
 fix uses `<= 7`: the 00f2 grid (16x16, candidates `|cand-goal| < 8`) already
 covers distance 7, and a unit following one destination grid only steps to
 strictly cheaper cells inside the window, so it cannot leave the near tier and
@@ -597,7 +597,7 @@ ceiling.
 **Effect:** every hammer above the cost is lost, so the player is pushed to
 micromanage carpenters off the job for the last turn of each project.
 
-**Port (reproduces it):** `colonies_try_complete_building_ex` and
+**Port (DOS arm, under `dos_buggy_behavior()`):** `colonies_try_complete_building_ex` and
 `colonies_try_complete_unit_construction` (`src/core/colony_build.c`) zero the
 bank. The fix subtracts the cost instead, so the surplus goes to the next
 queued project, the repeated unit project, or stays banked on the owned
@@ -617,7 +617,7 @@ zero when a Father joins Congress, whatever the pool held past the threshold.
 **Effect:** bells above the threshold are lost, so the player is pushed to time
 statesmen and Town Hall output around each election.
 
-**Port (reproduces it):** `elect_commit` (`src/core/founding_fathers.c`) calls
+**Port (DOS arm, under `dos_buggy_behavior()`):** `elect_commit` (`src/core/founding_fathers.c`) calls
 `founding_fathers_reset_bells_pool`. The fix subtracts that election's threshold
 (`founding_fathers_bells_needed`, read before the Father count bump) from the pool
 and the human's Europe mirror, so the surplus counts toward the next Father. With
@@ -637,7 +637,7 @@ meter held past the threshold.
 **Effect:** crosses above the threshold are lost, so the player is pushed to time
 preachers and churches around each arrival.
 
-**Port (reproduces it):** `europe_tick_immigration_pressure_w` (human) and
+**Port (DOS arm, under `dos_buggy_behavior()`):** `europe_tick_immigration_pressure_w` (human) and
 `europe_nation_immigration_tick_w` (AI, both arms) in `src/core/europe_harbor.c`,
 and `europe_brewster_pick_from_pool_ex` (`src/core/europe_dock.c`). The fix
 subtracts the threshold (`needed_crosses`) instead, so the surplus counts toward
@@ -661,7 +661,7 @@ Dutch Go To units then walk beside the road until a Dutch unit stands on each
 tile again (discard campaign turn 148: New Holland -> Curacao / Fort Orange
 skipped the road at (32,48)).
 
-**Port (reproduces it):** `units_flood_owner_term` in `src/core/units_move.c`.
+**Port (DOS arm, under `dos_buggy_behavior()`):** `units_flood_owner_term` in `src/core/units_move.c`.
 The fix applies the term only when the tile is in the radius (Chebyshev 1) of
 a colony of that peer nation (`units_flood_in_colony_radius`).
 

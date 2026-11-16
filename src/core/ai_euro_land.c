@@ -347,7 +347,7 @@ void ai_euro_5952_improve_best_plot(
         claim < (int)ctx->col1->head.tribe_count) {
       /* raw 94446: 030c(8d9e cell, nation) — the cell is the village's
        * NATION byte (4..11), passed unadjusted (OVL asm 5952:1318). DOS bug,
-       * reproduced for now (docs/tolerated_dos_bugs_ai.md TB-11); fixed
+       * reproduced in DOS mode only (docs/tolerated_dos_bugs_ai.md TB-11); fixed
        * (tribe index nation - 4) under !dos_buggy_behavior(). */
       const int alarm = ai_euro_5952_alarm_word(
         ctx->col1, (int)ctx->col1->tribe[claim].nation_id - (dos_buggy_behavior() ? 0 : 4), nation);
@@ -402,7 +402,7 @@ void ai_euro_5952_improve_best_plot(
     if (getenv("AI_5952_BUILD_TRACE")) fprintf(stderr, "[5952 improve] colony %d plot (%d,%d) nb %d (%d,%d) owner %d\n", col->id, tx, ty, d, tx + MAP_DIR8_DX[d], ty + MAP_DIR8_DY[d], owner);
     /* raw 94482 stores 06d2 into local_1b0, the colony-nation local the
      * later job election still reads (raw 94821, asm 5952:2047). DOS bug,
-     * reproduced for now (docs/tolerated_dos_bugs_ai.md TB-13). */
+     * reproduced in DOS mode only (docs/tolerated_dos_bugs_ai.md TB-13). */
     if (out_improvement_owner) {
       *out_improvement_owner = owner;
     }
@@ -634,7 +634,7 @@ static int ai_euro_5952_road_connect_0000(ColonizeTurnContext* ctx, ColonizeColo
     int cx = col->x;
     int cy = col->y;
     /* raw 93610-93621 — DOS only checks y when |dx| > 6, so the skip needs
-     * BOTH axes beyond 6. Transcribed as written. DOS bug, reproduced for now
+     * BOTH axes beyond 6. Transcribed as written. DOS bug, reproduced in DOS mode only
      * (docs/tolerated_dos_bugs_ai.md TB-15); `||` under !dos_buggy_behavior(). */
     if (dos_buggy_behavior() ? (abs(ox - cx) > 6 && abs(oy - cy) > 6)
                              : (abs(ox - cx) > 6 || abs(oy - cy) > 6)) {
@@ -1491,7 +1491,7 @@ uint8_t ai_euro_s_20e6_village_visited[AI_20E6_VILLAGE_MAX];
  * Gates:
  *   Scout (type 5): record +3 bit8 (tribe.state.scouted) clear, alarm
  *     quartile < 0x19 (quartile domain 0..3 — vacuously true, omitted; DOS
- *     bug, reproduced for now (docs/tolerated_dos_bugs_ai.md TB-26): the raw
+ *     bug, reproduced in DOS mode only (docs/tolerated_dos_bugs_ai.md TB-26): the raw
  *     alarm was meant, raw 89065), attitude[nation] == 0.
  *   Colonist: profession-bearing non-combat non-Scout/Missionary type whose
  *     profession byte is 0x1c (Free/none) or 0x19 (Indentured Servant),
@@ -1848,7 +1848,7 @@ static int ai_euro_land_explore_scan_target(
        * inside the helper for nibble-less generated maps). */
       int nib = ai_euro_20e6_site_nibble(ctx, tx, ty, nation_id);
       int score = nib * 4;
-      /* DOS bug, reproduced for now (docs/tolerated_dos_bugs_ai.md TB-9):
+      /* DOS bug, reproduced in DOS mode only (docs/tolerated_dos_bugs_ai.md TB-9):
        * raw 89123-89125 adds 0x10 when the scanned tile is the absolute tile
        * (0,0), never a land site; the port omits it. Fixed under
        * !dos_buggy_behavior(): the bonus goes to the unit's own tile. */
@@ -3464,7 +3464,7 @@ int ai_euro_20e6_hs_cadence_enabled(void) {
  * settlement only detects adjacent units in its own water/land domain.
  * Swapping these probes let coastal Braves interrupt a ship's arrived
  * order before the pathfinder could clear its facing (#530).
- * DOS bug, reproduced for now (docs/tolerated_dos_bugs_ai.md TB-27): a
+ * DOS bug, reproduced in DOS mode only (docs/tolerated_dos_bugs_ai.md TB-27): a
  * settlement neighbour overwrites the reference medium (`water`) for the
  * following tiles; 0b08 keeps the centre medium fixed. */
 int ai_euro_20e6_adjacent_foreign_09dc(const ColonizeTurnContext* ctx, int x, int y, int nation_id) {

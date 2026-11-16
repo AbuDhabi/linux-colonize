@@ -691,7 +691,7 @@ void turn_run_nation_ticks_immigration(ColonizeTurnContext* ctx, ColonizeTurnRes
        * 68585-68587: crosses and the pool slot are already spent when
        * FUN_1427_06b4 refuses at the unit limit; the immigrant, its sound
        * and its popup are lost (@TOOMANYUNITS instead).
-       * DOS bug, reproduced for now (docs/tolerated_dos_bugs.md TB-47). */
+       * DOS bug, reproduced in DOS mode only (docs/tolerated_dos_bugs.md TB-47). */
       bool created = true;
       /* The immigrant is the newest row, at the back (raw 68588, #1477). */
       const int row = ctx->europe->dock_count - 1;

@@ -1900,7 +1900,7 @@ static void ai_euro_5952_equip_arm(
   if (pick < 0 || !colonies_eject_allowed(ctx->colonies, c)) {
     return;
   }
-  /* DOS bug, reproduced for now (docs/tolerated_dos_bugs_ai.md TB-23). */
+  /* DOS bug, reproduced in DOS mode only (docs/tolerated_dos_bugs_ai.md TB-23). */
   /*
    * raw 94347-94350, DOS-LITERAL: the expert strip reads FUN_281f_0c9a with
    * iStack_18 still holding the LAST loop iteration's profession, not the

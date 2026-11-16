@@ -595,7 +595,7 @@ int europe_ai_colony_dump_sell_w(
        * trade.gold[] and — verbatim, asm 364b:17bd `ADD [BX+0xbc],AX` with
        * AX = the loop's CARGO INDEX, not the amount — the index to
        * trade.tons[]. Both decompiles and the listing agree. A DOS bug,
-       * reproduced for now (docs/tolerated_dos_bugs_ai.md TB-4).
+       * reproduced in DOS mode only (docs/tolerated_dos_bugs_ai.md TB-4).
        */
       /* TB-4: fixed under !dos_buggy_behavior(): 1dfa's booking stands alone. */
       if (dos_buggy_behavior()) {

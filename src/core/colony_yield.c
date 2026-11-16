@@ -225,7 +225,7 @@ static bool colony_yield_tile_prime_suppressed(const ColonizeWorldMap* map, int 
   return (map->layer2[(size_t)y * (size_t)map->width + (size_t)x] & MAP_LAYER2_SUPPRESS) != 0;
 }
 
-/* DOS bug, reproduced for now (docs/tolerated_dos_bugs.md TB-41). */
+/* DOS bug, reproduced in DOS mode only (docs/tolerated_dos_bugs.md TB-41). */
 static int colony_yield_fisherman_distance_mod(const ColonizeWorldMap* map, int x, int y) {
   const int count = colony_yield_ocean_neighbor_count(map, x, y);
   if (dos_buggy_behavior()) {
@@ -586,7 +586,7 @@ static int colony_yield_pipeline(
     }
     if (map_tile_has_river(map, x, y)) {
       add += improvement_step;
-      /* DOS bug, reproduced for now (docs/tolerated_dos_bugs.md TB-42). */
+      /* DOS bug, reproduced in DOS mode only (docs/tolerated_dos_bugs.md TB-42). */
       /* TB-42: DOS adds the major step only when the river is the sole
        * contributor; fixed under !dos_buggy_behavior(). */
       if (map_tile_has_major_river(map, x, y) &&

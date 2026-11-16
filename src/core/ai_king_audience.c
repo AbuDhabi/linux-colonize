@@ -162,7 +162,7 @@ static int ai_king_audience_roll(
    * NOT a per-nation SoL cache as this port assumed until 2026-09-06 (the
    * older king_ref.md "same value, no stored cache" note was wrong; the
    * live FUN_4962_0018 census now backs the real field).
-   * DOS bug, reproduced for now (docs/tolerated_dos_bugs.md TB-40).
+   * DOS bug, reproduced in DOS mode only (docs/tolerated_dos_bugs.md TB-40).
    * TB-40: DOS reads the human's SoL report for every nation; fixed under
    * !dos_buggy_behavior() to the audience nation's own SoL (nation+0x19).
    */
@@ -1128,7 +1128,7 @@ void ai_king_do_declare(ColonizeTurnContext* ctx, int human) {
    * bit wherever the human's is set. The REF inherits the rebels' map
    * (independence-seed-100 000003: all 3487 Dutch-seen tiles carry England's
    * bit, 800 before the declaration), which its pathfinder then reads.
-   * DOS bug, reproduced for now (docs/tolerated_dos_bugs.md TB-36).
+   * DOS bug, reproduced in DOS mode only (docs/tolerated_dos_bugs.md TB-36).
    */
   if (ctx->map && ctx->map->seen) {
     /* TB-36: DOS masks with ~crown INDEX; fixed under !dos_buggy_behavior()

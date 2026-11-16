@@ -236,7 +236,7 @@ static int units_best_defender_pick(
    * so the colony Artillery x2 fires for an English attacker and New
    * Amsterdam's damaged Artillery outranks two fortified Cont. Cav.).
    */
-  /* DOS bug, reproduced for now (docs/tolerated_dos_bugs.md TB-31).
+  /* DOS bug, reproduced in DOS mode only (docs/tolerated_dos_bugs.md TB-31).
    * TB-31: scored against the real attacker under !dos_buggy_behavior(). */
   int pick_foe_id = attacker_id;
   int pick_foe_nat = atk_nat;
@@ -1691,7 +1691,7 @@ void units_naval_sink_census(
   ColonizeCol1Stuff* st = &((ColonizeCol1Save*)col1)->stuff;
   const int n = lose->nation_id;
   st->ship_cargo_totals[n] = (uint8_t)(st->ship_cargo_totals[n] - lt->cargo);
-  /* DOS bug, reproduced for now (docs/tolerated_dos_bugs.md TB-34). */
+  /* DOS bug, reproduced in DOS mode only (docs/tolerated_dos_bugs.md TB-34). */
   st->unit_type_counts[n][lose->type_index]--;
   if (lt->attack != 0) {
     st->armed_ship_counts[n]--;
@@ -2936,7 +2936,7 @@ int units_conquest_treasure_gold(
     }
   } else if (tech == 1) {
     /* -0x62 set from Spanish but roll is always 04d4(0,2). */
-    /* DOS bug, reproduced for now (docs/tolerated_dos_bugs.md TB-33). */
+    /* DOS bug, reproduced in DOS mode only (docs/tolerated_dos_bugs.md TB-33). */
     /* TB-33: roll with the stored bound under !dos_buggy_behavior(). */
     const int tribute_roll =
       dos_rng_range(rng, 0, dos_buggy_behavior() ? 2 : (spanish ? 1 : 2));
@@ -3615,7 +3615,7 @@ static void units_lcr_roll_outcome(
       if (is_pioneer && census < 9 && dos_rng_range(rng, 1, 2) == 1) {
         raw = 6;
       }
-      /* DOS bug, reproduced for now (docs/tolerated_dos_bugs.md TB-35). */
+      /* DOS bug, reproduced in DOS mode only (docs/tolerated_dos_bugs.md TB-35). */
       /* TB-35: latch tested only while still case 5 under !dos_buggy_behavior(). */
       if ((dos_buggy_behavior() || raw == 5) && col1 && nation >= 0 && nation < 4 &&
           !col1->player[nation].lcr_case5_bonus_used) {

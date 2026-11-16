@@ -1483,7 +1483,7 @@ static void ai_contact_2820_sell_settle(
    * 0x3146` is its type byte — same record-stride evidence as port_bugs.md
    * #878(a) in ai_euro_land.c), not the cargo id. Ported using the same
    * pool-slot-index proxy as #878(a): `unit - ctx->units->units`.
-   * DOS bug, reproduced for now (docs/tolerated_dos_bugs_ai.md TB-28).
+   * DOS bug, reproduced in DOS mode only (docs/tolerated_dos_bugs_ai.md TB-28).
    */
   if (t) {
     /* TB-28: DOS keys on the unit pool slot; fixed (test the cargo) under !dos_buggy_behavior(). */
@@ -1527,7 +1527,7 @@ static void ai_contact_2820_gift_settle(
    * Same `param_2 == 0xf || param_2 == 8` unit-pool-slot test as the sell
    * arm above (2820 doc line 551); see that comment for the #878(a)
    * evidence for the slot-index proxy.
-   * DOS bug, reproduced for now (docs/tolerated_dos_bugs_ai.md TB-28).
+   * DOS bug, reproduced in DOS mode only (docs/tolerated_dos_bugs_ai.md TB-28).
    */
     t->sticky_trade_good = 0xff;
     /* TB-28: DOS keys on the unit pool slot; fixed (test the cargo) under !dos_buggy_behavior(). */
@@ -1605,7 +1605,7 @@ int ai_contact_2e92_candidates(const AiContact2820* s, int goods[3], int slots[3
  * round counter, which LAB_002bbc zeroes before every loop the AI can reach —
  * so it is `(int8_t)s->round` here, and `cand[]` itself is never indexed out
  * of bounds. The chosen index then selects from the FILTERED list
- * (`aiStack_d6[iStack_5e]`): a DOS bug, reproduced for now (port_bugs.md #796,
+ * (`aiStack_d6[iStack_5e]`): a DOS bug, reproduced in DOS mode only (port_bugs.md #796,
  * docs/tolerated_dos_bugs_ai.md TB-6).
  * Returns 0..2.
  */

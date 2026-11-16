@@ -26,7 +26,7 @@ overstates these sales roughly twofold. The port reads `trade.gold` /
 pick FUN_38fd_3dc8), so for AI nations the inflated values mostly just live in
 the save. `trade.tons2`, which the market price model sums, is booked once.
 
-**Port (reproduces it):** `ai_euro_20e6_delivery_sell_tail`
+**Port (DOS arm, under `dos_buggy_behavior()`):** `ai_euro_20e6_delivery_sell_tail`
 (`src/core/ai_euro_ship.c`).
 
 **Blocks removal:** the ledgers are saved, and the idle campaigns
@@ -47,7 +47,7 @@ treasury (+0x2a) is credited once, untaxed.
 spurious `c` per dump-sell and `trade.gold[c]` is roughly doubled. Same readers,
 so mostly invisible outside the save.
 
-**Port (reproduces it):** `europe_ai_colony_dump_sell_w`
+**Port (DOS arm, under `dos_buggy_behavior()`):** `europe_ai_colony_dump_sell_w`
 (`src/core/europe_market.c`).
 
 **Blocks removal:** as TB-3 (saved ledgers, byte-compared by `golden_idle_*`).
@@ -70,7 +70,7 @@ prices of Food and the top two unfiltered cargos, not on the prices of the
 goods actually offered; in practice an arbitrary pick, usually the first
 offer. Human players choose through @BUYWHICH and are not affected.
 
-**Port (reproduces it):** `ai_contact_2e92_ai_pick`
+**Port (DOS arm, under `dos_buggy_behavior()`):** `ai_contact_2e92_ai_pick`
 (`src/core/ai_contact_trade.c`). Came from port_bugs.md #796.
 
 **Blocks removal:** tried 2026-10-21 (score the offered goods' price bytes);
@@ -91,7 +91,7 @@ calls it holds the villages of whichever tribe ran last, not all villages.
 decide whether a continent is crowded. With most tribes' villages missing,
 the AI treats continents as emptier than they are when planning colonies.
 
-**Port (reproduces it):** `ai_contact_indian_census_4962_06b6`
+**Port (DOS arm, under `dos_buggy_behavior()`):** `ai_contact_indian_census_4962_06b6`
 (`src/core/ai_contact_demand.c`). Unit test `unit_ai_indian_census` pins the
 last-tribe-only result.
 
@@ -115,7 +115,7 @@ other tribes never breed through this step. Each add is clamped to the cap of
 the tribe whose turn it is, so a small tribe's turn can pull the last tribe's
 breeding value down to that small tribe's cap.
 
-**Port (reproduces it):** the §6c horse-breeding block after
+**Port (DOS arm, under `dos_buggy_behavior()`):** the §6c horse-breeding block after
 `ai_contact_indian_census_4962_06b6` in `src/core/ai_contact_demand.c`.
 Unit test `unit_ai_indian_census` pins it.
 
@@ -137,7 +137,7 @@ the loop became absolute.
 the unit stands on would score 0x10 higher, so the AI would found where it
 stands more often. Affects every Euro AI explorer scan.
 
-**Port (reproduces it):** `ai_euro_land_explore_scan_target`
+**Port (DOS arm, under `dos_buggy_behavior()`):** `ai_euro_land_explore_scan_target`
 (`src/core/ai_euro_land.c`, the `int score = nib * 4;` line) has no bonus.
 
 **Blocks removal:** tried 2026-10-22 (`score += 0x10` on the unit's own tile);
@@ -161,7 +161,7 @@ unrelated bytes (seen in DOSBox, America seed-100 56->57,
 [evidence](archive/tolerated_dos_bugs_evidence_2026-10-24.md#tb-10)). Hits AI job and
 plot placement (and the founder's seating) every tick near tribe land.
 
-**Port (reproduces it):** `ai_euro_28c8_score_full` in
+**Port (DOS arm, under `dos_buggy_behavior()`):** `ai_euro_28c8_score_full` in
 `src/core/ai_euro_colony_jobs.c` (`const int n = claim_tribe + 4;`), with the
 out-of-range reads emulated by `ai_euro_28c8_ds_byte_91cc`,
 `ai_euro_28c8_ds_byte_9184` and `ai_euro_5952_alarm_word`. The fix is to index
@@ -186,7 +186,7 @@ choice of plot the AI pioneers plow, clear or road changes every colony tick.
 (The sign of the later `local_132 -= (4 - alarm)` term, where an angrier tribe
 raises the plot score, is a separate question and is left alone.)
 
-**Port (reproduces it):** `ai_euro_5952_improve_best_plot` in `src/core/ai_euro_land.c`
+**Port (DOS arm, under `dos_buggy_behavior()`):** `ai_euro_5952_improve_best_plot` in `src/core/ai_euro_land.c`
 (`ai_euro_5952_alarm_word(ctx->col1, tribe[claim].nation_id, nation)`; the
 out-of-range read is emulated in `ai_euro_5952_alarm_word`). The fix is to pass
 `claim`, the tribe index (nation - 4).
@@ -241,7 +241,7 @@ scanned neighbour's owner, a tribe, or index -1, instead of its own nation.
 Seen in DOSBox (America seed-100 save 58,
 [evidence](archive/tolerated_dos_bugs_evidence_2026-10-24.md#tb-13)).
 
-**Port (reproduces it):** `ai_euro_5952_improve_best_plot` in
+**Port (DOS arm, under `dos_buggy_behavior()`):** `ai_euro_5952_improve_best_plot` in
 `src/core/ai_euro_land.c` writes the last neighbour's owner to
 `*out_improvement_owner`; `ai_euro_colony_tick_open` in
 `src/core/ai_euro_colony_jobs.c` stores it as `t->improvement_owner`, which the
@@ -270,7 +270,7 @@ tick and keeps its old jobs, and the tools/timer charge lands on the wrong
 colony. Seen in DOSBox (tr9 11->12, America2 resync 37,
 [evidence](archive/tolerated_dos_bugs_evidence_2026-10-24.md#tb-14)).
 
-**Port (reproduces it):** `ai_euro_5952_tools_supply_and_connect`
+**Port (DOS arm, under `dos_buggy_behavior()`):** `ai_euro_5952_tools_supply_and_connect`
 (`src/core/ai_euro_land.c`) returns the colony nearest the road
 (`g_units_pioneer_0614_colony`) as the payer; `ai_euro_colony_tick_open`
 (`src/core/ai_euro_colony_jobs.c`) makes it the tick's colony and sets
@@ -299,7 +299,7 @@ candidates than intended, so the AI RNG stream shifts on every
 `turn % 7 == 0` tick, and roads may be built between colonies far apart along
 one axis.
 
-**Port (reproduces it):** `ai_euro_5952_road_connect_0000` in
+**Port (DOS arm, under `dos_buggy_behavior()`):** `ai_euro_5952_road_connect_0000` in
 `src/core/ai_euro_land.c` (`abs(ox - cx) > 6 && abs(oy - cy) > 6`). The fix is
 `||`.
 
@@ -322,7 +322,7 @@ forest class) after a set-job, whatever the tile is.
 instead of the tile, so it hits non-forest plots and misses forest ones, which
 shifts which plot or job a colonist gets.
 
-**Port (reproduces it):** `ai_euro_28c8_score_full` in
+**Port (DOS arm, under `dos_buggy_behavior()`):** `ai_euro_28c8_score_full` in
 `src/core/ai_euro_colony_jobs.c` (`l32_forest` from `s_28c8_l32`, updated by
 `ai_euro_28c8_l32_mark` at each ledger refresh and set-job). Human
 auto-assign already scores the candidate tile's class. The fix is to use the
@@ -349,7 +349,7 @@ first job read in a tick sees an uninitialised stack word.
 on the last input job examined, not on what Preacher and Statesman can
 actually produce, so crosses and bells jobs are over- or under-valued.
 
-**Port (reproduces it):** `ai_euro_5952_indoor_pass`
+**Port (DOS arm, under `dos_buggy_behavior()`):** `ai_euro_5952_indoor_pass`
 (`src/core/ai_euro_colony_jobs.c`) keeps `avail` across jobs and slots and
 clamps `qty` unconditionally; the uninitialised first read is modelled as
 0x7fff (no clamp), a seed that still needs a live DOS capture (was
@@ -374,7 +374,7 @@ that job, the AI colony sets a random eligible colonist to an unrelated
 profession (0..5) instead of the craft expert. Saved profession bytes and the
 AI's later job choices follow.
 
-**Port (reproduces it):** `ai_euro_5952_specialist_arms` ARM 1
+**Port (DOS arm, under `dos_buggy_behavior()`):** `ai_euro_5952_specialist_arms` ARM 1
 (`src/core/ai_euro_colony_jobs.c`, `target = r;`). The fix is
 `target = k_5952_craft[r].job;`.
 
@@ -396,7 +396,7 @@ the charge a gain of 1 gold.
 (a colony's first seat is always charged the Farmer price). Later AI buying
 and the nation's gold in saves follow.
 
-**Port (reproduces it):** `ai_euro_5952_specialist_arms` ARM 2
+**Port (DOS arm, under `dos_buggy_behavior()`):** `ai_euro_5952_specialist_arms` ARM 2
 (`src/core/ai_euro_colony_jobs.c`, `ai_euro_5952_job_price(last)`). The fix is
 `ai_euro_5952_job_price(trained)`.
 
@@ -417,7 +417,7 @@ test then reads `DS:0x5237 + 24*0x0e` = DS:0x5387, the tutorial flag byte.
 10 gold) only if the tutorial flag is set; otherwise it is skipped. A tile
 with a unit works as intended. Observed in DOSBox (1592 Curacao).
 
-**Port (reproduces it):** `ai_euro_5952_seed_horses`
+**Port (DOS arm, under `dos_buggy_behavior()`):** `ai_euro_5952_seed_horses`
 (`src/core/ai_euro_colony_jobs.c`, the `else` branch of the head test). The fix
 is to skip the arm when the tile has no unit.
 
@@ -440,7 +440,7 @@ arm of the same function (raw 92721-92735) keeps both inside the gate.
 bank without paying. Unit types in saves, the unit-type counts that feed later
 hire decisions, and the bank counter follow.
 
-**Port (reproduces it):** `ai_euro_5d04_hire_tail_colony_demand`
+**Port (DOS arm, under `dos_buggy_behavior()`):** `ai_euro_5d04_hire_tail_colony_demand`
 (`src/core/ai_euro_europe.c`, after the `nat->gold >= horse_stock_cost` test).
 The fix moves `ai_euro_5d04_cb_set_unit_dispatch_byte(cand, 4)` and the
 bank update inside that test.
@@ -460,7 +460,7 @@ sits outside the affordability test.
 **Effect:** a nation with under 200 gold still gets 100 lumber for its colony
 for free, one turn in eight, until the colony holds 2 or more.
 
-**Port (reproduces it):** `ai_euro_5952_lumber_purchase`
+**Port (DOS arm, under `dos_buggy_behavior()`):** `ai_euro_5952_lumber_purchase`
 (`src/core/ai_euro_colony_jobs.c`). The fix credits the lumber only inside the
 `gold >= 200` branch.
 
@@ -484,7 +484,7 @@ keeps its profession.
 (or not) depending on the last colonist in the colony, not on itself. The
 ejected unit carries the wrong profession byte, which shows in saves.
 
-**Port (reproduces it):** `ai_euro_5952_equip_arm`
+**Port (DOS arm, under `dos_buggy_behavior()`):** `ai_euro_5952_equip_arm`
 (`src/core/ai_euro_goals.c`, `last_prof` before the strip). The fix tests the
 picked colonist's own profession.
 
@@ -508,7 +508,7 @@ or another 1 to `local_e` when it is 3 or more.
 Pioneer-work/clear flag bit 0x20 in its saved AI flag byte, and the later
 Pioneer and clearing choices follow.
 
-**Port (reproduces it):** `ai_euro_refresh_colony_ai_flags`
+**Port (DOS arm, under `dos_buggy_behavior()`):** `ai_euro_refresh_colony_ai_flags`
 (`src/core/ai_euro.c`, the land-branch `if` after the water block). The fix
 makes it an `else if`.
 
@@ -529,7 +529,7 @@ for the 100 units. After a small removal the gate passes lots the nation
 cannot pay for; after a large one it blocks lots the nation could pay for
 (seen in DOSBox 1591, [evidence](archive/tolerated_dos_bugs_evidence_2026-10-24.md#tb-25)).
 
-**Port (reproduces it):** the buy loop in the 5d04 departing-hull stage
+**Port (DOS arm, under `dos_buggy_behavior()`):** the buy loop in the 5d04 departing-hull stage
 (`src/core/ai_euro_europe.c`, `nat->gold >= price * units_last_hold_amount`,
 bug #1029). The fix is `price * 100`.
 
@@ -551,7 +551,7 @@ which is correct for a quartile.
 **Effect:** AI Scouts and Colonists walk into villages to speak with the chief
 or live among the natives however angry the tribe is with their nation.
 
-**Port (reproduces it):** `ai_euro_20e6_village_arm` (`src/core/ai_euro_land.c`)
+**Port (DOS arm, under `dos_buggy_behavior()`):** `ai_euro_20e6_village_arm` (`src/core/ai_euro_land.c`)
 omits the alarm gate as "vacuously true".
 
 **Blocks removal:** tried 2026-10-22 (gate both arms on the raw alarm); fails
@@ -576,7 +576,7 @@ and on whether an earlier neighbour was a settlement. The probe feeds the Brave
 destination score, the Euro 20e6 entry gate (`ai_euro_act.c`) and the Crown war
 gate (`ai_king_war.c`).
 
-**Port (reproduces it):** `ai_021a_adjacent_foreign` (`src/core/ai_native_021a.c`)
+**Port (DOS arm, under `dos_buggy_behavior()`):** `ai_021a_adjacent_foreign` (`src/core/ai_native_021a.c`)
 and `ai_euro_20e6_adjacent_foreign_09dc` (`src/core/ai_euro_land.c`). The fix is
 to keep the centre medium fixed.
 
@@ -601,7 +601,7 @@ willing to buy them again.
 pool slot 8 or 15, whatever the cargo; and it keeps refusing (@BADCARGO) a
 repeat sale of Muskets or Horses. Affects human and AI village trade.
 
-**Port (reproduces it):** `ai_contact_2820_sell_settle` and
+**Port (DOS arm, under `dos_buggy_behavior()`):** `ai_contact_2820_sell_settle` and
 `ai_contact_2820_gift_settle` (`src/core/ai_contact_trade.c`), with the unit's
 pool slot as the proxy (port_bugs.md #803). Pinned by
 `test_803_last_bought_keyed_on_unit_slot` in `unit_ai_contact_colony`.
@@ -635,7 +635,7 @@ colony-worked land is not excluded from the village's terrain scoring. This
 feeds village bids and asks, gift and beg triggers and the Live Among skill
 pick, for human and AI colonies.
 
-**Port (reproduces it):** `ai_contact_meet_economics_2154`, Phase 1
+**Port (DOS arm, under `dos_buggy_behavior()`):** `ai_contact_meet_economics_2154`, Phase 1
 (`src/core/ai_contact_demand.c`). Evidence: DOSBox independence 4->5.
 
 **Blocks removal:** tried 2026-10-22 (the fix); fails all six idle gates;
@@ -655,7 +655,7 @@ byte >= 8.
 of scoring all directions equally. Affects every Brave step choice, so the
 saved Brave positions and RNG stream.
 
-**Port (reproduces it):** the facing / road / river block of the Brave step
+**Port (DOS arm, under `dos_buggy_behavior()`):** the facing / road / river block of the Brave step
 scorer in `src/core/ai_native_021a.c` (`facing + 1` / `facing - 1` test, no
 `facing < 8` guard).
 
@@ -678,7 +678,7 @@ top unit belongs to the crown.
 garrison need depends on an unrelated stale index. The King's second and later
 invasion waves are sized by it.
 
-**Port (reproduces it):** `ai_king_0982_invasion` (`src/core/ai_king_ref.c`,
+**Port (DOS arm, under `dos_buggy_behavior()`):** `ai_king_0982_invasion` (`src/core/ai_king_ref.c`,
 `last_tile_head_id`).
 
 **Blocks removal:** tried 2026-10-22 (test the neighbour tile's own head unit);
@@ -698,7 +698,7 @@ for an empty tile.
 occupied. Cavalry and Artillery land alone on such an empty tile, and the
 two-sweep Regular seizure logic (smallest enemy stack first) skips it.
 
-**Port (reproduces it):** `ai_king_0982_land_troops` (`src/core/ai_king_ref.c`)
+**Port (DOS arm, under `dos_buggy_behavior()`):** `ai_king_0982_land_troops` (`src/core/ai_king_ref.c`)
 tests `units_tile_owner_nibble(...) == crown`.
 
 **Blocks removal:** tried 2026-10-22 (test for an active crown unit on the
@@ -715,7 +715,7 @@ autosave names the last AI hull that sailed (save header byte 0x22).
 **Effect:** stale RAM in the save; nothing in play reads it before the human's
 turn resets it.
 
-**Port (reproduces it):** `ai_euro_ship_enter_europe`
+**Port (DOS arm, under `dos_buggy_behavior()`):** `ai_euro_ship_enter_europe`
 (`src/core/ai_euro_ship.c`) sets `units.selected_id`.
 
 **Blocks removal:** tried 2026-10-23: without the write every idle golden and
@@ -740,7 +740,7 @@ nor war. If the attack takes the colony, TB-32's capture tail sets WAR only in
 the loser's row toward the captor, so the AI side still has no WAR. AI against
 AI behaves the same way.
 
-**Port (reproduces it):** `ai_diplo_465b_band_ctx` (`src/core/ai_diplo.c`, the
+**Port (DOS arm, under `dos_buggy_behavior()`):** `ai_diplo_465b_band_ctx` (`src/core/ai_diplo.c`, the
 AI-attacker @DECLAREWAR arm), called from `units_move_combat_pre`
 (`units_move.c`), `ai_euro_try_attack` (`ai_euro_land.c`) and `ai_contact.c`.
 The fix is `ai_diplo_or_both(col1, attacker, defender, AI_DIPLO_WAR)` in that
@@ -761,7 +761,7 @@ and `FUN_479b_0158` then wraps it to 236.. on the first improvement (#628, #636)
 **Effect:** AI Pioneers bought this way start with 0 (or residue) tools although
 the nation paid for 100.
 
-**Port (reproduces it):** `ai_euro_5d04_cb_set_unit_dispatch_byte`
+**Port (DOS arm, under `dos_buggy_behavior()`):** `ai_euro_5d04_cb_set_unit_dispatch_byte`
 (`src/core/ai_euro_europe.c`), value 2 arm. The fix sets `tools = 100`.
 Test: `unit_ai_euro_5d04_hire` `pioneer_training_tools`.
 
@@ -783,7 +783,7 @@ all military units adjacent to" its colonies when none are there (playtest
 pt2, Spain at pop 2). The AI's own units next to its own colonies also count
 toward `border_value`.
 
-**Port (reproduces it):** `ai_diplo_153e_worthiness_score` and
+**Port (DOS arm, under `dos_buggy_behavior()`):** `ai_diplo_153e_worthiness_score` and
 `ai_talk_stage_sieges` in `src/core/ai_diplo.c`. The fix probes an AI colony
 for the human's units, so `own_border` is the human force next to the AI's
 colonies, and asks SIEGES only when `own_border > 0`.
@@ -811,7 +811,7 @@ Whether the DOS pathfinder reaches the same pair of routes is not checked;
 the port only shows it with the TB-1 link-flood fix on (opencol), not in
 ai_replay's DOS-buggy mode.
 
-**Port (reproduces it):** `ai_euro_20e6_3fa6_sail_home`
+**Port (DOS arm, under `dos_buggy_behavior()`):** `ai_euro_20e6_3fa6_sail_home`
 (`src/core/ai_euro_land.c`). The fix keeps the hull's stored goto tile while
 it is an in-map High Seas tile the hull has not reached, and runs 015e only
 otherwise. Test: `unit_ai_euro_expand_europe` (Privateer loot sail case,

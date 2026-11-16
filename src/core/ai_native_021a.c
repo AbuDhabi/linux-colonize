@@ -150,7 +150,7 @@ static int ai_021a_type_mounted(int t) {
  * the sea next to a village counts: DOSBox tr10 turn 276, crown Man-O-War at
  * (42,52) beside the village at (41,53)); otherwise a settlement neighbour's
  * medium replaces the sticky centre medium for the following tiles (DOS bug,
- * reproduced for now (docs/tolerated_dos_bugs_ai.md TB-27): 0b08 keeps the
+ * reproduced in DOS mode only (docs/tolerated_dos_bugs_ai.md TB-27): 0b08 keeps the
  * centre medium fixed). Both leave the nation in DS:0x8cfa.
  */
 static int s_021a_adj_fx = -1;
@@ -641,7 +641,7 @@ COLONIZE_INTERNAL Ai021aDirStatus ai_021a_dir_terrain(struct ai_021a_ctx* c) {
       score += 4;
     } else if ((facing < 8 || dos_buggy_behavior()) &&
                (((facing + 1) & 7) == d || ((facing - 1) & 7) == d)) {
-      /* DOS bug, reproduced for now (docs/tolerated_dos_bugs_ai.md TB-30);
+      /* DOS bug, reproduced in DOS mode only (docs/tolerated_dos_bugs_ai.md TB-30);
        * facing >= 8 (stayed) skips the +3 under !dos_buggy_behavior(). */
       score += 3;
     } else if (((facing ^ 4) & 0xff) == d) {

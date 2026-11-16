@@ -2268,7 +2268,7 @@ static bool units_flood_cand_ok(
  * expanded, and popping the mover's tile lowers DS:0xa370 to its cost. The
  * grid is rebuilt only when the key moved or grid[mover] == 0 (port_bugs.md #706);
  * otherwise DS:0xa370 stays 0. The reuse ignores the mover's type, owner, domain
- * and low-move: DOS bug, reproduced for now (docs/tolerated_dos_bugs.md TB-44).
+ * and low-move: DOS bug, reproduced in DOS mode only (docs/tolerated_dos_bugs.md TB-44).
  * The neighbour pick runs when DS:0xa370 < cap:
  * cand cost (+8 term) must be non-zero and below grid[mover]; score adds
  * the mover->cand edge; lowest score wins, a tie only on a strictly smaller
@@ -2967,7 +2967,7 @@ static bool units_greedy_next_step(
  * sample points succeeds (FUN_67f4_0088 raw 105074: FUN_6662_0906 with
  * cap 9 under DS:0x1dd4 = 1, gate 0 < cost < 8; units_coarse_connected).
  * The shared 00f2 grid reuse drops some NE/SW links, as in DOS: a DOS bug
- * reproduced for now, docs/tolerated_dos_bugs.md TB-1.
+ * reproduced in DOS mode only, docs/tolerated_dos_bugs.md TB-1.
  *
  *   FUN_6662_09ae  snap (x,y) to a walkable cell: its own cell when the
  *                  probe and the 0906 relay (cap 0x12) pass, else the

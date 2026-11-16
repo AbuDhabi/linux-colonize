@@ -250,7 +250,7 @@ static void ai_euro_28c8_env(
  * FUN_281f_0c04 ledger refresh, 0x12 after a FUN_281f_0c36 set-job (the 178f
  * unseat, the indoor arm's trial loop). s_28c8_l32 carries it while the tick
  * runs; AI_28C8_L32_OFF elsewhere (other callers keep the candidate-terrain
- * rule below). DOS bug, reproduced for now
+ * rule below). DOS bug, reproduced in DOS mode only
  * (docs/tolerated_dos_bugs_ai.md TB-16).
  */
 #define AI_28C8_L32_OFF (-1)
@@ -409,7 +409,7 @@ static int ai_euro_28c8_score_full(
        * 0 — so for the Fisherman (job 8) local_24 stays 8 and every later use
        * (warehouse clamp `colony+0x9a+8*2`, the DS -0x71ce / -0x71a6 rows, the
        * `local_24 != 5` lumber test) reads cargo slot 8 = HORSES. A DOS bug,
-       * reproduced for now (port_bugs.md #582, docs/tolerated_dos_bugs.md TB-5).
+       * reproduced in DOS mode only (port_bugs.md #582, docs/tolerated_dos_bugs.md TB-5).
        * Jobs 0..7 map to cargo 0..7 identically.
        * TB-5: the Fisherman reads Food under !dos_buggy_behavior(). */
       const int cargo = dos_buggy_behavior() ? job : colony_yield_job_cargo(job);
@@ -540,7 +540,7 @@ static int ai_euro_28c8_score_full(
              * America seed-100 56 -> 57: New Amsterdam's claim byte 11 reads
              * colony 1's own +0x6c word (0), so the reluctance clears the
              * multiplier and the vet goes fishing instead of logging tribe land.
-             * DOS bug, reproduced for now (docs/tolerated_dos_bugs_ai.md TB-10);
+             * DOS bug, reproduced in DOS mode only (docs/tolerated_dos_bugs_ai.md TB-10);
              * indexed by the tribe (claim_tribe) under !dos_buggy_behavior().
              */
             const int n = dos_buggy_behavior() ? claim_tribe + 4 : claim_tribe;
@@ -1463,8 +1463,8 @@ static void ai_euro_5952_indoor_pass(
    * read in a colony is an uninitialised stack word. That carry-over is
    * DOS-LITERAL and kept; the one thing the port cannot reproduce is the
    * garbage seed, which reads as "no clamp" here (the single modelled unknown
-   * of this pass, with DS:0x84b4's first eight bytes). DOS bug, reproduced
-   * for now (docs/tolerated_dos_bugs_ai.md TB-17).
+   * of this pass, with DS:0x84b4's first eight bytes). DOS bug, reproduced in DOS mode
+   * only (docs/tolerated_dos_bugs_ai.md TB-17).
    */
   int avail = 0x7fff;
 
@@ -1696,7 +1696,7 @@ COLONIZE_INTERNAL void ai_euro_5952_lumber_purchase(
   if (col->stock[COLONIZE_CARGO_LUMBER] >= 2 || (turn & 7) != 0) {
     return;
   }
-  /* DOS bug, reproduced for now (docs/tolerated_dos_bugs_ai.md TB-22);
+  /* DOS bug, reproduced in DOS mode only (docs/tolerated_dos_bugs_ai.md TB-22);
    * credited only when paid under !dos_buggy_behavior(). */
   if (dos_buggy_behavior()) {
     col->stock[COLONIZE_CARGO_LUMBER] += 100; /* raw 94683-94684 */
@@ -3086,7 +3086,7 @@ COLONIZE_INTERNAL int ai_euro_5952_train_pick(
  *     input cargo is actually being produced, and whose @JOB the colony has
  *     nobody of — and the override writes the ROW INDEX, not the row's @JOB:
  *     `MOV AX,[BP+0xff56]; MOV [BP+0xff78],AX` (asm 0x2830). That is a DOS
- *     bug and it is kept: a colony that lacks a Gunsmith elects @JOB 0
+ *     bug, kept in DOS mode only (TB-18): a colony that lacks a Gunsmith elects @JOB 0
  *     (Expert Farmer), one that lacks a Blacksmith elects @JOB 1, and so on
  *     through row 5 -> @JOB 5 (Expert Lumberjack).
  *   The candidate list is every colonist who is NOT an expert, or is an
@@ -3205,7 +3205,7 @@ COLONIZE_INTERNAL void ai_euro_5952_specialist_arms(
       const int need = k_5952_craft[r].root == 0x03 ? 1 : 2;
       if (owned >= need && gross[k_5952_craft[r].cargo] != 0 &&
           census[k_5952_craft[r].job] == 0) {
-        /* DOS bug, reproduced for now (docs/tolerated_dos_bugs_ai.md TB-18). */
+        /* DOS bug, reproduced in DOS mode only (docs/tolerated_dos_bugs_ai.md TB-18). */
         /* DOS-LITERAL: the ROW INDEX, not k_5952_craft[r].job; the job
          * under !dos_buggy_behavior(). */
         target = dos_buggy_behavior() ? r : k_5952_craft[r].job;
@@ -3300,7 +3300,7 @@ COLONIZE_INTERNAL void ai_euro_5952_specialist_arms(
   }
   col->colonists[last].profession = trained;
   /* DOS-LITERAL: the price row is the colonist SLOT (asm 0x29d4). */
-  /* DOS bug, reproduced for now (docs/tolerated_dos_bugs_ai.md TB-19). */
+  /* DOS bug, reproduced in DOS mode only (docs/tolerated_dos_bugs_ai.md TB-19). */
   /* TB-19: the trained job's price under !dos_buggy_behavior(). */
   const int charged = ai_euro_5952_job_price(dos_buggy_behavior() ? last : trained);
   if (charged != INT_MIN) {
@@ -3326,7 +3326,7 @@ COLONIZE_INTERNAL void ai_euro_5952_seed_horses(
     const ColonizeUnitType* type = units_type(ctx->units, head->type_index);
     capacity = type ? type->cargo : 0;
   } else if (dos_buggy_behavior()) {
-    /* DOS bug, reproduced for now (docs/tolerated_dos_bugs_ai.md TB-20);
+    /* DOS bug, reproduced in DOS mode only (docs/tolerated_dos_bugs_ai.md TB-20);
      * an empty tile skips the arm (capacity 0) under !dos_buggy_behavior(). */
     /* DOS does not guard the 07e0 result -1. Its type address is
      * 3146 - 1c = 312a = terrain row 27's 2f7a labor byte (24).
@@ -3441,7 +3441,7 @@ COLONIZE_INTERNAL void ai_euro_colony_tick_open(AiEuroColonyTick* t) {
    * so DOS runs this colony's remaining arms (improve, idle sweep, job
    * passes) on THAT record (tr9 11 -> 12: Bahia's job passes land on St.
    * Louis, Bahia keeps its statesmen, and the seat beside tribe 29's village
-   * charges 15 alarm). DOS bug, reproduced for now
+   * charges 15 alarm). DOS bug, reproduced in DOS mode only
    * (docs/tolerated_dos_bugs_ai.md TB-14). */
   {
     ColonizeColony* const ticking = col;
