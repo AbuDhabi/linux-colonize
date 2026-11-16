@@ -668,3 +668,23 @@ a colony of that peer nation (`units_flood_in_colony_radius`).
 **Blocks removal:** not tried ungated; the AI reject arm feeds every Euro AI
 goto, so goldens and idle campaigns would need re-blessing.
 **Status:** tolerated (user, 2026-11-12). Fixed in opencol 2026-11-12, gated on `!dos_buggy_behavior()`; test binaries still reproduce DOS.
+
+### TB-63 — "Break Treaty" sticks when the tired attack is called off
+**DOS:** FUN_465b_0000 runs the Break Treaty band (raw 75567-75595: @CANCELPEACE,
+WAR into the peer's row, 0x40 cleared both ways) before it calls the combat
+body FUN_5fef_1b0e, which only then asks @HALF (0x1c06) when the attacker has
+fewer than 3 thirds left (raw ~100342). "Then let them rest" returns without a
+fight, but the treaty is already gone.
+
+**Effect:** the player breaks a treaty, declines the weak attack, and is at war
+anyway.
+
+**Port (DOS arm, under `dos_buggy_behavior()`):** the AI_POPUP_TAG_CONTACT_EURO_WAR
+answer in `src/core/game_dialogs.c` (band runs at once). The fix asks @HALF
+first and holds the break in `treaty_break_unit` / `_nation` / `_payload`; the
+AI_POPUP_TAG_COMBAT_HALF "attack" answer runs the band, any other answer drops
+it. Test: `unit_stage_seams` `test_break_treaty_waits_for_half`. Native
+@WHACKINDIANS is untouched: its answer only latches "don't ask again".
+
+**Blocks removal:** not tried.
+**Status:** tolerated (user, 2026-11-16). Fixed in opencol 2026-11-16, gated on `!dos_buggy_behavior()`; test binaries still reproduce DOS.

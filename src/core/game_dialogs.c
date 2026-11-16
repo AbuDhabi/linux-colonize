@@ -3502,10 +3502,21 @@ static bool game_apply_popup_contact(ColonizeGameState* game) {
         return true;
       }
       if (u && u->nation_id >= 0 && u->nation_id <= 3) {
-        /* Break Treaty: the 465b band (raw 75567-75595) shows @CANCELPEACE,
-         * sets WAR in the peer's row, clears 0x40 both ways (FUN_281f_0a10). */
         ColonizeTurnContext ctx;
         game_fill_turn_context(game, &ctx);
+        if (!dos_buggy_behavior() &&
+            ai_contact_try_tired_attack_confirm(&ctx, unit_id, dest_x, dest_y)) {
+          /* TB-63: DOS runs the band below before 1b0e's @HALF, so "Then let
+           * them rest" still broke the treaty. Fixed: the break waits for the
+           * @HALF answer (AI_POPUP_TAG_COMBAT_HALF). */
+          game->treaty_break_unit = unit_id;
+          game->treaty_break_nation = target_nation;
+          game->treaty_break_payload = dest_x | (dest_y << 8);
+          ai_popup_consume_result(&game->ai_popups);
+          return true;
+        }
+        /* Break Treaty: the 465b band (raw 75567-75595) shows @CANCELPEACE,
+         * sets WAR in the peer's row, clears 0x40 both ways (FUN_281f_0a10). */
         if (ai_diplo_465b_band_ctx(&ctx, u->nation_id, target_nation)) {
           sound_set_bgm(4); /* FUN_281f_04ac(4) */
         }
@@ -3773,7 +3784,20 @@ static bool game_apply_popup_combat_and_gifts(ColonizeGameState* game) {
     const int dest_x = game->ai_popups.result_payload & 0xff;
     const int dest_y = (game->ai_popups.result_payload >> 8) & 0xff;
     ColonizeUnit* u = units_get(&game->units, unit_id);
+    /* TB-63: a "Break Treaty" held for this @HALF answer. */
+    const bool treaty_break = game->treaty_break_unit == unit_id &&
+                              game->treaty_break_payload == game->ai_popups.result_payload;
+    game->treaty_break_unit = -1;
     if (!game->ai_popups.result_cancelled && game->ai_popups.result_choice_id == 1 && u) {
+      if (treaty_break && u->nation_id >= 0 && u->nation_id <= 3) {
+        ColonizeTurnContext ctx;
+        game_fill_turn_context(game, &ctx);
+        if (ai_diplo_465b_band_ctx(&ctx, u->nation_id, game->treaty_break_nation)) {
+          sound_set_bgm(4); /* FUN_281f_04ac(4) */
+        }
+        game->colony_attack_ok_unit = unit_id;
+        game->colony_attack_ok_payload = game->ai_popups.result_payload;
+      }
       game->units.selected_id = unit_id;
       game->tired_ok_unit = unit_id;
       game->tired_ok_payload = game->ai_popups.result_payload;

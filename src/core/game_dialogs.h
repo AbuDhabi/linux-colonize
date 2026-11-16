@@ -204,6 +204,14 @@ struct ColonizeGameState {
    */
   int tired_ok_unit;
   int tired_ok_payload;
+  /*
+   * TB-63 fix: "Break Treaty" answered for an attacker with < 3 thirds left
+   * waits here for the @HALF answer; "Then let them rest" keeps the treaty.
+   * Same unit/payload shape as tired_ok; unit -1 = none.
+   */
+  int treaty_break_unit;
+  int treaty_break_nation;
+  int treaty_break_payload;
   /* port_bugs.md #437: same one-shot latch shape for the attack-a-colony confirm. */
   int colony_attack_ok_unit;
   int colony_attack_ok_payload;

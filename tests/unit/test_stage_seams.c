@@ -6965,7 +6965,54 @@ static int test_fortify_break_treaty_answer(void) {
   return rc;
 }
 
+/* TB-63 fix: "Break Treaty" for an attacker with < 3 thirds waits for @HALF;
+ * "Then let them rest" keeps the treaty. */
+static int test_break_treaty_waits_for_half(void) {
+  static ColonizeGameState game;
+  int uid = -1;
+  int rc = 0;
+  dos_buggy_behavior_set(false);
+  if (!treaty_fixture(&game, &uid)) {
+    rc = fail("treaty fixture");
+  } else {
+    game.treaty_break_unit = -1;
+    game.tired_ok_unit = -1;
+    units_get(&game.units, uid)->moves = 1;
+    ai_diplo_write(&game.col1, 0, 1, AI_DIPLO_MET | AI_DIPLO_PEACE);
+    ai_diplo_write(&game.col1, 1, 0, AI_DIPLO_MET | AI_DIPLO_PEACE);
+    game.ai_popups.has_result = true;
+    game.ai_popups.result_tag = AI_POPUP_TAG_CONTACT_EURO_WAR;
+    game.ai_popups.result_cancelled = false;
+    game.ai_popups.result_choice_id = 1;
+    game.ai_popups.result_nation_a = uid;
+    game.ai_popups.result_nation_b = 1;
+    game.ai_popups.result_payload = 4 | (3 << 8);
+    game_apply_ai_popup_result(&game);
+    if (game.ai_popups.queue_count != 1 ||
+        game.ai_popups.queue[0].tag != AI_POPUP_TAG_COMBAT_HALF ||
+        ai_diplo_read(&game.col1, 0, 1) != (AI_DIPLO_MET | AI_DIPLO_PEACE)) {
+      rc = fail("Break Treaty with 1/3 MP asks @HALF before touching the treaty");
+    }
+    game.ai_popups.queue_count = 0;
+    game.ai_popups.has_result = true;
+    game.ai_popups.result_tag = AI_POPUP_TAG_COMBAT_HALF;
+    game.ai_popups.result_choice_id = 0;
+    game.ai_popups.result_nation_a = uid;
+    game.ai_popups.result_payload = 4 | (3 << 8);
+    game_apply_ai_popup_result(&game);
+    if (ai_diplo_read(&game.col1, 0, 1) != (AI_DIPLO_MET | AI_DIPLO_PEACE) ||
+        ai_diplo_read(&game.col1, 1, 0) != (AI_DIPLO_MET | AI_DIPLO_PEACE) ||
+        game.treaty_break_unit != -1) {
+      rc = fail("Then let them rest keeps the treaty");
+    }
+  }
+  dos_buggy_behavior_set(true);
+  edge_scroll_free(&game);
+  return rc;
+}
+
 static const TestCase k_cases[] = {
+    {"test_break_treaty_waits_for_half", test_break_treaty_waits_for_half},
     {"test_human_peace_war_asks_havetreaty", test_human_peace_war_asks_havetreaty},
     {"test_fortify_break_treaty_answer", test_fortify_break_treaty_answer},
     {"test_parked_eot_dropped_on_load_and_title", test_parked_eot_dropped_on_load_and_title},

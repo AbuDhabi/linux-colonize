@@ -1678,6 +1678,7 @@ static void game_create_reset_fields(ColonizeGameState* game, const ColonizeGame
   game->ff_pedia_after_report = -1;
   game->found_open_colony_id = -1;
   game->tired_ok_unit = -1;
+  game->treaty_break_unit = -1;
   game->foreign_trade_unit = -1;
   game->view_pan_hold_unit = -1;
   game->turn_number = 1;
