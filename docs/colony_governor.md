@@ -67,7 +67,10 @@ cotton or fur plot whose expert the nation lacks (`turn_produce_discover`'s
 on-the-job roll, census by `turn_tally_professions_w`) scores a bonus for
 staying. Teaching: a teacher scores per turn for each teacher up to the
 number of free colonists, servants and criminals in the colony, more for each
-non-expert working his expert job; a seated teacher is not moved while there
+non-expert working his expert job, and more the dearer his expert is on
+the Europe Train list (@JOB column 3, `colonies_job_train_cost`; untrainable
+rows count 0, and the widest price gap is worth less than one such
+non-expert), so with no real need the school takes the dearest expert to spare; a seated teacher is not moved while there
 is a student, and is free to work once none is left. Unseated workers
 (`idle_job1`) are not moved; no one enters or leaves the colony. The result is
 committed through `colonies_assign_field_w` / `colonies_assign_workplace`, the

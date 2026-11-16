@@ -53,6 +53,12 @@
  * working the teacher's own expert job. */
 #define GOV_TEACH_VALUE 4.0
 #define GOV_TEACH_NEED 2.0
+/* Plus the teacher's Europe Train price (@JOB column 3) over this, so with
+ * nothing better to teach the school seats the dearest expert on offer
+ * (Veteran Soldier 2000 -> +1.67, Expert Ore Miner 600 -> +0.5; untrainable
+ * rows price 0). The widest gap stays under one GOV_TEACH_NEED, so a teacher
+ * whose job a non-expert already works wins over a dearer one. */
+#define GOV_TEACH_PRICE 1200.0
 /* Bells past a 100% colony's upkeep: DOS clamps the rebel dividend to the
  * divisor each turn (FUN_364b_0688, viceroy_unpacked.c:57408), so they only
  * feed the nation's Congress / intervention pool. */
@@ -165,7 +171,7 @@ static double gov_teach_value(const GovCtx* g, const ColonizeColony* c) {
       continue;
     }
     ++taught;
-    s += GOV_TEACH_VALUE;
+    s += GOV_TEACH_VALUE + colonies_job_train_cost(t->profession) / GOV_TEACH_PRICE;
     for (int j = 0; j < c->colonist_count; ++j) {
       const ColonizeColonist* p = &c->colonists[j];
       const int job = p->building_type >= 0 ? colonies_building_occupation(pool, p->building_type)

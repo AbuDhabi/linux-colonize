@@ -415,6 +415,17 @@ int colonies_job_school_tier(int profession) {
   return (tier >= 1 && tier <= 4) ? tier : 0;
 }
 
+/* NAMES.TXT @JOB column 3: the Europe Train price (europe_load_tables reads
+ * the same column for the Train list); 0 when the row is not trainable. */
+int colonies_job_train_cost(int profession) {
+  if (profession < 0 || profession >= 28) {
+    return 0;
+  }
+  const char* field = reports_names_field("JOB", profession, 3);
+  const int cost = field ? atoi(field) : 0;
+  return cost > 0 ? cost : 0;
+}
+
 int colonies_school_building_tier(
   const ColonizeColonyPool* pool,
   int building_type

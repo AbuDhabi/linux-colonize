@@ -553,6 +553,8 @@ const char* colonies_profession_name(int profession);
 
 /* NAMES @JOB school field (1 Schoolhouse … 3 University); 0 if unknown. */
 int colonies_job_school_tier(int profession);
+/* NAMES @JOB Europe Train price; 0 if not trainable or unknown. */
+int colonies_job_train_cost(int profession);
 
 /* School building tier 1/2/3, or 0 if not a school. */
 int colonies_school_building_tier(

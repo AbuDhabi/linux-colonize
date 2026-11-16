@@ -358,6 +358,38 @@ static int case_teacher_sticky(void) {
   return rc;
 }
 
+/* One student, two experts of no use here: the dearer one on the Europe
+ * Train list (Veteran Soldier 2000 over Master Gunsmith 850) teaches,
+ * whichever colonist slot he is in. */
+static int case_teacher_dearest(void) {
+  int rc = 0;
+  for (int order = 0; order < 2; ++order) {
+    GovFx f;
+    if (!gov_fx_open(&f)) {
+      return 1;
+    }
+    ColonizeColony* c = f.col;
+    const int college = colonies_building_row(&f.pool, COLONY_BUILDING_COLLEGE);
+    c->has_building[colonies_building_row(&f.pool, COLONY_BUILDING_SCHOOLHOUSE)] = true;
+    c->has_building[college] = true;
+    const int soldier = order ? 1 : 2;
+    c->colonists[3 - soldier].profession = COLONIZE_PROF_GUNSMITH;
+    c->colonists[soldier].profession = UNITS_JOB_SOLDIER;
+    c->colonists[3].profession = COLONIZE_JOB_FARMER;
+    c->stock[COLONIZE_CARGO_FOOD] = 150; /* covers the deficit, so teaching pays */
+    c->governor = COLONY_GOVERNOR_CASH;
+    colony_governor_run_w(&f.w, c->id);
+    if (c->colonists[soldier].building_type != college ||
+        c->colonists[3 - soldier].building_type == college) {
+      fprintf(stderr, "order %d: soldier seat %d gunsmith seat %d\n", order,
+              c->colonists[soldier].building_type, c->colonists[3 - soldier].building_type);
+      rc = 1;
+    }
+    gov_fx_close(&f);
+  }
+  return rc;
+}
+
 /* Industry with ore and an Armory makes tools and muskets both. */
 static int case_industry_tools_and_muskets(void) {
   GovFx f;
@@ -646,6 +678,7 @@ static const TestCase k_cases[] = {
   {"ai_seat_bank_full", case_ai_seat_bank_full},
   {"temporary_food_shortfall", case_temporary_food_shortfall},
   {"teacher_sticky", case_teacher_sticky},
+  {"teacher_dearest", case_teacher_dearest},
   {"feeds_colonists", case_feeds_colonists},
   {"priorities_differ", case_priorities_differ},
   {"project_only_when_unbuildable", case_project_only_when_unbuildable},
