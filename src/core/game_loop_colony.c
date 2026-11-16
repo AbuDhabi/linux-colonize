@@ -247,8 +247,9 @@ static void game_auto_assign_new_colonist(ColonizeGameState* game, int colony_id
 /*
  * ORDERS Join Colony — DOS-LITERAL FUN_2b5a Build/Join handler join branch,
  * asm 0x227b2-0x227d9 (port_bugs.md #688 / #689 / #690):
- *   - @NOCOLONIESEITHER (asm 0x2256d) gates the SHARED handler, so it blocks
- *     Join exactly as it blocks Build;
+ *   - @NOCOLONIESEITHER (asm 0x2256d) gates the SHARED handler, so DOS blocks
+ *     Join exactly as it blocks Build. Not reproduced (dos_bugs.md DB-111):
+ *     Join stays open after the declaration, Build alone gets the popup;
  *   - `cmp [colony*0xca + 0x5d60],[0x5394]` — a colony owned by anyone else
  *     is a silent no-op, NOT "open the colony screen";
  *   - FUN_291f_01ec (the admit) returning nonzero is a silent bail too; the
@@ -262,9 +263,6 @@ static void game_auto_assign_new_colonist(ColonizeGameState* game, int colony_id
  */
 void game_join_colony_order(ColonizeGameState* game) {
   if (!game || !game->units_ok || !game->colonies_ok) {
-    return;
-  }
-  if (game_woi_blocks_colony_orders(game)) {
     return;
   }
   const int sid = game->units.selected_id;

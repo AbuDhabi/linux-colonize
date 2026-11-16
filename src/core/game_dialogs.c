@@ -563,7 +563,8 @@ bool game_pioneer_land_gate(ColonizeGameState* game, GameIndianLandKind kind) {
  * DOS-LITERAL FUN_2b5a Build/Join handler, asm 0x2256D-0x22583 (port_bugs.md
  * #688): `test byte [0x5382],0x1` sits at the very top of the SHARED handler,
  * before the colony-on-tile split, and raises @NOCOLONIESEITHER as a real
- * popup (FUN_281f_0652(0x98a, MSS 1)) — so it blocks Join as well as Build.
+ * popup (FUN_281f_0652(0x98a, MSS 1)) — so DOS blocks Join as well as Build.
+ * The port gates Build only (dos_bugs.md DB-111).
  * Returns true when the gate fired.
  */
 bool game_woi_blocks_colony_orders(ColonizeGameState* game) {

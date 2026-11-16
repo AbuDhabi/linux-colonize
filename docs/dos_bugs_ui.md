@@ -313,3 +313,16 @@ prints them at the report cursor over whatever screen is up.
 are drawn by `reports_render_score` alone, on the F10 plate. No test: the compute path has
 no draw target to check.
 **Status:** done (user 2026-11-11; port already differed).
+
+### DB-111 — Join Colony refused after the declaration of independence
+**DOS:** the shared Build/Join handler `FUN_2b5a` tests `[0x5382] & 1` at its very top
+(asm 0x2256D-0x22583), before it looks for a colony on the tile, and raises
+@NOCOLONIESEITHER ("New colonies cannot be founded...") for **B** on an own colony tile
+too. A colonist can still enter the colony through its screen, so the refusal only blocks
+the shortcut, with a message that does not fit the order.
+
+**Port:** `game_join_colony_order` (`src/core/game_loop_colony.c`) skips
+`game_woi_blocks_colony_orders`; Build keeps the popup (port_bugs.md #688). Ungated: Join
+is a human order only, no AI or golden path. Test: `unit_stage_seams`
+`test_join_colony_recomputes_plots` (runs with the WoI flag set).
+**Status:** done (user report, 2026-11-16).

@@ -690,7 +690,7 @@ void game_colony_load_best_cargo(ColonizeGameState* game, int unit_id, int colon
 void game_colony_unload_all_cargo(ColonizeGameState* game, int unit_id);
 bool game_do_found_colony_at_unit(ColonizeGameState* game, int uid);
 /* @NOCOLONIESEITHER at the top of the shared Build/Join handler (port_bugs.md
- * #688). True = the gate fired and the order is dropped. */
+ * #688; Build only in the port, dos_bugs.md DB-111). True = the gate fired and the order is dropped. */
 bool game_woi_blocks_colony_orders(ColonizeGameState* game);
 void game_enqueue_yes_no(
   ColonizeGameState* game,

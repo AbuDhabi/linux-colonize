@@ -3338,7 +3338,8 @@ static int test_colony_rum_distiller_refusal_popup(void) {
 /*
  * ORDERS Join Colony = FUN_291f_01ec -> FUN_364b_1aec (raw 57955-57966): the
  * claim stamp and the FUN_15eb_3930 plot recompute run before the joiner is
- * seated, so a worker whose plot an enemy now holds is moved off it.
+ * seated, so a worker whose plot an enemy now holds is moved off it. Runs
+ * after the declaration: DOS refuses Join there, the port does not (DB-111).
  */
 static int test_join_colony_recomputes_plots(void) {
   static ColonizeGameState game;
@@ -3395,6 +3396,8 @@ static int test_join_colony_recomputes_plots(void) {
   game.world_map.layer3[9 * 24 + 10] = (uint8_t)((1u << MAP_L3_OWNER_SHIFT) | 1u);
   joiner->nation_id = 0;
   game.human_nation = 0;
+  game.col1_ok = true;
+  game.col1.head.game_options.woi = 1;
   game.units.selected_id = joiner->id;
   game_join_colony_order(&game);
   int rc = 0;
