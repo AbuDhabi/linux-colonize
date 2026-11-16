@@ -375,7 +375,8 @@ static int case_teacher_dearest(void) {
     const int soldier = order ? 1 : 2;
     c->colonists[3 - soldier].profession = COLONIZE_PROF_GUNSMITH;
     c->colonists[soldier].profession = UNITS_JOB_SOLDIER;
-    c->colonists[3].profession = COLONIZE_JOB_FARMER;
+    /* An indoor expert: a field expert would teach for his future surplus. */
+    c->colonists[3].profession = COLONIZE_PROF_CARPENTER;
     c->stock[COLONIZE_CARGO_FOOD] = 150; /* covers the deficit, so teaching pays */
     c->governor = COLONY_GOVERNOR_CASH;
     colony_governor_run_w(&f.w, c->id);
@@ -795,7 +796,35 @@ static int case_idle_worker_leaves(void) {
   return 0;
 }
 
+/* An expert farmer with free colonists to teach and more food plots than
+ * farmers: the governor builds a Schoolhouse for him, then seats him there,
+ * for the food his graduates will make. */
+static int case_field_expert_teaches(void) {
+  GovFx f;
+  if (!gov_fx_open(&f)) {
+    return 1;
+  }
+  ColonizeColony* c = f.col;
+  const int school = colonies_building_row(&f.pool, COLONY_BUILDING_SCHOOLHOUSE);
+  c->colonists[3].profession = COLONIZE_PROF_FARMER;
+  c->stock[COLONIZE_CARGO_FOOD] = 150;
+  c->building_in_production = -1;
+  c->governor = COLONY_GOVERNOR_CASH;
+  colony_governor_run_w(&f.w, c->id);
+  const int project = c->building_in_production;
+  c->has_building[school] = true;
+  colony_governor_run_w(&f.w, c->id);
+  const int seat = c->colonists[3].building_type;
+  gov_fx_close(&f);
+  if (project != school || seat != school) {
+    fprintf(stderr, "project %d seat %d (school %d)\n", project, seat, school);
+    return 1;
+  }
+  return 0;
+}
+
 static const TestCase k_cases[] = {
+  {"field_expert_teaches", case_field_expert_teaches},
   {"idle_worker_leaves", case_idle_worker_leaves},
   {"autobuy_tools", case_autobuy_tools},
   {"cash_crop_chains", case_cash_crop_chains},

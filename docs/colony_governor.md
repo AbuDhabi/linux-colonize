@@ -85,7 +85,11 @@ number of free colonists, servants and criminals in the colony, more for each
 non-expert working his expert job, and more the dearer his expert is on
 the Europe Train list (@JOB column 3, `colonies_job_train_cost`; untrainable
 rows count 0, and the widest price gap is worth less than one such
-non-expert), so with no real need the school takes the dearest expert to spare; a seated teacher is not moved while there
+non-expert), so with no real need the school takes the dearest expert to spare.
+A field expert teacher (farmer, fisherman, ...) also scores his graduates'
+future surplus: his yield over a non-expert's on the best open plot for the
+job, at the governor's weight for it, times 2.5 (`GOV_TEACH_FUTURE`), while
+the colony has more such plots than experts (a fisherman needs the Docks); a seated teacher is not moved while there
 is a student, and is free to work once none is left. Unseated workers
 (`idle_job1`) are not moved; no one enters or leaves the colony. The result is
 committed through `colonies_assign_field_w` / `colonies_assign_workplace`, the
@@ -94,7 +98,11 @@ player's own calls, for the colonists that move.
 Construction: only when no project is queued and the current one is "(No
 Production)", a built building, or no longer startable. When a good has no
 room left, or fills within three turns at its current rate, Warehouse and
-Warehouse Expansion go first; then the governor's list (Cash first tries every
+Warehouse Expansion go first; then the next unbuilt tier of the school chain
+(Schoolhouse, College, University) and of the church chain (Church,
+Cathedral), each when the seating, rerun as if it stood, scores over 2 a turn
+more (`gov_probe_rows`: teachers for spare students, preachers for hands whose
+best job is worth little); then the governor's list (Cash first tries every
 crop chain that pays, most valuable first, each through all its tiers, house,
 shop and factory, the Fur Trading Post included: a chain is worth the crop
 the colony grows now, or its best seatable plot if more, at the processed

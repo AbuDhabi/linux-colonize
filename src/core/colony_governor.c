@@ -59,6 +59,15 @@
  * rows price 0). The widest gap stays under one GOV_TEACH_NEED, so a teacher
  * whose job a non-expert already works wins over a dearer one. */
 #define GOV_TEACH_PRICE 1200.0
+/* A field expert the school turns out keeps his surplus over a non-expert
+ * for the rest of the game: per teaching turn, this many turns of it (a
+ * Schoolhouse graduate after 4). ponytail: flat payback, not the real
+ * remaining game or the tier's turn count. */
+#define GOV_TEACH_FUTURE 2.5
+/* A school or church tier is worth building when seating with it scores
+ * this much more a turn (teachers for spare students, preachers for hands
+ * whose best job is worth little). */
+#define GOV_BUILD_GAIN 2.0
 /* Bells past a 100% colony's upkeep: DOS clamps the rebel dividend to the
  * divisor each turn (FUN_364b_0688, viceroy_unpacked.c:57408), so they only
  * feed the nation's Congress / intervention pool. */
@@ -108,6 +117,9 @@ typedef struct GovCtx {
   bool plot_ok[COLONIZE_COLONY_FIELD_TILES_MAX];
   int plots;
   int teach_cap; /* faculty: colonies_school_owned_tier */
+  /* Per teaching turn, a teacher of field expert j: his surplus over a
+   * non-expert on the best open plot, while plots outnumber the experts. */
+  double teach_gain[COLONIZE_FIELD_JOB_COUNT];
   const ColonizeColony* orig;
 } GovCtx;
 
@@ -177,6 +189,9 @@ static double gov_teach_value(const GovCtx* g, const ColonizeColony* c) {
     }
     ++taught;
     s += GOV_TEACH_VALUE + colonies_job_train_cost(t->profession) / GOV_TEACH_PRICE;
+    if (t->profession >= 0 && t->profession < COLONIZE_FIELD_JOB_COUNT) {
+      s += g->teach_gain[t->profession];
+    }
     for (int j = 0; j < c->colonist_count; ++j) {
       const ColonizeColonist* p = &c->colonists[j];
       const int job = p->building_type >= 0 ? colonies_building_occupation(pool, p->building_type)
@@ -577,8 +592,9 @@ static bool gov_plot_ok(const ColonizeWorld* w, const ColonizeColony* col, int t
 
 /* rolling: the caller re-picks the project every turn (the AI build
  * cascade), so every hammer counts as project hammers. */
-static void gov_seat_colonists(const ColonizeWorld* w, ColonizeColony* col, const GovWeights* wt, bool rolling) {
-  ColonizeColonyPool* pool = w->colonies;
+static double gov_plan(const ColonizeWorld* w, const ColonizeColony* col, const GovWeights* wt,
+                       bool rolling, ColonizeColony* out) {
+  const ColonizeColonyPool* pool = w->colonies;
   GovCtx g;
   memset(&g, 0, sizeof(g));
   g.w = w;
@@ -631,6 +647,34 @@ static void gov_seat_colonists(const ColonizeWorld* w, ColonizeColony* col, cons
   for (int i = 0; i < col->colonist_count; ++i) {
     g.students += gov_is_student(&col->colonists[i]);
   }
+  /* What training one more field expert is worth (fishermen with Docks and
+   * spare water, farmers with spare land, ...). */
+  const bool docks = colony_yield_colony_has_docks(pool, col);
+  for (int job = 0; job < COLONIZE_FIELD_JOB_COUNT; ++job) {
+    int experts = 0;
+    for (int i = 0; i < col->colonist_count; ++i) {
+      experts += col->colonists[i].active && col->colonists[i].profession == job;
+    }
+    int open = 0;
+    int extra = 0;
+    for (int t = 0; t < g.plots; ++t) {
+      int dx = 0;
+      int dy = 0;
+      colonies_field_tile_delta(t, &dx, &dy);
+      const int x = col->x + dx;
+      const int y = col->y + dy;
+      const int plain = colony_yield_for_worker(w->map, x, y, job, COLONIZE_PROF_FREE_COLONIST, docks, 0, false);
+      if (!g.plot_ok[t] || plain <= 0) {
+        continue;
+      }
+      ++open;
+      const int d = colony_yield_for_worker(w->map, x, y, job, job, docks, 0, false) - plain;
+      extra = d > extra ? d : extra;
+    }
+    if (experts > 0 && open > experts) {
+      g.teach_gain[job] = extra * wt->goods[colony_yield_job_cargo(job)] * GOV_TEACH_FUTURE;
+    }
+  }
   for (int i = 0; i < col->colonist_count; ++i) {
     const ColonizeColonist* p = &col->colonists[i];
     /* Teachers keep their class while anyone is left to teach; an unseated
@@ -650,6 +694,14 @@ static void gov_seat_colonists(const ColonizeWorld* w, ColonizeColony* col, cons
       break;
     }
   }
+  *out = plan;
+  return best;
+}
+
+static void gov_seat_colonists(const ColonizeWorld* w, ColonizeColony* col, const GovWeights* wt, bool rolling) {
+  ColonizeColonyPool* pool = w->colonies;
+  ColonizeColony plan;
+  (void)gov_plan(w, col, wt, rolling, &plan);
 
   /* Commit through the player's own assign calls: everyone who moves gets
    * up first, so no seat or building cap is still held by its old worker. */
@@ -766,6 +818,36 @@ static int gov_cash_chains(const ColonizeWorld* w, const ColonizeColony* col, in
   }
 }
 
+/* The next unbuilt tier of the school and church chains, each wanted when
+ * the seating, run as if it stood, beats today's by GOV_BUILD_GAIN a turn.
+ * Appends to want[] and returns the new count. */
+static int gov_probe_rows(const ColonizeWorld* w, const ColonizeColony* col, int gov, int* want,
+                          int nw, int max) {
+  static const int k_chain[] = {COLONY_BUILDING_SCHOOLHOUSE, COLONY_BUILDING_CHURCH};
+  const ColonizeColonyPool* pool = w->colonies;
+  GovWeights wt;
+  gov_weights(w, col, gov, &wt);
+  ColonizeColony plan;
+  const double base = gov_plan(w, col, &wt, false, &plan);
+  for (int k = 0; k < 2 && nw < max; ++k) {
+    const int* rows = colonies_building_chain_rows(colonies_building_row_chain(k_chain[k]));
+    int r = 0;
+    while (rows && rows[r] >= 0 && colonies_has_building_row(pool, col, rows[r])) {
+      ++r;
+    }
+    const int bid = rows && rows[r] >= 0 ? colonies_building_row(pool, rows[r]) : -1;
+    if (bid < 0 || bid >= COLONIZE_BUILDING_TYPES_MAX) {
+      continue;
+    }
+    ColonizeColony probe = *col;
+    probe.has_building[bid] = true;
+    if (gov_plan(w, &probe, &wt, false, &plan) - base > GOV_HORIZON * GOV_BUILD_GAIN) {
+      want[nw++] = rows[r];
+    }
+  }
+  return nw;
+}
+
 static bool gov_listed(const int* ids, int n, int bid) {
   for (int i = 0; i < n; ++i) {
     if (ids[i] == bid) {
@@ -811,6 +893,7 @@ static void gov_pick_project(const ColonizeWorld* w, ColonizeColony* col, int go
       break;
     }
   }
+  nw = gov_probe_rows(w, col, gov, want, nw, 48);
   if (gov == COLONY_GOVERNOR_CASH) {
     nw = gov_cash_chains(w, col, want, nw, 48);
   }
