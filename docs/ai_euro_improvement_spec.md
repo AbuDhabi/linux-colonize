@@ -432,3 +432,22 @@ Third playtest fix (2026-11-16; France, Conquistador, New World, seed 6363):
   turns. With no project, `gov_seat_colonists` now counts hammers only up to
   the cap (`COLONIZE_HAMMER_BANK_MAX - hammers`). Test:
   `unit_colony_governor` `ai_seat_bank_full`.
+
+Expansion gap traced (2026-11-16, pt5 playtest; Netherlands, Explorer,
+alternate map). With the mod on, the AI held 1-2 colonies per nation until
+about turn 125. `ai_replay`, 8 seeds, AI colonies summed at the last turn,
+mod off / on: pt5 turn-10 save to 150, 88 / 62; TURN1.SAV to 100, 59 / 52.
+Q2, G1-G3, F1-F3, C2-C4, S2 and the governor seating each move it by noise
+only. Founder breakdown (4 seeds, `ai_euro_found_with_unit`): in DOS,
+explorer-scan founders (plan '?') are colonists, Pioneers, Soldiers and
+Dragoons alike.
+- pt5: Pioneer founders fall from 12 to 3. `ai_euro_pioneer_act` holds every
+  tooled Pioneer on posted jobs, so it never reaches the 20e6 ring scan that
+  founds. With the act off, it is 45 (the equip arm re-mints a Pioneer each
+  time one founds), or 130 colonies.
+- TURN1: Dragoon founders fall from 8 to 1. Colonies eject 36 Dragoons
+  against DOS's 185; not from horses (C3 and F3 restored move nothing). Cause
+  not yet found.
+- A trial rule, a Pioneer the ring scan already marked as an explorer (plan
+  '?') keeps the DOS path unless it is on a job, gave pt5 115 and TURN1 45:
+  it helps one map and hurts the other, so it is not landed.
