@@ -1028,7 +1028,13 @@ Ai153eWorthinessScore ai_diplo_153e_worthiness_score(
     if (!c->active || (c->nation_id != self && c->nation_id != target)) {
       continue;
     }
-    Ai153eBorderProbe s = ai_diplo_153e_border_probe(ctx, c->x, c->y, target);
+    /* DOS bug (docs/tolerated_dos_bugs_ai.md TB-61): asm 0x1BED-0x1BFF
+     * pushes `target` for every colony, so the probe never matches `self`,
+     * own_border stays 0 and SIEGES is asked whenever the target's colonies
+     * hold fewer than 4 people. The fix probes a target colony for the
+     * human's units, as the matched == self branch reads. */
+    const int probe_nation = (!dos_buggy_behavior() && c->nation_id == target) ? self : target;
+    Ai153eBorderProbe s = ai_diplo_153e_border_probe(ctx, c->x, c->y, probe_nation);
     int value = s.value;
     if (s.matched_target == target) {
       combat_delta_sum += value * 2;
@@ -1684,7 +1690,9 @@ static AiTalkStepStatus ai_talk_stage_sieges(
   k->stage = AI_TALK_ST_TRIBUTE;
   if (!k->crown_armed) {
     const int quarter = (int)col1->stuff.colony_pop_totals[t] >> 2;
-    int ask = k->own_border >= quarter;
+    /* TB-61: with no human force next to its colonies (own_border 0) the
+     * fix never asks; a colony total under 4 makes the quarter 0. */
+    int ask = k->own_border >= quarter && (dos_buggy_behavior() || k->own_border > 0);
     if (!ask && k->own_border > 12 && ai_talk_rng(ctx, 0, 4) == 0) {
       ask = 1;
     }

@@ -1042,7 +1042,20 @@ static int case_153e_phase1_border_probe(void) {
       w.stuff.field_combat_totals[1] = 10;
     }
     const Ai153eWorthinessScore ws = ai_diplo_153e_worthiness_score(&wctx, 0, 1, -1, 1);
+    /* tolerated_dos_bugs_ai.md TB-61: a HUMAN soldier next to the AI colony.
+     * DOS probes it for the target's units only, so own_border stays 0; the
+     * fix probes it for the human's. */
+    wsol->nation_id = 0;
+    const int own_dos = ai_diplo_153e_worthiness_score(&wctx, 0, 1, -1, 1).own_border;
+    dos_buggy_behavior_set(false);
+    const int own_fix = ai_diplo_153e_worthiness_score(&wctx, 0, 1, -1, 1).own_border;
+    dos_buggy_behavior_set(true);
+    wsol->nation_id = 1;
     fx_map_free(&wmap);
+    if (own_dos != 0 || own_fix <= 0) {
+      fprintf(stderr, "unit_ai_diplo: TB-61 own_border dos %d fix %d\n", own_dos, own_fix);
+      return fail("153e TB-61: own_border is 0 in DOS, the human's adjacent force with the fix");
+    }
     if (!ws.handled) {
       return fail("153e: forced gate should run phase 1");
     }

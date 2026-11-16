@@ -2543,7 +2543,11 @@ int ai_euro_20e6_colony_sail_pick(
       continue;
     }
     const int cid = map_continent_id_at(ctx->map, c->x, c->y);
-    if (pioneers_b4 != 0 && (cid < 0 || ai_euro_continent_stance_at(nation, cid) == 0)) {
+    /* MOD_AI_IMPROVEMENTS (pt2 P3): a Pioneer is also a worker for the job
+     * list; with no treasury bump a hull roaming with one aboard earns
+     * nothing, so it may bring it to a colony whose continent has open jobs. */
+    if (pioneers_b4 != 0 && (cid < 0 || ai_euro_continent_stance_at(nation, cid) == 0) &&
+        !(ai_euro_improved(ctx, nation) && ai_euro_pjob_open_on(ctx, nation, cid) > 0)) {
       continue; /* md:1946: Pioneer cargo only sails at nonzero stance */
     }
     int wanted = ai_euro_colony_wanted_size(ctx->colonies, c); /* FUN_1000_8e6c */

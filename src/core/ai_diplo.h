@@ -152,7 +152,9 @@ typedef struct Ai153eWorthinessScore {
                              pushes param_3 (target) fixed, and FUN_5bfb_0000 only ever writes
                              param_4 or -1 into its matched-out — so the matched==param_2
                              branch is DEAD in DOS and own_border is always 0. OpenCol
-                             faithfully reproduces that (probe never returns self). */
+                             reproduces that under dos_buggy_behavior(); the fix probes
+                             target colonies for self's units (tolerated_dos_bugs_ai.md
+                             TB-61). */
   int border_value;      /* raw local_b2: Σ (doubled off-continent) target-matched probe value */
   int any_border;        /* raw local_62: any target-matched colony probe */
   int forced;            /* raw iStack_c: forced-conflict flag AFTER the Franklin /

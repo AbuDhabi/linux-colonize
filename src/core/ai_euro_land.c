@@ -319,10 +319,11 @@ void ai_euro_5952_improve_best_plot(
     if (improved) {
       /* MOD_AI_IMPROVEMENTS 4.2: a posted plot waits for its Pioneer; a kept
        * forest can only take a road. */
+      const bool roaded = ai_euro_5952_tile_road_or_settlement(ctx->map, tx, ty) != 0;
       if (ai_euro_pjob_listed(nation, tx, ty) ||
-          (forest && ai_euro_5952_tile_road_or_settlement(ctx->map, tx, ty) != 0 &&
-           ai_euro_forest_keep(ctx, col, tx, ty))) {
-        continue;
+          (forest && roaded && ai_euro_forest_keep(ctx, col, tx, ty)) ||
+          (roaded && !units_pioneer_tile_can_clear_or_plow(ctx->map, tx, ty, NULL))) {
+        continue; /* pt2 P4: nothing a Pioneer can do here (Hills with a road) */
       }
     }
     if (!wants_clear || !forest) {
@@ -435,8 +436,14 @@ void ai_euro_5952_improve_best_plot(
     if (plow && forest_p && ai_euro_forest_keep(ctx, col, tx, ty)) {
       plow = 0; /* the reserve: a road, never a clear */
     }
+    /* pt2 P4: Hills and Mountains take no plow; a posted one is dropped as
+     * dead at the next act and re-posted every turn, idling the Pioneers. */
+    bool clearing = false;
+    if (plow && !units_pioneer_tile_can_clear_or_plow(ctx->map, tx, ty, &clearing)) {
+      plow = 0;
+    }
     if (plow) {
-      ai_euro_pjob_post(nation, tx, ty, forest_p ? PIONEER_PLAN_CLEAR : PIONEER_PLAN_PLOW);
+      ai_euro_pjob_post(nation, tx, ty, clearing ? PIONEER_PLAN_CLEAR : PIONEER_PLAN_PLOW);
     } else if (no_road) {
       ai_euro_pjob_post(nation, tx, ty, PIONEER_PLAN_ROAD);
     }

@@ -768,3 +768,28 @@ Test: `unit_ai_euro_5d04_hire` `pioneer_training_tools`.
 **Blocks removal:** tried ungated 2026-11-03: fails `golden_idle_continuous` and
 `golden_idle_reload`.
 **Status:** tolerated (user, 2026-11-03). Fixed in opencol 2026-11-03, gated on `!dos_buggy_behavior()`; test binaries still reproduce DOS.
+
+### TB-61 — SIEGES is asked with no troops near the AI's colonies
+**DOS:** `FUN_5bfb_153e` phase 1 (asm 0x1BED-0x1BFF) probes every colony of
+the human and the AI with `FUN_5bfb_0000(x, y, target)`. The nation argument
+is always the AI (`param_3`), and the probe only ever returns that nation or
+-1, so the `matched == self` branch is dead and `own_border` (raw `local_8`)
+is always 0. The @SIEGES stage asks when `own_border >= colony_pop_totals >> 2`,
+which is `0 >= 0` whenever the AI's colonies hold fewer than 4 people
+(original_sources_annotated/ai/euro_diplo_153e_full.md finding 1).
+
+**Effect:** a small AI nation's first-contact talk demands that you "withdraw
+all military units adjacent to" its colonies when none are there (playtest
+pt2, Spain at pop 2). The AI's own units next to its own colonies also count
+toward `border_value`.
+
+**Port (reproduces it):** `ai_diplo_153e_worthiness_score` and
+`ai_talk_stage_sieges` in `src/core/ai_diplo.c`. The fix probes an AI colony
+for the human's units, so `own_border` is the human force next to the AI's
+colonies, and asks SIEGES only when `own_border > 0`.
+Test: `unit_ai_diplo` `153e_phase1_border_probe`.
+
+**Blocks removal:** tried ungated 2026-11-15: fails `unit_ai_diplo` and the
+`map_contact_scout_colony`, `turns_founding_father_join`,
+`turns_idle_1599_france` and `turns_native_mission_trade` replays.
+**Status:** tolerated (user, 2026-11-15). Fixed in opencol 2026-11-15, gated on `!dos_buggy_behavior()`; test binaries still reproduce DOS.

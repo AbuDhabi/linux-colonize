@@ -394,3 +394,31 @@ per run, mod off / mod on before / mod on after:
 Buildings per colony on the 1646 run now pass DOS (13.3 vs 11.3); the
 remaining gap is colony count (expansion), not seating. Seed noise is about
 +-15 buildings on the 1646 run.
+
+Second playtest fixes (2026-11-15; Netherlands, Viceroy, New World, seed 5151,
+divergences on):
+
+- **Pioneer restart loop.** 0a60's contact-claim probe overwrites a working
+  Pioneer's order 8/9 with 10 at the nation-turn top. `ai_euro_pioneer_act`
+  then re-picked the same job, and the plow/road body restarted it at 0 (the
+  DB-46 reset): a forest clear that never finished in 80 turns. On its own job
+  tile with `col1_counter16 > 0`, the act now restores the job's order first.
+  Test: `unit_ai_euro_improved` `pjob_resume`.
+- **Pioneer-carrying hull deadlock.** Without the G1 bump, a nation whose only
+  hull roams with a Pioneer aboard earns nothing. The fold demotes the Pioneer
+  to a civilian, and `ai_euro_20e6_colony_sail_pick` skips every colony at
+  continent stance 0 for Pioneer cargo. DOS lands the Pioneer only when the
+  roam happens onto a FOUND goal tile, and pays for the wait with G1. With the
+  mod on, the stance skip does not apply to a colony whose continent has open
+  Pioneer jobs. England in the playtest went from 1 colony, pop 1, gold 0 at
+  1546 to pop 6 and trading. TURN1.SAV (100 turns, seeds 1-8) is unchanged
+  within noise.
+- **Dead plow jobs.** The improve arm posted Plow on Hills (and Mountains),
+  which `units_pioneer_tile_can_clear_or_plow` refuses. The job dropped as
+  dead at the next act, the colony re-posted it the next turn and never chose
+  another plot, so its two Pioneers idled for 150 turns. The post now takes
+  the clear/plow kind from that test. The scan skips a roaded plot that
+  cannot be cleared or plowed.
+- **Pioneer waits for a taken job.** A Pioneer whose continent has only
+  claimed jobs is kept out of the colony (P3) but had nothing to do; it
+  wandered off with DOS 20e6. It now waits in place for the next post.

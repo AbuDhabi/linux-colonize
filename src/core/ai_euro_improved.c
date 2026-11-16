@@ -186,6 +186,12 @@ int ai_euro_pioneer_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nation_id
       fprintf(stderr, "[pjob] n%d u%d (%d,%d) tools %d: no job (%d listed)\n", nation_id, u->id, u->x,
               u->y, u->tools, s_job_count[nation_id]);
     }
+    if (ai_euro_pjob_open_on(ctx, nation_id, cid) > 0) {
+      /* pt2 P5: every job here is taken; the colony keeps this Pioneer out
+       * for them (P3), so wait for the next post instead of wandering off. */
+      units_mp_exhaust_unit(ctx->units, u->id);
+      return 1;
+    }
     return 0;
   }
   const AiPioneerJob job = s_jobs[nation_id][best];
@@ -195,7 +201,12 @@ int ai_euro_pioneer_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nation_id
   }
   if (job.x == u->x && job.y == u->y) {
     const ColonizeWorld w = world_from_turn_ctx(ctx);
-    u->orders = UNITS_ORDER_NONE;
+    /* Work under way here (the counter is zeroed on completion): 0a60's
+     * contact-claim probe overwrote its order with 10 at the nation-turn top,
+     * so restore it and let the body resume instead of restarting at 0. */
+    u->orders = u->col1_counter16 > 0
+      ? (job.kind == PIONEER_PLAN_ROAD ? UNITS_ORDER_BUILD_ROAD : UNITS_ORDER_CLEAR_PLOW)
+      : UNITS_ORDER_NONE;
     const bool ok = job.kind == PIONEER_PLAN_ROAD
       ? units_pioneer_road_w(&w, u->id, NULL, NULL, NULL)
       : units_pioneer_plow_w(&w, u->id, NULL, NULL, NULL);
