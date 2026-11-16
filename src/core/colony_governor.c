@@ -80,6 +80,10 @@
 /* Industry: tools and muskets past a hold's worth in store are a stockpile,
  * worth what they sell for, so the project's hammers come first. */
 #define GOV_INDUSTRY_STOCK 100
+/* A staffed processor that makes nothing for want of its input: Phase K's
+ * "ran out of X" crumb (turn_produce_crumbs). Per turn and processor, so a
+ * carpenter seated to burn the last few lumber leaves once it is gone. */
+#define GOV_RAN_OUT_COST 20.0
 
 typedef struct GovWeights {
   double goods[COLONIZE_CARGO_COUNT]; /* food here = the net surplus */
@@ -109,6 +113,7 @@ typedef struct GovCtx {
   int hammers_need;              /* project and queue hammers left */
   double hammer_spare;           /* weight factor past hammers_need */
   bool food_report;              /* @FOODLOW is on (Colony Report options) */
+  bool raw_report;               /* Phase K "ran out of X" is on, human seating only */
   int tools_need;                /* project tools not yet in stock */
   int students;                  /* colonists a teacher may take */
   bool pinned[COLONIZE_COLONY_POP_MAX];
@@ -279,6 +284,13 @@ static double gov_score(const GovCtx* g, const ColonizeColony* plan) {
       output += pv.goods[k] > 0 ? pv.goods[k] : 0;
     }
     s += output * GOV_OUTPUT_TIEBREAK;
+    if (g->raw_report) {
+      int dry = pv.hammers_capacity > 0 && pv.hammers == 0;
+      for (int k = 1; k < COLONIZE_CARGO_COUNT; ++k) {
+        dry += pv.craft_capacity[k] > 0 && pv.craft_gross[k] == 0;
+      }
+      s -= dry * GOV_RAN_OUT_COST;
+    }
     const int kept = pv.bells < wt->bells_upkeep ? pv.bells : wt->bells_upkeep;
     s += kept * wt->bells + (pv.bells - kept) * wt->bells_pool + pv.crosses * wt->crosses;
   }
@@ -636,6 +648,7 @@ static double gov_plan(const ColonizeWorld* w, const ColonizeColony* col, const 
   }
   const ColonizeCol1Save* col1 = w->col1_ok ? w->col1 : NULL;
   g.food_report = !col1 || !col1->head.colony_report_options.report_food_shortages;
+  g.raw_report = !rolling && (!col1 || !col1->head.colony_report_options.report_raw_materials_shortages);
   g.teach_cap = colonies_school_owned_tier(pool, col);
   /* On-the-job learning (turn_produce_discover): a non-expert on a cash-crop
    * plot while the nation has no expert of that job yet. */

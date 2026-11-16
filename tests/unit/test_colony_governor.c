@@ -611,6 +611,40 @@ static int case_chain_lumber_to_hammers(void) {
   return 0;
 }
 
+/* No carpenter left dry: a few lumber in store is not worth Phase K's
+ * "ran out of lumber" every turn once it is gone (New Middle of Nowhere,
+ * Farming, 2026-11-16). Water all round, so no lumberjack: the carpenter
+ * burns the last lumber, then leaves. */
+static int case_no_ran_out_popup(void) {
+  for (int lumber = 0; lumber <= 5; lumber += 5) {
+    GovFx f;
+    if (!gov_fx_open(&f)) {
+      return 1;
+    }
+    ColonizeColony* c = f.col;
+    for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES_MAX; ++t) {
+      int dx = 0;
+      int dy = 0;
+      colonies_field_tile_delta(t, &dx, &dy);
+      if (dx || dy) {
+        f.map.terrain[(c->y + dy) * (int)f.map.width + c->x + dx] = T_OCEAN;
+      }
+    }
+    c->stock[COLONIZE_CARGO_FOOD] = 100;
+    c->stock[COLONIZE_CARGO_LUMBER] = lumber;
+    c->governor = COLONY_GOVERNOR_FARMING;
+    colony_governor_run_w(&f.w, c->id);
+    c->stock[COLONIZE_CARGO_LUMBER] = 0; /* the turn after it ran out */
+    const ColonizeColonyPreview pv = gov_preview(&f);
+    gov_fx_close(&f);
+    if (pv.hammers_capacity > 0 && pv.hammers == 0) {
+      fprintf(stderr, "lumber %d: carpenter seated with nothing to cut\n", lumber);
+      return 1;
+    }
+  }
+  return 0;
+}
+
 /* Tribal land is the player's to clear (or Peter Minuit's), met tribe or
  * not: a village two tiles off keeps every plot out of the plan. */
 static int case_no_tribal_land(void) {
@@ -894,6 +928,7 @@ static const TestCase k_cases[] = {
   {"autobuy_tools", case_autobuy_tools},
   {"cash_crop_chains", case_cash_crop_chains},
   {"chain_lumber_to_hammers", case_chain_lumber_to_hammers},
+  {"no_ran_out_popup", case_no_ran_out_popup},
   {"no_tribal_land", case_no_tribal_land},
   {"bells_keep_full_sol", case_bells_keep_full_sol},
   {"military_walls_and_growth", case_military_walls_and_growth},

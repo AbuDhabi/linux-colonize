@@ -52,7 +52,11 @@ that makes something, even output weighted 0. Food: the net counts at its weight
 deficits included; a stock below zero (starvation), or a shortfall with
 under four turns of it left in store (`turn_produce_food`'s @FOODLOW, unless
 the Colony Report option hides it), costs 1000 a unit, so a stocked colony may
-run a deficit but never earns the popup. Hammers count while there is a
+run a deficit but never earns the popup. Likewise a staffed processor that makes nothing
+for want of its input (Phase K's "ran out of X", `turn_produce_crumbs`, unless
+the Colony Report option hides it) costs 20 a turn each, so a carpenter seated
+to burn the last few lumber leaves once it is gone (human governors only; the
+AI's `colony_governor_seat_w` gets no popup). Hammers count while there is a
 project: fully up to its and the queue's remaining cost, half beyond (the
 surplus carries over, TB-57; none under `dos_buggy_behavior`). Every governor
 weights hammers (2, Industry 4), listed project or not. A tool the project
