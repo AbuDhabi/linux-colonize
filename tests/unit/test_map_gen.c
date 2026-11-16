@@ -4,6 +4,7 @@
 #include "core/col1_save.h"
 #include "core/dos_buggy.h"
 #include "core/map_gen.h"
+#include "core/mods.h"
 #include "core/map_gen_internal.h"
 #include "platform/diagnostics.h"
 
@@ -239,7 +240,7 @@ static int test_tb46_latitude_single_draw(void) {
   return rc;
 }
 
-/* settings.json divergences.alternate_map_generator (map_gen_alt.c): over a
+/* mods.alternate_map_generator (map_gen_alt.c): over a
  * sweep of the four Customize axes, map_generate routes to the alternate,
  * replays per seed, keeps the west / east rim (and the column inside it)
  * water and the top / bottom row arctic, never stores a river on a hill /
@@ -249,7 +250,7 @@ static int test_alternate_generator_invariants(void) {
   int rc = 0;
   int rivers_seen = 0;
   int mountains_seen = 0;
-  map_gen_set_alternate(true);
+  mods_campaign_set(1u << MOD_ALTERNATE_MAP_GENERATOR);
   for (int k = 0; k < 81 && rc == 0; ++k) {
     MapGenParams p = {k % 3, k / 3 % 3, k / 9 % 3, k / 27 % 3, 1, 1000u + (uint32_t)k, NULL, k % 4};
     ColonizeWorldMap a;
@@ -322,7 +323,7 @@ static int test_alternate_generator_invariants(void) {
     map_free(&a);
     map_free(&b);
   }
-  map_gen_set_alternate(false);
+  mods_campaign_set(0);
   if (rc == 0 && (rivers_seen == 0 || mountains_seen == 0)) {
     fprintf(stderr, "alternate maps had no rivers (%d) or mountains (%d)\n", rivers_seen, mountains_seen);
     rc = 1;

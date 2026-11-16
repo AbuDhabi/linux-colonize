@@ -49,7 +49,7 @@ static void test_missing_file_defaults(void) {
         "default input logger off, ./input_logs");
   check(!s.unlimited_units, "default divergences.unlimited_units off (DOS limits)");
   check(!s.unlimited_colonies, "default divergences.unlimited_colonies off (DOS limits)");
-  check(!s.alternate_map_generator, "default divergences.alternate_map_generator off (DOS map_generate)");
+  check(!s.mods[MOD_ALTERNATE_MAP_GENERATOR], "default mods.alternate_map_generator off (DOS map_generate)");
   check(!s.mods[MOD_MODERN_PRNG], "default mods.modern_prng off (DOS LCG)");
   check(!s.mods[MOD_PIONEER_PLAN], "default mods.pioneer_plan off");
   check(!s.mods[MOD_CURRENT_VISION], "default mods.current_vision off");
@@ -80,7 +80,7 @@ static void test_roundtrip(void) {
   out.skip_intro = false;
   out.unlimited_units = true;
   out.unlimited_colonies = true;
-  out.alternate_map_generator = true;
+  out.mods[MOD_ALTERNATE_MAP_GENERATOR] = true;
   out.mods[MOD_MODERN_PRNG] = true;
   out.mods[MOD_WAGON_LOOT] = true;
   out.mods[MOD_GOTO_NATIVE_WAIT] = false;
@@ -430,7 +430,7 @@ static void test_mods_group(void) {
 }
 
 /* pioneer_plan, scout_autoexplore, ship_autoexplore, hard_king,
- * current_vision and modern_prng moved from "divergences" to "mods": a legacy key seeds the
+ * current_vision, modern_prng and alternate_map_generator moved from "divergences" to "mods": a legacy key seeds the
  * new-game default only when "mods" has no value for it, and a rewrite keeps
  * the value under "mods" alone. */
 static void test_legacy_divergence_keys(void) {
@@ -441,7 +441,7 @@ static void test_legacy_divergence_keys(void) {
   }
   fputs("{ \"divergences\": { \"hard_king\": true, \"pioneer_plan\": true, "
         "\"current_vision\": true, \"scout_autoexplore\": true, \"unlimited_units\": true, "
-        "\"modern_prng\": true },\n"
+        "\"modern_prng\": true, \"alternate_map_generator\": true },\n"
         "  \"mods\": { \"pioneer_plan\": false, \"current_vision\": \"yes\" } }\n",
         f);
   fclose(f);
@@ -455,6 +455,7 @@ static void test_legacy_divergence_keys(void) {
   check(s.mods[MOD_CURRENT_VISION], "a non-bool mods key falls back to the legacy key");
   check(s.unlimited_units, "unlimited_units stays a divergence");
   check(s.mods[MOD_MODERN_PRNG], "legacy divergences.modern_prng seeds mods.modern_prng");
+  check(s.mods[MOD_ALTERNATE_MAP_GENERATOR], "legacy alternate_map_generator seeds the mod");
 
   check(settings_save_file(k_path, &s, err, sizeof(err)), "legacy file rewrites");
   f = fopen(k_path, "rb");
@@ -478,7 +479,9 @@ static void test_legacy_divergence_keys(void) {
   }
   const char* mp = strstr(div ? div : "", "modern_prng");
   legacy_left = legacy_left || (mp && div_end && mp < div_end);
-  check(!legacy_left, "rewritten divergences object drops the six legacy keys");
+  const char* amg = strstr(div ? div : "", "alternate_map_generator");
+  legacy_left = legacy_left || (amg && div_end && amg < div_end);
+  check(!legacy_left, "rewritten divergences object drops the seven legacy keys");
   ColonizeSettings back;
   check(settings_load_file(k_path, &back, err, sizeof(err)), "rewritten file reloads");
   check(memcmp(&back, &s, sizeof(s)) == 0, "rewritten file keeps every value");

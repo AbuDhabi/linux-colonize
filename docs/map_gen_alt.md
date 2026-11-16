@@ -1,8 +1,8 @@
 # Alternate map generator
 
-STATUS: port-only divergence, first cut 2026-11-11; tunables expected to move.
+STATUS: port-only mod, first cut 2026-11-11; tunables expected to move.
 
-`settings.json` `divergences.alternate_map_generator` (default off, docs/settings.md)
+Mod `alternate_map_generator` (`MOD_ALTERNATE_MAP_GENERATOR`, default off, docs/settings.md "mods")
 routes NEW WORLD / CUSTOMIZE map generation (`map_generate`) to
 `map_generate_alternate` in `src/core/map_gen_alt.c`. DOS has nothing like it, so
 none of this is DOS-faithful; the goal is maps that read like real geography

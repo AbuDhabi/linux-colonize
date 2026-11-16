@@ -59,9 +59,10 @@ DOS Bug Fixes
 @MODOPTIONS4
 @width=220
 @checkbox
-Computer Players
+Rivals and Maps
 @options
 Rivals Play by ~Player Rules
+~Alternate Map Generator
 
 ;       Game Options checkbox 8 (port-only, settings.json tiny_colony_names):
 ;       map colony names in FONTTINY. 12 = stock line count (directives

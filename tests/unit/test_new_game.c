@@ -13,6 +13,7 @@
 #include "core/game_loop.h"
 #include "core/map.h"
 #include "core/map_gen.h"
+#include "core/mods.h"
 #include "core/new_game.h"
 #include "core/pik.h"
 #include "core/reports.h"
@@ -910,12 +911,12 @@ static int case_new_world_village_counts(void) {
   return village_counts_run();
 }
 
-/* Same new game on a divergences.alternate_map_generator map: every tribe
+/* Same new game on a mods.alternate_map_generator map: every tribe
  * still gets its capital on the plate-tectonics terrain. */
 static int case_alternate_map_village_counts(void) {
-  map_gen_set_alternate(true);
+  mods_campaign_set(1u << MOD_ALTERNATE_MAP_GENERATOR);
   const int rc = village_counts_run();
-  map_gen_set_alternate(false);
+  mods_campaign_set(0);
   return rc;
 }
 

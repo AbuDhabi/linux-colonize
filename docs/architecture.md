@@ -54,7 +54,7 @@ Col1 field atlases — those stay in their owning docs (see the
 | Hot-seat multiplayer (DS:0x5394 / 0x5398 / control byte) | [hotseat.md](hotseat.md) |
 | Autoplay / self-running demo (DS:0x826 / 0x828, all-AI control table) | [demo.md](demo.md) |
 | Map editor (MAPEDIT.EXE, `opencol-mapedit`, .MP writer) | [mapedit.md](mapedit.md) |
-| Alternate map generator (`divergences.alternate_map_generator`, plate tectonics / winds / rainfall) | [map_gen_alt.md](map_gen_alt.md) |
+| Alternate map generator (mod `alternate_map_generator`, plate tectonics / winds / rainfall) | [map_gen_alt.md](map_gen_alt.md) |
 | Difficulty level effects | [difficulty.md](difficulty.md) |
 | Euro AI rules that differ from the player (free gold, phantom pioneering, colony buys) | [ai_euro_advantages.md](ai_euro_advantages.md) |
 | Euro AI improvement plan (mod-gated removal of those shortcuts) | [ai_euro_improvement_spec.md](ai_euro_improvement_spec.md) |

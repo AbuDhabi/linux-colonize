@@ -18,6 +18,7 @@
 #include "core/dos_buggy.h"
 #include "core/dos_rng.h"
 #include "core/map_gen_internal.h"
+#include "core/mods.h"
 #include "core/strutil.h"
 #include "platform/diagnostics.h"
 
@@ -1342,7 +1343,7 @@ bool map_generate(ColonizeWorldMap* out, const MapGenParams* params, char* err, 
     }
     return false;
   }
-  if (map_gen_alternate_enabled()) {
+  if (mods_on(MOD_ALTERNATE_MAP_GENERATOR)) {
     return map_generate_alternate(out, params, err, err_size);
   }
 

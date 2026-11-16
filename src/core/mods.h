@@ -79,6 +79,10 @@ typedef enum ModId {
    * gold, goods, tile work or expertise (docs/ai_euro_improvement_spec.md).
    * The King AI is untouched. */
   MOD_AI_IMPROVEMENTS = 23,
+  /* New feature: NEW WORLD / CUSTOMIZE maps come from map_generate_alternate
+   * (plates, winds, rainfall; docs/map_gen_alt.md). Read once, at map
+   * generation; the map itself is saved like any other. */
+  MOD_ALTERNATE_MAP_GENERATOR = 24,
   MOD_COUNT
 } ModId;
 

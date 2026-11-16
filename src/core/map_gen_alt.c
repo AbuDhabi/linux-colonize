@@ -1,7 +1,7 @@
 #include "core/map_gen.h"
 
 /*
- * Alternate map generator (settings.json divergences.alternate_map_generator).
+ * Alternate map generator (mods.alternate_map_generator, MOD_ALTERNATE_MAP_GENERATOR).
  * Port-only: there is no DOS counterpart, so nothing here cites the decomp.
  * docs/map_gen_alt.md describes the model; the tunables below are the knobs.
  *
@@ -123,16 +123,6 @@ typedef struct AltGen {
   int vx[MAX_PLATES];
   int vy[MAX_PLATES];
 } AltGen;
-
-static bool s_alternate;
-
-void map_gen_set_alternate(bool on) {
-  s_alternate = on;
-}
-
-bool map_gen_alternate_enabled(void) {
-  return s_alternate;
-}
 
 static int rnd(AltGen* g, int lo, int hi) {
   return dos_rng_range(g->rng, lo, hi);

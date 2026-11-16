@@ -105,7 +105,6 @@ static const SettingsBoolOpt k_debug_opts[] = {
 static const SettingsBoolOpt k_divergence_opts[] = {
   SETTINGS_BOOL(unlimited_units, false),
   SETTINGS_BOOL(unlimited_colonies, false),
-  SETTINGS_BOOL(alternate_map_generator, false),
 };
 
 /* "mods": one row per live ModId (retired slots have none), in ModId order. DOS bug fixes default on,
@@ -136,6 +135,7 @@ static const SettingsBoolOpt k_mod_opts[] = {
   SETTINGS_MOD("no_education_lies", MOD_NO_EDUCATION_LIES, false),
   SETTINGS_MOD("colony_governor", MOD_COLONY_GOVERNOR, false),
   SETTINGS_MOD("ai_improvements", MOD_AI_IMPROVEMENTS, false),
+  SETTINGS_MOD("alternate_map_generator", MOD_ALTERNATE_MAP_GENERATOR, false),
 };
 
 #define SETTINGS_OPT_COUNT(t) ((int)(sizeof(t) / sizeof((t)[0])))
@@ -470,7 +470,8 @@ bool settings_load_file(const char* path, ColonizeSettings* out, char* err, size
     const size_t id = (opt->offset - offsetof(ColonizeSettings, mods)) / sizeof(bool);
     bool v;
     const bool was_divergence =
-      (id >= MOD_PIONEER_PLAN && id <= MOD_CURRENT_VISION) || id == MOD_MODERN_PRNG;
+      (id >= MOD_PIONEER_PLAN && id <= MOD_CURRENT_VISION) || id == MOD_MODERN_PRNG ||
+      id == MOD_ALTERNATE_MAP_GENERATOR;
     if (was_divergence && !json_get_bool(mods, opt->key, &v)) {
       rb(json_obj_get(root, "divergences"), opt->key, settings_bool_at(out, opt));
     }

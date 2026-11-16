@@ -60,7 +60,7 @@ defaults no matter what file is sitting in the build directory.
     "trace_autosaves": false, "input_logger": false, "input_logger_directory": "./input_logs"
   },
   "divergences": {
-    "unlimited_units": false, "unlimited_colonies": false, "alternate_map_generator": false
+    "unlimited_units": false, "unlimited_colonies": false
   },
   "mods": {
     "wagon_loot": false, "goto_native_wait": true, "population_floor": false, "raid_scalps": false,
@@ -69,7 +69,7 @@ defaults no matter what file is sitting in the build directory.
     "pioneer_plan": false, "scout_autoexplore": false, "ship_autoexplore": false, "hard_king": false,
     "current_vision": false, "modern_prng": false,
     "beg_refusal_alarm": true, "riders_keep_ship": true, "no_education_lies": false,
-    "colony_governor": false, "ai_improvements": false
+    "colony_governor": false, "ai_improvements": false, "alternate_map_generator": false
   },
   "data_dir": "./COLONIZE",
   "save_dir": "",
@@ -129,15 +129,8 @@ saved in the `COXT` port extension chunk (docs/savegame.md), so DOS still loads
 the first 48 and never sees the rest. Turning the flag off again does not drop
 colonies: a save already above 48 loads whole, and new colonies wait until the
 count falls back under the DOS limit.
-`divergences.alternate_map_generator` (read at startup, `main.c` ->
-`map_gen_set_alternate`) makes NEW WORLD and CUSTOMIZE maps come from
-`map_generate_alternate` (`src/core/map_gen_alt.c`): plate tectonics, erosion,
-prevailing winds, rainfall and temperature instead of the DOS blob passes
-(docs/map_gen_alt.md). The Customize New World axes still apply; Original
-Americas and loaded `.MP` maps are unchanged. Nothing is saved: a generated map
-lives in the save like any other, so the flag only matters at new-game time.
 `pioneer_plan`, `scout_autoexplore`, `ship_autoexplore`, `hard_king`,
-`current_vision` and `modern_prng` used to be `divergences` keys; they are per-campaign `mods` now
+`current_vision`, `modern_prng` and `alternate_map_generator` used to be `divergences` keys; they are per-campaign `mods` now
 (below). A file that still has one of them under `divergences` and not under
 `mods` seeds that mod's new-game default from it once; the next write keeps only
 the `mods` key.
@@ -173,7 +166,7 @@ page title naming the group:
    `modern_prng`, `no_education_lies`, `colony_governor`.
 3. `@MODOPTIONS3` "DOS Bug Fixes": `goto_native_wait`, `beg_refusal_alarm`,
    `riders_keep_ship`.
-4. `@MODOPTIONS4` "Computer Players": `ai_improvements`.
+4. `@MODOPTIONS4` "Rivals and Maps": `ai_improvements`, `alternate_map_generator`.
 
 Next / Done (the button under the rows, `@MODOPTIONSDONE`, Done on the last page; or Enter) on a page saves
 that page's toggles, flushes the file and opens the next page; Esc on any page
@@ -188,7 +181,7 @@ row of a stock section, never replace a stock row (refused with a warning).
 The Colonizopedia's Game Concept list gets one article per checklist page:
 `data/mods/PEDIA.TXT` appends keys 13-16 to `@MISCELLANEOUS` (line 0 is the count,
 so these are articles 12-15: "Mods: Restored", "Mods: New Rules", "Mods: Bug Fixes",
-"Mods: Computer Players"), bodies `@MODMISC12`-`@MODMISC15` (`pedia_set_misc_catalog`). They are listed only while
+"Mods: Rivals and Maps"), bodies `@MODMISC12`-`@MODMISC15` (`pedia_set_misc_catalog`). They are listed only while
 the campaign has a mod on; with every mod off the list is the stock 12, as in DOS. The
 stock 12 Game Concept pages stay title-only, as in DOS.
 
@@ -217,6 +210,7 @@ stock 12 Game Concept pages stay title-only, as in DOS.
 | `beg_refusal_alarm` | on | DOS bug fix (tolerated_dos_bugs_ai.md TB-12): a refused native food beg raises the begging tribe's alarm toward the refuser through the whole `FUN_4cc6_00f2` (`ai_contact_alarm_delta_00f2`: France and Pocahontas halve it, clamp 0..100, at 100 under peace the mission expel roll and `@INDIANBURN`). Off = DOS: the add lands in another tribe's record (`ai_diplo_indian_alarm_word_raw` with the Indian nation as index). |
 | `riders_keep_ship` | on | DOS bug fix (dos_bugs.md DB-109): a ship leaving a tile boards its own passengers and the tile's sentried land units, never another own ship's passengers (`units_ship_departure_pickup`, human and AI). Also covers DB-104: a Trade Route ship leaving a colony or Europe boards sentried units like any ship (`europe_set_sail_from_harbor_ex`). Off = DOS: the first ship to leave takes every own rider on the tile that fits, a Trade Route ship at sea lets the other ships there pick first, and one leaving a colony or Europe boards nobody. |
 | `ai_improvements` | off | Rival Europeans (not the human, not the crown in the WoI) play by the player's rules: no free gold, goods, food or bells, no in-colony experts or promotions, Pioneer units do the tile work (job list in RTST record 19), the colony governor seats their colonists, sites avoid native villages (Spain excepted), and on Governor/Viceroy they start with a Veteran Soldier. Full list and measurements: docs/ai_euro_improvement_spec.md section 7. Off = DOS. |
+| `alternate_map_generator` | off | NEW WORLD and CUSTOMIZE maps come from `map_generate_alternate` (`src/core/map_gen_alt.c`): plate tectonics, erosion, prevailing winds, rainfall and temperature instead of the DOS blob passes (docs/map_gen_alt.md). `map_generate` reads the campaign mask, which `game_commit_new_campaign` sets before generating. The Customize New World axes still apply; Original Americas and loaded `.MP` maps are unchanged. The generated map is saved like any other, so the bit matters only at new-game time. Off = DOS `map_generate`. |
 
 Port-only keys, no DOS bit, no head bridge.
 `save_dir` empty means the platform default (`<exe>/COLONIZE`). `seed` is
