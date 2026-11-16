@@ -12,7 +12,7 @@
  * and Europe-freeze investigations kept rewriting (port_bugs.md #953).
  *
  * Usage:
- *   ai_replay <save.SAV> [turns] [--units] [--seed N] [--mods MASK]
+ *   ai_replay <save.SAV> [turns] [--units] [--seed N] [--mods MASK] [--game]
  *
  *   turns    number of turn_end calls (default 20)
  *   --units  also dump every AI unit (id / nation / type / xy / orders / MP /
@@ -20,6 +20,8 @@
  *   --seed   DOS RNG seed (default 100, the value the AI goldens use)
  *   --mods   campaign mod mask (mods.h bit per ModId) set after the load,
  *            e.g. 0x800000 for ai_improvements
+ *   --game   tolerated DOS bugs off, as opencol and play_driver run; the
+ *            default is the test binaries' DOS-buggy mode (goldens)
  *
  * Run from the repo root: NAMES.TXT and COLONY.TXT are read from COLONIZE/.
  *
@@ -36,6 +38,7 @@
 #include "core/col1_bridge.h"
 #include "core/col1_save.h"
 #include "core/colony.h"
+#include "core/dos_buggy.h"
 #include "core/dos_rng.h"
 #include "core/europe.h"
 #include "core/map.h"
@@ -139,6 +142,8 @@ int main(int argc, char** argv) {
       seed = (unsigned)strtoul(argv[++a], NULL, 10);
     } else if (strcmp(argv[a], "--mods") == 0 && a + 1 < argc) {
       mods_mask = (long)strtoul(argv[++a], NULL, 0);
+    } else if (strcmp(argv[a], "--game") == 0) {
+      dos_buggy_behavior_set(false);
     } else if (!path) {
       path = argv[a];
     } else {
@@ -146,7 +151,7 @@ int main(int argc, char** argv) {
     }
   }
   if (!path) {
-    fprintf(stderr, "usage: ai_replay <save.SAV> [turns] [--units] [--seed N] [--mods MASK]\n");
+    fprintf(stderr, "usage: ai_replay <save.SAV> [turns] [--units] [--seed N] [--mods MASK] [--game]\n");
     return 2;
   }
   if (turns < 0) {

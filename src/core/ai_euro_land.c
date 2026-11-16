@@ -937,11 +937,16 @@ static int ai_euro_20e6_diplo(const ColonizeCol1Save* col1, int nation, int othe
  * divergences were fixed there against viceroy_unpacked.c:9380-9424: the
  * tie-break is `<=` (LAST tie wins, raw 9411) and DOS has no nation 0..3
  * filter (raw 9402 `param_3 < 0 || record_nation == param_3`).
+ * Returns the colony id: 0142 returns the pool slot, and every 20e6 reader
+ * looks the colony up by id (colonies_get, the +0x314a origin byte). Slot and
+ * id differ once a new colony reuses a lost colony's slot; a load renumbers
+ * them (port_bugs.md #1855: treasure trains froze next to their own colony).
  */
 int ai_euro_20e6_nearest_colony(
   const ColonizeTurnContext* ctx, int x, int y, int nation, int cid, int* out_dist
 ) {
-  return ai_goals_nearest_colony_15eb_0142(ctx->map, ctx->colonies, x, y, nation, cid, out_dist);
+  const int slot = ai_goals_nearest_colony_15eb_0142(ctx->map, ctx->colonies, x, y, nation, cid, out_dist);
+  return slot >= 0 ? ctx->colonies->colonies[slot].id : -1;
 }
 
 /* FUN_1000_8f74 = FUN_281f_0d84(x, y, -1, -1) -> FUN_4cc6_0356 nearest village
@@ -3727,7 +3732,17 @@ int ai_euro_20e6_3fa6_sail_home(ColonizeTurnContext* ctx, ColonizeUnit* u, int n
   }
   int hx = 0;
   int hy = 0;
-  if (!units_015e_hs_course(ctx->units, ctx->map, u->x, u->y, nation_id, &hx, &hy)) {
+  /* TB-62: DOS re-runs 015e from the hull's new tile every act, and its
+   * corner-first ring can flip the goal between two rim tiles whose routes
+   * undo each other (pt3 O2: galleons ping-ponged (14,16)<->(20,10) for 170
+   * turns). Fix: a hull keeps a High Seas goal it has not reached (the act
+   * has already reset orders and plan by now; the goto tile survives). */
+  if (!dos_buggy_behavior() && (u->goto_x != u->x || u->goto_y != u->y) &&
+      map_coords_inset(ctx->map, u->goto_x, u->goto_y) &&
+      map_tile_is_high_seas(ctx->map, u->goto_x, u->goto_y)) {
+    hx = u->goto_x;
+    hy = u->goto_y;
+  } else if (!units_015e_hs_course(ctx->units, ctx->map, u->x, u->y, nation_id, &hx, &hy)) {
     return 0; /* 015e's ring found nothing: DOS leaves the hull alone */
   }
   ai_euro_set_goto(u, UNITS_ORDER_AI_SAIL, hx, hy);

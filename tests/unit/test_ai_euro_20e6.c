@@ -2813,6 +2813,37 @@ static int unit_treasure_dead_end_always_rewrites(void) {
   return 0;
 }
 
+/* port_bugs.md #1855: a colony in a reused pool slot has id != slot. Arm 2
+ * must still find it (the 20e6 readers look the nearest colony up by id). */
+static int unit_treasure_dead_end_reused_slot(void) {
+  const int nation = 1;
+  Fixture f;
+  if (fixture_init(&f, nation) != 0) {
+    return 1;
+  }
+  const int ti = treasure_add_type(&f);
+  treasure_add_colony(&f, 0, nation, 4, 4);
+  f.colonies.colonies[0].id = 7; /* slot 0 refilled after a colony was lost */
+  f.colonies.next_id = 8;
+  const int tid = units_spawn(&f.units, ti, 9, 9);
+  ColonizeUnit* t = units_get(&f.units, tid);
+  if (!t) {
+    fixture_free(&f);
+    return fail("spawn treasure");
+  }
+  t->nation_id = nation;
+  const int r = ai_euro_20e6_47b9_dead_end(&f.ctx, t, nation);
+  const int plan = t->col1_ai_plan;
+  const int gx = t->goto_x;
+  const int gy = t->goto_y;
+  fixture_free(&f);
+  if (r != 1 || plan != 0x35 || gx != 4 || gy != 4) {
+    fprintf(stderr, "r=%d plan=%d goto=(%d,%d)\n", r, plan, gx, gy);
+    return fail("arm 2 must walk to the colony in the reused slot");
+  }
+  return 0;
+}
+
 /*
  * FUN_521d_20e6 raw 89011-89029, the LAB_4d2e tail's 0x46 arm: a combat unit
  * (@UNIT attack column > 1, not a ship type) that saw an attackable foreigner
@@ -4879,6 +4910,7 @@ static const TestCase k_cases[] = {
     {"unit_treasure_cash_in_silent_under_woi", unit_treasure_cash_in_silent_under_woi},
     {"unit_treasure_outside_colony_not_cashed", unit_treasure_outside_colony_not_cashed},
     {"unit_treasure_dead_end_always_rewrites", unit_treasure_dead_end_always_rewrites},
+    {"unit_treasure_dead_end_reused_slot", unit_treasure_dead_end_reused_slot},
     {"unit_wander_step_is_adjacent", unit_wander_step_is_adjacent},
     {"unit_patrol_returns_to_colony", unit_patrol_returns_to_colony},
     {"unit_surplus_recall_ignores_colony_owner", unit_surplus_recall_ignores_colony_owner},

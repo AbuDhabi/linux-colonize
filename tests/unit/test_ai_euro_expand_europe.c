@@ -645,6 +645,22 @@ static int unit_privateer_europe_loot_sail(void) {
     return fail("FUN_48d3_015e must only set a course on a High Seas tile");
   }
 
+  /* TB-62: DOS re-picks the ring tile from the hull's new tile every act;
+   * the fix keeps an unreached High Seas goal. */
+  for (int buggy = 0; buggy < 2; ++buggy) {
+    dos_buggy_behavior_set(buggy != 0);
+    ship->orders = UNITS_ORDER_NONE;
+    ship->goto_x = 14;
+    ship->goto_y = 12;
+    (void)ai_euro_20e6_3fa6_sail_home(&ctx, ship, nation);
+    if ((ship->goto_x == 14 && ship->goto_y == 12) != !buggy) {
+      fprintf(stderr, "buggy %d: goal (%d,%d)\n", buggy, ship->goto_x, ship->goto_y);
+      dos_buggy_behavior_set(true);
+      fx_map_free(&map);
+      return fail("TB-62: Europe-bound hull goal");
+    }
+  }
+
   fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_expand: Privateer Europe loot sail ok\n");
   return 0;

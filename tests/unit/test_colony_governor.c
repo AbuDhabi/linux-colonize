@@ -282,6 +282,32 @@ static int case_hammers_only_toward_project(void) {
   return rc;
 }
 
+/* AI seat (rolling project): a full TB-57 bank takes no more hammers, so no
+ * carpenter stays seated (pt3 O3); an empty bank still wants one. */
+static int case_ai_seat_bank_full(void) {
+  int rc = 0;
+  dos_buggy_behavior_set(false);
+  for (int full = 0; full < 2; ++full) {
+    GovFx f;
+    if (!gov_fx_open(&f)) {
+      dos_buggy_behavior_set(true);
+      return 1;
+    }
+    ColonizeColony* c = f.col;
+    c->stock[COLONIZE_CARGO_FOOD] = 100;
+    c->building_in_production = -1;
+    c->hammers = full ? COLONIZE_HAMMER_BANK_MAX : 0;
+    colony_governor_seat_w(&f.w, c->id, COLONY_GOVERNOR_INDUSTRY);
+    if (gov_has_carpenter(&f) == (full != 0)) {
+      fprintf(stderr, "bank full %d: carpenter %d\n", full, gov_has_carpenter(&f));
+      rc = 1;
+    }
+    gov_fx_close(&f);
+  }
+  dos_buggy_behavior_set(true);
+  return rc;
+}
+
 /* A food stock lets Politics run a deficit nobody starves of... */
 static int case_temporary_food_shortfall(void) {
   ColonizeColonyPreview pv[2];
@@ -617,6 +643,7 @@ static const TestCase k_cases[] = {
   {"industry_tools_and_muskets", case_industry_tools_and_muskets},
   {"capture_clears", case_capture_clears},
   {"hammers_only_toward_project", case_hammers_only_toward_project},
+  {"ai_seat_bank_full", case_ai_seat_bank_full},
   {"temporary_food_shortfall", case_temporary_food_shortfall},
   {"teacher_sticky", case_teacher_sticky},
   {"feeds_colonists", case_feeds_colonists},

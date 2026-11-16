@@ -3,7 +3,7 @@
 STATUS: living record, not an audit dump. Authoritative.
 
 Second file of [tolerated_dos_bugs.md](tolerated_dos_bugs.md), split off to
-keep each file under the doc-length limit. It holds TB-3, 4, 6, 7, 8, TB-9..TB-30, 37, 38, 50, 52 and 56 (re-split
+keep each file under the doc-length limit. It holds TB-3, 4, 6, 7, 8, TB-9..TB-30, 37, 38, 50, 52, 56, 61 and 62 (re-split
 2026-11-03), the entries
 about the Euro AI (colony tick, ships, land units) and the native AI (villages,
 Braves). The rules, the id scheme and the entry format are the ones in
@@ -793,3 +793,29 @@ Test: `unit_ai_diplo` `153e_phase1_border_probe`.
 `map_contact_scout_colony`, `turns_founding_father_join`,
 `turns_idle_1599_france` and `turns_native_mission_trade` replays.
 **Status:** tolerated (user, 2026-11-15). Fixed in opencol 2026-11-15, gated on `!dos_buggy_behavior()`; test binaries still reproduce DOS.
+
+### TB-62 — A laden AI hull's High Seas goal flips between two rim tiles
+**DOS:** the laden-ship arm of `FUN_521d_20e6` calls the 3fa6 sail-home tail
+every act, and the tail re-runs `FUN_1000_015e` (`units_015e_hs_course`) from
+the hull's current tile. The act has already reset orders and plan by then,
+so nothing remembers the goal it stamped last turn. 015e's ring hunt tries the
+corner tiles first, so the nearest High Seas tile can change as the hull moves.
+When the routes to the two goals cross each other's start tile, every turn's
+6 moves undo the last turn's.
+
+**Effect:** playtest pt3 O2: Spanish galleons u36 (60 cargo) and u58 (189
+cargo) swapped between (14,16) and (20,10) for 170 turns. From (14,16) 015e
+picks (1,3) and the coarse route runs NE round the landmass; from (20,10) it
+picks (1,29) and the route runs back SW. The cargo never reached Europe.
+Whether the DOS pathfinder reaches the same pair of routes is not checked;
+the port only shows it with the TB-1 link-flood fix on (opencol), not in
+ai_replay's DOS-buggy mode.
+
+**Port (reproduces it):** `ai_euro_20e6_3fa6_sail_home`
+(`src/core/ai_euro_land.c`). The fix keeps the hull's stored goto tile while
+it is an in-map High Seas tile the hull has not reached, and runs 015e only
+otherwise. Test: `unit_ai_euro_expand_europe` (Privateer loot sail case,
+TB-62 loop). Repro: `build/debug/ai_replay pt3r/t472.sav 6 --game`.
+
+**Blocks removal:** not tried.
+**Status:** tolerated (2026-11-16). Fixed in opencol 2026-11-16, gated on `!dos_buggy_behavior()`; test binaries still reproduce DOS.

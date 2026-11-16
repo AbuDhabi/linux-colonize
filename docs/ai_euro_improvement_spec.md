@@ -422,3 +422,13 @@ divergences on):
 - **Pioneer waits for a taken job.** A Pioneer whose continent has only
   claimed jobs is kept out of the colony (P3) but had nothing to do; it
   wandered off with DOS 20e6. It now waits in place for the next post.
+
+Third playtest fix (2026-11-16; France, Conquistador, New World, seed 6363):
+
+- **Carpenters at the bank cap.** With no project (the 5952 cascade builds
+  nothing more at pop 4-7 once the small band is done), the seating still
+  priced hammers as project hammers with no limit, so New Amsterdam and San
+  Salvador kept 2-3 carpenters seated at the TB-57 512-hammer cap for 40-80
+  turns. With no project, `gov_seat_colonists` now counts hammers only up to
+  the cap (`COLONIZE_HAMMER_BANK_MAX - hammers`). Test:
+  `unit_colony_governor` `ai_seat_bank_full`.

@@ -591,6 +591,12 @@ static void gov_seat_colonists(const ColonizeWorld* w, ColonizeColony* col, cons
   if (rolling) {
     g.has_project = true;
     g.hammers_need = INT_MAX;
+    /* Past the TB-57 bank cap the carpenters bank nothing (pt3 O3: a pop 4-7
+     * AI colony with no project kept carpenters seated at 512). */
+    if (!dos_buggy_behavior()) {
+      g.hammers_need = col->hammers < COLONIZE_HAMMER_BANK_MAX ? COLONIZE_HAMMER_BANK_MAX - col->hammers : 0;
+      g.hammer_spare = 0.0;
+    }
   }
   const ColonizeCol1Save* col1 = w->col1_ok ? w->col1 : NULL;
   g.food_report = !col1 || !col1->head.colony_report_options.report_food_shortages;
