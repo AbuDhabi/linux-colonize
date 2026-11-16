@@ -823,7 +823,41 @@ static int case_field_expert_teaches(void) {
   return 0;
 }
 
+
+/* Crosses buy immigrants, and none come during the War of Independence: a
+ * Politics colony with a Church seats a preacher in peace, not in war. */
+static int case_no_crosses_in_war(void) {
+  int preachers[2] = {0, 0};
+  for (int war = 0; war < 2; ++war) {
+    GovFx f;
+    if (!gov_fx_open(&f)) {
+      return 1;
+    }
+    static ColonizeCol1Save col1;
+    memset(&col1, 0, sizeof(col1));
+    col1.head.game_options.woi = war;
+    f.w.col1 = &col1;
+    f.w.col1_ok = true;
+    ColonizeColony* c = f.col;
+    const int church = colonies_building_row(&f.pool, COLONY_BUILDING_CHURCH);
+    c->has_building[church] = true;
+    c->stock[COLONIZE_CARGO_FOOD] = 150;
+    c->governor = COLONY_GOVERNOR_POLITICS;
+    colony_governor_seat_w(&f.w, c->id, COLONY_GOVERNOR_POLITICS);
+    for (int i = 0; i < c->colonist_count; ++i) {
+      preachers[war] += c->colonists[i].building_type == church;
+    }
+    gov_fx_close(&f);
+  }
+  if (preachers[0] == 0 || preachers[1] != 0) {
+    fprintf(stderr, "preachers: peace %d war %d\n", preachers[0], preachers[1]);
+    return 1;
+  }
+  return 0;
+}
+
 static const TestCase k_cases[] = {
+  {"no_crosses_in_war", case_no_crosses_in_war},
   {"field_expert_teaches", case_field_expert_teaches},
   {"idle_worker_leaves", case_idle_worker_leaves},
   {"autobuy_tools", case_autobuy_tools},

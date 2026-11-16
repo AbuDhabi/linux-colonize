@@ -543,6 +543,10 @@ static void gov_weights(const ColonizeWorld* w, const ColonizeColony* col, int g
   /* Horses: half again what the governor pays for food (breeding eats the
    * surplus 1:1); the warehouse cap still stops them counting when full. */
   wt->goods[COLONIZE_CARGO_HORSES] = 1.5 * wt->goods[COLONIZE_CARGO_FOOD];
+  /* Crosses only draw immigrants, and Europe sends none once the war is on. */
+  if (w->col1_ok && w->col1 && w->col1->head.game_options.woi) {
+    wt->crosses = 0.0;
+  }
   const int sol = colony_prod_sol_percent(w->col1, col);
   wt->bells_pool = gov_bells_pool_open(w->col1, col->nation_id) ? GOV_BELLS_POOL * wt->bells : 0.0;
   wt->bells *= sol >= 50 && sol < 100 ? 1.0 : 1.5;
