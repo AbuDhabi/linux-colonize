@@ -982,12 +982,14 @@ int colonies_try_complete_unit_construction(
      * DOS-LITERAL FUN_364b_0688 raw 57748-57769: a non-human colony (Euro
      * AI or Crown) is simply handed the tools it needs and the project
      * proceeds; only a human colony is refused (@NEEDTOOLS elsewhere).
-     * port_bugs.md #755.
+     * port_bugs.md #755. MOD_AI_IMPROVEMENTS (#1863): an improved Euro AI
+     * colony is refused like a human one and keeps its hammers until it has
+     * the tools.
      */
     const bool human = col1 && col->nation_id >= 0 &&
                         col->nation_id < (int)COLONIZE_COL1_NATION_COUNT &&
                         col1->player[col->nation_id].control == 0;
-    if (human || !col1) {
+    if (human || !col1 || ai_euro_improved_nation(col1, -1, col->nation_id)) {
       return -1;
     }
     col->stock[COLONIZE_CARGO_TOOLS] = tools_cost;

@@ -2257,7 +2257,26 @@ static int ai_euro_5952_try_build(AiEuro5952Cascade* s, int dos_id) {
 }
 
 /* DOS-LITERAL FUN_5952_02f4 (raw 93749-93755): clear +0x1c bit 0x80, code = row + 0x1f. */
+/* MOD_AI_IMPROVEMENTS: the colony makes min_gross+ tools a turn, or owns a
+ * Blacksmith's House with ore to work (AI blacksmiths sit idle until a
+ * project wants tools, so gross tools alone undercounts). */
+static bool ai_euro_5952_makes_tools(const AiEuro5952Cascade* s, int min_gross) {
+  const ColonizeColony* col = s->col;
+  return s->gross[COLONIZE_CARGO_TOOLS] >= min_gross ||
+         (ai_euro_5952_chain_owned(s->pool, col, COLONIES_CHAIN_BLACKSMITH, NULL, NULL) >= 1 &&
+          (col->stock[COLONIZE_CARGO_ORE] >= 0x28 || s->gross[COLONIZE_CARGO_ORE] != 0));
+}
+
 static void ai_euro_5952_set_unit_project(AiEuro5952Cascade* s, int unit_row) {
+  /* MOD_AI_IMPROVEMENTS (#1863): no tools gift at completion, so an improved
+   * colony starts no unit it lacks the tools for and cannot make them. */
+  int tools = 0;
+  if (ai_euro_improved(s->ctx, s->nation) &&
+      colonies_unit_build_info(unit_row + 0x1f, NULL, NULL, &tools) &&
+      tools > s->col->stock[COLONIZE_CARGO_TOOLS] && !ai_euro_5952_makes_tools(s, 1)) {
+    s->col->building_in_production = -1;
+    return;
+  }
   s->col->colony_flags =
     (uint8_t)(s->col->colony_flags & (uint8_t)~COLONIZE_COLONY_FLAG_BUILD_COMPLETE);
   s->col->building_in_production = unit_row + 0x1f;
@@ -2662,6 +2681,8 @@ COLONIZE_INTERNAL AiEuro5952CascadeStatus ai_euro_5952_cascade_head(AiEuro5952Ca
   return AI_EURO_5952_CASCADE_NEXT;
 }
 
+static AiEuro5952CascadeStatus ai_euro_5952_naval_band(AiEuro5952Cascade* s);
+
 /* asm 2316-2577: the town band, Warehouse Expansion through Fortress (Wagon
  * Train unit project at 2385); pop < 8 ends at 2747. */
 COLONIZE_INTERNAL AiEuro5952CascadeStatus ai_euro_5952_cascade_town(AiEuro5952Cascade* s) {
@@ -2792,6 +2813,13 @@ COLONIZE_INTERNAL AiEuro5952CascadeStatus ai_euro_5952_cascade_town(AiEuro5952Ca
       return AI_EURO_5952_CASCADE_RETURN;
     }
   }
+  /* MOD_AI_IMPROVEMENTS: the naval band runs here too, so a shipbuilding
+   * colony (ai_euro_5952_naval_capable) works toward the Shipyard (through
+   * Docks and Drydock) and its hulls before pop 8. */
+  if (ai_euro_improved(ctx, s->nation) &&
+      ai_euro_5952_naval_band(s) == AI_EURO_5952_CASCADE_RETURN) {
+    return AI_EURO_5952_CASCADE_RETURN;
+  }
   if (pop < 8) {
     return AI_EURO_5952_CASCADE_WANTS;
   }
@@ -2811,15 +2839,29 @@ COLONIZE_INTERNAL AiEuro5952CascadeStatus ai_euro_5952_cascade_town(AiEuro5952Ca
   return AI_EURO_5952_CASCADE_NEXT;
 }
 
-/* asm 25a3-268c: the naval band, then the factory Armory / Artillery pick.
- * NEXT = DOS's jump to the chain-upgrade walk at 268e. */
-COLONIZE_INTERNAL AiEuro5952CascadeStatus ai_euro_5952_cascade_military(AiEuro5952Cascade* s) {
-  ColonizeColony* col = s->col;
-  const int factory = s->factory;
-  const int improvement_owner = s->improvement_owner;
+/* MOD_AI_IMPROVEMENTS (2026-11-17, pt7f): DOS opens the naval band only for
+ * a colony with a factory-tier craft building (Adam Smith), which AI colonies
+ * almost never reach: in 486 all-AI turns no colony built a ship, every hull
+ * was bought. An improved colony opens it when it can make the hammers and
+ * tools a Shipyard and its hulls cost: hammers this turn, and tools made or a
+ * Blacksmith's House with ore to work (AI blacksmiths sit idle until a
+ * project wants tools). */
+COLONIZE_INTERNAL bool ai_euro_5952_naval_capable(const AiEuro5952Cascade* s) {
+  if (s->factory != 0) {
+    return true;
+  }
+  if (!ai_euro_improved(s->ctx, s->nation) || s->gross[AI_EURO_5952_HAMMERS] < AI_EURO_SHIPYARD_HAMMERS) {
+    return false;
+  }
+  return ai_euro_5952_makes_tools(s, AI_EURO_SHIPYARD_TOOLS);
+}
 
-  /* 25a3 — the naval band: a finished craft chain plus a coastal colony. */
-  if (factory != 0 && (col->colony_flags & COLONIZE_COLONY_FLAG_COASTAL) != 0) {
+/* asm 25a3-262b — the naval band: a finished craft chain plus a coastal
+ * colony. RETURN = a project was picked, else NEXT. */
+static AiEuro5952CascadeStatus ai_euro_5952_naval_band(AiEuro5952Cascade* s) {
+  ColonizeColony* col = s->col;
+  const int improvement_owner = s->improvement_owner;
+  if (ai_euro_5952_naval_capable(s) && (col->colony_flags & COLONIZE_COLONY_FLAG_COASTAL) != 0) {
     if (ai_euro_5952_try_build(s, 0x08) == 0) { /* 25b9: Shipyard */
       return AI_EURO_5952_CASCADE_RETURN;
     }
@@ -2843,6 +2885,17 @@ COLONIZE_INTERNAL AiEuro5952CascadeStatus ai_euro_5952_cascade_military(AiEuro59
         return AI_EURO_5952_CASCADE_RETURN;
       }
     }
+  }
+  return AI_EURO_5952_CASCADE_NEXT;
+}
+
+/* asm 25a3-268c: the naval band, then the factory Armory / Artillery pick.
+ * NEXT = DOS's jump to the chain-upgrade walk at 268e. */
+COLONIZE_INTERNAL AiEuro5952CascadeStatus ai_euro_5952_cascade_military(AiEuro5952Cascade* s) {
+  ColonizeColony* col = s->col;
+  const int factory = s->factory;
+  if (ai_euro_5952_naval_band(s) == AI_EURO_5952_CASCADE_RETURN) {
+    return AI_EURO_5952_CASCADE_RETURN;
   }
 
   /* 262c — FUN_5952_035e raw 95827, asm 5952:265d-266e: `CMP [BP+local_76],0`

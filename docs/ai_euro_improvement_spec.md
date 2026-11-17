@@ -556,3 +556,16 @@ then ferried the same four holds between two own colonies every turn: the
 berth dump and the DOS load matrix reload what was just unloaded, and the
 origin latch sends it on. Improved hulls no longer reload a cargo type they
 dumped at that berth (#1861).
+
+pt7f's navies were bought, never built: the DOS naval band needs a
+factory-tier building that AI colonies never reach. An improved colony that
+makes 6+ hammers and 3+ tools (or owns a Blacksmith's House with ore) now
+builds a Shipyard and hulls, also below pop 8 (#1862). pt7g (same start, to
+t528): 9 Drydocks and 1 Shipyard by t450, 6 Shipyards by t528 (France 5),
+France building 3 Frigates; hull counts still close to pt7f, since the
+Shipyards come late.
+
+The DOS completion step hands an AI colony the tools its unit project lacks
+(C5). Improved colonies now make or stock them first: the cascade starts no
+unit without a tools source, and the governor stops gunsmiths draining a
+project's tools and seats the blacksmith once only tools are missing (#1863).

@@ -459,6 +459,51 @@ static int case_galleon_pick(void) {
 }
 
 /*
+ * MOD_AI_IMPROVEMENTS (#1862): with no factory-tier building the naval band
+ * opens only for an improved colony that makes AI_EURO_SHIPYARD_HAMMERS and
+ * either AI_EURO_SHIPYARD_TOOLS tools or owns a Blacksmith's House with ore.
+ */
+static int case_naval_capable_without_factory(void) {
+  Fx f;
+  if (fx_build(&f, 6) != 0) {
+    return 1;
+  }
+  AiEuro5952Cascade s;
+  memset(&s, 0, sizeof s);
+  s.ctx = &f.ctx;
+  s.pool = &f.colonies;
+  s.col = f.col;
+  s.nation = NATION;
+  s.gross[AI_EURO_5952_HAMMERS] = AI_EURO_SHIPYARD_HAMMERS;
+  s.gross[COLONIZE_CARGO_TOOLS] = AI_EURO_SHIPYARD_TOOLS;
+  const char* why = NULL;
+  mods_campaign_set(0);
+  if (ai_euro_5952_naval_capable(&s)) {
+    why = "mod off opened the band without a factory";
+  }
+  mods_campaign_set(1u << MOD_AI_IMPROVEMENTS);
+  if (!why && !ai_euro_5952_naval_capable(&s)) {
+    why = "hammers + tools did not open the band";
+  }
+  s.gross[COLONIZE_CARGO_TOOLS] = 0;
+  if (!why && ai_euro_5952_naval_capable(&s)) {
+    why = "no tools and no blacksmith opened the band";
+  }
+  own(&f, "Blacksmith's House");
+  f.col->stock[COLONIZE_CARGO_ORE] = 0x28;
+  if (!why && !ai_euro_5952_naval_capable(&s)) {
+    why = "blacksmith + ore did not open the band";
+  }
+  s.gross[AI_EURO_5952_HAMMERS] = AI_EURO_SHIPYARD_HAMMERS - 1;
+  if (!why && ai_euro_5952_naval_capable(&s)) {
+    why = "too few hammers opened the band";
+  }
+  mods_campaign_set(0);
+  fx_done(&f);
+  return why ? fail(why) : 0;
+}
+
+/*
  * asm 260b — Privateer (row 0x10, code 47): cargo capacity already covers the
  * population, the nation holds no Frigate and no armed ship, and armed ships
  * are below 4.
@@ -524,6 +569,44 @@ static int case_artillery_pick(void) {
   fx_done(&f);
   if (got != 42) {
     return fail("expected Artillery code 42 (asm 2689), got ?");
+  }
+  return 0;
+}
+
+/*
+ * MOD_AI_IMPROVEMENTS (#1863): no tools gift at completion, so an improved
+ * colony short of the Artillery's tools, with no tools made and no
+ * Blacksmith's House with ore, starts nothing.
+ */
+static int case_improved_unit_needs_tools_source(void) {
+  Fx f;
+  if (naval_fx(&f) != 0) {
+    return 1;
+  }
+  f.col->colony_flags =
+    (uint8_t)(f.col->colony_flags & (uint8_t)~COLONIZE_COLONY_FLAG_COASTAL);
+  const char* const smiths[3] = {"Blacksmith's House", "Blacksmith's Shop", "Iron Works"};
+  for (int i = 0; i < 3; ++i) {
+    const int b = bld(&f, smiths[i]);
+    if (b >= 0) {
+      f.col->has_building[b] = false;
+    }
+  }
+  f.col->stock[COLONIZE_CARGO_ORE] = 0;
+  f.col->stock[COLONIZE_CARGO_TOOLS] = 0;
+  mods_campaign_set(1u << MOD_AI_IMPROVEMENTS);
+  ai_euro_5952_build_cascade(&f.ctx, f.col);
+  const int none = f.col->building_in_production;
+  f.col->stock[COLONIZE_CARGO_TOOLS] = 40;
+  ai_euro_5952_build_cascade(&f.ctx, f.col);
+  const int funded = f.col->building_in_production;
+  mods_campaign_set(0);
+  fx_done(&f);
+  if (none != -1) {
+    return fail("improved colony with no tools source started a unit");
+  }
+  if (funded == -1) {
+    return fail("improved colony with the tools in stock started nothing");
   }
   return 0;
 }
@@ -1903,6 +1986,8 @@ static const TestCase k_cases[] = {
   {"case_church_gate_reads_preacher_census", case_church_gate_reads_preacher_census},
   {"case_armory_gate_reads_gunsmith_census", case_armory_gate_reads_gunsmith_census},
   {"case_galleon_pick", case_galleon_pick},
+  {"case_naval_capable_without_factory", case_naval_capable_without_factory},
+  {"case_improved_unit_needs_tools_source", case_improved_unit_needs_tools_source},
   {"case_privateer_pick", case_privateer_pick},
   {"case_frigate_pick", case_frigate_pick},
   {"case_artillery_pick", case_artillery_pick},

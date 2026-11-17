@@ -512,6 +512,13 @@ typedef struct AiEuro5952Cascade {
   bool has_shipyard;
 } AiEuro5952Cascade;
 
+/* MOD_AI_IMPROVEMENTS: per-turn hammers and tools that open the naval band
+ * without a factory (ai_euro_5952_naval_capable): a Lumber Mill hand and one
+ * blacksmith (or a Blacksmith's House with ore). */
+#define AI_EURO_SHIPYARD_HAMMERS 6
+#define AI_EURO_SHIPYARD_TOOLS 3
+COLONIZE_INTERNAL bool ai_euro_5952_naval_capable(const AiEuro5952Cascade* s);
+
 /* NEXT = fall into the next stage; WANTS = DOS's jump to 2747 (set the
  * wants-construction latch); RETURN = a project was picked. */
 typedef enum AiEuro5952CascadeStatus {

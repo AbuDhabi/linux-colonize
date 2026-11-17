@@ -2769,6 +2769,15 @@ static int unit_ship_construction(void) {
     CHECK(ai_uid > 0, "AI colony completes with a tools gift (#755)");
     CHECK(c->stock[COLONIZE_CARGO_TOOLS] == 0, "gifted tools spent by completion");
 
+    /* MOD_AI_IMPROVEMENTS (#1863): an improved AI colony gets no gift. */
+    mods_campaign_set(1u << MOD_AI_IMPROVEMENTS);
+    c->hammers = 512;
+    c->building_in_production = 48;
+    CHECK(colonies_try_complete_unit_construction(&pool, 0, &units, &gift_col1) < 0,
+          "improved AI colony refused short on tools (#1863)");
+    CHECK(c->hammers == 512 && c->stock[COLONIZE_CARGO_TOOLS] == 0, "improved AI keeps hammers, no gift");
+    mods_campaign_set(0);
+
     /* Human colony (control == 0): still refused, no gift. */
     gift_col1.player[0].control = 0;
     c->hammers = 512;

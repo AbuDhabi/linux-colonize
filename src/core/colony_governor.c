@@ -84,6 +84,10 @@
  * "ran out of X" crumb (turn_produce_crumbs). Per turn and processor, so a
  * carpenter seated to burn the last few lumber leaves once it is gone. */
 #define GOV_RAN_OUT_COST 20.0
+/* A tool the project lacks once its hammers are all in holds every one of
+ * them back (#1863: a blacksmith with ore idled 12 turns two tools short of
+ * a Galleon). ponytail: flat factor, not the hammers it frees. */
+#define GOV_TOOLS_BLOCKED 4.0
 
 typedef struct GovWeights {
   double goods[COLONIZE_CARGO_COUNT]; /* food here = the net surplus */
@@ -115,6 +119,8 @@ typedef struct GovCtx {
   bool food_report;              /* @FOODLOW is on (Colony Report options) */
   bool raw_report;               /* Phase K "ran out of X" is on, human seating only */
   int tools_need;                /* project tools not yet in stock */
+  int tools_cost;                /* project tools, 0 = none */
+  bool tools_blocked;            /* the project's own hammers are all in */
   int students;                  /* colonists a teacher may take */
   bool pinned[COLONIZE_COLONY_POP_MAX];
   bool learner[COLONIZE_COLONY_POP_MAX]; /* sits where he may learn the job */
@@ -261,10 +267,14 @@ static double gov_score(const GovCtx* g, const ColonizeColony* plan) {
       int before = c.stock[k];
       c.stock[k] = after;
       added[k] = d;
-      if (k == COLONIZE_CARGO_TOOLS && d > 0 && tools_need > 0) {
-        const int u = d < tools_need ? d : tools_need;
-        s += u * wt->tools_needed;
-        tools_need -= u;
+      /* Tools that fill the project's need earn tools_needed; tools a
+       * gunsmith takes back below the project's cost lose it (#1863: the
+       * stock see-sawed 92/98 under a 100-tool Galleon). */
+      if (k == COLONIZE_CARGO_TOOLS && g->tools_cost > 0) {
+        const int need_after = after < g->tools_cost ? g->tools_cost - after : 0;
+        const int u = tools_need - need_after;
+        s += u * wt->tools_needed * (g->tools_blocked ? GOV_TOOLS_BLOCKED : 1.0);
+        tools_need = need_after;
         before += u;
       }
       s += gov_stock_value(wt, k, after) - gov_stock_value(wt, k, before);
@@ -633,6 +643,8 @@ static double gov_plan(const ColonizeWorld* w, const ColonizeColony* col, const 
     }
     g.has_project = true;
     g.hammers_need = hammers > col->hammers ? hammers - col->hammers : 0;
+    g.tools_cost = tools;
+    g.tools_blocked = col->hammers >= hammers;
     g.tools_need = tools > col->stock[COLONIZE_CARGO_TOOLS] ? tools - col->stock[COLONIZE_CARGO_TOOLS] : 0;
   }
   g.hammer_spare = dos_buggy_behavior() ? 0.0 : GOV_HAMMER_SPARE;
