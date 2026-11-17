@@ -157,11 +157,42 @@ static bool ai_euro_pjob_claimed(const ColonizeUnitPool* pool, const ColonizeUni
   return false;
 }
 
+/* MOD_AI_IMPROVEMENTS (2026-11-16 expansion gap): while a nation holds fewer
+ * than this many colonies on a continent, a Pioneer between jobs is a founder
+ * first. DOS lets Pioneers found through the 20e6 explore scan; holding every
+ * Pioneer on the job list cut pt5 Pioneer founders from 12 to 3. */
+#define AI_EURO_PIONEER_EXPANSION_COLONIES 3
+
+/* True when the Pioneer skips the job list this turn and takes the DOS path:
+ * not mid-job, not on a colony tile, and its continent is still in the
+ * expansion phase. */
+bool ai_euro_pioneer_released(const ColonizeTurnContext* ctx, const ColonizeUnit* u) {
+  if (!ctx || !ctx->map || !ctx->colonies || !u || u->nation_id < 0 || u->nation_id > 3) {
+    return false;
+  }
+  if ((u->orders == AI_EURO_ACT_GOAL && ai_euro_pjob_listed(u->nation_id, u->goto_x, u->goto_y)) ||
+      u->orders == UNITS_ORDER_CLEAR_PLOW || u->orders == UNITS_ORDER_BUILD_ROAD ||
+      (u->col1_counter16 > 0 && ai_euro_pjob_listed(u->nation_id, u->x, u->y)) ||
+      colonies_id_at(ctx->colonies, u->x, u->y) >= 0) {
+    return false;
+  }
+  const int cid = map_continent_id_at(ctx->map, u->x, u->y);
+  int own = 0;
+  for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+    const ColonizeColony* c = &ctx->colonies->colonies[i];
+    own += c->active && c->nation_id == u->nation_id && map_continent_id_at(ctx->map, c->x, c->y) == cid;
+  }
+  return own < AI_EURO_PIONEER_EXPANSION_COLONIES;
+}
+
 int ai_euro_pioneer_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nation_id) {
   if (!ctx || !ctx->map || !ctx->units || !u || !u->active || units_is_sea(ctx->units, u->id) ||
       !units_is_on_map(u) || !units_is_pioneer(ctx->units, u->id) ||
       u->tools < UNITS_EQUIP_TOOLS_STEP || u->orders == UNITS_ORDER_CLEAR_PLOW ||
       u->orders == UNITS_ORDER_BUILD_ROAD || nation_id < 0 || nation_id > 3) {
+    return 0;
+  }
+  if (ai_euro_pioneer_released(ctx, u)) {
     return 0;
   }
   const int cid = map_continent_id_at(ctx->map, u->x, u->y);

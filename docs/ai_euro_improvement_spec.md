@@ -451,3 +451,21 @@ Dragoons alike.
 - A trial rule, a Pioneer the ring scan already marked as an explorer (plan
   '?') keeps the DOS path unless it is on a job, gave pt5 115 and TURN1 45:
   it helps one map and hurts the other, so it is not landed.
+- **Landed: Pioneer expansion release** (`ai_euro_pioneer_released`,
+  ai_euro_improved.c). While a nation has fewer than 3 colonies on the
+  Pioneer's continent (`AI_EURO_PIONEER_EXPANSION_COLONIES`), a Pioneer
+  between jobs skips `ai_euro_pioneer_act` and takes the DOS 20e6 path, so it
+  can found. It stays on the job list when it is walking to a listed job,
+  clearing, plowing, building a road, mid-job on a listed tile, or standing
+  on a colony tile (releasing there too gives TURN1 seeds 9-24 108 / 317
+  against 120 / 376).
+  `ai_replay`, 24 seeds, AI colonies / pop summed at the last turn:
+  pt5 (turn 10 to 150) mod on 188 / 1056, rule 266 / 1390, mod off
+  260 / 1473; TURN1 (to 100) mod on 164 / 591, rule 176 / 552. The pop cost on
+  TURN1 is from Pioneers founding instead of plowing; mod off on seeds 9-24
+  is 121 / 370 against the rule's 120 / 376. Tried and dropped: thresholds 2
+  (pt5 72) and 4 (no gain on TURN1), letting
+  P3 absorb a released Pioneer (no change), gating the PEQ equip arm while
+  expanding (pt5 73) and gating the hull Pioneer-cargo exception (TURN1 pop
+  171). Test: `unit_ai_euro_improved` `pioneer_released`. The TURN1 Dragoon
+  founder gap above is still open.
