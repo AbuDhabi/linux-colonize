@@ -1960,6 +1960,67 @@ bool units_follow_holding(const ColonizeUnitPool* pool, const ColonizeUnit* u) {
   return t && t->active && units_is_on_map(t) && t->x == u->x && t->y == u->y;
 }
 
+int units_column_escorts(const ColonizeUnitPool* pool, int leader_id, int* out, int max) {
+  const ColonizeUnit* l = units_get_const(pool, leader_id);
+  int n = 0;
+  for (int i = 0; l && i < units_slot_end(pool) && n < max; ++i) {
+    const ColonizeUnit* u = &pool->units[i];
+    if (u->id != leader_id && u->follow_unit_id == leader_id && units_follow_holding(pool, u)) {
+      out[n++] = u->id;
+    }
+  }
+  return n;
+}
+
+/* The 465b gate without its roll: cost <= left || spent == 0. */
+static bool units_column_step_sure(const ColonizeUnitPool* pool, const ColonizeWorldMap* map, int id, int nx, int ny) {
+  const int left = units_remaining_mp(pool, id);
+  return left > 0 &&
+    (units_move_cost(pool, id, map, nx, ny) <= left || left >= units_max_mp(pool, id));
+}
+
+UnitsColumnStep units_column_step_check(const ColonizeWorld* w, int leader_id, int nx, int ny) {
+  const ColonizeUnitPool* pool = w->units;
+  const ColonizeUnit* l = units_get_const(pool, leader_id);
+  int esc[UNITS_TILE_STACK_MAX];
+  const int n = l && w->map ? units_column_escorts(pool, leader_id, esc, UNITS_TILE_STACK_MAX) : 0;
+  if (n == 0 || !map_in_bounds(w->map, nx, ny)) {
+    return UNITS_COLUMN_ALONE;
+  }
+  const int cid = w->colonies ? colonies_id_at(w->colonies, nx, ny) : -1;
+  const ColonizeColony* col = cid >= 0 ? colonies_get(w->colonies, cid) : NULL;
+  const bool own_colony = col && col->active && col->nation_id == l->nation_id;
+  const bool land_tile = map_tile_is_land(w->map, nx, ny);
+  if (units_is_sea(pool, leader_id) ? land_tile && !own_colony : !land_tile) {
+    return UNITS_COLUMN_ALONE;
+  }
+  const ColonizeUnit* occ = units_get_const(pool, units_id_at(pool, nx, ny));
+  if ((occ && occ->nation_id != l->nation_id) || (col && col->active && !own_colony) ||
+      units_tribe_nation_at(units_world_col1(w), nx, ny) >= 4) {
+    return UNITS_COLUMN_ALONE;
+  }
+  if (!units_column_step_sure(pool, w->map, leader_id, nx, ny)) {
+    return UNITS_COLUMN_SHORT;
+  }
+  for (int k = 0; k < n; ++k) {
+    if (!units_column_step_sure(pool, w->map, esc[k], nx, ny)) {
+      return UNITS_COLUMN_SHORT;
+    }
+  }
+  return UNITS_COLUMN_OK;
+}
+
+void units_column_follow_w(const ColonizeWorld* w, const int* ids, int n, int nx, int ny) {
+  ColonizeWorld calm = *w;
+  calm.rng = NULL;
+  for (int k = 0; k < n; ++k) {
+    const ColonizeUnit* e = units_get_const(w->units, ids[k]);
+    if (e && e->active && e->orders == UNITS_ORDER_FOLLOW && units_is_on_map(e)) {
+      (void)units_try_move_w(&calm, ids[k], nx, ny);
+    }
+  }
+}
+
 bool units_advance_follow_one_step_w(
   const ColonizeWorld* w,
   int unit_id
@@ -1979,12 +2040,15 @@ bool units_advance_follow_one_step_w(
   if (u->x == t->x && u->y == t->y) {
     return true;
   }
-  /* Retarget tile goto toward target, one step, restore FOLLOW order. */
+  /* Retarget tile goto toward target, one step, restore FOLLOW order. No rng:
+   * an escort never takes the partial-MP roll (it parks instead). */
   const int tid = u->follow_unit_id;
   u->orders = UNITS_ORDER_GOTO;
   u->goto_x = t->x;
   u->goto_y = t->y;
-  const bool stepped = units_advance_goto_one_step_w(w, unit_id);
+  ColonizeWorld calm = *w;
+  calm.rng = NULL;
+  const bool stepped = units_advance_goto_one_step_w(&calm, unit_id);
   u = units_get(pool, unit_id);
   if (!u || !u->active) {
     return false;
@@ -3680,10 +3744,27 @@ bool units_advance_goto_one_step_w(
       }
     }
   }
+  /* Port-only escort column: halt for the turn (order kept) rather than let
+   * any member roll; a column step takes the escorts along. */
+  int column[UNITS_TILE_STACK_MAX];
+  int column_n = 0;
+  switch (units_column_step_check(w, unit_id, nx, ny)) {
+    case UNITS_COLUMN_SHORT:
+      units_mp_exhaust(pool, u);
+      return false;
+    case UNITS_COLUMN_OK:
+      column_n = units_column_escorts(pool, unit_id, column, UNITS_TILE_STACK_MAX);
+      break;
+    default:
+      break;
+  }
   if (!units_try_move_w(w, unit_id, nx, ny)) {
     return false;
   }
   u = units_get(pool, unit_id);
+  if (u && column_n > 0 && u->x == nx && u->y == ny) {
+    units_column_follow_w(w, column, column_n, nx, ny);
+  }
   if (u) {
     /*
      * DOS-LITERAL FUN_479b_0972 raw 77136-77142 (port_bugs.md #697), the arrival

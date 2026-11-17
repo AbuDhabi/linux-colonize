@@ -1115,10 +1115,34 @@ static void game_treasure_step_offer(ColonizeGameState* game, const ColonizeUnit
   }
 }
 
+static bool game_try_unit_move_one(ColonizeGameState* game, int dest_x, int dest_y);
+
+/* Port-only escort column (units_column_step_check): the selected leader's
+ * escorts on its tile step with it, or the step is refused when one of them
+ * would have to roll for it. */
 bool game_try_unit_move(ColonizeGameState* game, int dest_x, int dest_y) {
   if (!game || !game->units_ok || !game->world_map_ok) {
     return false;
   }
+  const int sid = game->units.selected_id;
+  const ColonizeWorld w = game_world(game);
+  const UnitsColumnStep col = units_column_step_check(&w, sid, dest_x, dest_y);
+  if (col == UNITS_COLUMN_SHORT) {
+    return false;
+  }
+  int column[UNITS_TILE_STACK_MAX];
+  const int column_n =
+    col == UNITS_COLUMN_OK ? units_column_escorts(&game->units, sid, column, UNITS_TILE_STACK_MAX) : 0;
+  const bool moved = game_try_unit_move_one(game, dest_x, dest_y);
+  const ColonizeUnit* lead = units_get_const(&game->units, sid);
+  if (column_n > 0 && lead && lead->active && lead->x == dest_x && lead->y == dest_y) {
+    const ColonizeWorld after = game_world(game);
+    units_column_follow_w(&after, column, column_n, dest_x, dest_y);
+  }
+  return moved;
+}
+
+static bool game_try_unit_move_one(ColonizeGameState* game, int dest_x, int dest_y) {
   const int sid = game->units.selected_id;
   ColonizeUnit* selected = units_get(&game->units, sid);
   if (!selected || selected->moves <= 0) {
@@ -1475,6 +1499,7 @@ static bool game_unit_group_has(const ColonizeGameState* game, int uid) {
 
 void game_unit_group_clear(ColonizeGameState* game) {
   game->unit_group_count = 0;
+  game->unit_group_escort = false;
   game->unit_group_order = GAME_GROUP_ORDER_NONE;
   game->unit_group_next = 0;
 }
@@ -1492,11 +1517,12 @@ static void game_unit_group_prune(ColonizeGameState* game) {
 }
 
 /* The picker's units wake the way a plain pick wakes one (game_click_activate_unit). */
-void game_unit_group_set(ColonizeGameState* game, const int* ids, int n) {
+void game_unit_group_set(ColonizeGameState* game, const int* ids, int n, bool escort) {
   game_unit_group_clear(game);
   if (!game->units_ok) {
     return;
   }
+  game->unit_group_escort = escort;
   for (int i = 0; i < n && i < UNITS_TILE_STACK_MAX; ++i) {
     units_wake(&game->units, ids[i]);
     game->unit_group[game->unit_group_count++] = ids[i];
@@ -1570,22 +1596,11 @@ static bool game_unit_group_action_fans_out(const ColonizeGameState* game, int a
     action != MAP_MENU_ACTION_TRADE_EDIT && action != MAP_MENU_ACTION_TRADE_DELETE;
 }
 
-/* A Go To for a group holding a Treasure train: the first treasure leads and
- * gets the Go To; every member that can follow it (same domain) Escorts it
- * (UNITS_ORDER_FOLLOW) instead and walks after it. Members that cannot
- * escort keep the plain fan-out. */
-static void game_unit_group_escort_treasure(ColonizeGameState* game) {
-  int lead = -1;
-  for (int i = 0; i < game->unit_group_count && lead < 0; ++i) {
-    const ColonizeUnit* u = units_get_const(&game->units, game->unit_group[i]);
-    if (u && units_type_is_treasure(units_type(&game->units, u->type_index))) {
-      lead = i;
-    }
-  }
-  if (lead < 0) {
-    return;
-  }
-  const int lead_id = game->unit_group[lead];
+/* Ctrl-pick column: the active member leads and takes the order; every other
+ * member of its domain Escorts it (UNITS_ORDER_FOLLOW) and moves with it.
+ * Members that cannot escort keep the plain fan-out. */
+static void game_unit_group_form_column(ColonizeGameState* game) {
+  const int lead_id = game->units.selected_id;
   int n = 0;
   game->unit_group[n++] = lead_id;
   for (int i = 0; i < game->unit_group_count; ++i) {
@@ -1595,7 +1610,6 @@ static void game_unit_group_escort_treasure(ColonizeGameState* game) {
     }
   }
   game->unit_group_count = n;
-  game->units.selected_id = lead_id;
 }
 
 bool game_unit_group_order(ColonizeGameState* game, GameUnitGroupOrder kind, int a, int b) {
@@ -1605,10 +1619,11 @@ bool game_unit_group_order(ColonizeGameState* game, GameUnitGroupOrder kind, int
       (kind == GAME_GROUP_ORDER_ACTION && !game_unit_group_action_fans_out(game, a))) {
     return false;
   }
-  if (kind == GAME_GROUP_ORDER_GOTO ||
-      (kind == GAME_GROUP_ORDER_ACTION &&
-       (a == MAP_MENU_ACTION_GOTO_PLACE || a == MAP_MENU_ACTION_GOTO_PORT))) {
-    game_unit_group_escort_treasure(game);
+  if (game->unit_group_escort &&
+      (kind == GAME_GROUP_ORDER_GOTO || kind == GAME_GROUP_ORDER_MOVE ||
+       (kind == GAME_GROUP_ORDER_ACTION &&
+        (a == MAP_MENU_ACTION_GOTO_PLACE || a == MAP_MENU_ACTION_GOTO_PORT)))) {
+    game_unit_group_form_column(game);
   }
   game->unit_group_order = kind;
   game->unit_group_arg0 = a;

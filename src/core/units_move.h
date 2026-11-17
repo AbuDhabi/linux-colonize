@@ -281,6 +281,25 @@ bool units_follow_unit(ColonizeUnitPool* pool, int unit_id, int target_unit_id);
 /* An escort (UNITS_ORDER_FOLLOW) standing on its live, on-map leader's tile:
  * nothing to do until the leader moves, so it stays out of the rotation. */
 bool units_follow_holding(const ColonizeUnitPool* pool, const ColonizeUnit* u);
+/*
+ * Port-only escort column (docs/unit_orders.md): a leader plus its escorts
+ * standing on its tile move as one, one tile at a time, and only when every
+ * member can pay the step outright (cost <= MP left, or a full allotment), so
+ * no member ever takes the partial-MP roll and the column never splits.
+ */
+typedef enum UnitsColumnStep {
+  UNITS_COLUMN_ALONE, /* no escorts on the tile, or a tile the column does not enter
+                       * together (other domain, foreign unit / colony, village):
+                       * the leader acts alone, the escorts catch up */
+  UNITS_COLUMN_OK,    /* every member pays the step outright */
+  UNITS_COLUMN_SHORT  /* some member would have to roll: the column halts */
+} UnitsColumnStep;
+/* Escorts of leader_id standing on its tile, in pool order; returns the count. */
+int units_column_escorts(const ColonizeUnitPool* pool, int leader_id, int* out, int max);
+UnitsColumnStep units_column_step_check(const ColonizeWorld* w, int leader_id, int nx, int ny);
+/* After the leader stepped onto (nx,ny): walk each escort there in turn
+ * (rng-free, so a step the check passed can never roll). */
+void units_column_follow_w(const ColonizeWorld* w, const int* ids, int n, int nx, int ny);
 bool units_advance_follow_one_step_w(
   const ColonizeWorld* w,
   int unit_id

@@ -2301,6 +2301,74 @@ static int case_follow_unit(void) {
   return 0;
 }
 
+  /* Port-only escort column: leader + escort step as one, never rolling. */
+static int case_escort_column(void) {
+  if (fx_open() != 0 || fx_stage2() != 0) {
+    return 1;
+  }
+  int fx = -1;
+  int fy = -1;
+  for (int y = 1; y + 1 < map.height && fx < 0; ++y) {
+    for (int x = 1; x + 3 < map.width && fx < 0; ++x) {
+      bool ok = true;
+      for (int k = 0; k < 3 && ok; ++k) {
+        ok = map_coords_inset(&map, x + k, y) && map_tile_is_land(&map, x + k, y) &&
+          units_id_at(&pool, x + k, y) < 0 && map_tile_is_land(&map, x + k, y + 1) &&
+          map_tile_is_land(&map, x + k, y - 1);
+      }
+      if (ok) {
+        fx = x;
+        fy = y;
+      }
+    }
+  }
+  const int a = fx >= 0 ? units_spawn_allow_stack(&pool, pioneer, fx, fy) : -1;
+  const int b = fx >= 0 ? units_spawn_allow_stack(&pool, colonist, fx, fy) : -1;
+  ColonizeUnit* ua = units_get(&pool, a);
+  ColonizeUnit* ub = units_get(&pool, b);
+  if (!ua || !ub || !units_follow_unit(&pool, b, a)) {
+    fprintf(stderr, "escort column setup failed\n");
+    fx_close();
+    return 1;
+  }
+  const ColonizeWorld w = {.units = &pool, .map = &map};
+  ua->moves = units_max_mp(&pool, a);
+  ub->moves = units_max_mp(&pool, b);
+  if (!units_follow_holding(&pool, ub) ||
+      units_column_step_check(&w, a, fx + 1, fy) != UNITS_COLUMN_OK) {
+    fprintf(stderr, "full column should step\n");
+    fx_close();
+    return 1;
+  }
+  const int cost = units_move_cost(&pool, b, &map, fx + 1, fy);
+  ub->moves = 1;
+  if (cost > 1 && units_column_step_check(&w, a, fx + 1, fy) != UNITS_COLUMN_SHORT) {
+    fprintf(stderr, "escort with a sliver of MP should halt the column\n");
+    fx_close();
+    return 1;
+  }
+  ua->orders = UNITS_ORDER_GOTO;
+  ua->goto_x = fx + 2;
+  ua->goto_y = fy;
+  if (cost > 1 && (units_advance_goto_one_step_w(&w, a) || ua->x != fx || ub->x != fx ||
+                   ua->moves != 0 || ua->orders != UNITS_ORDER_GOTO)) {
+    fprintf(stderr, "short column should park its leader in place, order kept\n");
+    fx_close();
+    return 1;
+  }
+  ua->moves = units_max_mp(&pool, a);
+  ub->moves = units_max_mp(&pool, b);
+  if (!units_advance_goto_one_step_w(&w, a) || ua->x == fx || ub->x != ua->x || ub->y != ua->y ||
+      ub->orders != UNITS_ORDER_FOLLOW || ub->follow_unit_id != a) {
+    fprintf(stderr, "column step: leader (%d,%d) escort (%d,%d) orders %d\n", ua->x, ua->y,
+            ub->x, ub->y, ub->orders);
+    fx_close();
+    return 1;
+  }
+  fx_close();
+  return 0;
+}
+
   /* Naval hold plunder on combat resolve (FUN_5fef_016c-shaped). */
 static int case_naval_hold_plunder(void) {
   if (fx_open() != 0 || fx_stage2() != 0) {
@@ -8946,6 +9014,7 @@ static const TestCase k_cases[] = {
   {"dump_anchor_route", case_dump_anchor_route},
   {"land_combat_t0", case_land_combat_t0},
   {"follow_unit", case_follow_unit},
+  {"escort_column", case_escort_column},
   {"naval_hold_plunder", case_naval_hold_plunder},
   {"naval_plunder_pick", case_naval_plunder_pick},
   {"treasure_train_spawn", case_treasure_train_spawn},

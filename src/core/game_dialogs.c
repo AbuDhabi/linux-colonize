@@ -2722,7 +2722,9 @@ bool game_handle_modal_input(ColonizeGameState* game, const ColonizeInputState* 
     int select_id = -1;
     unit_stack_handle_input(&game->unit_stack, &game->units, input, &select_id);
     if (game->unit_stack.group_count > 0) {
-      game_unit_group_set(game, game->unit_stack.ids, game->unit_stack.group_count);
+      game_unit_group_set(
+        game, game->unit_stack.ids, game->unit_stack.group_count, game->unit_stack.group_escort
+      );
       game->unit_stack.group_count = 0;
     } else if (select_id >= 0) {
       /* Picking a row out of the tile stack is the same activation DOS

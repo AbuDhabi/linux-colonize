@@ -56,6 +56,7 @@ static bool unit_stack_open_min(
   dlg->count = n < rows ? n : rows;
   memset(dlg->picked, 0, sizeof(dlg->picked));
   dlg->group_count = 0;
+  dlg->group_escort = false;
   /* DOS opens the picker with the currently active unit's row (the ship you
    * clicked) highlighted, not row 0 (port_bugs.md loaded-unit activation flow). */
   dlg->selection = 0;
@@ -230,9 +231,10 @@ bool unit_stack_handle_input(
     *out_select_id = -1;
   }
 
-  /* Port-only group pick: Shift+click toggles a row that has moves left; letting
-   * go of Shift with rows marked closes with them packed into ids[]. */
-  if (!input->shift_held) {
+  /* Port-only group pick: Shift+click (group) or Ctrl+click (escort column)
+   * toggles a row that has moves left; the first mark sets the kind. Letting
+   * go of the key with rows marked closes with them packed into ids[]. */
+  if (!input->shift_held && !input->ctrl_held) {
     int n = 0;
     for (int i = 0; i < dlg->count; ++i) {
       if (dlg->picked[i]) {
@@ -249,6 +251,13 @@ bool unit_stack_handle_input(
                          input->mouse_x, input->mouse_y)) {
     const int idx = unit_stack_row_at(dlg, input->mouse_x, input->mouse_y);
     if (idx >= 0 && units_remaining_mp(pool, dlg->ids[idx]) > 0) {
+      bool any = false;
+      for (int i = 0; i < dlg->count; ++i) {
+        any = any || dlg->picked[i];
+      }
+      if (!any) {
+        dlg->group_escort = input->ctrl_held;
+      }
       dlg->picked[idx] = !dlg->picked[idx];
     }
     return true;
@@ -400,7 +409,8 @@ void unit_stack_render(
     const int row_y = fr.y + 3 + 2 + 16 * (i % dlg->rows); /* y + 3 + e */
     const int col_x = fr.x + col_w * (i / dlg->rows);
     if (dlg->picked[i]) {
-      fb_rect_outline(framebuffer, col_x + 4, row_y - 1, 18, 18, 10, 10); /* bright green */
+      const uint8_t mark = dlg->group_escort ? 14 : 10; /* golden (escort) / bright green */
+      fb_rect_outline(framebuffer, col_x + 4, row_y - 1, 18, 18, mark, mark);
     } else if (i == dlg->selection) {
       fb_rect_outline(framebuffer, col_x + 4, row_y - 1, 18, 18, 15, 15);
     }

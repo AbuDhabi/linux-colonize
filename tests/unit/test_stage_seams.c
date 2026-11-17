@@ -6259,7 +6259,7 @@ static int test_unit_group_fans_out_order(void) {
     sentried_before += game->units.units[i].active &&
       game->units.units[i].orders == UNITS_ORDER_SENTRY;
   }
-  game_unit_group_set(game, ids, 2);
+  game_unit_group_set(game, ids, 2, false);
   if (game->unit_group_count != 2 || game->units.selected_id != ids[0]) {
     rc = fail("group set selects its lead");
   }
@@ -6280,7 +6280,7 @@ static int test_unit_group_fans_out_order(void) {
   }
   units_wake(&game->units, ids[0]);
   units_wake(&game->units, ids[1]);
-  game_unit_group_set(game, ids, 2);
+  game_unit_group_set(game, ids, 2, false);
   game_click_activate_unit(game, ids[1]);
   game_unit_group_service(game);
   if (game->unit_group_count != 0) {

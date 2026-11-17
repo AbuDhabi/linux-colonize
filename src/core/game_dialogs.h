@@ -330,6 +330,7 @@ struct ColonizeGameState {
   int unit_group_arg1;
   int unit_group_next; /* next unit_group[] slot the pending order goes to */
   bool unit_group_dispatching;
+  bool unit_group_escort; /* Ctrl-pick: the next move order forms an escort column */
   ColonizeMsgCatalog labels;
   bool labels_ok;
   ColonizeMsgCatalog debug_txt;

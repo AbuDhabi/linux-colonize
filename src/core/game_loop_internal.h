@@ -271,7 +271,7 @@ typedef enum GameUnitGroupOrder {
   GAME_GROUP_ORDER_MOVE,   /* a, b = direction key delta */
   GAME_GROUP_ORDER_GOTO    /* a, b = go-to drag target tile */
 } GameUnitGroupOrder;
-void game_unit_group_set(ColonizeGameState* game, const int* ids, int n);
+void game_unit_group_set(ColonizeGameState* game, const int* ids, int n, bool escort);
 void game_unit_group_clear(ColonizeGameState* game);
 /* False: no group order (the caller issues it to the selected unit alone). */
 bool game_unit_group_order(ColonizeGameState* game, GameUnitGroupOrder kind, int a, int b);
