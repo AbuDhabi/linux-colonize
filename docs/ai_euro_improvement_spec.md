@@ -542,9 +542,17 @@ save, Conquistador, New World, alternate map generator + modern PRNG, about
   sea, a loaded hull with no own colony on its sea sails home, and a hull
   leaving Europe re-aims its landfall at a sea with an own colony (#1860).
 
+pt7f (all fixes, #1857-#1861), colonies / pop at turns 100 / 200 / 300 / 486:
+England 3/8, 7/32, 4/16, 0/0 (conquered by t380, still landing Pioneers);
+France 6/11, 10/30, 18/54, 30/123 (12 Founding Fathers); Spain 4/9, 4/11,
+7/30, 14/84; Dutch 4/5, 7/16, 3/11, 1/4. All four expand until about t200,
+then France and Spain take English and Dutch colonies. No stall in 486 turns.
+
 pt7d (all fixes but #1860), turn 435, colonies / pop / Founding Fathers:
 England 11 / 46 / 7, France 16 / 65 / 7, Dutch 5 / 21 / 3 (stalled until about
 t240), Spain 1 / 6 / 2. Spain (DOS site terms, 4.9) peaked at 4 colonies by
-t60 and lost them to French and English wars. Open lead: a hull carrying
-horses shuttled between two own colonies every turn without unloading (replay
-of the pt7d t20 save with #1860, t59 onward, delivery scores tied at 67).
+t60 and lost them to French and English wars. With #1860 the Dutch hull
+then ferried the same four holds between two own colonies every turn: the
+berth dump and the DOS load matrix reload what was just unloaded, and the
+origin latch sends it on. Improved hulls no longer reload a cargo type they
+dumped at that berth (#1861).

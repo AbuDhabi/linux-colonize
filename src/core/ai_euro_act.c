@@ -479,11 +479,13 @@ static int ai_euro_20e6_ship_dos(ColonizeTurnContext* ctx, ColonizeUnit* u, int 
         ai_euro_20e6_ship_tail_5a78(ctx, u, nation_id);
         return 0;
       }
-      /* MOD_AI_IMPROVEMENTS (pt7d): a loaded hull whose sea borders no own
-       * colony takes its load home; ai_euro_ship_leave_europe then lands it
-       * on a sea that does (a Dutch hull with a Colonist roamed a bay for 200
-       * turns, its colonies on the far coast). */
+      /* MOD_AI_IMPROVEMENTS (pt7d): a loaded hull whose sea borders none of
+       * the nation's colonies (it has some: not the first landing) takes its
+       * load home; ai_euro_ship_leave_europe then lands it on a sea that does
+       * (a Dutch hull with a Colonist roamed a bay for 200 turns, its
+       * colonies on the far coast). */
       if (tile_stack_others > 0 && ai_euro_improved(ctx, nation_id) &&
+          colonies_count_for_nation(ctx->colonies, nation_id) > 0 &&
           !ai_euro_sea_has_own_colony(ctx, u->x, u->y, nation_id) &&
           ai_euro_20e6_3fa6_sail_home(ctx, u, nation_id)) {
         ai_euro_20e6_ship_tail_5a78(ctx, u, nation_id);

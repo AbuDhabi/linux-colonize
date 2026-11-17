@@ -928,9 +928,14 @@ static int ai_euro_20e6_load_holds(
   int nation_id,
   ColonizeUnit* ship,
   int free_holds,
-  int trace
+  int trace,
+  uint32_t skip_mask
 ) {
   int loaded = 0;
+  /* MOD_AI_IMPROVEMENTS: cargo types in skip_mask read as out of stock, so
+   * the pick moves on to the next type without burning a hold. */
+  int hidden[COLONIZE_CARGO_COUNT];
+  uint32_t hidden_mask = 0;
   /* DOS-LITERAL FUN_521d_20e6 raw 90295: `while (local_d2 != 0 && bVar20)` —
    * bVar20 is the prologue seed (raw 88556-88573): a Man-O-War never loads
    * goods, a Frigate / Privateer only under the seed's narrowings. port_bugs.md #818. */
@@ -941,6 +946,12 @@ static int ai_euro_20e6_load_holds(
     const int g = ai_euro_20e6_load_pick(ctx, c, nation_id, 1);
     if (g < 0) {
       break; /* md:3122-3123: iStack_d2 = 0 */
+    }
+    if ((skip_mask & ~hidden_mask) & (1u << g)) {
+      hidden[g] = c->stock[g];
+      c->stock[g] = 0;
+      hidden_mask |= 1u << g;
+      continue;
     }
     int qty = (int)c->stock[g];
     if (qty > 100) {
@@ -959,6 +970,11 @@ static int ai_euro_20e6_load_holds(
       );
     }
     free_holds -= 1; /* md:3133: DOS burns the hold either way */
+  }
+  for (int g = 0; g < COLONIZE_CARGO_COUNT; ++g) {
+    if (hidden_mask & (1u << g)) {
+      c->stock[g] = hidden[g];
+    }
   }
   return loaded;
 }
@@ -1078,6 +1094,7 @@ static int ai_euro_20e6_ship_berth_arrival(
 
   /* md:3002-3007: dump every hold into the colony, unconditionally. */
   int dumped = 0;
+  uint32_t dumped_types = 0;
   for (;;) {
     const int hold = units_first_goods_hold(ctx->units, ship->id);
     if (hold < 0) {
@@ -1090,6 +1107,7 @@ static int ai_euro_20e6_ship_berth_arrival(
       break; /* warehouse refused (OpenCol-only clamp) — do not spin */
     }
     dumped += moved;
+    dumped_types |= 1u << g;
     if (trace) {
       fprintf(
         stderr, "[shipdump] ship %d n%d colony %d dump cargo %d qty %d\n", ship->id,
@@ -1215,7 +1233,12 @@ static int ai_euro_20e6_ship_berth_arrival(
     ai_euro_s_0a60_work_registered[nation_id] = 0; /* :81295 */
   }
 
-  if (ai_euro_20e6_load_holds(ctx, c, nation_id, ship, free_holds, trace)) {
+  /* MOD_AI_IMPROVEMENTS (pt7d): a hull does not take back what it just
+   * unloaded here. DOS reloads it and the origin latch sends it to another
+   * colony, which does the same (a Dutch hull ferried 100 horses, furs, rum
+   * and cloth between (5,20) and (6,16) every turn, never selling). */
+  const uint32_t reload_skip = ai_euro_improved(ctx, nation_id) ? dumped_types : 0;
+  if (ai_euro_20e6_load_holds(ctx, c, nation_id, ship, free_holds, trace, reload_skip)) {
     loaded = 1;
   }
   /* md:3127-3131: the ship arm latches the source colony in +0x314a, which
@@ -1448,7 +1471,7 @@ int ai_euro_try_ship_trade_haul_snapshot(
        * hull the port's persistent passengers hold (see
        * ai_euro_20e6_ship_hold_budget). */
       int free_holds = ai_euro_20e6_ship_hold_budget(ctx->units, ship);
-      if (ai_euro_20e6_load_holds(ctx, c, nation_id, ship, free_holds, 0)) {
+      if (ai_euro_20e6_load_holds(ctx, c, nation_id, ship, free_holds, 0, 0)) {
         loaded = 1;
       }
       /*
