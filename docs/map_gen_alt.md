@@ -69,7 +69,11 @@ doubled to +32 / -32); tiles below 0 are water.
    Cold (-2) from the equator to each
    rim (Cold only the `k_cold_rows` rows at the edge; arctic is useless land), then `TEMP_SMEAR_ITERS` passes mixing each tile half-and-half with the
    air 2 tiles upwind (3 for the north-south component), plus up to 0.3 band of
-   jitter so the band edges are ragged. The smear never takes Cold past its rows.
+   jitter so the band edges are ragged. The smear moves the ice edge both ways:
+   the Cold rows can thaw to tundra, and past them a tile freezes where the smeared
+   temperature is below `ICE_SPREAD_EDGE` (-1.9, stricter than the -1.5 rounding,
+   so the ice keeps its shapes but reaches less far). With no Cold rows (Warm)
+   the rim row counts as Cool, so a Warm map grows no ice.
 7. **Terrain.** Land by band: Cold arctic, Cool tundra, Temperate plains, Lukewarm
    prairie, Warm grassland, Hot savannah. Relief (tile minus its lowest land 8-neighbour; a
    shore is not a cliff) `>= MOUNTAIN_RELIEF` is a mountain, `>= HILL_RELIEF` a
@@ -85,11 +89,12 @@ doubled to +32 / -32); tiles below 0 are water.
    A river tile loses its hill / mountain (DOS never stores both), arctic carries
    none, and the water tile at the mouth gets the river bit (estuary). Each river
    tile then gains 1 rain (major river 2). With that bonus in, rain becomes
-   terrain: no rain is desert; rain more than one standard deviation below the land
+   terrain: no rain is desert (tundra stays tundra, left unforested); rain more than one standard deviation below the land
    mean dries (plains -> tundra, prairie -> plains, grassland -> prairie, savannah
    -> grassland); more than one above moistens (savannah -> swamp, grassland ->
    marsh, prairie -> grassland, plains -> prairie, tundra -> plains). So a river through a dry basin is never desert.
-9. **Forest** on `FOREST_PERCENT` (90) % of flat non-arctic land. Desert becomes
+9. **Forest** on `FOREST_PERCENT` (90) % of flat non-arctic land, except rainless
+   tundra. Desert becomes
    scrub forest only near its edge: 90 % next to a tile that is neither desert nor
    scrub, 50 % two tiles in, 10 % three, never deeper (`k_scrub_percent`).
 10. **Shared tail.** High seas: per row, open water walked west from the east edge

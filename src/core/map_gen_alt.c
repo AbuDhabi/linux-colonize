@@ -96,6 +96,7 @@ static const float k_moisture_by_climate[4] = {60.0f, 100.0f, 140.0f, 180.0f};
 #define WIND_DEFLECT 0.7f     /* share of the uphill wind component a steep slope turns */
 #define WIND_GRAD_FULL 24.0f  /* slope (elevation units per tile) that deflects fully */
 #define WIND_ONSHORE 3.0f     /* pull from sea toward land (monsoon / sea breeze) */
+#define ICE_SPREAD_EDGE -1.9f /* smeared temperature below which a tile past the Cold rows freezes */
 
 static const int k_dx4[4] = {0, 1, 0, -1};
 static const int k_dy4[4] = {-1, 0, 1, 0};
@@ -665,7 +666,8 @@ static int rows_from_pole(int y) {
  * by the temperature axis's proportions. Then the winds smear them: each pass
  * mixes a tile half-and-half with the air arriving from upwind, with the
  * north-south reach weighted up so the bands bend rather than just blur.
- * Smear never takes Cold past its rows.
+ * Smear moves the ice edge both ways: cold air off the Cold rows can turn
+ * tundra arctic, warm air can thaw the Cold rows to tundra.
  */
 static void temperature(AltGen* g, int temp_axis) {
   const int cold = k_cold_rows[temp_axis];
@@ -675,8 +677,10 @@ static void temperature(AltGen* g, int temp_axis) {
   float* t = g->fa;
   float* next = g->fb;
   for (int y = 0; y < H; ++y) {
+    /* With no Cold rows the rim row (water now, arctic after finalize) is
+     * Cool air too, or the smear would ice a Warm map's poles. */
     int band = 5;
-    if (rows_from_pole(y) >= cold) {
+    if (rows_from_pole(y) >= cold || cold == 0) {
       const float f = fabsf((float)y - cy) / (cy - (float)(EDGE_Y + cold) + 0.5f) * (float)total;
       band = 0;
       int edge = widths[0];
@@ -702,8 +706,14 @@ static void temperature(AltGen* g, int temp_axis) {
   /* Jitter of up to +-0.3 band ragged-edges the band boundaries. */
   for (int i = 0; i < N; ++i) {
     const float jitter = (float)(rnd(g, 0, 6) - 3) * 0.1f;
-    const int lo = rows_from_pole(i / W) >= cold ? -1 : -2;
-    g->temp[i] = clamp_int((int)floorf(t[i] + jitter + 0.5f), lo, 3);
+    const float v = t[i] + jitter;
+    int band = clamp_int((int)floorf(v + 0.5f), -2, 3);
+    /* Past the Cold rows only the coldest air freezes: the ice keeps the
+     * smear's shapes but reaches less far than the plain -1.5 rounding. */
+    if (band == -2 && rows_from_pole(i / W) >= cold && v >= ICE_SPREAD_EDGE) {
+      band = -1;
+    }
+    g->temp[i] = band;
   }
 }
 
@@ -827,7 +837,9 @@ static void moisture(AltGen* g) {
       continue;
     }
     if (g->rain[i] == 0) {
-      typ = T_DESERT;
+      /* A rainless Cool tile is cold barren ground, not desert; forests()
+       * leaves it bare. */
+      typ = typ == T_TUNDRA ? T_TUNDRA : T_DESERT;
     } else if (g->rain[i] < mean - sd) {
       typ = typ == T_PLAINS ? T_TUNDRA
           : typ == T_PRAIRIE ? T_PLAINS
@@ -1018,14 +1030,14 @@ static int desert_depth(const AltGen* g, int i) {
   return 4;
 }
 
-/* Forest on FOREST_PERCENT of flat land; never on hills, mountains or arctic.
- * Desert becomes scrub forest only near its edge (k_scrub_percent by depth),
- * so desert interiors stay open. */
+/* Forest on FOREST_PERCENT of flat land; never on hills, mountains, arctic
+ * or rainless tundra (moisture()'s cold desert). Desert becomes scrub forest
+ * only near its edge (k_scrub_percent by depth), so desert interiors stay open. */
 static void forests(AltGen* g) {
   static const int k_scrub_percent[5] = {0, FOREST_PERCENT, 50, 10, 0};
   for (int i = 0; i < N; ++i) {
     const uint8_t t = g->terrain[i];
-    if ((t & 0x1f) > 7 || (t & F_HILL)) {
+    if ((t & 0x1f) > 7 || (t & F_HILL) || ((t & 0x1f) == T_TUNDRA && g->rain[i] == 0)) {
       continue;
     }
     const int chance = (t & 0x1f) == T_DESERT ? k_scrub_percent[desert_depth(g, i)] : FOREST_PERCENT;
