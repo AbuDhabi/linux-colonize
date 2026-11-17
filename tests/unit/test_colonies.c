@@ -100,7 +100,7 @@ static int unit_rush_buy_uses_nation_tools_price(void) {
   pool.colony_count = 1;
 
   ColonizeCol1Save col1;
-  memset(&col1, 0, sizeof(col1));
+  col1_save_init(&col1);
   col1.nation[1].trade.euro_price[COLONIZE_CARGO_TOOLS] = 17;
   const int expected_cost = (100 - 20) * 13 + (4 - 1) * (17 + 4);
   if (colonies_construction_gold_cost_ex(&pool, c, &col1) != expected_cost) {
@@ -1021,7 +1021,7 @@ static int unit_capture_col1_effects(void) {
 
   ColonizeCol1Save col1;
   ColonizeCol1Colony recs[2];
-  memset(&col1, 0, sizeof(col1));
+  col1_save_init(&col1);
   memset(recs, 0, sizeof(recs));
   col1.colony = recs;
   col1.head.colony_count = 2;
@@ -1092,7 +1092,7 @@ static int unit_tb32_capture_keeps_war(void) {
   pool.colony_count = 1;
   static ColonizeCol1Save col1;
   ColonizeCol1Colony recs[1];
-  memset(&col1, 0, sizeof(col1));
+  col1_save_init(&col1);
   memset(recs, 0, sizeof(recs));
   col1.colony = recs;
   col1.head.colony_count = 1;
@@ -1129,7 +1129,7 @@ static int unit_capture_unseen_skips_effects(void) {
   pool.colony_count = 1;
   static ColonizeCol1Save col1;
   ColonizeCol1Colony recs[1];
-  memset(&col1, 0, sizeof(col1));
+  col1_save_init(&col1);
   memset(recs, 0, sizeof(recs));
   col1.colony = recs;
   col1.head.colony_count = 1;
@@ -1172,7 +1172,7 @@ static int unit_claim_skips_worked_plot(void) {
   map.prime_resource_seed = 0;
   map_reveal_all(&map, 0);
   static ColonizeCol1Save col1;
-  memset(&col1, 0, sizeof(col1));
+  col1_save_init(&col1);
   ColonizeCol1Tribe tribe;
   memset(&tribe, 0, sizeof(tribe));
   tribe.x = 10;
@@ -2244,7 +2244,7 @@ static int case_colonies_core(void) {
     if (c) {
       ColonizeCol1Save col1;
       ColonizeCol1Colony col1c;
-      memset(&col1, 0, sizeof(col1));
+      col1_save_init(&col1);
       memset(&col1c, 0, sizeof(col1c));
       col1.colony = &col1c;
       col1.head.colony_count = 1;
@@ -2514,7 +2514,7 @@ static int unit_foreign_colony_trade(void) {
   u->nation_id = 0; /* English, human */
 
   ColonizeCol1Save col1;
-  memset(&col1, 0, sizeof(col1));
+  col1_save_init(&col1);
   col1.head.difficulty = 2;
   col1.head.rival_nation_slot_1 = 3;
   col1.head.crown_nation_id = -1;
@@ -2758,7 +2758,7 @@ static int unit_ship_construction(void) {
    */
   {
     ColonizeCol1Save gift_col1;
-    memset(&gift_col1, 0, sizeof(gift_col1));
+    col1_save_init(&gift_col1);
     /* AI Euro colony: control != 0. */
     gift_col1.player[0].control = 1;
     c->hammers = 512;
@@ -2868,7 +2868,7 @@ static int unit_wagon_cap_and_armory_gate(void) {
   pool.colony_count = 1;
 
   static ColonizeCol1Save col1;
-  memset(&col1, 0, sizeof(col1));
+  col1_save_init(&col1);
   col1.stuff.colony_counts[1] = 3;
   col1.stuff.unit_type_counts[1][12] = 2;
 
@@ -3379,7 +3379,7 @@ static int unit_building_upkeep_total(void) {
   memset(&eu, 0, sizeof(eu));
   eu.bound_nation = 0;
   static ColonizeCol1Save col1;
-  memset(&col1, 0, sizeof(col1));
+  col1_save_init(&col1);
   eu.gold = 49;
   CHECK(!colonies_upkeep_short(&pool, &col1, &eu, 0), "upkeep: mod off is never short");
   CHECK(colonies_upkeep_set_halved(1u) == 0u && !colonies_upkeep_halved(a),

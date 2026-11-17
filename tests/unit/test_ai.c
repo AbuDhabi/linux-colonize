@@ -1221,7 +1221,7 @@ static int run_village_threat_alarm(void) {
   colonies_set_occupancy_map(NULL);
 
   ColonizeCol1Save col1;
-  memset(&col1, 0, sizeof(col1));
+  col1_save_init(&col1);
   colonies_set_col1_context(NULL);
   colonies_set_units_context(NULL);
   /*

@@ -59,7 +59,7 @@ static int test_dos_buggy_default_off_tests_on(void) {
 /* turn_year_end_rival_rebels: pure function of (rebel_sentiment, census_pop_proxy). */
 static int test_turn_year_end_rival_rebels(void) {
   ColonizeCol1Save col1;
-  memset(&col1, 0, sizeof(col1));
+  col1_save_init(&col1);
   col1.nation[1].rebel_sentiment = 50;
   col1.stuff.census_pop_proxy[1] = 20;
   const int v = turn_year_end_rival_rebels(&col1, 1);
@@ -2461,7 +2461,7 @@ static int test_ai_brave_field_attack(void) {
       snprintf(units.types[t].name, sizeof(units.types[t].name), "t%d", t);
     }
     ColonizeCol1Save col1;
-    memset(&col1, 0, sizeof(col1));
+    col1_save_init(&col1);
     ColonizeCol1Tribe tribe;
     memset(&tribe, 0, sizeof(tribe));
     tribe.x = 5;
@@ -4409,7 +4409,7 @@ static int test_brave_step_watch_sees_entry_vis(void) {
       units.types[t].domain = COLONIZE_UNIT_DOMAIN_LAND;
     }
     ColonizeCol1Save col1;
-    memset(&col1, 0, sizeof(col1));
+    col1_save_init(&col1);
     ColonizeCol1Tribe tribe;
     memset(&tribe, 0, sizeof(tribe));
     tribe.x = 5;

@@ -1635,7 +1635,7 @@ static int trade_click(TradeScreen* ts, const ColonizeCol1Save* col1, int x, int
 
 static int case_trade_cargo_columns_are_dos(void) {
   static ColonizeCol1Save col1;
-  memset(&col1, 0, sizeof(col1));
+  col1_save_init(&col1);
   col1.trade_route[0].dest_count = 1;
   col1.trade_route[0].stop[0].colony_index = 999;
   col1.trade_route[0].stop[0].load_count = 1; /* load list [Food], unload list empty */

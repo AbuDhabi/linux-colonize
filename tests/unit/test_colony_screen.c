@@ -3842,7 +3842,7 @@ static int unit_minimap_draws_adjacent_village(void) {
   tribe.nation_id = 4;
   tribe.mission = 0xff;
   ColonizeCol1Save col1;
-  memset(&col1, 0, sizeof(col1));
+  col1_save_init(&col1);
   col1.tribe = &tribe;
   col1.head.show_entire_map = 1;
   const ColonizeWorld w = world_make(NULL, NULL, &map, &col1, true, NULL, NULL);

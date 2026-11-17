@@ -111,7 +111,7 @@ static int case_purchase_gates(void) {
 
   /* All gates open, purse rich: +100 lumber, -200 gold. */
   fx_colony(&c, profs, 1);
-  memset(&sv, 0, sizeof sv);
+  col1_save_init(&sv);
   sv.nation[0].gold = 1000;
   c.stock[COLONIZE_CARGO_LUMBER] = 1;
   ai_euro_5952_lumber_purchase(NULL, &sv, &c, 8, false);
@@ -173,7 +173,7 @@ static int case_tb22_fixed_lumber_needs_gold(void) {
   int rc = 0;
   dos_buggy_behavior_set(false);
   fx_colony(&c, profs, 1);
-  memset(&sv, 0, sizeof sv);
+  col1_save_init(&sv);
   sv.nation[0].gold = 199;
   ai_euro_5952_lumber_purchase(NULL, &sv, &c, 8, false);
   if (c.stock[COLONIZE_CARGO_LUMBER] != 0 || sv.nation[0].gold != 199) {

@@ -492,7 +492,7 @@ static int case_bells_keep_full_sol(void) {
   }
   ColonizeColony* c = f.col;
   ColonizeCol1Save col1;
-  memset(&col1, 0, sizeof(col1));
+  col1_save_init(&col1);
   ColonizeCol1Colony rec;
   memset(&rec, 0, sizeof(rec));
   rec.x = (uint8_t)c->x;
@@ -671,7 +671,7 @@ static int case_no_tribal_land(void) {
     return 1;
   }
   ColonizeCol1Save col1;
-  memset(&col1, 0, sizeof(col1));
+  col1_save_init(&col1);
   ColonizeCol1Tribe tribe;
   memset(&tribe, 0, sizeof(tribe));
   tribe.x = (uint8_t)vx;
@@ -795,7 +795,7 @@ static int case_idle_worker_leaves(void) {
   f.w.europe = &eu;
   ColonizeColony* c = f.col;
   static ColonizeCol1Save col1;
-  memset(&col1, 0, sizeof(col1));
+  col1_save_init(&col1);
   static ColonizeCol1Colony rec;
   memset(&rec, 0, sizeof(rec));
   rec.x = (uint8_t)c->x;
@@ -874,7 +874,7 @@ static int case_no_crosses_in_war(void) {
       return 1;
     }
     static ColonizeCol1Save col1;
-    memset(&col1, 0, sizeof(col1));
+    col1_save_init(&col1);
     col1.head.game_options.woi = war;
     f.w.col1 = &col1;
     f.w.col1_ok = true;

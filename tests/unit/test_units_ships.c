@@ -609,7 +609,7 @@ static int unit_own_colony_dock_ignores_squatter(void) {
     const ColonizeEnterReason r = units_enter_probe_w(&w, su->type_index, 4, 3, ship);
     static ColonizeCol1Save col1;
     for (int human = 0; human < 2 && rc == 0; ++human) {
-      memset(&col1, 0, sizeof(col1));
+      col1_save_init(&col1);
       col1.player[2].control = human ? 0 : 1;
       su->moves = 15;
       units_move_ctx c = {
@@ -860,7 +860,7 @@ static int unit_king_galleon_offer(void) {
    * the 8x8 fixture has no open-sea region so stamp it as a real save would. */
   colonies_get_mut(&colonies, cid)->colony_flags |= COLONIZE_COLONY_FLAG_COASTAL;
   ColonizeCol1Save c1;
-  memset(&c1, 0, sizeof(c1));
+  col1_save_init(&c1);
   c1.player[0].control = 0;
   memset(c1.head.founding_father, -1, sizeof(c1.head.founding_father)); /* unclaimed */
   c1.nation[0].gold = 100;
@@ -1330,7 +1330,7 @@ static int unit_europe_sail_keeps_census(void) {
   static ColonizeUnitPool pool;
   static ColonizeCol1Save col1;
   memset(&pool, 0, sizeof(pool));
-  memset(&col1, 0, sizeof(col1));
+  col1_save_init(&col1);
   pool.type_count = 1;
   pool.types[0].movement = 4;
   pool.types[0].domain = COLONIZE_UNIT_DOMAIN_SEA;

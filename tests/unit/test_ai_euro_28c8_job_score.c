@@ -516,7 +516,7 @@ static int unit_889_ore_rank_gates_chain_not_flat_bonus(void) {
   const int cy = 8;
 
   ColonizeCol1Save sv;
-  memset(&sv, 0, sizeof sv);
+  col1_save_init(&sv);
   sv.head.turn = 0x50; /* > 0x4f */
 
   AiEuro28c8JobCandidate rank_pass;

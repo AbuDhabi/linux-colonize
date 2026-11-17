@@ -2317,7 +2317,7 @@ static bool test_imported_tile_chain_order(char* err, size_t err_size) {
   save.unit[1].transport_chain.prev_unit_idx = -1;
   save.unit[1].transport_chain.next_unit_idx = -1;
 
-  static ColonizeUnitPool units; /* off the stack: main already holds ~5 MB */
+  static ColonizeUnitPool units; /* ~0.8 MB: off the stack */
   memset(&units, 0, sizeof(units));
   units_reset(&units);
   units.type_count = 23;

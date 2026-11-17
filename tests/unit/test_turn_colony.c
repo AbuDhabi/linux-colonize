@@ -56,7 +56,7 @@ static int unit_century_cargoready(void) {
   }
 
   ColonizeCol1Save tipcol;
-  memset(&tipcol, 0, sizeof(tipcol));
+  col1_save_init(&tipcol);
   tipcol.head.game_options.tutorial_hints = 1; /* @TUTORIAL6 needs the option */
 
   ColonizeTurnResult prod;
@@ -227,7 +227,7 @@ static int unit_hammers_lumber_two_turns(void) {
   pool.colony_count = 1;
 
   ColonizeCol1Save save;
-  memset(&save, 0, sizeof(save));
+  col1_save_init(&save);
   save.head.year = 1550; /* pre-1600: every turn is a Spring tick */
   save.head.autumn = 0;
 
@@ -361,7 +361,7 @@ static int unit_building_completion_supplies_tools_only_to_ai(void) {
   }
 
   ColonizeCol1Save col1;
-  memset(&col1, 0, sizeof(col1));
+  col1_save_init(&col1);
   col1.player[0].control = 0;
   col1.player[1].control = 1;
   ColonizeTurnContext ctx;
@@ -470,7 +470,7 @@ static int unit_unit_project_tools_spent_before_spoilage(void) {
   pool.colony_count = 1;
 
   ColonizeCol1Save col1;
-  memset(&col1, 0, sizeof(col1));
+  col1_save_init(&col1);
   col1.head.year = 1600;
   ColonizeDosRng rng;
   dos_rng_seed(&rng, 1);
@@ -567,7 +567,7 @@ static int unit_needtools0(void) {
     return 1;
   }
   ColonizeCol1Save col1;
-  memset(&col1, 0, sizeof(col1));
+  col1_save_init(&col1);
 
   ColonizeTurnResult prod;
   memset(&prod, 0, sizeof(prod));
@@ -672,7 +672,7 @@ static int unit_needtools(void) {
     return 1;
   }
   ColonizeCol1Save col1;
-  memset(&col1, 0, sizeof(col1));
+  col1_save_init(&col1);
 
   ColonizeTurnResult prod;
   memset(&prod, 0, sizeof(prod));

@@ -215,7 +215,7 @@ static int unit_kind_without_name_resolver(void) {
     units_occupancy_rebuild(&pool);
 
     ColonizeCol1Save col1;
-    memset(&col1, 0, sizeof(col1));
+    col1_save_init(&col1);
     for (int i = 0; i < 4; ++i) {
       col1.player[i].control = 1; /* nobody human: no popups */
     }
@@ -268,7 +268,7 @@ static int unit_kind_without_name_resolver(void) {
     pool.types[1].kind_plus1 = (uint8_t)(UNITS_KIND_REGULAR + 1);
 
     ColonizeCol1Save col1;
-    memset(&col1, 0, sizeof(col1));
+    col1_save_init(&col1);
     for (int i = 0; i < 4; ++i) {
       col1.player[i].control = 1;
     }
@@ -337,7 +337,7 @@ static int unit_smell_audit_2026_09_09(void) {
   units_set_occupancy_map(&map);
 
   ColonizeCol1Save col1;
-  memset(&col1, 0, sizeof(col1));
+  col1_save_init(&col1);
   memset(col1.head.founding_father, 0xff, sizeof(col1.head.founding_father));
   col1.head.difficulty = 2;
   col1.player[0].control = 0; /* human */
@@ -694,7 +694,7 @@ static int unit_smell_audit_2026_09_09(void) {
       tribe.y = 6;
       tribe.nation_id = 4;
       ColonizeCol1Save vcol1;
-      memset(&vcol1, 0, sizeof(vcol1));
+      col1_save_init(&vcol1);
       memset(vcol1.head.founding_father, 0xff, sizeof(vcol1.head.founding_father));
       vcol1.head.tribe_count = 1;
       vcol1.tribe = &tribe;
@@ -816,7 +816,7 @@ static int unit_promote_and_label_504(void) {
     pool.types[brave].defense = 1;
 
     ColonizeCol1Save col1;
-    memset(&col1, 0, sizeof(col1));
+    col1_save_init(&col1);
     col1.head.game_options.woi = 1;
     col1.player[0].control = 0;
     col1.player[1].control = 1;
@@ -952,7 +952,7 @@ static int unit_promote_convert_rng_598(void) {
   /* pass 0 = no Washington (DOS draws, port does not); pass 1 = Washington. */
   for (int pass = 0; pass < 2 && rc == 0; ++pass) {
     ColonizeCol1Save col1;
-    memset(&col1, 0, sizeof(col1));
+    col1_save_init(&col1);
     col1.player[0].control = 0;
     col1.head.human_player = 0;
     if (pass == 1) {

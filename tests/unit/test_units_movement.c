@@ -246,7 +246,7 @@ static int unit_fog_vis_mask_and_snapshot(void) {
   colonies.colony_count = 2;
 
   ColonizeCol1Save fog_col1;
-  memset(&fog_col1, 0, sizeof(fog_col1));
+  col1_save_init(&fog_col1);
   colonies_reveal_founded_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&colonies), .map=(ColonizeWorldMap*)(&map), .col1=(ColonizeCol1Save*)(&fog_col1), .col1_ok=true}, 2);
   if (col2->pop_on_map[3] != 0) {
     fprintf(stderr, "fog: founding revealed without Coronado\n");
@@ -1266,7 +1266,7 @@ static int unit_colony_enter_hull_stack_gate_791_792(void) {
  */
 static int unit_ai_move_marks_new_world(void) {
   static ColonizeCol1Save col1;
-  memset(&col1, 0, sizeof(col1));
+  col1_save_init(&col1);
   col1.player[1].control = 1;
   col1.player[0].control = 0;
   ColonizeUnitPool pool;
@@ -1665,7 +1665,7 @@ static int unit_ai_undefended_colony_band(void) {
   col->y = 3;
   colonies.colony_count = 1;
   static ColonizeCol1Save col1;
-  memset(&col1, 0, sizeof(col1));
+  col1_save_init(&col1);
   col1.player[0].control = 0;
   col1.player[1].control = 1;
   units_set_combat_human_nation(0);

@@ -399,7 +399,7 @@ static int test_amer2_pacific_suppress_matches_dos(void) {
     return 1;
   }
   ColonizeCol1Save save;
-  memset(&save, 0, sizeof(save));
+  col1_save_init(&save);
   if (!col1_save_read_file("original_saves/golden_idle_america_seed-100/000001.SAV", &save, err,
                            sizeof(err))) {
     fprintf(stderr, "col1_save_read_file failed: %s\n", err);

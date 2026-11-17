@@ -2714,7 +2714,7 @@ static int case_native_settlement_conquer(void) {
     return 1;
   }
     ColonizeCol1Save col1;
-    memset(&col1, 0, sizeof(col1));
+    col1_save_init(&col1);
     col1.head.tribe_count = 1;
     col1.head.difficulty = 0;
     col1.tribe = calloc(1, sizeof(ColonizeCol1Tribe));
@@ -3006,7 +3006,7 @@ static int case_convert_join(void) {
     return 1;
   }
     ColonizeCol1Save col1;
-    memset(&col1, 0, sizeof(col1));
+    col1_save_init(&col1);
     col1.head.tribe_count = 1;
     col1.tribe = calloc(1, sizeof(ColonizeCol1Tribe));
     if (!col1.tribe) {
@@ -3394,7 +3394,7 @@ static int case_fort_defense_bonus(void) {
     /* Combat Analysis gate. */
     {
       ColonizeCol1Save ag;
-      memset(&ag, 0, sizeof(ag));
+      col1_save_init(&ag);
       ag.player[0].control = 0;
       ag.player[1].control = 1;
       if (combat_analysis_should_show(&ag, 0, 1, 0)) {
@@ -3581,7 +3581,7 @@ static int case_fort_defense_bonus(void) {
 
     /* port_bugs.md #660: treasure capture flips nation, credits no gold. */
     ColonizeCol1Save tcol1;
-    memset(&tcol1, 0, sizeof(tcol1));
+    col1_save_init(&tcol1);
     tcol1.nation[1].gold = 50;
     int use_ti = units_find_type(&pool, "Treasure");
     if (use_ti < 0) {
@@ -3714,7 +3714,7 @@ static int case_coastal_fort_naval_fire(void) {
     col->has_building[2] = false; /* Fort only, strength 4 */
 
     ColonizeCol1Save fcol1;
-    memset(&fcol1, 0, sizeof(fcol1));
+    col1_save_init(&fcol1);
     /* Unclaimed FF slots must be -1 (memset 0 → nation 0 falsely owns Franklin). */
     for (int i = 0; i < (int)COLONIZE_COL1_FF_COUNT; ++i) {
       fcol1.head.founding_father[i] = -1;
@@ -3880,7 +3880,7 @@ static int case_lcr_clear_desoto(void) {
       return 1;
     }
     ColonizeCol1Save lcol1;
-    memset(&lcol1, 0, sizeof(lcol1));
+    col1_save_init(&lcol1);
     const int scout_ti = units_find_type(&pool, "Scouts");
     if (scout_ti < 0) {
       fprintf(stderr, "Scout type missing for LCR smoke\n");
@@ -3997,7 +3997,7 @@ static int case_tb35_lcr_latch_respects_protection(void) {
     return 1;
   }
   static ColonizeCol1Save c1;
-  memset(&c1, 0, sizeof(c1));
+  col1_save_init(&c1);
   for (int i = 0; i < (int)COLONIZE_COL1_FF_COUNT; ++i) {
     c1.head.founding_father[i] = -1;
   }
@@ -4239,7 +4239,7 @@ static int case_lcr_case_matrix(void) {
      * trivial RNG(1,1), always sticks). Brute-force via the real resolve
      * call so this stays correct regardless of the exact RNG call shape. */
     ColonizeCol1Save c5col1;
-    memset(&c5col1, 0, sizeof(c5col1));
+    col1_save_init(&c5col1);
     for (int i = 0; i < (int)COLONIZE_COL1_FF_COUNT; ++i) {
       c5col1.head.founding_father[i] = -1;
     }
@@ -4360,7 +4360,7 @@ static int case_lcr_case5_latch(void) {
     bool vanished[2] = {false, false};
     for (int pass = 0; pass < 2; ++pass) {
       ColonizeCol1Save pcol1;
-      memset(&pcol1, 0, sizeof(pcol1));
+      col1_save_init(&pcol1);
       for (int i = 0; i < (int)COLONIZE_COL1_FF_COUNT; ++i) {
         pcol1.head.founding_father[i] = -1;
       }
@@ -4445,7 +4445,7 @@ static int case_lcr_outcome_dispatch(void) {
       return 1;
     }
     ColonizeCol1Save dcol1;
-    memset(&dcol1, 0, sizeof(dcol1));
+    col1_save_init(&dcol1);
     /* founding_father[]==0 would misread as "nation 0 elected FF 0" (the
      * real sentinel is -1 = unrecruited) and force every trial down the de
      * Soto positive-only branch. */
@@ -4584,7 +4584,7 @@ static int case_lcr_fountain_ai(void) {
       foy_was_active[i] = pool.units[i].active;
     }
     ColonizeCol1Save acol1;
-    memset(&acol1, 0, sizeof(acol1));
+    col1_save_init(&acol1);
     for (int i = 0; i < (int)COLONIZE_COL1_FF_COUNT; ++i) {
       acol1.head.founding_father[i] = -1; /* zeroed FF[] = "nation 0 has FF 0" */
     }
@@ -4791,7 +4791,7 @@ static int case_lcr_burial_trespass(void) {
     int trial_count[2] = {0, 0};
     for (int met = 0; met < 2; ++met) {
       ColonizeCol1Save tcol1;
-      memset(&tcol1, 0, sizeof(tcol1));
+      col1_save_init(&tcol1);
       for (int i = 0; i < (int)COLONIZE_COL1_FF_COUNT; ++i) {
         tcol1.head.founding_father[i] = -1;
       }
@@ -4913,7 +4913,7 @@ static int case_lcr_trespass_village_index(void) {
     int hits[2] = {0, 0};
     for (int phase = 0; phase < 2; ++phase) {
       ColonizeCol1Save tcol1;
-      memset(&tcol1, 0, sizeof(tcol1));
+      col1_save_init(&tcol1);
       for (int i = 0; i < (int)COLONIZE_COL1_FF_COUNT; ++i) {
         tcol1.head.founding_father[i] = -1;
       }
@@ -5584,7 +5584,7 @@ static int case_combat_terrain_stash(void) {
         return 1;
       }
       ColonizeCol1Save c1;
-      memset(&c1, 0, sizeof(c1));
+      col1_save_init(&c1);
       c1.head.difficulty = 4; /* Viceroy: difficulty peel adj=0 */
       c1.player[0].control = 0; /* human */
       c1.player[1].control = 1; /* AI Euro / REF-shaped */
@@ -5746,7 +5746,7 @@ static int case_combat_woi_ref_support(void) {
       col->y = 10;
       cols.colony_count = 1;
       ColonizeCol1Save c1;
-      memset(&c1, 0, sizeof(c1));
+      col1_save_init(&c1);
       c1.head.difficulty = 4;
       c1.head.game_options.woi = 1;
       c1.head.crown_nation_id = 1; /* DOS 0218 picks an AI slot; memset 0 = the human (#1592) */
@@ -5939,7 +5939,7 @@ static int case_combat_capture_vet_strip_needs_show(void) {
     return 1;
   }
   ColonizeCol1Save c1;
-  memset(&c1, 0, sizeof(c1));
+  col1_save_init(&c1);
   c1.head.difficulty = 2;
   const int sol = units_find_type(&pool, "Soldiers");
   const int fc = units_find_type(&pool, "Colonists");
@@ -5977,7 +5977,7 @@ static int case_combat_capture_alive_colonist(void) {
     return 1;
   }
       ColonizeCol1Save c1;
-      memset(&c1, 0, sizeof(c1));
+      col1_save_init(&c1);
       c1.head.difficulty = 2;
       c1.player[0].control = 0;
       const int sol = units_find_type(&pool, "Soldiers");
@@ -6035,7 +6035,7 @@ static int case_combat_native_win_destroy_demote(void) {
     return 1;
   }
       ColonizeCol1Save c1;
-      memset(&c1, 0, sizeof(c1));
+      col1_save_init(&c1);
       c1.head.difficulty = 2;
       c1.player[0].control = 0;
       const int pio = units_find_type(&pool, "Pioneers");
@@ -6180,7 +6180,7 @@ static int case_combat_outcome_popups(void) {
       pool.types[sol].attack = 8;
       pool.types[sol].defense = 1;
       ColonizeCol1Save c1;
-      memset(&c1, 0, sizeof(c1));
+      col1_save_init(&c1);
       c1.player[0].control = 0;
       c1.player[1].control = 1;
       if (!units_resolve_land_combat_ff_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .col1=(ColonizeCol1Save*)(&c1), .col1_ok=true, .rng=(ColonizeDosRng*)(NULL)}, aid, did)) {
@@ -6252,7 +6252,7 @@ static int case_combat_village_attack_pop_drain(void) {
         return 1;
       }
       ColonizeCol1Save c1;
-      memset(&c1, 0, sizeof(c1));
+      col1_save_init(&c1);
       c1.head.tribe_count = 1;
       c1.tribe = calloc(1, sizeof(ColonizeCol1Tribe));
       if (!c1.tribe) {
@@ -6464,7 +6464,7 @@ static int case_combat_undefended_colony_militia(void) {
       col->colonists[0].active = true;
 
       ColonizeCol1Save c1;
-      memset(&c1, 0, sizeof(c1));
+      col1_save_init(&c1);
       c1.player[0].control = 0;
       c1.player[1].control = 1;
       ai_diplo_declare_war(&c1, 0, 1); /* the human confirm declares before the step */
@@ -6602,7 +6602,7 @@ static int case_combat_militia_phantom_row(void) {
       mcol->colonists[1].active = true;
 
       ColonizeCol1Save mc1;
-      memset(&mc1, 0, sizeof(mc1));
+      col1_save_init(&mc1);
       for (int i = 0; i < (int)COLONIZE_COL1_FF_COUNT; ++i) {
         mc1.head.founding_father[i] = -1; /* zeroed = "nation 0 owns them all" */
       }
@@ -6851,7 +6851,7 @@ static int case_combat_discoverer_beginner_shield(void) {
       scolony->colonists[0].active = true;
 
       ColonizeCol1Save sc1;
-      memset(&sc1, 0, sizeof(sc1));
+      col1_save_init(&sc1);
       sc1.player[0].control = 1; /* AI raider */
       sc1.player[1].control = 0; /* the human's town — DOS 0x543f == 0 */
       sc1.head.difficulty = 0; /* Discoverer */
@@ -7004,7 +7004,7 @@ static int case_combat_port_ship_fate_discharge(void) {
       col->colonists[0].active = true;
 
       ColonizeCol1Save c1;
-      memset(&c1, 0, sizeof(c1));
+      col1_save_init(&c1);
       c1.player[0].control = 0;
       c1.player[1].control = 1;
       ai_diplo_declare_war(&c1, 0, 1); /* the human confirm declares before the step */
@@ -7175,7 +7175,7 @@ static int case_combat_treasure_capture(void) {
       units_set_occupancy_map(NULL);
       units_set_native_fallout_context(NULL, NULL);
       ColonizeCol1Save c1;
-      memset(&c1, 0, sizeof(c1));
+      col1_save_init(&c1);
       c1.player[0].control = 0;
       c1.player[1].control = 1;
       c1.nation[0].gold = 10;
@@ -7249,7 +7249,7 @@ static int case_combat_capture_water_destroy(void) {
       units_set_combat_popups(&pops, NULL);
       units_set_occupancy_map(&wmap);
       ColonizeCol1Save c1;
-      memset(&c1, 0, sizeof(c1));
+      col1_save_init(&c1);
       c1.player[0].control = 0;
       c1.player[1].control = 1;
       const int use_ti = units_find_type(&pool, "Treasure");
@@ -7286,7 +7286,7 @@ static int case_combat_colony_capture_notify(void) {
       ai_popup_clear(&pops);
       units_set_combat_popups(&pops, test_game_txt());
       ColonizeCol1Save c1;
-      memset(&c1, 0, sizeof(c1));
+      col1_save_init(&c1);
       c1.player[0].control = 0;
       ColonizeColony col;
       memset(&col, 0, sizeof(col));
@@ -7348,7 +7348,7 @@ static int case_combat_privateer_seizure(void) {
       a->nation_id = 0;
       d->nation_id = 1;
       ColonizeCol1Save c1;
-      memset(&c1, 0, sizeof(c1));
+      col1_save_init(&c1);
       c1.player[0].control = 0;
       c1.player[1].control = 1;
     /* port_bugs.md #867 / FUN_5fef_0352 raw 99531-99548: an UNARMED loser now goes
@@ -7449,7 +7449,7 @@ static int case_combat_crown_last_mow_unsinkable(void) {
     a->nation_id = 0;
     d->nation_id = 1;
     ColonizeCol1Save c1;
-    memset(&c1, 0, sizeof(c1));
+    col1_save_init(&c1);
     c1.head.human_player = 0;
     c1.head.crown_nation_id = 1;
     c1.head.game_options.woi = 1;
@@ -7534,7 +7534,7 @@ static int case_combat_fort_fire_repair(void) {
       pool.types[car].attack = 2;
       pool.types[car].defense = 99;
       ColonizeCol1Save c1;
-      memset(&c1, 0, sizeof(c1));
+      col1_save_init(&c1);
       for (int i = 0; i < (int)COLONIZE_COL1_FF_COUNT; ++i) {
         c1.head.founding_father[i] = -1;
       }
