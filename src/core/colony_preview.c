@@ -2,6 +2,8 @@
 
 #include <string.h>
 
+#include "core/ai_euro.h"
+#include "core/col1_save.h"
 #include "core/colony.h"
 #include "core/colony_craft.h"
 #include "core/colony_production.h"
@@ -55,7 +57,11 @@ void colony_preview_compute_w(
    * AI colony's preview one food short of the actual tick without it). */
   int ai_food_subsidy = 0;
   if (col1 && colony->nation_id >= 0 && colony->nation_id < (int)COLONIZE_COL1_NATION_COUNT &&
-      col1->player[colony->nation_id].control != 0) {
+      col1->player[colony->nation_id].control != 0 &&
+      /* #1877: the tick gives improved nations no subsidy (F2); planning on
+       * it seated pt-discard French colonies two food short until they starved. */
+      !ai_euro_improved_nation(col1, col1_all_ai_fixed_nation(col1) >= 0 ? -1 : (int)col1->head.human_player,
+                               colony->nation_id)) {
     int diff = (int)col1->head.difficulty;
     diff = diff < 0 ? 0 : (diff > 4 ? 4 : diff);
     ai_food_subsidy = diff >> 1;

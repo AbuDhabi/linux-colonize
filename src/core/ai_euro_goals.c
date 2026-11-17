@@ -25,6 +25,7 @@
 #include "core/assets.h"
 #include "core/ai_euro_internal.h"
 #include "core/colony.h"
+#include "core/colony_governor.h"
 #include "core/colony_craft.h"
 #include "core/colony_yield.h"
 #include "core/colony_production.h"
@@ -1659,6 +1660,13 @@ COLONIZE_INTERNAL void ai_euro_5952_absorb_equip(
       for (int k = 0; k < n && !restart; ++k) {
         if ((int)c->population >= 0x20) {
           break; /* raw 94235-94236, re-read every loop test */
+        }
+        /* #1878: an improved colony re-checks its food before each admission. */
+        if (ai_euro_improved(ctx, nation_id)) {
+          const ColonizeWorld fw = world_from_turn_ctx(ctx);
+          if (!colony_governor_feeds_one_more(&fw, c)) {
+            break;
+          }
         }
         ColonizeUnit* u = units_get(ctx->units, ids[k]);
         if (!u || !u->active) {

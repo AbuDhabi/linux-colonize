@@ -965,6 +965,31 @@ void colony_governor_run_w(const ColonizeWorld* w, int colony_id) {
   gov_seat_colonists(w, col, &wt, false);
 }
 
+bool colony_governor_feeds_one_more(const ColonizeWorld* w, const ColonizeColony* col) {
+  if (!w || !w->map || !w->colonies || !col) {
+    return false;
+  }
+  ColonizeColonyPreview pv;
+  colony_preview_compute_w(w, col, &pv);
+  int best = 0;
+  const int plots = colonies_work_plot_count(w->colonies, col);
+  for (int t = 0; t < plots && t < COLONIZE_COLONY_FIELD_TILES_MAX; ++t) {
+    if (col->tiles[t] >= 0 || !gov_plot_ok(w, col, t)) {
+      continue;
+    }
+    int dx = 0;
+    int dy = 0;
+    colonies_field_tile_delta(t, &dx, &dy);
+    for (int job = 0; job < COLONIZE_FIELD_JOB_COUNT; ++job) {
+      if (colony_yield_job_cargo(job) == COLONIZE_CARGO_FOOD) {
+        const int y = colony_yield_for_tile_in_colony(w->colonies, col, w->map, col->x + dx, col->y + dy, job);
+        best = y > best ? y : best;
+      }
+    }
+  }
+  return pv.food_net + best >= TURN_FOOD_PER_COLONIST;
+}
+
 void colony_governor_seat_w(const ColonizeWorld* w, int colony_id, int gov) {
   ColonizeColony* col = w ? colonies_get_mut(w->colonies, colony_id) : NULL;
   if (!col || !col->active || gov <= COLONY_GOVERNOR_NONE || gov >= COLONY_GOVERNOR_COUNT) {

@@ -590,3 +590,8 @@ an improved nation now fights one Euro at a time and signs peace once neither
 side finds the war worthy (#1873). The colonist recruit ignores the fleet-size
 proxy (#1874), and Europe Artillery stops at one per colony (#1875; France had
 bought 77).
+
+The user's discard campaign (Viceroy, t127) showed French colonies stuck at
+one or two colonists: the governor planned on the AI food subsidy F1 had
+removed, so absorbed colonists starved (#1877), and colonies kept asking for
+colonists their land could not feed (#1878).

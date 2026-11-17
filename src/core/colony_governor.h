@@ -8,7 +8,10 @@
  * project when the current one cannot be built, as the human ends the turn
  * (game_do_end_turn). It moves nobody in or out of the colony.
  */
+#include <stdbool.h>
+
 struct ColonizeWorld;
+struct ColonizeColony;
 
 typedef enum ColonyGovernor {
   COLONY_GOVERNOR_NONE = 0,
@@ -28,6 +31,9 @@ void colony_governor_run_w(const struct ColonizeWorld* w, int colony_id);
  * Their cascade re-picks the project each turn, so every hammer counts, at
  * twice the human governor's weight. */
 void colony_governor_seat_w(const struct ColonizeWorld* w, int colony_id, int gov);
+/* MOD_AI_IMPROVEMENTS #1878: as seated, plus one more colonist on the
+ * colony's best free food plot, the colony still feeds itself. */
+bool colony_governor_feeds_one_more(const struct ColonizeWorld* w, const struct ColonizeColony* col);
 /* Every governed colony of `nation`; no-op while the mod is off. */
 void colony_governor_run_nation_w(const struct ColonizeWorld* w, int nation);
 

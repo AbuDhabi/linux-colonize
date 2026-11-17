@@ -26,6 +26,7 @@
 #include "core/assets.h"
 #include "core/ai_euro_internal.h"
 #include "core/colony.h"
+#include "core/colony_governor.h"
 #include "core/colony_craft.h"
 #include "core/colony_yield.h"
 #include "core/colony_production.h"
@@ -988,6 +989,15 @@ void ai_euro_refresh_colony_ai_flags(
    */
   if (ai_euro_colony_needs_colonists_5952(ctx->colonies, ctx->map, c)) {
     c->ai_flags |= COLONIZE_COLONY_AI_NEEDS_COLONISTS;
+  }
+  /* MOD_AI_IMPROVEMENTS #1878 (not DOS): a colony that cannot feed one more
+   * colonist wants none; under F2 the absorbed colonist starved (discard
+   * campaign: 11 Euro AI colonists in 27 turns), and founders go elsewhere. */
+  if ((c->ai_flags & COLONIZE_COLONY_AI_NEEDS_COLONISTS) && ai_euro_improved(ctx, c->nation_id)) {
+    const ColonizeWorld w = world_from_turn_ctx(ctx);
+    if (!colony_governor_feeds_one_more(&w, c)) {
+      c->ai_flags = (uint8_t)(c->ai_flags & (uint8_t)~COLONIZE_COLONY_AI_NEEDS_COLONISTS);
+    }
   }
   /*
    * +0x1b bit 0x40 (NEEDS_GARRISON) is NOT set here. DOS raises it from the

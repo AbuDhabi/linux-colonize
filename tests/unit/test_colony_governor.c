@@ -1,6 +1,7 @@
 /* MOD_COLONY_GOVERNOR (src/core/colony_governor.c, docs/colony_governor.md). */
 #include "test_turn_common.h"
 #include "core/colony_governor.h"
+#include "core/dos_buggy.h"
 #include "core/mods.h"
 #include "core/runtime_ext.h"
 
@@ -105,6 +106,30 @@ static int case_feeds_colonists(void) {
       fprintf(stderr, "governor %d: food_net %d seated %d\n", gov, pv.food_net, seated);
       return 1;
     }
+  }
+  return 0;
+}
+
+/* #1878: one indoor colonist with a free 4-food farm plot can take another;
+ * four starving colonists with every plot taken cannot. */
+static int case_feeds_one_more(void) {
+  GovFx f;
+  if (!gov_fx_open(&f)) {
+    return 1;
+  }
+  f.col->colonist_count = 1;
+  f.col->population = 1;
+  const bool one = colony_governor_feeds_one_more(&f.w, f.col);
+  f.col->colonist_count = 4;
+  f.col->population = 4;
+  for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES_MAX; ++t) {
+    f.col->tiles[t] = 0;
+  }
+  const bool full = colony_governor_feeds_one_more(&f.w, f.col);
+  gov_fx_close(&f);
+  if (!one || full) {
+    fprintf(stderr, "one colonist %d, plots taken %d\n", one, full);
+    return 1;
   }
   return 0;
 }
@@ -942,6 +967,7 @@ static const TestCase k_cases[] = {
   {"teacher_sticky", case_teacher_sticky},
   {"teacher_dearest", case_teacher_dearest},
   {"feeds_colonists", case_feeds_colonists},
+  {"feeds_one_more", case_feeds_one_more},
   {"priorities_differ", case_priorities_differ},
   {"project_only_when_unbuildable", case_project_only_when_unbuildable},
   {"warehouse_room", case_warehouse_room},

@@ -12,7 +12,7 @@
  * and Europe-freeze investigations kept rewriting (port_bugs.md #953).
  *
  * Usage:
- *   ai_replay <save.SAV> [turns] [--units] [--seed N] [--mods MASK] [--game]
+ *   ai_replay <save.SAV> [turns] [--units] [--seed N] [--mods MASK] [--game] [--all-ai]
  *
  *   turns    number of turn_end calls (default 20)
  *   --units  also dump every AI unit (id / nation / type / xy / orders / MP /
@@ -135,6 +135,7 @@ int main(int argc, char** argv) {
   int dump_units = 0;
   unsigned seed = 100u;
   long mods_mask = -1;
+  int all_ai = 0;
   for (int a = 1; a < argc; ++a) {
     if (strcmp(argv[a], "--units") == 0) {
       dump_units = 1;
@@ -142,6 +143,8 @@ int main(int argc, char** argv) {
       seed = (unsigned)strtoul(argv[++a], NULL, 10);
     } else if (strcmp(argv[a], "--mods") == 0 && a + 1 < argc) {
       mods_mask = (long)strtoul(argv[++a], NULL, 0);
+    } else if (strcmp(argv[a], "--all-ai") == 0) {
+      all_ai = 1;
     } else if (strcmp(argv[a], "--game") == 0) {
       dos_buggy_behavior_set(false);
     } else if (!path) {
@@ -192,6 +195,15 @@ int main(int argc, char** argv) {
 
   if (mods_mask >= 0) {
     mods_campaign_set((uint32_t)mods_mask);
+  }
+  if (all_ai) {
+    /* --all-ai: the human's power plays as AI too (control 1, as an all-AI
+     * new game stamps it), the save's human slot kept as the fixed anchor. */
+    for (int n = 0; n < 4; ++n) {
+      if (save.player[n].control == 0) {
+        save.player[n].control = 1;
+      }
+    }
   }
   uint32_t turn_number = br.turn_number;
   uint16_t year = br.year;
@@ -249,6 +261,12 @@ int main(int argc, char** argv) {
 
   if (dump_units) {
     ai_replay_dump_units(&units, ctx.human_nation, "post");
+    for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+      const ColonizeColony* c = &colonies.colonies[i];
+      if (c->active) {
+        printf("colony %-16s n%d pop %2d (%3d,%3d)\n", c->name, c->nation_id, (int)c->population, c->x, c->y);
+      }
+    }
   }
 
   assets_msg_free(&names);
