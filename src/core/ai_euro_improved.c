@@ -298,8 +298,10 @@ int ai_euro_europe_train_expert(ColonizeTurnContext* ctx, int nation, int profes
 
 /* ===== Colony focus ===== */
 
-/* ponytail: flag-driven pick; Cash for export colonies is not chosen yet, add
- * it when demo runs show AI ports sitting on unsold crops. */
+/* ponytail: flag-driven pick. A small colony works for export (Cash), not
+ * growth (Farming): its crops pay for the hulls whose Europe goods buys bring
+ * the muskets the 5952 equip arm needs for Soldier and Dragoon founders
+ * (spec 7, 2026-11-17: TURN1 hulls 122 -> 144, Dragoon founders 4 -> 7). */
 int ai_euro_colony_focus(const ColonizeTurnContext* ctx, const ColonizeColony* col) {
   if ((col->ai_flags & (COLONIZE_COLONY_AI_NEEDS_GARRISON | COLONIZE_COLONY_AI_SHORT_DEFENDERS)) != 0) {
     return COLONY_GOVERNOR_MILITARY;
@@ -313,7 +315,7 @@ int ai_euro_colony_focus(const ColonizeTurnContext* ctx, const ColonizeColony* c
     return COLONY_GOVERNOR_POLITICS;
   }
   if (pop < 4) {
-    return COLONY_GOVERNOR_FARMING; /* grow first */
+    return COLONY_GOVERNOR_CASH;
   }
   return COLONY_GOVERNOR_INDUSTRY;
 }

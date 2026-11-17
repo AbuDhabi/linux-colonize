@@ -446,8 +446,42 @@ Dragoons alike.
   founds. With the act off, it is 45 (the equip arm re-mints a Pioneer each
   time one founds), or 130 colonies.
 - TURN1: Dragoon founders fall from 8 to 1. Colonies eject 36 Dragoons
-  against DOS's 185; not from horses (C3 and F3 restored move nothing). Cause
-  not yet found.
+  against DOS's 185; not from horses (C3 and F3 restored move nothing).
+  Traced 2026-11-17: the 5952 equip arm needs muskets > 49 in the colony,
+  and colony muskets come from hulls leaving Europe (raw 93041-93050, 100 of
+  each demanded good). That purchase loop stops on bVar7 `cargo_short`
+  (fleet holds <= (pop/2 + colonies*2)/2). Mod-on nations stay cargo-short
+  because they buy fewer hulls: seeds 1-8 at turn 100, 42 hulls against
+  DOS's 63. Seed 1 hull departures: 36 against 65, and 27 of the 36 are
+  cargo-short. G1 and G2 are 0 on TURN1 (Discoverer), so the gap is income.
+  Hull sales over seeds 1-4: cotton 151 against 2375, tobacco 123 against
+  1743, ore 817 against 2388, furs 4105 against 7316. The cause is the
+  governor focus `ai_euro_colony_focus`, which picks Farming below pop 4,
+  Politics while SoL < 50 and never Cash.
+  Variants tried (seeds 1-8, colonies / pop / hulls). With the
+  Pioneer rule, TURN1 is 56 / 176 / 42 and pt5 89 / 477 / 68.
+  - Cash below pop 4: TURN1 59 / 150 / 50, pt5 92 / 424 / 87.
+  - Cash at pop >= 4 only, or with Politics off: TURN1 unchanged (its colonies
+    stay under pop 4).
+  - DOS job passes instead of the governor: TURN1 55 / 141 / 54.
+
+  Income costs growth either way. DOS gets 59 / 208 / 63 only with the
+  F1/F2 food handouts.
+- **Landed (2026-11-17): Cash focus below pop 4.** The focus picker sets
+  Cash for a colony under 4 colonists. Before, it set Farming. Test:
+  `unit_ai_euro_improved` `colony_focus_small_cash`.
+  - TURN1 Dragoon founders: 4 to 7 (seeds 1-8; Soldiers 26 to 28).
+  - TURN1, 24 seeds, colonies / pop / hulls at turn 100: 176 / 552 / 122
+    before, 175 / 487 / 144 now, mod off 180 / 578 / 175.
+  - pt5, turn 140: 262 / 1366 / 213 before, 276 / 1327 / 254 now, mod off
+    245 / 1375 / 279.
+  - Tuning tried, 24 seeds, TURN1 / pt5 colonies / pop:
+    - Cash at pop 2-3, Farming at pop 1: 176 / 530 and 271 / 1257.
+    - Cash once the colony holds 50 food: 182 / 570 and 267 / 1229.
+    - Cash once the colony holds 25 food: 171 / 513 and 266 / 1214.
+
+    No variant recovers pop on both saves. The total pop of each is within 1%
+    of plain Cash, so the simplest rule landed.
 - A trial rule, a Pioneer the ring scan already marked as an explorer (plan
   '?') keeps the DOS path unless it is on a job, gave pt5 115 and TURN1 45:
   it helps one map and hurts the other, so it is not landed.
@@ -468,4 +502,5 @@ Dragoons alike.
   P3 absorb a released Pioneer (no change), gating the PEQ equip arm while
   expanding (pt5 73) and gating the hull Pioneer-cargo exception (TURN1 pop
   171). Test: `unit_ai_euro_improved` `pioneer_released`. The TURN1 Dragoon
-  founder gap above is still open.
+  founder gap above comes from income (focus picker); the Cash focus
+  entry above lands the fix.

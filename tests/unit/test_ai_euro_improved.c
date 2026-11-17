@@ -5,6 +5,7 @@
 #include "core/ai_euro_internal.h"
 #include "core/assets.h"
 #include "core/colony.h"
+#include "core/colony_governor.h"
 #include "core/map.h"
 #include "core/pioneer_plan.h"
 #include "core/units.h"
@@ -131,7 +132,28 @@ static int case_pioneer_released(void) {
   assets_msg_free(&names);
   return rc;
 }
+/* ai_improvements mod (2026-11-17 Dragoon founder gap): a colony under 4
+ * colonists works for export; at 4 with no SoL it turns to Politics. */
+static int case_colony_focus_small_cash(void) {
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ColonizeColony col;
+  memset(&col, 0, sizeof(col));
+  col.population = 2;
+  int rc = 0;
+  if (ai_euro_colony_focus(&ctx, &col) != COLONY_GOVERNOR_CASH) {
+    fprintf(stderr, "colony_focus: pop 2 focus %d, want Cash\n", ai_euro_colony_focus(&ctx, &col));
+    rc = 1;
+  }
+  col.population = 4;
+  if (ai_euro_colony_focus(&ctx, &col) != COLONY_GOVERNOR_POLITICS) {
+    fprintf(stderr, "colony_focus: pop 4 focus %d, want Politics\n", ai_euro_colony_focus(&ctx, &col));
+    rc = 1;
+  }
+  return rc;
+}
 static const TestCase k_cases[] = {
+  {"colony_focus_small_cash", case_colony_focus_small_cash},
   {"pjob_resume", case_pjob_resume},
   {"pioneer_released", case_pioneer_released},
 };
