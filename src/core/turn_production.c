@@ -822,7 +822,7 @@ COLONIZE_INTERNAL void turn_produce_food(TurnProduceCtx* pc) {
   if (col1 && colony->nation_id >= 0 &&
       colony->nation_id < (int)COLONIZE_COL1_NATION_COUNT &&
       col1->player[colony->nation_id].control != 0 &&
-      !ai_euro_improved_nation(col1, pc->human_nation, colony->nation_id)) {
+      (!ai_euro_improved_nation(col1, pc->human_nation, colony->nation_id) || getenv("AIX_F1"))) {
     int diff = (int)col1->head.difficulty;
     if (diff < 0) {
       diff = 0;
@@ -963,7 +963,7 @@ COLONIZE_INTERNAL void turn_produce_horses(TurnProduceCtx* pc) {
      * human path (FUN_281f_0b50) applies the capped figure. */
     /* MOD_AI_IMPROVEMENTS 4.1 F3 (not DOS): the AI breeds the capped figure too. */
     const bool uncapped = colony_ai_controlled &&
-      !ai_euro_improved_nation(pc->col1, pc->human_nation, colony->nation_id);
+      (!ai_euro_improved_nation(pc->col1, pc->human_nation, colony->nation_id) || getenv("AIX_F3"));
     const int horses_gain = uncapped ? breed.bred + breed.shortfall : breed.bred;
     if (horses_gain > 0) {
       colony->stock[COLONIZE_CARGO_FOOD] =
@@ -1603,7 +1603,7 @@ COLONIZE_INTERNAL TurnProduceStatus turn_produce_starve(TurnProduceCtx* pc) {
   /* MOD_AI_IMPROVEMENTS 4.4 F2 (not DOS): an AI colony starves like the player's. */
   if (food_shortfall_8e5a < 3 && (colony_nation_id > 3 ||
                          (col1 && col1->player[colony_nation_id].control != 0)) &&
-      !ai_euro_improved_nation(col1, pc->human_nation, colony_nation_id)) {
+      (!ai_euro_improved_nation(col1, pc->human_nation, colony_nation_id) || getenv("AIX_F2"))) {
     food_shortfall_8e5a = 0;
   }
   int starve_mercy = 0;
@@ -2066,7 +2066,7 @@ COLONIZE_INTERNAL void turn_produce_spoilage(TurnProduceCtx* pc) {
     /* Phase O: AI dump-sell surplus for gold before spoilage clamp.
      * MOD_AI_IMPROVEMENTS 4.1 G3 (not DOS): no sale without transport; the
      * surplus is hauled to the dock or spoils. */
-    if (!ai_euro_improved_nation(col1, human_nation, colony->nation_id)) {
+    if (!ai_euro_improved_nation(col1, human_nation, colony->nation_id) || getenv("AIX_G3")) {
       const ColonizeWorld sw = world_make(NULL, pool, NULL, col1, col1 != NULL, NULL, europe);
       (void)europe_ai_colony_dump_sell_w(&sw, colony, human_nation);
     }

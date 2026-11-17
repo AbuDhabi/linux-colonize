@@ -784,6 +784,21 @@ static void paint_land(AltGen* g) {
   }
 }
 
+/* Tundra next to arctic (a Cold-band tile, or the rim row finalize makes
+ * arctic) stays tundra when wet: plains between tundra and the ice reads wrong. */
+static bool touches_arctic(const AltGen* g, int i) {
+  const int y = i / W;
+  if (rows_from_pole(y) == 0) {
+    return true;
+  }
+  for (int d = 0; d < 8; ++d) {
+    if ((g->terrain[i + MAP_DIR8_DY[d] * W + MAP_DIR8_DX[d]] & 0x1f) == T_ARCTIC) {
+      return true;
+    }
+  }
+  return false;
+}
+
 /* Rainfall (river bonus included) makes deserts (no rain) and dries /
  * moistens the tails beyond one standard deviation of the land mean. */
 static void moisture(AltGen* g) {
@@ -824,7 +839,7 @@ static void moisture(AltGen* g) {
           : typ == T_GRASSLAND ? T_MARSH
           : typ == T_PRAIRIE ? T_GRASSLAND
           : typ == T_PLAINS ? T_PRAIRIE
-          : typ == T_TUNDRA ? T_PLAINS
+          : typ == T_TUNDRA && !touches_arctic(g, i) ? T_PLAINS
           : typ;
     }
     g->terrain[i] = (uint8_t)(feat | typ);

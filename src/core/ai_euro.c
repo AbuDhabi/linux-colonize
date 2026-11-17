@@ -1204,7 +1204,7 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
 
   /* MOD_AI_IMPROVEMENTS 4.2 (not DOS): a Pioneer with tools works the
    * nation's posted jobs before 20e6 can re-plan it. */
-  if (ai_euro_improved(ctx, nation_id) && ai_euro_pioneer_act(ctx, u, nation_id)) {
+  if (ai_euro_improved(ctx, nation_id) && !getenv("AIX_PACT") && ai_euro_pioneer_act(ctx, u, nation_id)) {
     return;
   }
 

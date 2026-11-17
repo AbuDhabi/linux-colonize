@@ -775,7 +775,7 @@ ColonizeColony* ai_euro_5952_tools_supply_and_connect(
    * resync 80->81: Fort Nassau bought 20 tools after a Pioneer joined). */
   int have_tools = ai_euro_5952_tools_latch;
   const int wants_work = (col->ai_flags & COLONIZE_COLONY_AI_WANTS_PIONEER_WORK) != 0;
-  const bool improved = ai_euro_improved(ctx, nation);
+  const bool improved = ai_euro_improved(ctx, nation) && !getenv("AIX_C1");
   if (improved) {
     /* MOD_AI_IMPROVEMENTS 4.1 C1: no tools appear in the colony; 4.2: the
      * road gap becomes a Pioneer job, so no tools are needed to post it. */

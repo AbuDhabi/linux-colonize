@@ -3193,7 +3193,7 @@ COLONIZE_INTERNAL void ai_euro_5952_specialist_arms(
   /* MOD_AI_IMPROVEMENTS 4.3 S2: no promotion without a teacher. */
   const bool improved = ai_euro_improved(ctx, nation);
   const int school_chain = ai_euro_5952_chain_owned(pool, col, COLONIES_CHAIN_SCHOOL, NULL, NULL);
-  if (!improved && school_chain != 0 &&
+  if ((!improved || getenv("AIX_S2")) && school_chain != 0 &&
       ((school_chain == 3 ? 1 : 0) + school_chain) * 4 <= (int)col->improve_timer) {
     int target = -1; /* iStack_8a */
     if (col->population < 10 && food_experts <= food_workers) {
@@ -3287,7 +3287,7 @@ COLONIZE_INTERNAL void ai_euro_5952_specialist_arms(
   if (trained == COLONIZE_PROF_FREE_COLONIST) {
     return;
   }
-  if (improved) {
+  if (improved && !getenv("AIX_S1")) {
     /* MOD_AI_IMPROVEMENTS 4.3 S1 (not DOS): the expert is trained in Europe
      * at its own @JOB price and waits on the dock for a ship; no tax bump
      * (R3). One waiting expert of a kind at a time. */
@@ -3883,7 +3883,7 @@ static void ai_euro_colony_tick_run(
     }
     t.col = col;
     ai_euro_colony_tick_open(&t);
-    if (ai_euro_improved(ctx, nation_id)) {
+    if (ai_euro_improved(ctx, nation_id) && !getenv("AIX_GOV")) {
       /* MOD_AI_IMPROVEMENTS 4.8 (not DOS): the governor's seating replaces
        * the job passes (food, pass 2, forced lumberjack, carpenter, indoor);
        * the DOS cascade still picks the project and seats after it. */
@@ -3914,7 +3914,7 @@ static void ai_euro_colony_tick_run(
     if ((col->build_ai_flags & COLONIZE_BUILD_AI_WANTS_CONSTRUCTION) == 0) {
       /* raw 94659-94679 then 94680-94689, both ahead of the carpenter arm. */
       const bool lumber_placed = ai_euro_5952_forced_lumberjack(ctx, col, t.placed, n);
-      if (!ai_euro_improved(ctx, nation_id)) { /* MOD_AI_IMPROVEMENTS 4.1 C2 */
+      if (!ai_euro_improved(ctx, nation_id) || getenv("AIX_C2")) { /* MOD_AI_IMPROVEMENTS 4.1 C2 */
         ai_euro_5952_lumber_purchase(
           ctx->europe, (ctx->col1_ok && ctx->col1) ? ctx->col1 : NULL, col,
           /* DS:0x538e — the port's turn counter is ctx->turn_number. */
@@ -3940,7 +3940,7 @@ static void ai_euro_colony_tick_run(
     /* DOS raw ~95860-95958, the tick's last two arms (port_bugs.md #571/#572). */
     ai_euro_5952_specialist_arms(ctx, col, n);
     if (whole_tick) {
-      if (!ai_euro_improved(ctx, nation_id)) { /* MOD_AI_IMPROVEMENTS 4.1 C3 */
+      if (!ai_euro_improved(ctx, nation_id) || getenv("AIX_C3")) { /* MOD_AI_IMPROVEMENTS 4.1 C3 */
         ai_euro_5952_seed_horses(ctx, col);
       }
       ai_euro_6d8e_prelude_read(nation_id, col);

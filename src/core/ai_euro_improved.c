@@ -161,7 +161,7 @@ static bool ai_euro_pjob_claimed(const ColonizeUnitPool* pool, const ColonizeUni
  * than this many colonies on a continent, a Pioneer between jobs is a founder
  * first. DOS lets Pioneers found through the 20e6 explore scan; holding every
  * Pioneer on the job list cut pt5 Pioneer founders from 12 to 3. */
-#define AI_EURO_PIONEER_EXPANSION_COLONIES 3
+#define AI_EURO_PIONEER_EXPANSION_COLONIES (getenv("AIX_EXP") ? atoi(getenv("AIX_EXP")) : 3)
 
 /* True when the Pioneer skips the job list this turn and takes the DOS path:
  * not mid-job, not on a colony tile, and its continent is still in the
