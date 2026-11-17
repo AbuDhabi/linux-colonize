@@ -505,6 +505,8 @@ void game_europe_deliver_bound_ships(ColonizeGameState* game) {
     return;
   }
   EuropeScreen* eu = &game->europe;
+  static int arrived[EUROPE_HARBOR_MAX];
+  int arrived_count = 0;
   for (;;) {
     int idx = -1;
     for (int i = 0; i < eu->bound_ships; ++i) {
@@ -683,12 +685,24 @@ void game_europe_deliver_bound_ships(ColonizeGameState* game) {
        * therefore landing inside their own fog.
        */
       game_reveal_sight_for_unit(game, ship);
+      if (arrived_count < EUROPE_HARBOR_MAX) {
+        arrived[arrived_count++] = ship_id;
+      }
     }
     snprintf(
       game->status, sizeof(game->status), "%s arrived from Europe at (%d,%d)", name, fx, fy
     );
     diag_info("Europe arrival: spawned '%s' id=%d at (%d,%d)", name, ship_id, fx, fy);
   }
+  /* FUN_48d3_064e: hulls landing together share the 224+n lane chain, and
+   * each one's 10be there boards from all of them first (dos_bugs.md DB-109,
+   * DOS mode only). The bound list stands in for the chain, head first: a
+   * save loads it in record order, which matches the chain in lategame
+   * COLONY06.SAV (turns_idle_lategame). */
+  units_lane_arrivals_pickup(
+    &game->units, &game->world_map, arrived, arrived_count, 224 + game->human_nation,
+    224 + game->human_nation
+  );
 }
 
 void game_finish_end_turn(ColonizeGameState* game, const ColonizeTurnResult* result) {

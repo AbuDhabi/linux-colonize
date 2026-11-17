@@ -309,12 +309,25 @@ int units_find_boardable_ship(
  * is full; with mods.h MOD_RIDERS_KEEP_SHIP (never under dos_buggy_behavior)
  * other ships' passengers stay. Each rider is charged its @UNIT size column,
  * so a Treasure only transfers to a hull with six free holds. A Trade Route
- * hull leaving a settlement takes nothing (map: settlement test; NULL =
- * none); at sea, DOS mode, the other hulls there pick first and it takes
- * anything only if a unit is left over. Returns units taken.
+ * hull leaving a settlement or its Europe slot (236+n) takes nothing (map:
+ * settlement test; NULL = none); elsewhere, the Europe lanes included, DOS
+ * mode, the other hulls there pick first and it takes anything only if a
+ * unit is left over. Returns units taken.
  */
 int units_ship_departure_pickup(
   ColonizeUnitPool* pool, const ColonizeWorldMap* map, int ship_id, int x, int y
+);
+/*
+ * DOS FUN_48d3_064e for hulls already placed on the map (the human's Europe
+ * arrivals, rebuilt from their lane slots): ships[0..n) arrived together, in
+ * 224+n lane chain order. They go back to the lane tile (lane_x, lane_y);
+ * then each hull in order runs units_ship_departure_pickup there and returns,
+ * with what it took, to the tile it was placed on. DOS mode only (no-op with
+ * MOD_RIDERS_KEEP_SHIP on); fewer than two hulls change nothing.
+ */
+void units_lane_arrivals_pickup(
+  ColonizeUnitPool* pool, const ColonizeWorldMap* map, const int* ships, int n, int lane_x,
+  int lane_y
 );
 /* Unload oldest passenger from ship onto dest (must be enterable land). */
 bool units_unload_w(
