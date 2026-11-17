@@ -12,6 +12,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "core/ai_euro.h"
 #include "core/ai_popup.h"
 #include "core/assets.h"
 #include "core/col1_save.h"
@@ -374,13 +375,21 @@ int europe_custom_house_autosell_ex_w(
     (col1 && nation >= 0 && nation < (int)COLONIZE_COL1_NATION_COUNT) ? &col1->nation[nation]
                                                                        : NULL;
 
+  /* MOD_AI_IMPROVEMENTS (#1869): an improved AI colony also sells horses,
+   * but only what breeding pushes past capacity - 50, so the stock stays
+   * for Dragoons (ai_euro_improved_mount_soldier). */
+  const bool improved = !is_human && ai_euro_improved_nation(col1, human_nation, nation);
+  const int horse_keep = colonies_warehouse_capacity(pool, colony, COLONIZE_CARGO_HORSES) - 50;
   int total = 0;
   for (int c = 0; c < COLONIZE_CARGO_COUNT; ++c) {
     /* Human: per-cargo toggle bits (FUN_15eb_0302). AI: FUN_364b_0636. */
+    int keep = 50;
     if (is_human) {
       if (!europe_custom_house_bit_enabled(colony->custom_house_bits, c)) {
         continue;
       }
+    } else if (improved && c == COLONIZE_CARGO_HORSES) {
+      keep = horse_keep;
     } else if (!europe_custom_house_cargo_eligible(c) ||
                (c == COLONIZE_CARGO_ORE && ai_ore_denied)) {
       continue; /* FUN_364b_0636; Ore arm raw 57131-57141 */
@@ -389,7 +398,7 @@ int europe_custom_house_autosell_ex_w(
     if (colony->stock[c] <= 99) {
       continue;
     }
-    const int amount = colony->stock[c] - 50;
+    const int amount = colony->stock[c] - keep;
     if (amount <= 0) {
       continue;
     }
@@ -417,7 +426,7 @@ int europe_custom_house_autosell_ex_w(
     const int gross = price * amount;
     const int gained = europe_net_after_tax(gross, tax);
     const int tax_paid = gross - gained;
-    colony->stock[c] = 50;
+    colony->stock[c] = keep;
     total += gained;
     if (out && out_count && *out_count < out_max) {
       EuropeCustomHouseSale* rec = &out[*out_count];

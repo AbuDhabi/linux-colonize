@@ -1629,6 +1629,7 @@ COLONIZE_INTERNAL int ai_euro_5952_tile_stack(
 static void ai_euro_5952_equip_arm(
   ColonizeTurnContext* ctx, int nation_id, ColonizeColony* c, int stance
 );
+static void ai_euro_improved_mount_soldier(ColonizeTurnContext* ctx, int nation_id, ColonizeColony* c);
 static void ai_euro_5952_build_pref_0306(
   ColonizeTurnContext* ctx, int nation_id, ColonizeColony* c,
   int labor_running, int tools_latch
@@ -1743,6 +1744,7 @@ COLONIZE_INTERNAL void ai_euro_5952_absorb_equip(
   }
 
   ai_euro_5952_equip_arm(ctx, nation_id, c, stance);
+  ai_euro_improved_mount_soldier(ctx, nation_id, c);
   /* raw 94353-94354: FUN_1000_8ebc(0x181f) = the 09c0 stack census (NOT a
    * ledger refresh), then DOS's five FUN_5952_0306 build-preference calls. `local_16` (tools_latch) is
    * the fourth one's own input, which is why the block is hosted here, in
@@ -1767,6 +1769,33 @@ COLONIZE_INTERNAL void ai_euro_5952_absorb_equip(
  * early `return`s are DOS's `goto LAB_5952_0f7c`, which lands on the ledger
  * refresh + build-preference block the caller runs next.
  */
+/* MOD_AI_IMPROVEMENTS (#1869): pt7h France stored 5093 horses (ships no
+ * longer haul them, #1867) while its dragoons fell 23 -> 8. A Soldier on an
+ * improved colony's tile takes 50 of its horses and rides out as a Dragoon,
+ * one a tick, leaving 50 to breed. Costs no colonist. */
+static void ai_euro_improved_mount_soldier(ColonizeTurnContext* ctx, int nation_id, ColonizeColony* c) {
+  if (!ai_euro_improved(ctx, nation_id) || !ctx->units ||
+      c->stock[COLONIZE_CARGO_HORSES] < UNITS_EQUIP_HORSES + 50) {
+    return;
+  }
+  int slot = 0;
+  for (ColonizeUnit* u; (u = units_next_on_tile(ctx->units, c->x, c->y, &slot)) != NULL;) {
+    const ColonizeUnitKind kind = units_type_kind(units_type(ctx->units, u->type_index));
+    if (u->nation_id != nation_id || (kind != UNITS_KIND_SOLDIER && kind != UNITS_KIND_CONT_ARMY)) {
+      continue;
+    }
+    const int t = units_kind_type_index(ctx->units, kind == UNITS_KIND_SOLDIER ? UNITS_KIND_DRAGOON : UNITS_KIND_CONT_CAV);
+    if (t < 0) {
+      return;
+    }
+    u->type_index = t;
+    u->horses = UNITS_EQUIP_HORSES;
+    u->moves = 0;
+    c->stock[COLONIZE_CARGO_HORSES] -= UNITS_EQUIP_HORSES;
+    return;
+  }
+}
+
 static void ai_euro_5952_equip_arm(
   ColonizeTurnContext* ctx, int nation_id, ColonizeColony* c, int stance
 ) {

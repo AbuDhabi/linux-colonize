@@ -577,3 +577,5 @@ ships carry surplus tools to colonies short of them, horses stay home, and the
 Custom House comes at pop 4 (#1867); small colonies farm once tax passes 50%
 (#1868). AI tax raises lose the difficulty level and come more often on
 easy levels (#1865); warship threats weigh every other Euro (#1866).
+Horses that no longer ride ships mount garrison Soldiers as Dragoons, and the
+Custom House sells what breeding pushes past capacity − 50 (#1869).
