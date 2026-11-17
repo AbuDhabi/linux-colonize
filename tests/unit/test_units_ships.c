@@ -1157,6 +1157,90 @@ static int unit_departure_leftovers_respect_capacity(void) {
   return rc;
 }
 
+/* dos_bugs.md DB-109 DOS mode at sea: a departing hull frees, on the hulls it
+ * takes riders from, as much room as it leaves of its own riders (every land
+ * unit is size 1 but Treasure, which ranks first and fills a Galleon), so the
+ * hand-off always finds a hull and no rider is left standing in the water.
+ * Every mix of three own hulls (Caravel / Merchantman / Galleon; empty, half,
+ * full or a Treasure), each one departing, plain and on a Trade Route. */
+static int unit_departure_at_sea_leaves_no_rider(void) {
+  ColonizeMsgCatalog names;
+  assets_msg_init(&names);
+  if (!assets_msg_load_file(&names, "COLONIZE/NAMES.TXT")) {
+    return TR_SKIP;
+  }
+  static ColonizeUnitPool base;
+  static ColonizeUnitPool pool;
+  memset(&base, 0, sizeof(base));
+  if (!units_load_types(&base, &names)) {
+    assets_msg_free(&names);
+    return 1;
+  }
+  const int colonist = units_find_type(&base, "Colonists");
+  const int treasure = units_find_type(&base, "Treasure");
+  const int hull_type[3] = {
+    units_find_type(&base, "Caravel"), units_find_type(&base, "Merchantman"),
+    units_find_type(&base, "Galleon"),
+  };
+  const int cap[3] = {2, 4, 6};
+  int rc = 0;
+  int runs = 0;
+  for (int mix = 0; mix < 27 * 64 && rc == 0; ++mix) {
+    for (int dep = 0; dep < 6 && rc == 0; ++dep) {
+      memcpy(&pool, &base, sizeof(pool));
+      int hull[3];
+      bool valid = true;
+      for (int h = 0; h < 3 && valid; ++h) {
+        const int t = (mix / (h == 0 ? 1 : h == 1 ? 3 : 9)) % 3;
+        const int load = (mix / 27 / (h == 0 ? 1 : h == 1 ? 4 : 16)) % 4; /* 0, half, full, Treasure */
+        hull[h] = units_spawn_allow_stack(&pool, hull_type[t], 5, 5);
+        ColonizeUnit* host = units_get(&pool, hull[h]);
+        valid = load < 3 || t == 2;
+        const int n = load == 3 ? 1 : load * cap[t] / 2;
+        for (int r = 0; r < n && valid; ++r) {
+          ColonizeUnit* pu =
+            units_get(&pool, units_spawn_allow_stack(&pool, load == 3 ? treasure : colonist, 5, 5));
+          pu->aboard_ship_id = host->id;
+          pu->orders = UNITS_ORDER_SENTRY;
+          host->cargo_ids[host->cargo_count++] = pu->id;
+        }
+      }
+      if (!valid) {
+        break; /* a Treasure only rides a Galleon; the same mix fails for every dep */
+      }
+      const int ship = hull[dep % 3];
+      if (dep >= 3) {
+        units_get(&pool, ship)->orders = UNITS_ORDER_TRADE_ROUTE;
+      }
+      (void)units_ship_departure_pickup(&pool, NULL, ship, 5, 5);
+      runs++;
+      for (int i = 0; i < units_slot_end(&pool) && rc == 0; ++i) {
+        const ColonizeUnit* u = &pool.units[i];
+        if (u->active && !units_is_sea(&pool, u->id) && u->aboard_ship_id < 0) {
+          fprintf(stderr, "mix %d dep %d: unit %d left standing at sea\n", mix, dep, u->id);
+          rc = 1;
+        }
+      }
+      for (int h = 0; h < 3 && rc == 0; ++h) {
+        const ColonizeUnit* s = units_get(&pool, hull[h]);
+        int size = 0;
+        for (int c = 0; c < s->cargo_count; ++c) {
+          size += units_get(&pool, s->cargo_ids[c])->type_index == treasure ? 6 : 1;
+        }
+        if (size > units_ship_capacity(&pool, hull[h])) {
+          fprintf(stderr, "mix %d dep %d: hull %d carries %d\n", mix, dep, h, size);
+          rc = 1;
+        }
+      }
+    }
+  }
+  if (rc == 0 && runs == 0) {
+    rc = 1;
+  }
+  assets_msg_free(&names);
+  return rc;
+}
+
 /* port_bugs.md #1330: FUN_5fef_0352 raw 99590 tests the Drydock bit only — a
  * colony holding a Shipyard without its Drydock bit is no repair port. */
 static int unit_repair_port_needs_drydock_bit(void) {
@@ -1415,6 +1499,7 @@ static const TestCase k_cases[] = {
   {"unit_tb2_departure_own_riders_only", unit_tb2_departure_own_riders_only},
   {"unit_trade_route_sea_departure_pickup", unit_trade_route_sea_departure_pickup},
   {"unit_departure_leftovers_respect_capacity", unit_departure_leftovers_respect_capacity},
+  {"unit_departure_at_sea_leaves_no_rider", unit_departure_at_sea_leaves_no_rider},
   {"unit_repair_port_needs_drydock_bit", unit_repair_port_needs_drydock_bit},
   {"unit_attacker_loss_stays_in_own_drydock", unit_attacker_loss_stays_in_own_drydock},
   {"unit_europe_sail_keeps_census", unit_europe_sail_keeps_census},
