@@ -3572,6 +3572,51 @@ static int unit_land_contact_does_not_create_goal(void) {
   return 0;
 }
 
+/* raw 88987-89009, the LAB_4d2e park arms: 'B' (0x42, flag bit0, a Frigate)
+ * needs local_2e != 0 and a CONTACT prio 1..4; 'e' (0x65, flag bit2, a
+ * Soldier) any ESCORT prio and no local_2e test; both need no stackmate. */
+static int unit_4d2e_park_arms_gates(void) {
+  static const struct {
+    int dos_type, home_dist, code, prio, stack, want;
+    const char* what;
+  } k_cases[] = {
+    {17, 3, AI_GOAL_CONTACT, 4, 1, 0x42, "'B' parks off a colony at prio 4"},
+    {17, 0, AI_GOAL_CONTACT, 4, 1, 0, "'B' skips its own colony (local_2e == 0)"},
+    {17, 3, AI_GOAL_CONTACT, 5, 1, 0, "'B' prio cap: 5 does not park"},
+    {17, 3, AI_GOAL_CONTACT, 4, 2, 0, "'B' with a stackmate does not park"},
+    {1, 0, AI_GOAL_ESCORT, 7, 1, 0x65, "'e' parks in its own colony, no prio cap"},
+    {1, 3, AI_GOAL_ESCORT, 4, 2, 0, "'e' with a stackmate does not park"},
+    {1, 3, AI_GOAL_CONTACT, 4, 1, 0, "'e' reads ESCORT, not CONTACT"},
+  };
+  for (int i = 0; i < (int)(sizeof(k_cases) / sizeof(k_cases[0])); ++i) {
+    Fixture f;
+    if (fixture_init(&f, 1) != 0) return 1;
+    ColonizeUnit* u = units_get(&f.units, units_spawn(&f.units, 1, 8, 8));
+    if (!u || (k_cases[i].stack > 1 && units_spawn_allow_stack(&f.units, 1, 8, 8) < 0)) {
+      fixture_free(&f);
+      return fail("park arm spawn");
+    }
+    u->nation_id = 1;
+    u->col1_ai_plan = 0;
+    ai_goals_upsert_primary(1, 8, 8, k_cases[i].code, k_cases[i].prio);
+    Ai20e6Unit s;
+    memset(&s, 0, sizeof(s));
+    s.nation = 1;
+    s.x = 8;
+    s.y = 8;
+    s.dos_type = k_cases[i].dos_type;
+    s.home_dist = k_cases[i].home_dist;
+    const int parked = ai_euro_20e6_park_arms_4d2e(&f.ctx, u, &s);
+    const int plan = u->col1_ai_plan;
+    fixture_free(&f);
+    if (parked != (k_cases[i].want != 0) || (parked && plan != k_cases[i].want)) {
+      fprintf(stderr, "case %d (%s): parked %d plan 0x%x\n", i, k_cases[i].what, parked, plan);
+      return fail("4d2e park arm gate");
+    }
+  }
+  return 0;
+}
+
 /* DOS 0a60's military approach requires presence and enough defenders. */
 static int unit_foreign_colony_military_goal_gates(void) {
   Fixture f;
@@ -4890,6 +4935,7 @@ static const TestCase k_cases[] = {
     {"unit_spy_goal_lost_drops_plan", unit_spy_goal_lost_drops_plan},
     {"unit_spy_mood_records_load_safely", unit_spy_mood_records_load_safely},
     {"unit_land_contact_does_not_create_goal", unit_land_contact_does_not_create_goal},
+    {"unit_4d2e_park_arms_gates", unit_4d2e_park_arms_gates},
     {"unit_spare_ship_uses_census", unit_spare_ship_uses_census},
     {"unit_europe_departure_runs_during_planning", unit_europe_departure_runs_during_planning},
     {"unit_ship_idle_tail_treaty", unit_ship_idle_tail_treaty},
