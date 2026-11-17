@@ -579,3 +579,14 @@ Custom House comes at pop 4 (#1867); small colonies farm once tax passes 50%
 easy levels (#1865); warship threats weigh every other Euro (#1866).
 Horses that no longer ride ships mount garrison Soldiers as Dragoons, and the
 Custom House sells what breeding pushes past capacity − 50 (#1869).
+
+pt7h (to t543) left France growing and the rest flat (England 3-5 colonies,
+Spain 2-5, Dutch 1-3), fixed 2026-11-17. A nation keeps one Scout per
+continent (#1870); Pioneers come one per four open jobs, the job list holds
+128 tiles, and jobs next to enemies or angry braves wait (#1871, #1876);
+Church colonies bless Missionaries for nearby villages without a mission
+(#1872). DOS AI pairs never leave a war, so all four were at war from t340:
+an improved nation now fights one Euro at a time and signs peace once neither
+side finds the war worthy (#1873). The colonist recruit ignores the fleet-size
+proxy (#1874), and Europe Artillery stops at one per colony (#1875; France had
+bought 77).

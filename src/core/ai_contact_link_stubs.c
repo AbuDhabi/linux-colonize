@@ -66,6 +66,13 @@ int ai_euro_10ec_war_worthy(const ColonizeTurnContext* ctx, int a, int b) {
   return 0;
 }
 
+/* Slim targets run no improved AI. */
+bool ai_euro_improved(const ColonizeTurnContext* ctx, int nation_id) {
+  (void)ctx;
+  (void)nation_id;
+  return false;
+}
+
 /* The wagon errand latch lives in ai_euro.c; slim targets have no wagon AI. */
 unsigned char ai_euro_wagon_errand_get(int unit_id) {
   (void)unit_id;

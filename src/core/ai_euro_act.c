@@ -85,6 +85,13 @@ int ai_euro_5952_equip_pick(const ColonizeColony* c, int target) {
     if (prof == UNITS_JOB_CRIMINAL) {
       score += 2;
     }
+    /* #1872: the Missionary target is mod-only (MOD_AI_IMPROVEMENTS); a
+     * Criminal or Servant converts poorly and an expert loses its skill. */
+    if (target == UNITS_JOB_MISSIONARY && prof != target &&
+        (prof == UNITS_JOB_SERVANT || prof == UNITS_JOB_CRIMINAL ||
+         ai_euro_5952_job_is_expert(prof))) {
+      score = -1;
+    }
     if (prof != UNITS_JOB_CONVERT && best <= score) {
       best = score;
       pick = i;

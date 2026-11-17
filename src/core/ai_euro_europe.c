@@ -420,6 +420,22 @@ static void ai_euro_5d04_apply_naval_gold_floors(
  * nation's Europe tile), then raw 92291-92300: goal target (+0x314d/e) =
  * nation+0x32/+0x33 (return_from_europe x/y) and the orders byte (+0x314c) = 1
  * for land types (< 0xd || > 0x12), 0 for hulls; gold -= price, return 1. */
+/* MOD_AI_IMPROVEMENTS #1875 (not DOS): an improved nation stops buying
+ * Artillery in Europe once it fields one per colony (pt7h: France bought
+ * 77 at an escalating 500 + 100 each while its rivals starved of colonists). */
+static bool ai_euro_5d04_artillery_capped(const ColonizeTurnContext* ctx, int nation_id) {
+  if (!ai_euro_improved(ctx, nation_id) || !ctx->units) {
+    return false;
+  }
+  const int ti = units_kind_type_index(ctx->units, UNITS_KIND_ARTILLERY);
+  int arty = 0;
+  for (int i = 0; i < units_slot_end(ctx->units); ++i) {
+    const ColonizeUnit* u = &ctx->units->units[i];
+    arty += u->active && u->nation_id == nation_id && u->type_index == ti;
+  }
+  return arty >= colonies_count_for_nation(ctx->colonies, nation_id);
+}
+
 static int ai_euro_5d04_propose_ship_buy(
   ColonizeTurnContext* ctx, int nation_id, int type_id
 ) {
@@ -1463,7 +1479,8 @@ static void ai_euro_5d04_hire_tail_colony_demand(Ai5d04HireTail* t) {
         col1_nation_bank_4a_set(nat, (uint16_t)(col1_nation_bank_4a(nat) + 50));
       }
     }
-    if (dock_artillery == 0 && colony_demand_total > 5) {
+    if (dock_artillery == 0 && colony_demand_total > 5 &&
+        !ai_euro_5d04_artillery_capped(ctx, nation_id)) {
       /* DOS raw 92834: local_38 = (10 - difficulty) * 100 from turn 40 on and
        * unset before (dos_bugs_ai.md DB-73). Port (user 2026-11-03): the AI
        * pays the Europe purchase price, 500 + 100 per Artillery the nation
@@ -1777,7 +1794,7 @@ static void ai_euro_5d04_hire_ladder_tail(
   int dock_artillery = ai_euro_5d04_cb_artillery_on_dock(dock_head_idx);
   if (dock_artillery == 0 && !woi && hs->a0cc[COLONIZE_CARGO_MUSKETS] > 0 &&
       dos_rng_range(ctx->rng, 0, 3) == 0 && !f->cargo_short &&
-      stuff->ship_cargo_totals[nation_id] > 4) {
+      stuff->ship_cargo_totals[nation_id] > 4 && !ai_euro_5d04_artillery_capped(ctx, nation_id)) {
     (void)ai_euro_5d04_propose_ship_buy(ctx, nation_id, 0);
     dock_head_idx = ai_euro_5d04_cb_list_iter_first(0x0c);
     dock_artillery = ai_euro_5d04_cb_artillery_on_dock(dock_head_idx);
@@ -1824,7 +1841,11 @@ static void ai_euro_5d04_hire_ladder_tail(
    * colony_counts == 0, then the gate is a flat AND; the Ghidra
    * `!bVar24 ||` short-circuit is not in the asm (the a0b8 - 9408 >=
    * 9298>>1 compare runs with zero colonies too). */
-  if (!woi && !dock_has_non_ship_unit && !f->cargo_short && !expand_signal &&
+  /* MOD_AI_IMPROVEMENTS #1874 (not DOS): cargo_short is a fleet-size proxy;
+   * with nobody waiting on the dock the fleet is keeping up (pt7h: England
+   * held off recruiting from t450 on with an empty dock). */
+  const int recruit_cargo_short = f->cargo_short && !ai_euro_improved(ctx, nation_id);
+  if (!woi && !dock_has_non_ship_unit && !recruit_cargo_short && !expand_signal &&
       colonies_want_colonists - (int)stuff->free_colonist_counts[nation_id] >=
         (stuff->colony_counts[nation_id] >> 1)) {
     const int base = ((int)nat->recruit_count - difficulty + 7) * 20;

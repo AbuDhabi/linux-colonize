@@ -16,7 +16,9 @@
 #include "core/internal.h"
 #include "core/ai_euro.h"
 #include "core/ai_euro_internal.h"
+#include "core/ai_diplo.h"
 #include "core/ai_king.h"
+#include "core/col1_save.h"
 #include "core/colony.h"
 #include "core/colony_governor.h"
 #include "core/colony_production.h"
@@ -106,6 +108,20 @@ int ai_euro_pjob_open_on(const ColonizeTurnContext* ctx, int nation, int cid) {
   return n;
 }
 
+int ai_euro_pjob_open_near(const ColonizeTurnContext* ctx, int nation, int x, int y, int r) {
+  if (!ctx || !ctx->map || nation < 0 || nation > 3) {
+    return 0;
+  }
+  const int cid = map_continent_id_at(ctx->map, x, y);
+  int n = 0;
+  for (int i = 0; i < s_job_count[nation]; ++i) {
+    const AiPioneerJob* j = &s_jobs[nation][i];
+    n += map_dos_dist(j->x - x, j->y - y) <= r && map_continent_id_at(ctx->map, j->x, j->y) == cid &&
+         ai_euro_pjob_live(ctx, j);
+  }
+  return n;
+}
+
 int ai_euro_pioneers_on(const ColonizeTurnContext* ctx, int nation, int cid) {
   if (!ctx || !ctx->map || !ctx->units) {
     return 0;
@@ -118,6 +134,63 @@ int ai_euro_pioneers_on(const ColonizeTurnContext* ctx, int nation, int cid) {
          map_continent_id_at(ctx->map, u->x, u->y) == cid;
   }
   return n;
+}
+
+int ai_euro_scouts_on(const ColonizeTurnContext* ctx, int nation, int cid) {
+  if (!ctx || !ctx->map || !ctx->units) {
+    return 0;
+  }
+  int n = 0;
+  for (int i = 0; i < units_slot_end(ctx->units); ++i) {
+    const ColonizeUnit* u = &ctx->units->units[i];
+    n += u->active && u->nation_id == nation && units_is_on_map(u) &&
+         units_type_kind(units_type(ctx->units, u->type_index)) == UNITS_KIND_SCOUT &&
+         map_continent_id_at(ctx->map, u->x, u->y) == cid;
+  }
+  return n;
+}
+
+int ai_euro_missionaries_on(const ColonizeTurnContext* ctx, int nation, int cid) {
+  if (!ctx || !ctx->map || !ctx->units) {
+    return 0;
+  }
+  int n = 0;
+  for (int i = 0; i < units_slot_end(ctx->units); ++i) {
+    const ColonizeUnit* u = &ctx->units->units[i];
+    n += u->active && u->nation_id == nation && units_is_on_map(u) &&
+         units_type_is_missionary(units_type(ctx->units, u->type_index)) &&
+         map_continent_id_at(ctx->map, u->x, u->y) == cid;
+  }
+  return n;
+}
+
+/* A village on (x, y)'s continent within `r` tiles with no mission and no own
+ * Missionary already walking to it. */
+bool ai_euro_mission_site_near(const ColonizeTurnContext* ctx, int nation, int x, int y, int r) {
+  if (!ctx || !ctx->map || !ctx->units || !ctx->col1_ok || !ctx->col1 || !ctx->col1->tribe) {
+    return false;
+  }
+  const int cid = map_continent_id_at(ctx->map, x, y);
+  for (uint16_t i = 0; i < ctx->col1->head.tribe_count; ++i) {
+    const ColonizeCol1Tribe* t = &ctx->col1->tribe[i];
+    if (t->mission == COL1_TRIBE_MISSION_NONE && t->nation_id >= 4 && t->nation_id <= 11 &&
+        map_dos_dist(t->x - x, t->y - y) <= r && map_continent_id_at(ctx->map, t->x, t->y) == cid &&
+        !ai_euro_mission_claimed(ctx->units, nation, t->x, t->y)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+bool ai_euro_mission_claimed(const ColonizeUnitPool* pool, int nation, int x, int y) {
+  for (int i = 0; i < units_slot_end(pool); ++i) {
+    const ColonizeUnit* o = &pool->units[i];
+    if (o->active && o->nation_id == nation && o->goto_x == x && o->goto_y == y &&
+        units_type_is_missionary(units_type(pool, o->type_index))) {
+      return true;
+    }
+  }
+  return false;
 }
 
 size_t ai_euro_pjob_export(uint8_t* out, size_t cap) {
@@ -147,8 +220,9 @@ static bool ai_euro_pjob_claimed(const ColonizeUnitPool* pool, const ColonizeUni
     if (o == self || !o->active || o->nation_id != self->nation_id) {
       continue;
     }
-    if ((o->orders == AI_EURO_ACT_GOAL && o->goto_x == x && o->goto_y == y &&
-         units_is_pioneer(pool, o->id)) ||
+    /* #1871: any Pioneer headed there holds the claim, whatever its orders
+     * (a Go To leg clears AI_EURO_ACT_GOAL and two Pioneers met on one tile). */
+    if ((o->goto_x == x && o->goto_y == y && units_is_pioneer(pool, o->id)) ||
         ((o->orders == UNITS_ORDER_CLEAR_PLOW || o->orders == UNITS_ORDER_BUILD_ROAD) &&
          o->x == x && o->y == y)) {
       return true;
@@ -186,6 +260,27 @@ bool ai_euro_pioneer_released(ColonizeTurnContext* ctx, ColonizeUnit* u) {
   return own < AI_EURO_PIONEER_EXPANSION_COLONIES || ai_euro_20e6_site_probe(ctx, u, u->nation_id) != 0;
 }
 
+/* #1876: a unit of a Euro at war with `nation` or of a tribe alarmed past
+ * 0x4a stands next to (x, y) (pt7h: 13 English and 30 Dutch Pioneers died
+ * walking to or working jobs). */
+static bool ai_euro_pjob_threatened(const ColonizeTurnContext* ctx, int nation, int x, int y) {
+  if (!ctx->col1_ok || !ctx->col1) {
+    return false;
+  }
+  for (int d = 0; d < 8; ++d) {
+    const int uid = units_id_at(ctx->units, x + MAP_DIR8_DX[d], y + MAP_DIR8_DY[d]);
+    const ColonizeUnit* o = uid >= 0 ? units_get_const(ctx->units, uid) : NULL;
+    if (!o || o->nation_id == nation || o->nation_id < 0) {
+      continue;
+    }
+    if (o->nation_id < 4 ? (ctx->col1->nation[nation].euro_relation[o->nation_id] & AI_DIPLO_WAR) != 0
+                         : o->nation_id <= 11 && ai_diplo_indian_alarm(ctx->col1, o->nation_id, nation) > 0x4a) {
+      return true;
+    }
+  }
+  return false;
+}
+
 int ai_euro_pioneer_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nation_id) {
   if (!ctx || !ctx->map || !ctx->units || !u || !u->active || units_is_sea(ctx->units, u->id) ||
       !units_is_on_map(u) || !units_is_pioneer(ctx->units, u->id) ||
@@ -207,7 +302,8 @@ int ai_euro_pioneer_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nation_id
     }
     const int d = map_dos_dist(j->x - u->x, j->y - u->y);
     if (d < best_d && map_continent_id_at(ctx->map, j->x, j->y) == cid &&
-        !ai_euro_pjob_claimed(ctx->units, u, j->x, j->y)) {
+        !ai_euro_pjob_claimed(ctx->units, u, j->x, j->y) &&
+        !ai_euro_pjob_threatened(ctx, nation_id, j->x, j->y)) {
       best = i;
       best_d = d;
     }

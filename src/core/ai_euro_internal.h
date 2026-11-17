@@ -695,14 +695,23 @@ bool ai_euro_improved(const ColonizeTurnContext* ctx, int nation_id);
 
 /* MOD_AI_IMPROVEMENTS 4.2 Pioneer jobs (ai_euro_improved.c): per-nation
  * (tile, PIONEER_PLAN_* kind) list the colony tick posts and AI Pioneers do. */
-#define AI_EURO_PJOB_MAX 32
+#define AI_EURO_PJOB_MAX 128
 void ai_euro_pjob_reset(void);
 void ai_euro_pjob_post(int nation, int x, int y, uint8_t kind);
 bool ai_euro_pjob_listed(int nation, int x, int y);
 /* Open jobs of `nation` on continent `cid`. */
 int ai_euro_pjob_open_on(const ColonizeTurnContext* ctx, int nation, int cid);
+/* Open jobs of `nation` within `r` tiles of (x, y) on that tile's continent. */
+int ai_euro_pjob_open_near(const ColonizeTurnContext* ctx, int nation, int x, int y, int r);
 /* Pioneers with tools `nation` has on continent `cid`. */
 int ai_euro_pioneers_on(const ColonizeTurnContext* ctx, int nation, int cid);
+/* The nation's Scouts on continent cid (#1870). */
+int ai_euro_scouts_on(const ColonizeTurnContext* ctx, int nation, int cid);
+/* #1872: the nation's Missionaries on continent cid; an unmissioned village
+ * within r tiles of (x, y) no own Missionary is walking to. */
+int ai_euro_missionaries_on(const ColonizeTurnContext* ctx, int nation, int cid);
+bool ai_euro_mission_site_near(const ColonizeTurnContext* ctx, int nation, int x, int y, int r);
+bool ai_euro_mission_claimed(const ColonizeUnitPool* pool, int nation, int x, int y);
 int ai_euro_20e6_site_probe(ColonizeTurnContext* ctx, ColonizeUnit* u, int nation_id);
 /* MOD_AI_IMPROVEMENTS: smallest land mass a colony may stand on or a ship may
  * land founders on (pt7b: the Dutch founded on a one-tile islet and starved). */

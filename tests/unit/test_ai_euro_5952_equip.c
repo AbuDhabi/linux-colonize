@@ -102,6 +102,23 @@ static int case_target_profession_wins(void) {
 }
 
 /* `best <= score`: equal scores let the LATER slot win. */
+/* #1872 (mod-only Missionary target): a Free Colonist beats a Criminal, a
+ * Servant and an expert; a Jesuit beats all. */
+static int case_missionary_pick(void) {
+  ColonizeColony c;
+  const int profs[] = {COLONIZE_PROF_FREE_COLONIST, UNITS_JOB_CRIMINAL, UNITS_JOB_SERVANT, UNITS_JOB_PIONEER};
+  fx_colony(&c, profs, 4, 0);
+  if (ai_euro_5952_equip_pick(&c, UNITS_JOB_MISSIONARY) != 0) {
+    return fail("free colonist should be the missionary");
+  }
+  const int profs2[] = {UNITS_JOB_MISSIONARY, COLONIZE_PROF_FREE_COLONIST};
+  fx_colony(&c, profs2, 2, 0);
+  if (ai_euro_5952_equip_pick(&c, UNITS_JOB_MISSIONARY) != 0) {
+    return fail("jesuit should be the missionary");
+  }
+  return 0;
+}
+
 static int case_later_tie_wins(void) {
   ColonizeColony c;
   const int profs[] = {UNITS_JOB_CRIMINAL, UNITS_JOB_CRIMINAL, UNITS_JOB_CRIMINAL};
@@ -118,6 +135,7 @@ static const TestCase k_cases[] = {
   {"case_expert_penalty_needs_garrison", case_expert_penalty_needs_garrison},
   {"case_target_profession_wins", case_target_profession_wins},
   {"case_later_tie_wins", case_later_tie_wins},
+  {"case_missionary_pick", case_missionary_pick},
 };
 
 TEST_MAIN(k_cases)

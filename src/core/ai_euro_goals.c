@@ -1831,6 +1831,13 @@ static void ai_euro_5952_equip_arm(
     if (equip_pop < 10 && equip_pop < ai_euro_colony_wanted_size(ctx->colonies, c)) {
       skip_scout = 1; /* goto LAB_OVL15_L0000__000de5 */
     }
+    /* MOD_AI_IMPROVEMENTS (#1870): one Scout a continent; DOS mints one
+     * from every colony past 101 horses (pt7h France: 12 at t543, the map
+     * long explored). */
+    if (!skip_scout && ai_euro_improved(ctx, nation_id) &&
+        ai_euro_scouts_on(ctx, nation_id, map_continent_id_at(ctx->map, c->x, c->y)) > 0) {
+      skip_scout = 1;
+    }
     if (!skip_scout && (c->ai_flags & COLONIZE_COLONY_AI_NEEDS_COLONISTS) == 0) {
       equip_target_job = UNITS_JOB_SCOUT;
       have_equip_target = 1;
@@ -1903,10 +1910,24 @@ static void ai_euro_5952_equip_arm(
               (int)c->population, c->stock[COLONIZE_CARGO_TOOLS], ai_euro_pjob_open_on(ctx, nation_id, cid),
               ai_euro_pioneers_on(ctx, nation_id, cid));
     }
-    if (ai_euro_pjob_open_on(ctx, nation_id, cid) > 0 && ai_euro_pioneers_on(ctx, nation_id, cid) == 0) {
+    /* #1871: one Pioneer per four open jobs, equipped by a colony with work
+     * near it (one Pioneer per continent left a 30-colony France with one). */
+    const int open = ai_euro_pjob_open_on(ctx, nation_id, cid);
+    if (open > 0 && ai_euro_pioneers_on(ctx, nation_id, cid) < (open + 3) / 4 &&
+        ai_euro_pjob_open_near(ctx, nation_id, c->x, c->y, 4) > 0) {
       equip_target_job = UNITS_JOB_PIONEER;
       have_equip_target = 1;
     }
+  }
+  /* MOD_AI_IMPROVEMENTS #1872 (not DOS): a Church colony blesses one
+   * Missionary at a time per continent for a village near it with no mission
+   * (the DOS AI only ever gets Missionaries from Europe). */
+  if (!have_equip_target && ai_euro_improved(ctx, nation_id) && c->population >= 3 &&
+      colonies_dos_owns_row(ctx->colonies, c, COLONY_BUILDING_CHURCH) &&
+      ai_euro_missionaries_on(ctx, nation_id, map_continent_id_at(ctx->map, c->x, c->y)) == 0 &&
+      ai_euro_mission_site_near(ctx, nation_id, c->x, c->y, 8)) {
+    equip_target_job = UNITS_JOB_MISSIONARY;
+    have_equip_target = 1;
   }
   /* raw 94304-94306: `((+0x1b & 0x48) != 0 || local_90 != 0) && 0x31 < +0xb8` */
   const int equip_demand =
@@ -1963,7 +1984,8 @@ static void ai_euro_5952_equip_arm(
   } else if (equip_target_job == UNITS_JOB_SCOUT) {
     eject_role = COLONIZE_EJECT_SCOUT;
   } else if (equip_target_job == UNITS_JOB_DRAGOON) {
-    eject_role = COLONIZE_EJECT_DRAGOON;
+    eject_role = COLONIZE_EJECT_DRAGOON;  } else if (equip_target_job == UNITS_JOB_MISSIONARY) {
+    eject_role = COLONIZE_EJECT_MISSIONARY;
   }
   (void)colonies_eject_colonist(ctx->colonies, c->id, pick, ctx->units, eject_role);
 }

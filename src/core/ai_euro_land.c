@@ -1091,6 +1091,16 @@ int ai_euro_10ec_war_worthy(const ColonizeTurnContext* ctx, int a, int b) {
   if ((int)*ctx->turn_number <= 0x27) {
     return 0;
   }
+  /* MOD_AI_IMPROVEMENTS #1873 (not DOS): an improved nation already at war
+   * with another Euro does not open or keep a second front (pt7h: every pair
+   * at war from t340 to the end). */
+  if (ai_euro_improved(ctx, a)) {
+    for (int n = 0; n < 4; ++n) {
+      if (n != a && n != b && (col1->nation[a].euro_relation[n] & AI_DIPLO_WAR)) {
+        return 0;
+      }
+    }
+  }
   if (col1->stuff.colony_pop_totals[a] <= 7 && col1->stuff.colony_pop_totals[b] <= 7) {
     return 0; /* −0x6bf4 */
   }
@@ -3167,6 +3177,7 @@ int ai_euro_20e6_missionary_arm(ColonizeTurnContext* ctx, ColonizeUnit* u, int n
   }
   const ColonizeCol1Save* col1 = ctx->col1;
   const int human = col1_fixed_human(col1, ctx->human_nation); /* DS:0x5398, raw 90062 */
+  const bool improved = ai_euro_improved(ctx, nation_id);
   int best = -999;
   int pick = -1;
   for (uint16_t i = 0; i < col1->head.tribe_count; ++i) {
@@ -3179,6 +3190,13 @@ int ai_euro_20e6_missionary_arm(ColonizeTurnContext* ctx, ColonizeUnit* u, int n
       continue;
     }
     const int alarm = ai_diplo_indian_alarm(col1, tn, nation_id);
+    /* MOD_AI_IMPROVEMENTS #1872: only unmissioned villages no other own
+     * Missionary walks to, nearest first while alarm is low. */
+    if (improved && (t->mission != COL1_TRIBE_MISSION_NONE ||
+                     ((u->goto_x != t->x || u->goto_y != t->y) &&
+                      ai_euro_mission_claimed(ctx->units, nation_id, t->x, t->y)))) {
+      continue;
+    }
     if ((t->mission & 0x0f) == nation_id) {
       /* raw 90058-90060: the own-mission skip reads the tribe's alarm toward,
        * and contact with, DS:0x5398 (FUN_281f_030c / 0a38(0x8d52, 0x5398)),
@@ -3193,7 +3211,7 @@ int ai_euro_20e6_missionary_arm(ColonizeTurnContext* ctx, ColonizeUnit* u, int n
         continue;
       }
     }
-    int score = (alarm << 3) / (map_dos_dist(u->x - (int)t->x, u->y - (int)t->y) + 1);
+    int score = ((alarm << 3) + (improved ? 8 : 0)) / (map_dos_dist(u->x - (int)t->x, u->y - (int)t->y) + 1);
     if (t->state.capital) {
       score += score >> 1;
     }

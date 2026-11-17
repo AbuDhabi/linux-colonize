@@ -17,6 +17,7 @@
 
 #include "core/ai_contact.h"
 #include "core/ai_euro.h"
+#include "core/ai_euro_internal.h" /* ai_euro_improved */
 #include "core/ai_internal.h" /* test-seam prototypes of this file's externs */
 
 #include "core/ai_popup.h"
@@ -2749,13 +2750,22 @@ static void ai_diplo_13b0_treaty_tick(ColonizeTurnContext* ctx, int a, int b) {
   }
   /* No adjacency rescan: FUN_5bfb_13b0 (raw 97260-97316) trusts its only
    * caller, the FUN_5bfb_3180 encounter (ai_diplo_13b0_encounter). */
-  const uint8_t rel_ab = col1->nation[a].euro_relation[b];
-  const uint8_t rel_ba = col1->nation[b].euro_relation[a];
+  uint8_t rel_ab = col1->nation[a].euro_relation[b];
+  uint8_t rel_ba = col1->nation[b].euro_relation[a];
   if ((a + (int)*ctx->turn_number + b) % 3 != 0 && (rel_ab & AI_DIPLO_MET)) {
     return;
   }
   if ((rel_ab & AI_DIPLO_WAR) || (rel_ba & AI_DIPLO_WAR)) {
-    return;
+    /* MOD_AI_IMPROVEMENTS #1873 (not DOS): DOS AI pairs never leave a war;
+     * two improved nations sign peace once neither finds the war worthy. */
+    if (ai_euro_improved(ctx, a) && ai_euro_improved(ctx, b) &&
+        !ai_euro_10ec_war_worthy(ctx, a, b) && !ai_euro_10ec_war_worthy(ctx, b, a)) {
+      ai_diplo_clear_both(col1, a, b, AI_DIPLO_WAR | AI_DIPLO_WAR_INTENT);
+      rel_ab = col1->nation[a].euro_relation[b];
+      rel_ba = col1->nation[b].euro_relation[a];
+    } else {
+      return;
+    }
   }
   /* 13b0 is reached only AI x AI (153e sends a human self to the audience),
    * and its FUN_281f_0652(tag, 2) news popups (raw 97286 / 97304) have no

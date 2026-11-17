@@ -206,7 +206,8 @@ int main(int argc, char** argv) {
   ctx.turn_number = &turn_number;
   ctx.game_year = &year;
   ctx.game_autumn = &autumn;
-  ctx.human_nation = br.human_nation;
+  /* An all-AI save runs every nation as AI, as game_loop_eot.c does. */
+  ctx.human_nation = col1_all_ai_fixed_nation(&save) >= 0 ? -1 : br.human_nation;
   ctx.units = &units;
   ctx.colonies = &colonies;
   ctx.europe = &europe;
@@ -219,10 +220,10 @@ int main(int argc, char** argv) {
 
   printf(
     "ai_replay %s: turn %u year %u, human nation %d, %d turns, seed %u\n", path, turn_number,
-    (unsigned)year, (int)br.human_nation, turns, seed
+    (unsigned)year, ctx.human_nation, turns, seed
   );
   if (dump_units) {
-    ai_replay_dump_units(&units, (int)br.human_nation, "pre ");
+    ai_replay_dump_units(&units, ctx.human_nation, "pre ");
   }
 
   for (int t = 0; t < turns; ++t) {
@@ -231,7 +232,7 @@ int main(int argc, char** argv) {
      * change what later turns are allowed to enqueue. */
     memset(&popups, 0, sizeof(popups));
     for (int n = 0; n < 4; ++n) {
-      if (n == (int)br.human_nation) {
+      if (n == ctx.human_nation) {
         continue;
       }
       AiReplayCounts c;
@@ -247,7 +248,7 @@ int main(int argc, char** argv) {
   }
 
   if (dump_units) {
-    ai_replay_dump_units(&units, (int)br.human_nation, "post");
+    ai_replay_dump_units(&units, ctx.human_nation, "post");
   }
 
   assets_msg_free(&names);
