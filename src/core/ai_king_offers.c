@@ -343,7 +343,7 @@ static int ai_king_frigate_spawn(ColonizeTurnContext* ctx, int nation) {
     if (!europe_bound_push(eu, ti, ut ? ut->name : "", dur)) {
       return -1;
     }
-    EuropeHarborShip* s = &eu->bound[eu->bound_ships - 1];
+    EuropeHarborShip* s = &eu->bound[europe_bound_far_head(eu)]; /* where the push linked it */
     s->exit_x = land_x;
     s->exit_y = land_y;
     s->exit_east = europe_exit_east_of(ctx->map, land_x);

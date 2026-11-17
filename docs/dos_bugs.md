@@ -755,9 +755,10 @@ each hull in turn, runs 10be there (`FUN_281f_0920`) and places it
 the first one placed boards from all of them. The lane entry (`FUN_48d3_0346`
 -> 040c -> `FUN_1427_02ca`) links a sailing hull at the chain head and each
 `FUN_48d3_03d0` hop appends in walk order (`FUN_1427_03a0`), so of hulls that
-sailed on one turn the last one lands first (lategame `COLONY06.SAV`: Dutch
-lane 231 chain Privateer, 2 Artillery, Frigate; the Privateer lands first and
-keeps both Artillery).
+sailed on one turn the last one lands first. The head is the `+0x315c` end
+(`FUN_1427_0002`): lategame `COLONY06.SAV` Dutch lane 231 runs Privateer ->
+Artillery -> Artillery -> Frigate, so the Frigate, carrying both Artillery,
+lands first and keeps them, and the Privateer lands empty.
 
 **Effect:** with two or more own ships on one tile (colony or open sea), units
 loaded on one ship can sail off on another, and a ship can depart without some
@@ -781,12 +782,11 @@ map the arm runs as in DOS (budget 0 only in the 236+n slot). The AI landing
 ships are Europe-screen slots until they land, so
 `game_europe_deliver_bound_ships` places them as before and then, DOS mode
 only, `units_lane_arrivals_pickup` puts the hulls that landed together back on
-the lane in bound-list order, taken as the chain head first, and runs 064e's
-pickup per hull. A save loads the list in record order, not by walking the
-chain; the two match in lategame `COLONY06.SAV`. Not reproduced: a
-hull the player sails in the port is appended to the bound list
-(`europe_harbor.c`), where DOS links it at the chain head, so of the player's
-hulls sailed on one turn the first one lands first. Tests:
+the lane in bound-list order and runs 064e's pickup per hull. The bound list
+keeps the lane chains as the bound box draws them (`FUN_38fd_127c`: 228+n
+from its head, then 232+n): a sailing, turned-back or new hull goes to the
+232+n head (`europe_bound_far_head`), and a save loads each lane by walking
+its chain. Tests:
 `unit_units_core` `ship_switch_quirk` (DOS), `unit_units_ships`
 `unit_tb2_departure_own_riders_only` (fix),
 `unit_trade_route_sea_departure_pickup` and
