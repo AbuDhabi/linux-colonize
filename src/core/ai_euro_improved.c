@@ -161,12 +161,13 @@ static bool ai_euro_pjob_claimed(const ColonizeUnitPool* pool, const ColonizeUni
  * than this many colonies on a continent, a Pioneer between jobs is a founder
  * first. DOS lets Pioneers found through the 20e6 explore scan; holding every
  * Pioneer on the job list cut pt5 Pioneer founders from 12 to 3. */
-#define AI_EURO_PIONEER_EXPANSION_COLONIES (getenv("AIX_EXP") ? atoi(getenv("AIX_EXP")) : 3)
+#define AI_EURO_PIONEER_EXPANSION_COLONIES 3
 
 /* True when the Pioneer skips the job list this turn and takes the DOS path:
- * not mid-job, not on a colony tile, and its continent is still in the
- * expansion phase. */
-bool ai_euro_pioneer_released(const ColonizeTurnContext* ctx, const ColonizeUnit* u) {
+ * not mid-job, not on a colony tile, and either its continent is still in the
+ * expansion phase or the 20e6 ring scan finds a site (2026-11-17: in DOS the
+ * nation founds with Pioneers; held on jobs, pt6 France fell 101 -> 77). */
+bool ai_euro_pioneer_released(ColonizeTurnContext* ctx, ColonizeUnit* u) {
   if (!ctx || !ctx->map || !ctx->colonies || !u || u->nation_id < 0 || u->nation_id > 3) {
     return false;
   }
@@ -182,7 +183,7 @@ bool ai_euro_pioneer_released(const ColonizeTurnContext* ctx, const ColonizeUnit
     const ColonizeColony* c = &ctx->colonies->colonies[i];
     own += c->active && c->nation_id == u->nation_id && map_continent_id_at(ctx->map, c->x, c->y) == cid;
   }
-  return own < AI_EURO_PIONEER_EXPANSION_COLONIES;
+  return own < AI_EURO_PIONEER_EXPANSION_COLONIES || ai_euro_20e6_site_probe(ctx, u, u->nation_id) != 0;
 }
 
 int ai_euro_pioneer_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nation_id) {

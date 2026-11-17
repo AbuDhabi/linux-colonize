@@ -504,3 +504,24 @@ Dragoons alike.
   171). Test: `unit_ai_euro_improved` `pioneer_released`. The TURN1 Dragoon
   founder gap above comes from income (focus picker); the Cash focus
   entry above lands the fix.
+
+France expansion gap (2026-11-17, pt6 playtest; England human, Conquistador,
+New World, alternate map). From the pt6 turn-200 save, 150 turns, France held
+77 colonies against DOS's 101 (seeds 1-6). Restoring one mod item at a time,
+only turning `ai_euro_pioneer_act` off closed it (98). In DOS France founds
+with Pioneers only (9 of 9 founders, seeds 1-4); with the mod, 1 of 4. The
+expansion-phase threshold does not reach it: France holds 3+ colonies per
+continent. Raising the threshold or releasing on few open jobs cut improved
+plots by half or did nothing.
+- **Landed: release on a DOS site.** `ai_euro_pioneer_released` also releases
+  a Pioneer between jobs when the 20e6 explorer ring scan finds a site
+  (`ai_euro_20e6_site_probe`, ai_euro_land.c: the scan run as a probe, its
+  fatigue bump undone). So the Pioneer founds where DOS would, and works the
+  job list otherwise. 12 seeds, colonies / pop (improved plots):
+  - pt6 turn 200 to 350: France 152 / 952 before, 173 / 1115 now (DOS
+    195 / 1083). Spain 36 / 204 to 46 / 267, Dutch 271 / 1869 to
+    248 / 1798. All AI 459 / 3025 (973) to 467 / 3180 (1094).
+  - pt5 turn 10 to 150: 138 / 643 (227) to 166 / 674 (235).
+  - TURN1: unchanged (no continent passes 2 colonies in 100 turns).
+  Goal note (user, 2026-11-17): the mod aims at sensible play under the
+  normal rules, not DOS parity; the DOS columns are context.

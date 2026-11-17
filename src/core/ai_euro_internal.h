@@ -696,7 +696,8 @@ bool ai_euro_pjob_listed(int nation, int x, int y);
 int ai_euro_pjob_open_on(const ColonizeTurnContext* ctx, int nation, int cid);
 /* Pioneers with tools `nation` has on continent `cid`. */
 int ai_euro_pioneers_on(const ColonizeTurnContext* ctx, int nation, int cid);
-bool ai_euro_pioneer_released(const ColonizeTurnContext* ctx, const ColonizeUnit* u);
+int ai_euro_20e6_site_probe(ColonizeTurnContext* ctx, ColonizeUnit* u, int nation_id);
+bool ai_euro_pioneer_released(ColonizeTurnContext* ctx, ColonizeUnit* u);
 /* RTST record: {u8 nation, x, y, kind} per job. */
 #define AI_EURO_PJOB_EXPORT_MAX (4 * AI_EURO_PJOB_MAX * 4)
 size_t ai_euro_pjob_export(uint8_t* out, size_t cap);

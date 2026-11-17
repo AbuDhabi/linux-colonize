@@ -775,7 +775,7 @@ ColonizeColony* ai_euro_5952_tools_supply_and_connect(
    * resync 80->81: Fort Nassau bought 20 tools after a Pioneer joined). */
   int have_tools = ai_euro_5952_tools_latch;
   const int wants_work = (col->ai_flags & COLONIZE_COLONY_AI_WANTS_PIONEER_WORK) != 0;
-  const bool improved = ai_euro_improved(ctx, nation) && !getenv("AIX_C1");
+  const bool improved = ai_euro_improved(ctx, nation);
   if (improved) {
     /* MOD_AI_IMPROVEMENTS 4.1 C1: no tools appear in the colony; 4.2: the
      * road gap becomes a Pioneer job, so no tools are needed to post it. */
@@ -2046,6 +2046,28 @@ static int ai_euro_land_explore_scan_target(
   *out_x = bx;
   *out_y = by;
   return 1;
+}
+
+/* MOD_AI_IMPROVEMENTS (not DOS): the explorer ring scan above as a probe for
+ * a Pioneer on the job list. 1 = a site in the ring, 2 = standing on the best
+ * one, 0 = none. The scan's fatigue bump is undone, so the probe leaves no
+ * trace; 20e6 runs the real scan if the Pioneer is released. */
+int ai_euro_20e6_site_probe(ColonizeTurnContext* ctx, ColonizeUnit* u, int nation_id) {
+  Ai20e6Unit s;
+  ai_euro_20e6_prologue(ctx, u, nation_id, &s);
+  const ColonizeWorld cw = world_from_turn_ctx(ctx);
+  s.prio14 = ai_goals_composite_unit_priority_w(&cw, s.nation, u->x, u->y, s.dos_type, u->profession, s.turn,
+                                                colonies_count_for_nation(ctx->colonies, s.nation));
+  if (s.prio14 == 0) {
+    return 0; /* iStack_6a needs a non-zero priority: no explorer pass */
+  }
+  s.explorer = 1;
+  const uint8_t fatigue = ai_euro_20e6_hold_scratch(u)[0];
+  int fx = 0;
+  int fy = 0;
+  const int r = ai_euro_land_explore_scan_target(ctx, u, nation_id, &s, 1, &fx, &fy);
+  ai_euro_20e6_hold_scratch(u)[0] = fatigue;
+  return r;
 }
 
 /*

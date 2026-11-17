@@ -2097,7 +2097,7 @@ static void ai_euro_5952_build_pref_0306(
    * nation's musket-LOT bank that FUN_521d_5d04's hire arm spends to arm a
    * recruit for free (ai_euro_internal.h Ai5d04HireScratch). */
   /* MOD_AI_IMPROVEMENTS 4.1 C4: no muskets move colony -> Europe unshipped. */
-  if ((!ai_euro_improved(ctx, nation_id) || getenv("AIX_C4")) &&
+  if (!ai_euro_improved(ctx, nation_id) &&
       labor_running == 0 && c->stock[COLONIZE_CARGO_MUSKETS] > 199 && nation_id >= 0 &&
       nation_id < 4 && ctx->col1 && ctx->col1->nation[nation_id].musket_bank_lots < 0x14) {
     ctx->col1->nation[nation_id].musket_bank_lots++;
