@@ -1,6 +1,7 @@
 /* MOD_COLONY_GOVERNOR (src/core/colony_governor.c, docs/colony_governor.md). */
 #include "test_turn_common.h"
 #include "core/colony_governor.h"
+#include "core/dos_buggy.h"
 #include "core/mods.h"
 #include "core/runtime_ext.h"
 
