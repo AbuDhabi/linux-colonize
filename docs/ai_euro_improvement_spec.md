@@ -525,3 +525,26 @@ plots by half or did nothing.
   - TURN1: unchanged (no continent passes 2 colonies in 100 turns).
   Goal note (user, 2026-11-17): the mod aims at sensible play under the
   normal rules, not DOS parity; the DOS columns are context.
+
+All-AI playtests (2026-11-17, pt7-pt7d; CHEAT Set Human None from the turn-0
+save, Conquistador, New World, alternate map generator + modern PRNG, about
+430 turns each). With no human, the four improved nations ran into:
+- England never advanced (tax 0, no Founding Father in 431 turns): the
+  bridge copied the idle Europe mirror over DS:0x5398's record every turn
+  (port_bugs.md #1857, not a mod bug).
+- The Dutch hull roamed with a tool-less Pioneer: the colony-sail pick's stance
+  gate is now skipped for improved nations (#1858).
+- The Dutch founded on a one-tile islet off the coast and starved every
+  colonist they bought: the site scan and the ship unload mask now reject
+  land masses under `AI_EURO_MIN_SITE_LAND` (5) tiles (#1859).
+- A Dutch hull came back from Europe into a bay with no water path to its
+  colonies and stayed there: the sail pick only takes colonies on the hull's
+  sea, a loaded hull with no own colony on its sea sails home, and a hull
+  leaving Europe re-aims its landfall at a sea with an own colony (#1860).
+
+pt7d (all fixes but #1860), turn 435, colonies / pop / Founding Fathers:
+England 11 / 46 / 7, France 16 / 65 / 7, Dutch 5 / 21 / 3 (stalled until about
+t240), Spain 1 / 6 / 2. Spain (DOS site terms, 4.9) peaked at 4 colonies by
+t60 and lost them to French and English wars. Open lead: a hull carrying
+horses shuttled between two own colonies every turn without unloading (replay
+of the pt7d t20 save with #1860, t59 onward, delivery scores tied at 67).

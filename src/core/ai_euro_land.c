@@ -1827,7 +1827,8 @@ static int ai_euro_land_explore_scan_target(
    * ai_goals.h:24-31. Faithful dead arithmetic; keep it as DOS spells it. */
   const int explore_goal = ai_goals_max_primary_prio(nation_id, u->x, u->y, AI_GOAL_EXPLORE);
   /* Spain keeps the DOS terms (ai_euro_improvement_spec.md 4.9). */
-  const bool improved_sites = nation_id != 2 && ai_euro_improved(ctx, nation_id);
+  const bool improved_any = ai_euro_improved(ctx, nation_id);
+  const bool improved_sites = nation_id != 2 && improved_any;
   int best = -999;
   int best_nib = 0;
   int bx = u->x;
@@ -1857,6 +1858,9 @@ static int ai_euro_land_explore_scan_target(
       }
       if (map_dos_terr_class_at(ctx->map, tx, ty) == 0x1b) {
         continue; /* class 0x1b, @TOOMOUNTAIN */
+      }
+      if (improved_any && ai_euro_land_mass_below(ctx->map, tx, ty, AI_EURO_MIN_SITE_LAND)) {
+        continue; /* MOD_AI_IMPROVEMENTS: no colony on an islet */
       }
       /* raw 89134: `0d12(x,y) && 06b4(DS:0x8dba, DS:0x8dbc) == 1` — a water
        * neighbour whose lowest region id is the open sea; a tile touching only
@@ -2052,6 +2056,43 @@ static int ai_euro_land_explore_scan_target(
  * a Pioneer on the job list. 1 = a site in the ring, 2 = standing on the best
  * one, 0 = none. The scan's fatigue bump is undone, so the probe leaves no
  * trace; 20e6 runs the real scan if the Pioneer is released. */
+/* Bounded flood fill: true when the land mass at (x, y) has fewer than `n`
+ * tiles (n <= 16). Continent ids are clamped to a nibble, so two land masses
+ * can share one id and the id tallies cannot tell an islet from its coast. */
+bool ai_euro_land_mass_below(const ColonizeWorldMap* map, int x, int y, int n) {
+  int qx[16];
+  int qy[16];
+  int count = 0;
+  if (!map_tile_is_land(map, x, y)) {
+    return true;
+  }
+  qx[count] = x;
+  qy[count] = y;
+  ++count;
+  for (int i = 0; i < count; ++i) {
+    for (int k = 0; k < 8; ++k) {
+      const int ax = qx[i] + MAP_DIR8_DX[k];
+      const int ay = qy[i] + MAP_DIR8_DY[k];
+      if (!map_coords_inset(map, ax, ay) || !map_tile_is_land(map, ax, ay)) {
+        continue;
+      }
+      bool seen = false;
+      for (int j = 0; j < count && !seen; ++j) {
+        seen = qx[j] == ax && qy[j] == ay;
+      }
+      if (!seen) {
+        if (count + 1 >= n) {
+          return false;
+        }
+        qx[count] = ax;
+        qy[count] = ay;
+        ++count;
+      }
+    }
+  }
+  return true;
+}
+
 int ai_euro_20e6_site_probe(ColonizeTurnContext* ctx, ColonizeUnit* u, int nation_id) {
   Ai20e6Unit s;
   ai_euro_20e6_prologue(ctx, u, nation_id, &s);

@@ -35,7 +35,9 @@ DS:0x5398 alone (`game_set_all_ai`). In the port:
 - The Europe mirror stays bound to DS:0x5398 for display, but holds no units.
   `game_set_all_ai` flushes it and reloads in place, and the bridge leaves every
   Europe unit in the pool for the AI (`col1_bridge_mirror_nation`). Capture keeps
-  the all-AI control table.
+  the all-AI control table and never copies the mirror back over DS:0x5398's
+  record, which the AI writes itself (`col1_bridge_capture_nation_europe`;
+  port_bugs.md #1857: tax, bells and Founding Fathers stayed at 0).
 - No unit is selectable (`game_unit_selectable`,
   `game_select_next_unit_awaiting_orders`) and the goto pacer stays off, so each
   day ends in a view-only Move Pieces when autoplay is off (spectator,

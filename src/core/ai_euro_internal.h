@@ -697,6 +697,13 @@ int ai_euro_pjob_open_on(const ColonizeTurnContext* ctx, int nation, int cid);
 /* Pioneers with tools `nation` has on continent `cid`. */
 int ai_euro_pioneers_on(const ColonizeTurnContext* ctx, int nation, int cid);
 int ai_euro_20e6_site_probe(ColonizeTurnContext* ctx, ColonizeUnit* u, int nation_id);
+/* MOD_AI_IMPROVEMENTS: smallest land mass a colony may stand on or a ship may
+ * land founders on (pt7b: the Dutch founded on a one-tile islet and starved). */
+#define AI_EURO_MIN_SITE_LAND 5
+bool ai_euro_land_mass_below(const ColonizeWorldMap* map, int x, int y, int n);
+/* MOD_AI_IMPROVEMENTS: an own colony borders the sea around (x, y) (layer3
+ * tags every sea region 1, so it cannot tell two seas apart). */
+bool ai_euro_sea_has_own_colony(const ColonizeTurnContext* ctx, int x, int y, int nation);
 bool ai_euro_pioneer_released(ColonizeTurnContext* ctx, ColonizeUnit* u);
 /* RTST record: {u8 nation, x, y, kind} per job. */
 #define AI_EURO_PJOB_EXPORT_MAX (4 * AI_EURO_PJOB_MAX * 4)

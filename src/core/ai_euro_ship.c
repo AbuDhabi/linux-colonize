@@ -1654,6 +1654,113 @@ int ai_euro_ship_enter_europe(ColonizeTurnContext* ctx, ColonizeUnit* ship) {
   return 1;
 }
 
+/* ===== MOD_AI_IMPROVEMENTS sea reach ===== */
+/*
+ * Mark in `seen` (width*height bytes, zeroed by the caller) (sx, sy) and every
+ * water tile a hull starting there reaches. Layer3 tags every sea "region 1",
+ * so it cannot tell two seas apart (pt7d: a Dutch hull in a bay with no water
+ * path to its west-coast colonies). Returns false when it cannot allocate.
+ */
+static bool ai_euro_sea_reach(const ColonizeWorldMap* map, int sx, int sy, uint8_t* seen) {
+  const int w = (int)map->width;
+  const int cells = w * (int)map->height;
+  int* q = (int*)malloc((size_t)cells * sizeof(int));
+  if (!q || !map_in_bounds(map, sx, sy)) {
+    free(q);
+    return false;
+  }
+  int qt = 0;
+  seen[sy * w + sx] = 1;
+  q[qt++] = sy * w + sx;
+  for (int qh = 0; qh < qt; ++qh) {
+    for (int k = 0; k < 8; ++k) {
+      const int nx = q[qh] % w + MAP_DIR8_DX[k];
+      const int ny = q[qh] / w + MAP_DIR8_DY[k];
+      if (!map_in_bounds(map, nx, ny) || seen[ny * w + nx] || map_tile_is_land(map, nx, ny)) {
+        continue;
+      }
+      seen[ny * w + nx] = 1;
+      q[qt++] = ny * w + nx;
+    }
+  }
+  free(q);
+  return true;
+}
+
+/* A hull in the `seen` sea can berth at (x, y). */
+static bool ai_euro_sea_touches(const ColonizeWorldMap* map, const uint8_t* seen, int x, int y) {
+  for (int k = 0; k < 8; ++k) {
+    const int nx = x + MAP_DIR8_DX[k];
+    const int ny = y + MAP_DIR8_DY[k];
+    if (map_in_bounds(map, nx, ny) && seen[ny * (int)map->width + nx]) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/* Some own colony of `nation` borders the sea around (x, y); true when that
+ * cannot be told (no map, no memory). */
+bool ai_euro_sea_has_own_colony(const ColonizeTurnContext* ctx, int x, int y, int nation) {
+  const ColonizeWorldMap* map = ctx->map;
+  if (!map || !ctx->colonies || !map_in_bounds(map, x, y)) {
+    return true;
+  }
+  uint8_t* seen = (uint8_t*)calloc((size_t)map->width * map->height, 1);
+  if (!seen || !ai_euro_sea_reach(map, x, y, seen)) {
+    free(seen);
+    return true;
+  }
+  bool any = false;
+  for (int i = 0; i < COLONIZE_COLONIES_MAX && !any; ++i) {
+    const ColonizeColony* c = &ctx->colonies->colonies[i];
+    any = c->active && c->nation_id == nation && ai_euro_sea_touches(map, seen, c->x, c->y);
+  }
+  free(seen);
+  return any;
+}
+
+/*
+ * A hull leaving Europe returns to its landfall (FUN_48d3_048e). When no own
+ * colony borders the landfall's sea, aim it at the High Seas tile nearest the
+ * first own coastal colony that has one in its sea.
+ */
+static void ai_euro_retarget_landfall(ColonizeTurnContext* ctx, ColonizeUnit* ship) {
+  const ColonizeWorldMap* map = ctx->map;
+  if (ai_euro_sea_has_own_colony(ctx, ship->goto_x, ship->goto_y, ship->nation_id)) {
+    return;
+  }
+  const int cells = (int)map->width * (int)map->height;
+  uint8_t* seen = (uint8_t*)calloc((size_t)cells, 1);
+  if (!seen) {
+    return;
+  }
+  bool any = false;
+  for (int i = 0; i < COLONIZE_COLONIES_MAX && !any; ++i) {
+    const ColonizeColony* c = &ctx->colonies->colonies[i];
+    if (!c->active || c->nation_id != ship->nation_id || !(c->colony_flags & COLONIZE_COLONY_FLAG_COASTAL)) {
+      continue;
+    }
+    memset(seen, 0, (size_t)cells);
+    if (!ai_euro_sea_reach(map, c->x, c->y, seen)) {
+      break;
+    }
+    int best = INT_MAX;
+    for (int t = 0; t < cells; ++t) {
+      const int tx = t % (int)map->width;
+      const int ty = t / (int)map->width;
+      const int d = map_dos_dist(tx - c->x, ty - c->y);
+      if (seen[t] && d < best && map_tile_is_high_seas(map, tx, ty)) {
+        best = d;
+        ship->goto_x = tx;
+        ship->goto_y = ty;
+        any = true;
+      }
+    }
+  }
+  free(seen);
+}
+
 /*
  * Europe -> New World departure, DOS-LITERAL FUN_48d3_0346 (raw
  * 77732-77757, reached through FUN_291f_0ec2 from the FUN_521d_5d04 dock
@@ -1663,6 +1770,9 @@ int ai_euro_ship_enter_europe(ColonizeTurnContext* ctx, ColonizeUnit* ship) {
 void ai_euro_ship_leave_europe(ColonizeTurnContext* ctx, ColonizeUnit* ship) {
   if (!ctx || !ctx->units || !ship) {
     return;
+  }
+  if (ai_euro_improved(ctx, ship->nation_id)) {
+    ai_euro_retarget_landfall(ctx, ship); /* MOD_AI_IMPROVEMENTS (pt7d) */
   }
   /* raw 77742: the crossing is rolled against the hull's own +0x314d/e
    * (goto_x/y); DOS has no fallback (sail_to_europe and the 5c3c purchase
@@ -2266,6 +2376,9 @@ int ai_euro_20e6_unload_mask_snapshot(
     if (!(ay > 1 && ay <= ctx->map->height - 3)) {
       continue;
     }
+    if (ai_euro_improved(ctx, nation) && ai_euro_land_mass_below(ctx->map, ax, ay, AI_EURO_MIN_SITE_LAND)) {
+      continue; /* MOD_AI_IMPROVEMENTS: never land on an islet (pt7b Dutch) */
+    }
     if (goto_cid >= 0 && goto_cid == cid) {
       mask = 0xffff; /* act_state 0x0b goto lands here: unload everything */
     }
@@ -2530,6 +2643,15 @@ int ai_euro_20e6_colony_sail_pick(
    */
   const int war_cont_count = ai_contact_continent_war_count_a89c(ctx, nation);
   const int open_cont = ai_euro_20e6_open_continents(ctx, nation);
+  /* MOD_AI_IMPROVEMENTS (pt7d): only colonies the hull can reach by water. */
+  uint8_t* sea = NULL;
+  if (ai_euro_improved(ctx, nation)) {
+    sea = (uint8_t*)calloc((size_t)ctx->map->width * ctx->map->height, 1);
+    if (sea && !ai_euro_sea_reach(ctx->map, ship->x, ship->y, sea)) {
+      free(sea);
+      sea = NULL;
+    }
+  }
   int best = -9999;
   int have = 0;
   int bx = 0;
@@ -2543,11 +2665,12 @@ int ai_euro_20e6_colony_sail_pick(
       continue;
     }
     const int cid = map_continent_id_at(ctx->map, c->x, c->y);
-    /* MOD_AI_IMPROVEMENTS (pt2 P3): a Pioneer is also a worker for the job
-     * list; with no treasury bump a hull roaming with one aboard earns
-     * nothing, so it may bring it to a colony whose continent has open jobs. */
+    /* MOD_AI_IMPROVEMENTS (pt2 P3, pt7): with no treasury bump a hull roaming
+     * with a Pioneer aboard earns nothing, so it may bring it to any own
+     * colony (pt7: a Dutch Merchantman roamed with a tool-less Pioneer for 330
+     * turns, its only colony's goods unsold, gold 0). */
     if (pioneers_b4 != 0 && (cid < 0 || ai_euro_continent_stance_at(nation, cid) == 0) &&
-        !(ai_euro_improved(ctx, nation) && ai_euro_pjob_open_on(ctx, nation, cid) > 0)) {
+        !ai_euro_improved(ctx, nation)) {
       continue; /* md:1946: Pioneer cargo only sails at nonzero stance */
     }
     int wanted = ai_euro_colony_wanted_size(ctx->colonies, c); /* FUN_1000_8e6c */
@@ -2624,6 +2747,9 @@ int ai_euro_20e6_colony_sail_pick(
       }
       dest = &ctx->colonies->colonies[port];
     }
+    if (sea && !ai_euro_sea_touches(ctx->map, sea, dest->x, dest->y)) {
+      continue;
+    }
     const int dist = map_dos_dist(ship->x - dest->x, ship->y - dest->y);
     score -= (dist >> 1) + 1; /* iStack_b2 == 1 */
     if (score >= best) { /* DOS later-ties-win */
@@ -2633,6 +2759,7 @@ int ai_euro_20e6_colony_sail_pick(
       by = dest->y;
     }
   }
+  free(sea);
   if (!have || best <= (mil == 0 ? -999 : 0)) {
     return 0; /* md:2031 commit threshold */
   }

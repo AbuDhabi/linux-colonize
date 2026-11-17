@@ -152,9 +152,80 @@ static int case_colony_focus_small_cash(void) {
   }
   return rc;
 }
+/* ai_improvements mod (pt7b): a one-tile islet is no colony site; a mass of
+ * AI_EURO_MIN_SITE_LAND tiles is. */
+static int case_land_mass_islet(void) {
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  char err[128];
+  if (!map_alloc(&map, 16, 16, err, sizeof(err))) {
+    return 1;
+  }
+  for (int i = 0; i < 16 * 16; ++i) {
+    map.terrain[i] = T_OCEAN;
+  }
+  map.terrain[3 * 16 + 3] = 2; /* islet */
+  for (int x = 8; x < 8 + AI_EURO_MIN_SITE_LAND; ++x) {
+    map.terrain[8 * 16 + x] = 2; /* strip */
+  }
+  int rc = 0;
+  if (!ai_euro_land_mass_below(&map, 3, 3, AI_EURO_MIN_SITE_LAND) ||
+      ai_euro_land_mass_below(&map, 8, 8, AI_EURO_MIN_SITE_LAND) ||
+      !ai_euro_land_mass_below(&map, 8, 8, AI_EURO_MIN_SITE_LAND + 1)) {
+    fprintf(stderr, "land_mass_islet: wrong mass test\n");
+    rc = 1;
+  }
+  map_free(&map);
+  return rc;
+}
+
+/* ai_improvements mod (pt7d): two seas split by a land wall; a hull only
+ * "has" the colony that borders its own sea. */
+static int case_sea_has_own_colony(void) {
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  char err[128];
+  if (!map_alloc(&map, 16, 16, err, sizeof(err))) {
+    return 1;
+  }
+  for (int i = 0; i < 16 * 16; ++i) {
+    map.terrain[i] = (i % 16 == 8) ? 2 : T_OCEAN; /* land column x = 8 */
+  }
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+  const int cid = 0;
+  colonies.colonies[cid].active = true;
+  colonies.colonies[cid].nation_id = 3;
+  colonies.colonies[cid].x = 8;
+  colonies.colonies[cid].y = 4;
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.map = &map;
+  ctx.colonies = &colonies;
+  int rc = 0;
+  if (!ai_euro_sea_has_own_colony(&ctx, 3, 3, 3) || !ai_euro_sea_has_own_colony(&ctx, 12, 3, 3) ||
+      ai_euro_sea_has_own_colony(&ctx, 3, 3, 2)) {
+    fprintf(stderr, "sea_has_own_colony: colony on the wall borders both seas, not nation 2\n");
+    rc = 1;
+  }
+  /* Move the colony to (8,15) and wall off its east side. */
+  colonies.colonies[cid].x = 8;
+  colonies.colonies[cid].y = 15;
+  map.terrain[14 * 16 + 9] = 2;
+  map.terrain[15 * 16 + 9] = 2;
+  if (rc == 0 && ai_euro_sea_has_own_colony(&ctx, 12, 3, 3)) {
+    fprintf(stderr, "sea_has_own_colony: east sea reaches a colony walled off from it\n");
+    rc = 1;
+  }
+  map_free(&map);
+  return rc;
+}
+
 static const TestCase k_cases[] = {
   {"colony_focus_small_cash", case_colony_focus_small_cash},
   {"pjob_resume", case_pjob_resume},
   {"pioneer_released", case_pioneer_released},
+  {"land_mass_islet", case_land_mass_islet},
+  {"sea_has_own_colony", case_sea_has_own_colony},
 };
 TEST_MAIN_WRAPPED(k_cases, diag_init(0, NULL), diag_shutdown())

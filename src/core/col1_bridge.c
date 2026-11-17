@@ -2990,8 +2990,13 @@ COLONIZE_INTERNAL void col1_bridge_capture_nation_europe(Col1CaptureCtx* ctx) {
   /*
    * Nations / indian: live Col1 snapshot already holds AI diplo/contact blobs.
    * Refresh human economy from Europe UI; leave other nations' bytes intact.
+   * No power at the controls (CHEAT Set Human "None", the demo): the mirror
+   * is display-only and the AI writes DS:0x5398's record itself (tax, bells,
+   * crosses, recruit pool; gold through europe_nation_gold_add), so copying
+   * the idle screen back zeroed them every turn (pt7: England tax 0, bells 0,
+   * no Founding Father in 431 turns).
    */
-  if (europe) {
+  if (europe && col1_all_ai_fixed_nation(save) < 0) {
     ColonizeCol1Nation* nat = &save->nation[human_nation];
     nat->gold = (uint32_t)(europe->gold < 0 ? 0 : europe->gold);
     nat->tax_rate = (uint8_t)(europe->tax_percent < 0 ? 0 : (europe->tax_percent > 99 ? 99 : europe->tax_percent));
