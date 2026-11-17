@@ -140,16 +140,22 @@ static bool explore_auto_ocean(const ColonizeWorldMap* map, int x, int y) {
   return !map_tile_is_land(map, x, y) && !map_tile_is_lake(map, x, y);
 }
 
-/* Unexplored ground next to (x,y); for a ship only unexplored ocean counts,
- * which it can actually go and see. The 1-tile map rim is never revealed by
- * sight (map_sight_each), so it is not unexplored ground. */
+/* Fog worth lifting for a ship: unseen, but not sea lane (open water, nothing to find). */
+static bool explore_auto_ship_unseen(const ColonizeWorldMap* map, int nation, int x, int y) {
+  return !map_tile_seen_by(map, x, y, nation) && !map_tile_is_high_seas(map, x, y);
+}
+
+/* Unexplored ground next to (x,y); for a ship only unexplored ocean off the sea
+ * lane counts, which it can actually go and see. The 1-tile map rim is never
+ * revealed by sight (map_sight_each), so it is not unexplored ground. */
 static bool explore_auto_frontier(const ColonizeWorldMap* map, int nation, int x, int y, bool ship) {
   for (int dy = -1; dy <= 1; ++dy) {
     for (int dx = -1; dx <= 1; ++dx) {
       const int nx = x + dx;
       const int ny = y + dy;
-      if (map_coords_inset(map, nx, ny) && !map_tile_seen_by(map, nx, ny, nation) &&
-          (!ship || explore_auto_ocean(map, nx, ny))) {
+      if (map_coords_inset(map, nx, ny) &&
+          (ship ? explore_auto_ship_unseen(map, nation, nx, ny) && explore_auto_ocean(map, nx, ny)
+                : !map_tile_seen_by(map, nx, ny, nation))) {
         return true;
       }
     }
@@ -183,10 +189,11 @@ typedef struct ExploreAutoGain {
 static void explore_auto_gain_tile(void* ctx, int x, int y, bool outer) {
   ExploreAutoGain* g = ctx;
   (void)outer;
-  g->unseen += !map_tile_seen_by(g->map, x, y, g->nation);
+  g->unseen += explore_auto_ship_unseen(g->map, g->nation, x, y);
 }
 
-/* Fog a ship's sight would lift standing on (x,y): the same tiles map_sight_each reveals. */
+/* Fog a ship's sight would lift standing on (x,y): the same tiles map_sight_each reveals,
+ * sea lane excluded. */
 static int explore_auto_ship_gain(const ColonizeWorldMap* map, int nation, int x, int y, int radius) {
   ExploreAutoGain g = {map, nation, 0};
   map_sight_each(map, x, y, radius, true, explore_auto_gain_tile, &g);

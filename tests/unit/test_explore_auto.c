@@ -322,20 +322,28 @@ static int case_ship(void) {
 
   /* A ship already on the sea lane: Go To refuses every lane tile further east
    * (units_enter_probe_w reason 5). Those are skipped, not counted as path misses
-   * (campaign 14: 8 of them cancelled the caravel), so the ship heads for the one
-   * ordinary-ocean frontier tile (7,10) even though nine lane tiles score better. */
+   * (campaign 14: 8 of them cancelled the caravel). Unseen sea lane is not fog worth
+   * lifting, so the only frontier is around the unseen ordinary ocean (8,10), and the
+   * ship heads for the one ordinary-ocean tile next to it, (7,10). */
   for (int i = 0; i < 144; ++i) {
     const int x = i % 12;
     s_map.terrain[i] = x >= 1 ? T_HIGH_SEAS : T_OCEAN;
     s_map.seen[i] = x < 8 ? 0x10 : 0;
   }
   s_map.terrain[10 * 12 + 7] = T_OCEAN;
+  s_map.terrain[10 * 12 + 8] = T_OCEAN;
   u->x = 2;
   u->y = 1;
   u->automated = true;
   u->orders = UNITS_ORDER_NONE;
   explore_auto_step(&w, u);
   CHECK(u->automated && u->orders == UNITS_ORDER_GOTO && u->goto_x == 7 && u->goto_y == 10);
+
+  /* Only sea lane left unseen: nothing to explore, automation ends. */
+  s_map.terrain[10 * 12 + 8] = T_HIGH_SEAS;
+  u->orders = UNITS_ORDER_NONE;
+  explore_auto_step(&w, u);
+  CHECK(!u->automated && u->orders == UNITS_ORDER_NONE);
 
   /* The Scout mod does not automate ships. */
   mods_campaign_set(1u << MOD_SCOUT_AUTOEXPLORE);
