@@ -102,11 +102,13 @@ player's own calls, for the colonists that move.
 Construction: only when no project is queued and the current one is "(No
 Production)", a built building, or no longer startable. When a good has no
 room left, or fills within three turns at its current rate, Warehouse and
-Warehouse Expansion go first; then the next unbuilt tier of the school chain
-(Schoolhouse, College, University) and of the church chain (Church,
-Cathedral), each when the seating, rerun as if it stood, scores over 2 a turn
-more (`gov_probe_rows`: teachers for spare students, preachers for hands whose
-best job is worth little); then the governor's list (Cash first tries every
+Warehouse Expansion go first; then the Docks, the next unbuilt tier of the
+school chain (Schoolhouse, College, University) and of the church chain
+(Church, Cathedral), each when the seating, rerun as if it stood, scores over
+2 a turn more (`gov_probe_rows`: fishermen for sea plots that beat what the
+colonists do now, teachers for spare students, preachers for hands whose best
+job is worth little); only Industry also lists the Docks, for its ships;
+then the governor's list (Cash first tries every
 crop chain that pays, most valuable first, each through all its tiers, house,
 shop and factory, the Fur Trading Post included: a chain is worth the crop
 the colony grows now, or its best seatable plot if more, at the processed

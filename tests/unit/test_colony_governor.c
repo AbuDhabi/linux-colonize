@@ -6,6 +6,7 @@
 #include "core/runtime_ext.h"
 
 static int g_diag_ready;
+static bool g_fx_coastal; /* gov_fx_open: pick a site with water beside it */
 
 typedef struct GovFx {
   ColonizeWorldMap map;
@@ -42,7 +43,8 @@ static bool gov_fx_open(GovFx* f) {
   for (int y = 2; y < (int)f->map.height - 2 && !f->col; ++y) {
     for (int x = 2; x < (int)f->map.width - 2 && !f->col; ++x) {
       if (!map_tile_is_land(&f->map, x, y) || !colonies_can_found(&f->pool, &f->map, x, y) ||
-          colony_yield_for_tile(&f->map, x + 1, y, COLONIZE_JOB_FARMER) < 4) {
+          colony_yield_for_tile(&f->map, x + 1, y, COLONIZE_JOB_FARMER) < 4 ||
+          (g_fx_coastal && !map_tile_is_water(&f->map, x, y + 1))) {
         continue;
       }
       const int cid = colonies_found(&f->pool, &f->map, x, y, 0, 0, UNITS_JOB_NONE, 0, 0, 0);
@@ -945,7 +947,36 @@ static int case_unit_project_rethink(void) {
   return 0;
 }
 
+/* Docks: wanted where fishing pays. A coastal colony with a 7-fish plot and
+ * colonists idle in the Town Hall builds them first under every governor,
+ * ahead of each one's list. */
+static int case_docks_when_fish_pay(void) {
+  for (int gov = COLONY_GOVERNOR_FARMING; gov < COLONY_GOVERNOR_COUNT; ++gov) {
+    GovFx f;
+    g_fx_coastal = true;
+    const bool opened = gov_fx_open(&f);
+    g_fx_coastal = false;
+    if (!opened) {
+      return 1;
+    }
+    ColonizeColony* c = f.col;
+    const int docks = colonies_building_row(&f.pool, COLONY_BUILDING_DOCKS);
+    c->stock[COLONIZE_CARGO_FOOD] = 150;
+    c->building_in_production = -1;
+    c->governor = (uint8_t)gov;
+    colony_governor_run_w(&f.w, c->id);
+    const int project = c->building_in_production;
+    gov_fx_close(&f);
+    if (project != docks) {
+      fprintf(stderr, "governor %d: project %d (docks %d)\n", gov, project, docks);
+      return 1;
+    }
+  }
+  return 0;
+}
+
 static const TestCase k_cases[] = {
+  {"docks_when_fish_pay", case_docks_when_fish_pay},
   {"unit_project_rethink", case_unit_project_rethink},
   {"no_crosses_in_war", case_no_crosses_in_war},
   {"field_expert_teaches", case_field_expert_teaches},

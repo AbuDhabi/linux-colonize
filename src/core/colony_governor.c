@@ -767,13 +767,11 @@ static void gov_seat_colonists(const ColonizeWorld* w, ColonizeColony* col, cons
 #define GOV_END (-1)
 
 static const int k_gov_farming[] = {
-  COLONY_BUILDING_STABLE, COLONY_BUILDING_DOCKS, COLONY_BUILDING_LUMBER_MILL,
-  COLONY_BUILDING_PRINTING_PRESS, COLONY_BUILDING_WAREHOUSE, COLONY_BUILDING_NEWSPAPER,
+  COLONY_BUILDING_STABLE, COLONY_BUILDING_LUMBER_MILL, COLONY_BUILDING_PRINTING_PRESS, COLONY_BUILDING_WAREHOUSE, COLONY_BUILDING_NEWSPAPER,
   COLONY_BUILDING_WAREHOUSE_EXPANSION, COLONY_BUILDING_SCHOOLHOUSE, GOV_END,
 };
 static const int k_gov_cash[] = {
-  COLONY_BUILDING_WAREHOUSE, COLONY_BUILDING_DOCKS, COLONY_BUILDING_PRINTING_PRESS,
-  COLONY_BUILDING_CUSTOM_HOUSE, COLONY_BUILDING_LUMBER_MILL, COLONY_BUILDING_WAREHOUSE_EXPANSION,
+  COLONY_BUILDING_WAREHOUSE, COLONY_BUILDING_PRINTING_PRESS, COLONY_BUILDING_CUSTOM_HOUSE, COLONY_BUILDING_LUMBER_MILL, COLONY_BUILDING_WAREHOUSE_EXPANSION,
   COLONY_BUILDING_NEWSPAPER, GOV_END,
 };
 static const int k_gov_industry[] = {
@@ -786,14 +784,13 @@ static const int k_gov_industry[] = {
 };
 static const int k_gov_military[] = {
   COLONY_BUILDING_STOCKADE, COLONY_BUILDING_ARMORY, COLONY_BUILDING_FORT, COLONY_BUILDING_STABLE,
-  COLONY_BUILDING_FORTRESS, COLONY_BUILDING_MAGAZINE, COLONY_BUILDING_DOCKS,
-  COLONY_BUILDING_LUMBER_MILL, COLONY_BUILDING_ARSENAL, COLONY_BUILDING_PRINTING_PRESS,
+  COLONY_BUILDING_FORTRESS, COLONY_BUILDING_MAGAZINE, COLONY_BUILDING_LUMBER_MILL, COLONY_BUILDING_ARSENAL, COLONY_BUILDING_PRINTING_PRESS,
   COLONY_BUILDING_WAREHOUSE, GOV_UNIT | COLONIZE_UNIT_BUILD_ARTILLERY, GOV_END,
 };
 static const int k_gov_politics[] = {
   COLONY_BUILDING_PRINTING_PRESS, COLONY_BUILDING_NEWSPAPER, COLONY_BUILDING_CHURCH,
   COLONY_BUILDING_TOWN_HALL_2, COLONY_BUILDING_TOWN_HALL_3, COLONY_BUILDING_CATHEDRAL,
-  COLONY_BUILDING_LUMBER_MILL, COLONY_BUILDING_DOCKS, COLONY_BUILDING_WAREHOUSE, GOV_END,
+  COLONY_BUILDING_LUMBER_MILL, COLONY_BUILDING_WAREHOUSE, GOV_END,
 };
 
 /* Cash: every crop chain that pays, most valuable first, each with all its
@@ -847,25 +844,27 @@ static int gov_cash_chains(const ColonizeWorld* w, const ColonizeColony* col, in
   }
 }
 
-/* The next unbuilt tier of the school and church chains, each wanted when
- * the seating, run as if it stood, beats today's by GOV_BUILD_GAIN a turn.
+/* The next unbuilt tier of the school and church chains, and the Docks (the
+ * fishing tier only: Drydock and Shipyard seat no one), each wanted when the
+ * seating, run as if it stood, beats today's by GOV_BUILD_GAIN a turn.
  * Appends to want[] and returns the new count. */
 static int gov_probe_rows(const ColonizeWorld* w, const ColonizeColony* col, int gov, int* want,
                           int nw, int max) {
-  static const int k_chain[] = {COLONY_BUILDING_SCHOOLHOUSE, COLONY_BUILDING_CHURCH};
+  static const int k_chain[] = {COLONY_BUILDING_DOCKS, COLONY_BUILDING_SCHOOLHOUSE,
+                                 COLONY_BUILDING_CHURCH};
   const ColonizeColonyPool* pool = w->colonies;
   GovWeights wt;
   gov_weights(w, col, gov, &wt);
   ColonizeColony plan;
   const double base = gov_plan(w, col, &wt, false, &plan);
-  for (int k = 0; k < 2 && nw < max; ++k) {
+  for (int k = 0; k < 3 && nw < max; ++k) {
     const int* rows = colonies_building_chain_rows(colonies_building_row_chain(k_chain[k]));
     int r = 0;
     while (rows && rows[r] >= 0 && colonies_has_building_row(pool, col, rows[r])) {
       ++r;
     }
     const int bid = rows && rows[r] >= 0 ? colonies_building_row(pool, rows[r]) : -1;
-    if (bid < 0 || bid >= COLONIZE_BUILDING_TYPES_MAX) {
+    if ((k_chain[k] == COLONY_BUILDING_DOCKS && r > 0) || bid < 0 || bid >= COLONIZE_BUILDING_TYPES_MAX) {
       continue;
     }
     ColonizeColony probe = *col;
