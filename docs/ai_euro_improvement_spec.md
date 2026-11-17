@@ -569,3 +569,11 @@ The DOS completion step hands an AI colony the tools its unit project lacks
 (C5). Improved colonies now make or stock them first: the cascade starts no
 unit without a tools source, and the governor stops gunsmiths draining a
 project's tools and seats the blacksmith once only tools are missing (#1863).
+
+pt7g's end state (t528) showed four more gaps, fixed 2026-11-17: colonies the
+DOS cascade leaves on WANTS build from a short useful list instead of banking
+hammers (#1864, building tools gift dropped too); Europe buys on demand only,
+ships carry surplus tools to colonies short of them, horses stay home, and the
+Custom House comes at pop 4 (#1867); small colonies farm once tax passes 50%
+(#1868). AI tax raises lose the difficulty level and come more often on
+easy levels (#1865); warship threats weigh every other Euro (#1866).

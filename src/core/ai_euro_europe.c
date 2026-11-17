@@ -282,6 +282,21 @@ static Ai5d04PlanningFlags ai_euro_5d04_compute_flags(
   const int pop_half = stuff->colony_pop_totals[nation_id] >> 1;
   const int focus_nation = head->human_player;
   const int focus_ok = focus_nation >= 0 && focus_nation < 4;
+  /* MOD_AI_IMPROVEMENTS (#1866): DOS weighs only the human's Frigates and
+   * Privateers, so all-AI games never buy warships; an improved nation
+   * weighs every other Euro's. */
+  const bool any_rival = ai_euro_improved(ctx, nation_id);
+  int rival_frigates = focus_ok ? stuff->unit_type_counts[focus_nation][17] : 0;
+  int rival_privateers = focus_ok ? stuff->unit_type_counts[focus_nation][16] : 0;
+  if (any_rival) {
+    rival_frigates = rival_privateers = 0;
+    for (int n = 0; n < 4; ++n) {
+      if (n != nation_id) {
+        rival_frigates += stuff->unit_type_counts[n][17];
+        rival_privateers += stuff->unit_type_counts[n][16];
+      }
+    }
+  }
 
   /* bVar22: gated on Frigate-threatened own colonies (raw 85934-85952).
    * `0xa89b`/`0x9e52` = Frigate-threat (count, level-sum) — see
@@ -299,9 +314,9 @@ static Ai5d04PlanningFlags ai_euro_5d04_compute_flags(
     } else {
       reach_weak_check = 1;
     }
-    if (reach_weak_check && focus_ok) {
+    if (reach_weak_check && (focus_ok || any_rival)) {
       f.frigate_threatened = stuff->unit_type_counts[nation_id][17] == 0 &&
-                              stuff->unit_type_counts[focus_nation][17] != 0;
+                              rival_frigates != 0;
     }
   }
 
@@ -323,9 +338,9 @@ static Ai5d04PlanningFlags ai_euro_5d04_compute_flags(
     } else {
       reach = 1;
     }
-    if (reach && focus_ok) {
+    if (reach && (focus_ok || any_rival)) {
       f.privateer_threatened = stuff->unit_type_counts[nation_id][16] < 2 &&
-                              stuff->unit_type_counts[focus_nation][16] != 0;
+                              rival_privateers != 0;
     }
   }
 
@@ -1604,6 +1619,26 @@ static void ai_euro_5d04_hire_tail_departing_ships(Ai5d04HireTail* t) {
    * queued on the dock, the pickier the ship gets about goods. */
   const int seed46 = ai_euro_5d04_cb_europe_land_units(nation_id);
   int cargo_demand_bar = seed46 + ((turn & 1) != 0); /* DOS local_46 */
+  /* MOD_AI_IMPROVEMENTS (#1867): DOS buys 100 of every cargo each third
+   * turn (expand_signal) whatever the colonies hold; pt7g France bought
+   * 3500 muskets and 2900 tools in 128 turns that sat in store. An improved
+   * nation buys on demand only, and not a cargo its colonies already hold
+   * 50 a colony of. */
+  const bool improved = ai_euro_improved(ctx, nation_id);
+  const int buy_any = expand_signal && !improved;
+  int held[COLONIZE_CARGO_COUNT] = {0};
+  int held_colonies = 0;
+  if (improved && ctx->colonies) {
+    for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+      const ColonizeColony* c = &ctx->colonies->colonies[i];
+      if (c->active && c->nation_id == nation_id) {
+        ++held_colonies;
+        for (int k = 0; k < COLONIZE_CARGO_COUNT; ++k) {
+          held[k] += c->stock[k];
+        }
+      }
+    }
+  }
   /* raw 93036/93050 `local_40 + -0x5f34` = DS:0xa0cc[16], the per-cargo
    * demand table 6d8e rebuilds just before calling 5d04 — the same cells
    * the hire arms decrement as 0xa0db / 0xa0da (muskets / tools). */
@@ -1679,8 +1714,9 @@ static void ai_euro_5d04_hire_tail_departing_ships(Ai5d04HireTail* t) {
             if (cap == used || f->cargo_short || !has_any_colony) {
               break;
             }
-            if ((cargo_demand_bar <= (int)cargo_demand[p] || expand_signal) &&
-                ((!tools_trained_this_pass && tools_hire_mask == 0) || (cap - used > 2 || expand_signal))) {
+            if ((cargo_demand_bar <= (int)cargo_demand[p] || buy_any) &&
+                ((!tools_trained_this_pass && tools_hire_mask == 0) || (cap - used > 2 || buy_any)) &&
+                !(improved && held[p] >= 50 * held_colonies)) {
               /* raw 93041-93046 (bug #1029): gold gate is price * DS:0x8dc4,
                * the last hold removal anywhere (DOSBox 1591: a French unload
                * left 100, so the Dutch hull with a boycotted hold bought
@@ -1691,6 +1727,7 @@ static void ai_euro_5d04_hire_tail_departing_ships(Ai5d04HireTail* t) {
               if (nat->gold >= (uint32_t)(ai_euro_5d04_cb_price(p) * gate_qty)) {
                 ai_euro_5d04_cb_apply_bump(idx2, p, 100);
                 cargo_demand[p]--; /* raw 93050 */
+                held[p] += 100;
               }
             }
           }

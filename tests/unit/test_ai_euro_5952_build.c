@@ -574,6 +574,36 @@ static int case_artillery_pick(void) {
 }
 
 /*
+ * MOD_AI_IMPROVEMENTS (#1864): a pop 5 colony that owns the head and town
+ * bands' buildings ends on WANTS with nothing in production in DOS; an
+ * improved one still picks a project.
+ */
+static int case_improved_small_colony_not_idle(void) {
+  Fx f;
+  if (fx_build(&f, 5) != 0) {
+    return 1;
+  }
+  own_all_before_naval(&f);
+  f.col->stock[COLONIZE_CARGO_TOOLS] = 100;
+  mods_campaign_set(0);
+  ai_euro_5952_build_cascade(&f.ctx, f.col);
+  const int dos_pick = f.col->building_in_production;
+  mods_campaign_set(1u << MOD_AI_IMPROVEMENTS);
+  f.col->building_in_production = -1;
+  ai_euro_5952_build_cascade(&f.ctx, f.col);
+  const int mod_pick = f.col->building_in_production;
+  mods_campaign_set(0);
+  fx_done(&f);
+  if (dos_pick != -1) {
+    return fail("DOS cascade picked a project for the pop 5 colony");
+  }
+  if (mod_pick == -1) {
+    return fail("improved pop 5 colony left idle");
+  }
+  return 0;
+}
+
+/*
  * MOD_AI_IMPROVEMENTS (#1863): no tools gift at completion, so an improved
  * colony short of the Artillery's tools, with no tools made and no
  * Blacksmith's House with ore, starts nothing.
@@ -1988,6 +2018,7 @@ static const TestCase k_cases[] = {
   {"case_galleon_pick", case_galleon_pick},
   {"case_naval_capable_without_factory", case_naval_capable_without_factory},
   {"case_improved_unit_needs_tools_source", case_improved_unit_needs_tools_source},
+  {"case_improved_small_colony_not_idle", case_improved_small_colony_not_idle},
   {"case_privateer_pick", case_privateer_pick},
   {"case_frigate_pick", case_frigate_pick},
   {"case_artillery_pick", case_artillery_pick},

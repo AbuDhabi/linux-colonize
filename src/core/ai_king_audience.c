@@ -12,6 +12,7 @@
  */
 
 #include "core/internal.h"
+#include "core/ai_euro.h"
 #include "core/ai_king.h"
 #include "core/ai_king_internal.h"
 #include "core/ai_diplo.h"
@@ -147,7 +148,12 @@ static int ai_king_audience_roll(
   const int diff = col1->head.difficulty;
   /* 5be8 raw 68443-68448: `diff - 2` only for a human-controlled nation;
    * every AI nation gets 0 (bare 18/15/12/9 interval). port_bugs.md #1053. */
-  const int crown_adjust = (col1->player[human].control == 0) ? diff - 2 : 0;
+  int crown_adjust = (col1->player[human].control == 0) ? diff - 2 : 0;
+  /* MOD_AI_IMPROVEMENTS (#1865): an improved Euro AI's audiences mirror the
+   * player's, more often on Discoverer and less often on Viceroy. */
+  if (ai_euro_improved_nation(col1, ctx->human_nation, human)) {
+    crown_adjust = 2 - diff;
+  }
   const int interval = interval_base - 2 * crown_adjust;
   if (interval <= 0 || (int)(turn % (uint32_t)interval) != 0) {
     return 0;
@@ -489,6 +495,12 @@ void ai_king_tax_event_ai(ColonizeTurnContext* ctx, int nation_id) {
   }
   int delta = 0;
   if (ai_king_audience_roll(ctx, nation_id, &delta, NULL)) {
+    /* MOD_AI_IMPROVEMENTS (#1865): an improved Euro AI's raise loses the
+     * difficulty level, floor 1 (full on Discoverer, mostly +1 on Viceroy). */
+    if (delta > 0 && ai_euro_improved_nation(ctx->col1, ctx->human_nation, nation_id)) {
+      const int cut = delta - (int)ctx->col1->head.difficulty;
+      delta = cut > 1 ? cut : 1;
+    }
     ai_king_tax_delta_ai(ctx, nation_id, delta);
   }
 }

@@ -861,11 +861,13 @@ bool colonies_try_complete_building_ex(
   if (bt->tools_cost > 0 && col->stock[COLONIZE_CARGO_TOOLS] < bt->tools_cost) {
     /* DOS-LITERAL FUN_364b_0688 Phase L raw 57748-57774: human colonies
      * stop for @NEEDTOOLS; AI and Crown colonies are given the missing tools
-     * by setting stock to the requirement, then continue through completion. */
+     * by setting stock to the requirement, then continue through completion.
+     * MOD_AI_IMPROVEMENTS (#1864): an improved Euro AI colony waits for its
+     * tools like a human one. */
     const bool human = col1 && col->nation_id >= 0 &&
                        col->nation_id < (int)COLONIZE_COL1_NATION_COUNT &&
                        col1->player[col->nation_id].control == 0;
-    if (human || !col1) {
+    if (human || !col1 || ai_euro_improved_nation(col1, -1, col->nation_id)) {
       return false;
     }
     col->stock[COLONIZE_CARGO_TOOLS] = bt->tools_cost;

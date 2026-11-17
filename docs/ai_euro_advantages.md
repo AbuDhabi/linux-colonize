@@ -40,7 +40,7 @@ wagon or Europe trip, inland colonies included.
 | C2 | Emergency lumber | No lumberjack seated, lumber < 2, turn % 8 == 0: +100 lumber **unconditionally**; 200 gold is charged only if the purse holds 200 | `ai_euro_colony_jobs.c` `ai_euro_5952_lumber_purchase` (raw 94680-94689) |
 | C3 | Starter horses | Turn ≥ 40, horses < 2, a unit on the tile, gold ≥ 10: stock set to 2 horses for 10 gold | `ai_euro_5952_seed_horses` (raw 95959-95972) |
 | C4 | Musket bank | Garrison not short, muskets > 199, bank < 20 lots: −50 muskets, +1 lot in nation `+0x49`. The Europe hire arm spends a lot to arm a recruit for free, so muskets move colony → Europe with no ship | `ai_euro_goals.c` (raw 94362-94367, port_bugs.md #914); spent in `ai_euro_europe.c` hire ladder |
-| C5 | Unit tools handed over | A unit project (Artillery, ships) short of tools at completion has its tools stock set to the cost, then spends it: the tools are free. The player is refused (@NEEDTOOLS) | `colony_build.c` `colonies_try_complete_unit_construction` (FUN_364b_0688 raw 57748-57769, port_bugs.md #755); MOD_AI_IMPROVEMENTS drops it (#1863) |
+| C5 | Project tools handed over | A unit or building project short of tools at completion has its tools stock set to the cost, then spends it: the tools are free. The player is refused (@NEEDTOOLS) | `colony_build.c` `colonies_try_complete_unit_construction`, `colonies_try_complete_building_ex` (FUN_364b_0688 raw 57748-57774, port_bugs.md #755); MOD_AI_IMPROVEMENTS drops it (#1863, #1864) |
 
 ## 3. Tile improvement without Pioneer units
 

@@ -315,8 +315,14 @@ int ai_euro_colony_focus(const ColonizeTurnContext* ctx, const ColonizeColony* c
   if (tories + 1 >= thresh || (sol < 50 && pop >= 4)) {
     return COLONY_GOVERNOR_POLITICS;
   }
+  /* #1868: past 50% tax a small colony's exports pay little (pt7g t528, 75%:
+   * ~20 Fur Traders on 2-5 furs a turn, food +3 a colony, no growth);
+   * Farming there doubled the 24 small colonies' food surplus at equal
+   * bells. ponytail: the 50% line is a guess, not measured. */
   if (pop < 4) {
-    return COLONY_GOVERNOR_CASH;
+    const int tax = col1 && col->nation_id >= 0 && col->nation_id < 4
+                      ? (int)col1->nation[col->nation_id].tax_rate : 0;
+    return tax >= 50 ? COLONY_GOVERNOR_FARMING : COLONY_GOVERNOR_CASH;
   }
   return COLONY_GOVERNOR_INDUSTRY;
 }

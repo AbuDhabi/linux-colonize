@@ -246,6 +246,14 @@ static int ai_euro_20e6_delivery_colony_pick(
         score += ((int)(int8_t)c->cargo_idle_turns + 8) * 4; /* md:2080-2081 */
       }
       score += (cap - stock) - 1; /* md:2083-2084 */
+      /* MOD_AI_IMPROVEMENTS (#1867): tools go first to a colony short of its
+       * project's tools. */
+      int project_tools = 0;
+      if (g == COLONIZE_CARGO_TOOLS && ai_euro_improved(ctx, nation) &&
+          colonies_construction_cost(ctx->colonies, c, NULL, &project_tools) &&
+          project_tools > stock) {
+        score += (project_tools - stock) * ai_euro_ship_price_84bc(ctx, nation, g) * 8;
+      }
     }
     if (!ok) {
       continue;
@@ -449,10 +457,36 @@ int ai_euro_20e6_load_pick(
    * in DOS: the port's FOOD-199 branch was removed by smell audit #25, so the
    * cargo argument here no longer changes the shared per-cargo term. */
   const int cap = colonies_warehouse_capacity(ctx->colonies, c, COLONIZE_CARGO_TOOLS);
+  /* MOD_AI_IMPROVEMENTS (#1867): horses stay home (they rode nearly every
+   * pt7g load and kept laden hulls shuttling between colonies), and tools /
+   * muskets past the project's tools + 100 ship out even when not made here,
+   * so a surplus can reach a colony short of them. */
+  const bool improved = is_ship && ai_euro_improved(ctx, nation);
+  int keep_tools = 0;
+  if (improved) {
+    colonies_construction_cost(ctx->colonies, c, NULL, &keep_tools);
+    keep_tools += 100;
+  }
   int best = -1;
   int pick = -1;
   for (int g = 0; g < COLONIZE_CARGO_COUNT; ++g) {
     int term = (int)c->stock[g];
+    if (improved && g == COLONIZE_CARGO_HORSES) {
+      continue;
+    }
+    if (improved && (g == COLONIZE_CARGO_TOOLS || g == COLONIZE_CARGO_MUSKETS) &&
+        (c->cargo_produced_mask & (uint16_t)(1u << g)) == 0) {
+      term -= g == COLONIZE_CARGO_TOOLS ? keep_tools : 100;
+      if (term <= 0) {
+        continue;
+      }
+      const int price = ai_euro_ship_price_84bc(ctx, nation, g);
+      if (best < price * term) {
+        best = price * term;
+        pick = g;
+      }
+      continue;
+    }
     if (term < cap || g == COLONIZE_CARGO_FOOD) {
       if (g == COLONIZE_CARGO_HORSES) {
         term = (term - cap) + 0x17;

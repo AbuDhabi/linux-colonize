@@ -2233,6 +2233,23 @@ static bool ai_euro_5952_can_build(const AiEuro5952Cascade* s, int idx) {
   return false;
 }
 
+/* MOD_AI_IMPROVEMENTS: the colony makes min_gross+ tools a turn, or owns a
+ * Blacksmith's House with ore to work (AI blacksmiths sit idle until a
+ * project wants tools, so gross tools alone undercounts). */
+static bool ai_euro_5952_makes_tools(const AiEuro5952Cascade* s, int min_gross) {
+  const ColonizeColony* col = s->col;
+  return s->gross[COLONIZE_CARGO_TOOLS] >= min_gross ||
+         (ai_euro_5952_chain_owned(s->pool, col, COLONIES_CHAIN_BLACKSMITH, NULL, NULL) >= 1 &&
+          (col->stock[COLONIZE_CARGO_ORE] >= 0x28 || s->gross[COLONIZE_CARGO_ORE] != 0));
+}
+
+/* MOD_AI_IMPROVEMENTS (#1864): no tools gift at completion, so an improved
+ * colony skips a project it lacks the tools for and cannot make them. */
+static bool ai_euro_5952_tools_out_of_reach(const AiEuro5952Cascade* s, int tools) {
+  return tools > s->col->stock[COLONIZE_CARGO_TOOLS] && ai_euro_improved(s->ctx, s->nation) &&
+         !ai_euro_5952_makes_tools(s, 1);
+}
+
 /* DOS-LITERAL FUN_5952_0214 (asm 5952:0214-5952:027e, raw 93686-93716). */
 static int ai_euro_5952_try_build(AiEuro5952Cascade* s, int dos_id) {
   int ret = 1;
@@ -2243,7 +2260,12 @@ static int ai_euro_5952_try_build(AiEuro5952Cascade* s, int dos_id) {
     if (!owned) {
       ret = 0;
       if (idx >= 0 && ai_euro_5952_can_build(s, idx)) {
-        s->col->building_in_production = idx; /* asm 5952:0248 `+0x94 = id` */
+        const ColonizeBuildingType* bt = colonies_building_type(s->pool, idx);
+        if (bt && ai_euro_5952_tools_out_of_reach(s, bt->tools_cost)) {
+          ret = 1;
+        } else {
+          s->col->building_in_production = idx; /* asm 5952:0248 `+0x94 = id` */
+        }
       } else if (ai_euro_5952_try_build(s, k_5952_bld[dos_id].pred) != 0) {
         ret = 1;
       }
@@ -2257,23 +2279,12 @@ static int ai_euro_5952_try_build(AiEuro5952Cascade* s, int dos_id) {
 }
 
 /* DOS-LITERAL FUN_5952_02f4 (raw 93749-93755): clear +0x1c bit 0x80, code = row + 0x1f. */
-/* MOD_AI_IMPROVEMENTS: the colony makes min_gross+ tools a turn, or owns a
- * Blacksmith's House with ore to work (AI blacksmiths sit idle until a
- * project wants tools, so gross tools alone undercounts). */
-static bool ai_euro_5952_makes_tools(const AiEuro5952Cascade* s, int min_gross) {
-  const ColonizeColony* col = s->col;
-  return s->gross[COLONIZE_CARGO_TOOLS] >= min_gross ||
-         (ai_euro_5952_chain_owned(s->pool, col, COLONIES_CHAIN_BLACKSMITH, NULL, NULL) >= 1 &&
-          (col->stock[COLONIZE_CARGO_ORE] >= 0x28 || s->gross[COLONIZE_CARGO_ORE] != 0));
-}
-
 static void ai_euro_5952_set_unit_project(AiEuro5952Cascade* s, int unit_row) {
   /* MOD_AI_IMPROVEMENTS (#1863): no tools gift at completion, so an improved
    * colony starts no unit it lacks the tools for and cannot make them. */
   int tools = 0;
-  if (ai_euro_improved(s->ctx, s->nation) &&
-      colonies_unit_build_info(unit_row + 0x1f, NULL, NULL, &tools) &&
-      tools > s->col->stock[COLONIZE_CARGO_TOOLS] && !ai_euro_5952_makes_tools(s, 1)) {
+  if (colonies_unit_build_info(unit_row + 0x1f, NULL, NULL, &tools) &&
+      ai_euro_5952_tools_out_of_reach(s, tools)) {
     s->col->building_in_production = -1;
     return;
   }
@@ -2700,8 +2711,12 @@ COLONIZE_INTERNAL AiEuro5952CascadeStatus ai_euro_5952_cascade_town(AiEuro5952Ca
       return AI_EURO_5952_CASCADE_RETURN;
     }
   }
-  if (pop >= 6) {
-    int want_custom = (col->ai_flags & 0x03u) != 0;
+  /* MOD_AI_IMPROVEMENTS (#1867): the Custom House sells surplus without a
+   * hull (europe_custom_house_autosell_ex_w), so an improved colony wants one
+   * from pop 4 (DOS: pop 6 and a rival warship near, or pop 12). */
+  const bool improved_custom = ai_euro_improved(ctx, s->nation) && pop >= 4;
+  if (pop >= 6 || improved_custom) {
+    int want_custom = improved_custom || (col->ai_flags & 0x03u) != 0;
     if (!want_custom && s->col1) {
       want_custom = ((int)s->col1->stuff.armed_ship_counts[s->human] - 2) >
                     s->armed_count_for_nation;
@@ -2970,6 +2985,50 @@ COLONIZE_INTERNAL AiEuro5952CascadeStatus ai_euro_5952_cascade_chain_upgrades(
   return AI_EURO_5952_CASCADE_RETURN;
 }
 
+/* MOD_AI_IMPROVEMENTS (#1864): the DOS head and town bands end a pop < 8
+ * colony on WANTS with nothing in production once their few buildings
+ * stand, and its carpenters bank hammers to the cap (pt7g t528: 24 of 45
+ * AI colonies idle, 9 near 512). An improved colony works through a short
+ * list of buildings that pay at any size, then the military and upgrade
+ * bands. RETURN = a project was picked. */
+static AiEuro5952CascadeStatus ai_euro_5952_cascade_idle_fill(AiEuro5952Cascade* s) {
+  ColonizeColony* col = s->col;
+  const int cap = colonies_warehouse_capacity(s->pool, col, COLONIZE_CARGO_TOOLS);
+  for (int k = 1; k < COLONIZE_CARGO_COUNT; ++k) {
+    if (col->stock[k] * 4 >= cap * 3) {
+      if (ai_euro_5952_try_build(s, 0x10) == 0) { /* Warehouse (Expansion) */
+        return AI_EURO_5952_CASCADE_RETURN;
+      }
+      break;
+    }
+  }
+  for (int i = 5; i >= 0; --i) {
+    if (ai_euro_5952_chain_short(s, s->gross, i) != 0 &&
+        ai_euro_5952_try_build(s, ai_euro_5952_chain_top(i)) == 0) {
+      return AI_EURO_5952_CASCADE_RETURN;
+    }
+  }
+  static const int k_fill[] = {0x12, 0x14, 0x25, 0x06, 0x01, 0x0c}; /* Custom House, Printing Press, Church, Docks, Fort, Schoolhouse */
+  for (size_t i = 0; i < sizeof k_fill / sizeof k_fill[0]; ++i) {
+    if (k_fill[i] == 0x06 && (col->colony_flags & COLONIZE_COLONY_FLAG_COASTAL) == 0) {
+      continue;
+    }
+    if (ai_euro_5952_try_build(s, k_fill[i]) == 0) {
+      return AI_EURO_5952_CASCADE_RETURN;
+    }
+  }
+  AiEuro5952CascadeStatus st = ai_euro_5952_cascade_military(s);
+  if (st == AI_EURO_5952_CASCADE_NEXT) {
+    st = ai_euro_5952_cascade_chain_upgrades(s);
+  }
+  /* A band's pick out of tool reach (a Frigate's 200) falls back to the
+   * Artillery, under the same three-on-tile cap. */
+  if (col->building_in_production < 0 && s->arty_on_tile < 3) {
+    ai_euro_5952_set_unit_project(s, 0x0b);
+  }
+  return col->building_in_production >= 0 ? AI_EURO_5952_CASCADE_RETURN : st;
+}
+
 void ai_euro_5952_build_cascade_for_owner(
   ColonizeTurnContext* ctx, ColonizeColony* col, int improvement_owner /* DOS local_1b0 */
 ) {
@@ -3009,6 +3068,10 @@ void ai_euro_5952_build_cascade_for_owner(
   }
   if (st == AI_EURO_5952_CASCADE_NEXT) {
     st = ai_euro_5952_cascade_chain_upgrades(&s);
+  }
+  if (st == AI_EURO_5952_CASCADE_WANTS && col->building_in_production < 0 &&
+      ai_euro_improved(ctx, s.nation)) {
+    (void)ai_euro_5952_cascade_idle_fill(&s); /* the colony still wants hands */
   }
   if (st != AI_EURO_5952_CASCADE_WANTS) {
     return;
@@ -3877,7 +3940,7 @@ int8_t ai_euro_s_6d8e_need[4][16];
  * (america2 resync 37: Penobscot's muskets specialty counted twice let
  * England's Galleon buy 100 muskets in Europe). DOS cells are bytes.
  */
-static void ai_euro_6d8e_prelude_read(int nation_id, ColonizeColony* col) {
+static void ai_euro_6d8e_prelude_read(const ColonizeTurnContext* ctx, int nation_id, ColonizeColony* col) {
   int8_t* need = ai_euro_s_6d8e_need[nation_id];
   const int spec = (int8_t)col->specialty_cargo;
   if (spec >= 0 && spec < 16) {
@@ -3892,7 +3955,14 @@ static void ai_euro_6d8e_prelude_read(int nation_id, ColonizeColony* col) {
   if (col->stock[COLONIZE_CARGO_HORSES] == 0) {
     need[COLONIZE_CARGO_HORSES]++;
   }
+  int project_tools = 0;
   if (col->stock[COLONIZE_CARGO_TOOLS] == 0) {
+    need[COLONIZE_CARGO_TOOLS]++;
+  } else if (ai_euro_improved(ctx, nation_id) &&
+             colonies_construction_cost(ctx->colonies, col, NULL, &project_tools) &&
+             col->stock[COLONIZE_CARGO_TOOLS] < project_tools) {
+    /* MOD_AI_IMPROVEMENTS (#1867): with no tools gift a colony short of its
+     * project's tools needs them too, not only one that holds none. */
     need[COLONIZE_CARGO_TOOLS]++;
   }
   if ((col->ai_flags & COLONIZE_COLONY_AI_NEEDS_COLONISTS) != 0) {
@@ -3930,7 +4000,7 @@ static void ai_euro_colony_tick_run(
     }
     if (col->colonist_count <= 0) {
       if (whole_tick) {
-        ai_euro_6d8e_prelude_read(nation_id, col);
+        ai_euro_6d8e_prelude_read(ctx, nation_id, col);
       }
       continue;
     }
@@ -3949,7 +4019,7 @@ static void ai_euro_colony_tick_run(
         ctx, col, col->colonist_count < COLONIZE_COLONY_POP_MAX ? col->colonist_count : COLONIZE_COLONY_POP_MAX
       );
       if (whole_tick) {
-        ai_euro_6d8e_prelude_read(nation_id, col);
+        ai_euro_6d8e_prelude_read(ctx, nation_id, col);
       }
       continue;
     }
@@ -3996,7 +4066,7 @@ static void ai_euro_colony_tick_run(
       if (!ai_euro_improved(ctx, nation_id)) { /* MOD_AI_IMPROVEMENTS 4.1 C3 */
         ai_euro_5952_seed_horses(ctx, col);
       }
-      ai_euro_6d8e_prelude_read(nation_id, col);
+      ai_euro_6d8e_prelude_read(ctx, nation_id, col);
     }
   }
   ai_euro_colony_tick_prof_cache_clear();
