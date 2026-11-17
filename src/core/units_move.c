@@ -1952,6 +1952,14 @@ bool units_follow_unit(ColonizeUnitPool* pool, int unit_id, int target_unit_id) 
   return true;
 }
 
+bool units_follow_holding(const ColonizeUnitPool* pool, const ColonizeUnit* u) {
+  if (!u || !u->active || u->orders != UNITS_ORDER_FOLLOW) {
+    return false;
+  }
+  const ColonizeUnit* t = units_get_const(pool, u->follow_unit_id);
+  return t && t->active && units_is_on_map(t) && t->x == u->x && t->y == u->y;
+}
+
 bool units_advance_follow_one_step_w(
   const ColonizeWorld* w,
   int unit_id
@@ -1967,13 +1975,8 @@ bool units_advance_follow_one_step_w(
     units_clear_orders(pool, unit_id);
     return false;
   }
-  /* Already adjacent or stacked — hold FOLLOW, no MP spend. */
+  /* Stacked with the target — hold FOLLOW, no MP spend. */
   if (u->x == t->x && u->y == t->y) {
-    return true;
-  }
-  const int dx = abs(u->x - t->x);
-  const int dy = abs(u->y - t->y);
-  if (dx <= 1 && dy <= 1) {
     return true;
   }
   /* Retarget tile goto toward target, one step, restore FOLLOW order. */

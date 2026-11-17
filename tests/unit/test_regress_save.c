@@ -13,7 +13,9 @@
 #include "core/combat_strength.h"
 #include "core/europe.h"
 #include "core/reports.h"
+#include "core/turn.h"
 #include "core/units.h"
+#include "core/units_move.h"
 #include "core/world.h"
 #include "platform/diagnostics.h"
 
@@ -345,7 +347,125 @@ static int case_1572_europe_hull_in_place(void) {
   return ok ? 0 : 1;
 }
 
+/*
+ * Port-only Escort (UNITS_ORDER_FOLLOW, docs/unit_orders.md): the COL1 record
+ * carries order 0 for DOS, the 'ESCT' ext chunk carries the escort -> leader
+ * pair, and a reload restores it. An escort on its leader's tile stays out of
+ * the rotation.
+ */
+static int case_escort_ext_round_trip(void) {
+  diag_init(0, NULL);
+  ColonizeCol1Save save;
+  char err[256];
+  col1_save_init(&save);
+  col1_save_stamp_head(&save.head);
+  save.head.map_size_x = 8;
+  save.head.map_size_y = 8;
+  save.head.human_player = 0;
+  save.head.unit_count = 3;
+  if (!col1_save_alloc_sections(&save, err, sizeof(err))) {
+    fprintf(stderr, "escort: alloc failed: %s\n", err);
+    return 1;
+  }
+  save.player[0].control = 0;
+  for (int n = 1; n < 4; ++n) {
+    save.player[n].control = 1;
+  }
+  for (int i = 0; i < 3; ++i) {
+    save.unit[i].transport_chain.prev_unit_idx = -1;
+    save.unit[i].transport_chain.next_unit_idx = -1;
+    save.unit[i].origin = 0xff;
+    save.unit[i].x = 2;
+    save.unit[i].y = (uint8_t)(2 + i);
+  }
+  ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
+  units_reset(&units);
+  units.type_count = 23;
+  for (int t = 0; t < units.type_count; ++t) {
+    units.types[t].movement = 1;
+    units.types[t].domain =
+      (t >= 13 && t <= 18) ? COLONIZE_UNIT_DOMAIN_SEA : COLONIZE_UNIT_DOMAIN_LAND;
+  }
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  if (!map_alloc(&map, 8, 8, err, sizeof(err))) {
+    col1_save_free(&save);
+    return 1;
+  }
+  units_set_occupancy_map(&map);
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+  EuropeScreen europe;
+  memset(&europe, 0, sizeof(europe));
+  europe.cargo_count = 16;
+  ColonizeCol1BridgeResult result;
+  ColonizeWorld w;
+  memset(&w, 0, sizeof(w));
+  w.units = &units;
+  w.colonies = &colonies;
+  w.map = &map;
+  w.col1 = &save;
+  w.col1_ok = true;
+  w.europe = &europe;
+  int ok = 1;
+  int esc = -1;
+  int lead = -1;
+  if (!col1_bridge_apply_w(&w, &result, err, sizeof(err))) {
+    fprintf(stderr, "escort: apply failed: %s\n", err);
+    ok = 0;
+  } else {
+    esc = units_id_at(&units, 2, 2);
+    lead = units_id_at(&units, 2, 4);
+    if (!units_follow_unit(&units, esc, lead)) {
+      fprintf(stderr, "escort: follow refused\n");
+      ok = 0;
+    }
+  }
+  const uint8_t* chunk = NULL;
+  size_t chunk_size = 0;
+  if (ok && !col1_bridge_capture_w(&w, 1600, 0, 1, 0, 2, 2, 2, 2, -1, false, err, sizeof(err))) {
+    fprintf(stderr, "escort: capture failed: %s\n", err);
+    ok = 0;
+  } else if (ok && (save.unit[0].orders != UNITS_ORDER_NONE ||
+                    !col1_save_ext_find(&save, COLONIZE_COL1_EXT_TAG_ESCORT, &chunk, &chunk_size) ||
+                    chunk_size != 8)) {
+    fprintf(stderr, "escort: DOS order %u / chunk %zu bytes\n", save.unit[0].orders, chunk_size);
+    ok = 0;
+  }
+  if (ok && !col1_bridge_apply_w(&w, &result, err, sizeof(err))) {
+    fprintf(stderr, "escort: reload failed: %s\n", err);
+    ok = 0;
+  } else if (ok) {
+    const ColonizeUnit* e = units_get_const(&units, units_id_at(&units, 2, 2));
+    ColonizeUnit* l = units_get(&units, units_id_at(&units, 2, 4));
+    if (!e || !l || e->orders != UNITS_ORDER_FOLLOW || e->follow_unit_id != l->id) {
+      fprintf(stderr, "escort: not restored (orders %d)\n", e ? e->orders : -1);
+      ok = 0;
+    } else {
+      ColonizeUnit* m = units_get(&units, e->id);
+      m->moves = 3;
+      l->x = 2;
+      l->y = 2;
+      if (turn_unit_in_rotation(&units, m, 0)) {
+        fprintf(stderr, "escort: holding escort still in rotation\n");
+        ok = 0;
+      }
+      l->y = 4;
+      if (!turn_unit_in_rotation(&units, m, 0)) {
+        fprintf(stderr, "escort: trailing escort left the rotation\n");
+        ok = 0;
+      }
+    }
+  }
+  units_set_occupancy_map(NULL);
+  col1_save_free(&save);
+  map_free(&map);
+  return ok ? 0 : 1;
+}
+
 static const TestCase k_cases[] = {
+  {"escort_ext_round_trip", case_escort_ext_round_trip},
   {"1572_europe_hull_in_place", case_1572_europe_hull_in_place},
   {"865_intervention_announce_latch", case_865_intervention_announce_latch},
   {"901_occupation_2729_not_rum", case_901_occupation_2729_not_rum},

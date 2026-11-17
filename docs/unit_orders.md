@@ -41,7 +41,7 @@ from `NAMES.TXT` (fallback table in `unit_chrome.c`: `- S T G L F F B P R`).
 | 10 | (reserved AI) | `-` | — | NAMES “No Orders” |
 | 11 | AI Sail | `-` | yes | Euro AI ship course (`UNITS_ORDER_AI_SAIL`) |
 | 12 | AI Move | `-` | yes | Euro / Brave land course (`UNITS_ORDER_AI_MOVE`) |
-| 13 | Follow | `-` | yes | Stick to another unit (`UNITS_ORDER_FOLLOW`) |
+| 13 | Escort (port-only) | `E` | yes | Walk to the leader unit's tile (`UNITS_ORDER_FOLLOW`, `follow_unit_id` = leader). Set by a unit-group Go To that holds a Treasure train (below). On the leader's tile it stays out of the rotation (`units_follow_holding`); off it, the rotation hands it over and the pacer walks it there at Go To pace (`game_pacer_escort_step`); blocked = parked for the turn, order kept; leader dead / off the map (boarded, shipped) = order cleared. NAMES.TXT has no row 13, so `E` is the `unit_chrome.c` fallback letter. COL1 writes order 0; the `ESCT` ext chunk keeps the pair ([savegame.md](savegame.md)) |
 
 Helpers (`units_move.h`):
 
@@ -134,7 +134,7 @@ stateDiagram-v2
 | No Orders (Space) | ORDERS / Space | End turn when exhausted / option | Full turn pipeline | Done |
 | Activate unit | ORDERS / stack | `FUN_2b5a_2866` -> `FUN_2b5a_1b5a`: "Units Present" picker for the focus tile (colony tiles too); pick clears orders | Two or more own units: the `unit_stack` picker (port_bugs.md #1241); one: wake + select | Done |
 | Arrow / click move | Map | Immediate step (not an order byte); may wake sentry/fortify | `game_try_unit_move` | Done |
-| Unit group (port-only) | Stack picker, Shift held | None (QoL) | Shift+click marks rows with moves left (bright green frame); releasing Shift closes the picker, wakes the marked units and makes them the group, which the sidebar lists under "Selected:" in place of the tile stack. Every order row / hotkey that acts on the active unit (Build Colony .. Automate, not Activate / Wait / trade-route editing), direction keys, P / R and a go-to drag is replayed to each member as if issued by hand, the next member waiting until the last one's popups and Go To finish (`game_unit_group_*`, `game_loop_orders.c`). Members drop out when spent, given standing orders or dead; any plain pick, View Pieces, end of turn or load ends the group. Runtime only, nothing saved. | Done |
+| Unit group (port-only) | Stack picker, Shift held | None (QoL) | Shift+click marks rows with moves left (bright green frame); releasing Shift closes the picker, wakes the marked units and makes them the group, which the sidebar lists under "Selected:" in place of the tile stack. Every order row / hotkey that acts on the active unit (Build Colony .. Automate, not Activate / Wait / trade-route editing), direction keys, P / R and a go-to drag is replayed to each member as if issued by hand, the next member waiting until the last one's popups and Go To finish (`game_unit_group_*`, `game_loop_orders.c`). Members drop out when spent, given standing orders or dead; any plain pick, View Pieces, end of turn or load ends the group. A Go To (drag, Go to Place / Port) for a group holding a Treasure train: the first treasure gets the Go To, every other member of its domain gets Escort (order 13) on it and trails it (`game_unit_group_escort_treasure`); a cancelled destination list leaves the escorts set. The group itself is runtime only; Escort orders are saved (`ESCT`). | Done |
 
 ### Fortify / Anchor / Sentry
 

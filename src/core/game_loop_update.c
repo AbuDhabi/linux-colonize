@@ -1202,6 +1202,50 @@ static GameUpdateStep game_pacer_goto_step(
   return GAME_UPDATE_CONTINUE;
 }
 
+/* Port-only Escort (UNITS_ORDER_FOLLOW): the rotation hands over an escort only
+ * when it is off its leader's tile; it walks there at Go To pace. A blocked
+ * escort parks for the turn and keeps the order; a lost leader clears it and
+ * the unit waits for the player. */
+static void game_pacer_escort_step(ColonizeGameState* game, ColonizeUnit* active, uint32_t dt_ms) {
+  const int aid = active->id;
+  if (!units_follow_holding(&game->units, active)) {
+    game->goto_step_accum_ms += dt_ms;
+    const uint32_t step_ms =
+      (game->col1_ok && game->col1.head.game_options.fast_piece_slide) ? 80u : 100u;
+    if (game->goto_step_accum_ms < step_ms) {
+      return;
+    }
+    game->goto_step_accum_ms = 0;
+    const ColonizeWorld w = game_world(game);
+    const bool stepped = units_advance_follow_one_step_w(&w, aid);
+    ColonizeUnit* again = units_get(&game->units, aid);
+    if (!again || !again->active || again->orders != UNITS_ORDER_FOLLOW) {
+      return; /* dead, or the leader is gone: back to the player */
+    }
+    if (stepped) {
+      game_after_unit_step(game);
+      if (!units_follow_holding(&game->units, again)) {
+        return;
+      }
+    } else if (!units_follow_holding(&game->units, again)) {
+      again->moves = 0;
+    }
+  }
+  if (game->units.selected_id != aid) {
+    return; /* the step tail already handed on */
+  }
+  if (game_select_next_unit_awaiting_orders(game)) {
+    game->view_pieces_mode = false;
+    const ColonizeUnit* next = units_get_const(&game->units, game->units.selected_id);
+    game->map_cursor_x = next->x;
+    game->map_cursor_y = next->y;
+    game_set_view_center(game, next->x, next->y);
+  } else {
+    const ColonizeUnit* last = units_get_const(&game->units, aid);
+    game_no_unit_left(game, last ? last->x : game->map_cursor_x, last ? last->y : game->map_cursor_y);
+  }
+}
+
 COLONIZE_INTERNAL GameUpdateStep game_update_unit_pacer(ColonizeGameState* game, const ColonizeInputState* input, uint32_t dt_ms) {
   /*
    * Turn activation queue (minimal): DOS gives control to exactly one
@@ -1289,8 +1333,10 @@ COLONIZE_INTERNAL GameUpdateStep game_update_unit_pacer(ColonizeGameState* game,
     const bool active_pax_awaiting = active && active->active &&
       active->nation_id == game->human_nation && active->aboard_ship_id >= 0 &&
       active->moves > 0 && !units_orders_skip_turn(active);
+    const bool active_escort = active_on_map_with_moves && active->orders == UNITS_ORDER_FOLLOW;
     const bool active_awaiting_player =
-      (active_on_map_with_moves && !active_pending && !units_orders_skip_turn(active)) ||
+      (active_on_map_with_moves && !active_pending && !active_escort &&
+       !units_orders_skip_turn(active)) ||
       active_pax_awaiting;
 
     if (active_pending) {
@@ -1298,6 +1344,8 @@ COLONIZE_INTERNAL GameUpdateStep game_update_unit_pacer(ColonizeGameState* game,
       if (sub != GAME_UPDATE_CONTINUE) {
         return sub;
       }
+    } else if (active_escort) {
+      game_pacer_escort_step(game, active, dt_ms);
     } else if (active_awaiting_player && active->automated) {
       /* Automate: start the job here or head for the next planned tile; the
        * next frame paces the Go To or hands on the spent unit. */

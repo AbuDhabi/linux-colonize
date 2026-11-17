@@ -2374,6 +2374,30 @@ COLONIZE_INTERNAL void col1_bridge_apply_active_unit(Col1ApplyCtx* ctx) {
       }
     }
   }
+  /* 'ESCT': port-only Escort orders, record index -> runtime id. A DOS
+   * original or DOS re-save has none and the escorts load idle. */
+  {
+    const uint8_t* esc = NULL;
+    size_t esc_size = 0;
+    if (id_by_index && col1_save_ext_find(save, COLONIZE_COL1_EXT_TAG_ESCORT, &esc, &esc_size) &&
+        esc_size >= 4 && esc[0] == 1) {
+      const int nunits = (int)save->head.unit_count;
+      const int n = esc[2] | (esc[3] << 8);
+      for (int k = 0; k < n && 4u + 4u * (size_t)(k + 1) <= esc_size; ++k) {
+        const uint8_t* p = esc + 4 + 4 * k;
+        const int er = p[0] | (p[1] << 8);
+        const int lr = p[2] | (p[3] << 8);
+        if (er >= nunits || lr >= nunits || id_by_index[er] < 0 || id_by_index[lr] < 0) {
+          continue;
+        }
+        ColonizeUnit* u = units_get(units, id_by_index[er]);
+        if (u && u->active && u->aboard_ship_id < 0) {
+          u->orders = UNITS_ORDER_FOLLOW;
+          u->follow_unit_id = id_by_index[lr];
+        }
+      }
+    }
+  }
   free(id_by_index);
   free(consumed);
   ctx->id_by_index = NULL; /* ctx write-back: freed above */
@@ -3433,6 +3457,8 @@ COLONIZE_INTERNAL void col1_bridge_capture_unit_records(Col1CaptureCtx* ctx) {
     }
     if (src->aboard_ship_id >= 0) {
       dst->orders = UNITS_ORDER_SENTRY; /* sentry if aboard */
+    } else if (src->orders == UNITS_ORDER_FOLLOW) {
+      dst->orders = UNITS_ORDER_NONE; /* port-only Escort: 'ESCT' keeps it */
     } else if (src->orders != UNITS_ORDER_NONE) {
       dst->orders = (uint8_t)src->orders;
     } else {
@@ -4285,6 +4311,37 @@ COLONIZE_INTERNAL void col1_bridge_capture_units_commit(Col1CaptureCtx* ctx) {
    * idle state left, and that is what is kept — the "disagrees with the
    * other saves" lead is a mis-framing: those saves also carry modal 0.
    */
+  /* 'ESCT': Escort pairs by final record index (port-only, DOS reads order 0). */
+  {
+    const ColonizeUnitPool* units = ctx->units;
+    uint8_t* esc = malloc(4u + 4u * (size_t)(written > 0 ? written : 1));
+    int n = 0;
+    for (int i = 0; esc && i < units_slot_end(units); ++i) {
+      const ColonizeUnit* u = &units->units[i];
+      if (!u->active || u->orders != UNITS_ORDER_FOLLOW || u->id < 0 || u->id > units->next_id ||
+          u->follow_unit_id < 0 || u->follow_unit_id > units->next_id) {
+        continue;
+      }
+      const int er = runtime_to_col1[u->id];
+      const int lr = runtime_to_col1[u->follow_unit_id];
+      if (er < 0 || lr < 0 || n >= written) {
+        continue;
+      }
+      uint8_t* p = esc + 4 + 4 * n++;
+      p[0] = (uint8_t)(er & 0xff);
+      p[1] = (uint8_t)(er >> 8);
+      p[2] = (uint8_t)(lr & 0xff);
+      p[3] = (uint8_t)(lr >> 8);
+    }
+    if (esc) {
+      esc[0] = 1;
+      esc[1] = 0;
+      esc[2] = (uint8_t)(n & 0xff);
+      esc[3] = (uint8_t)(n >> 8);
+    }
+    (void)col1_save_ext_put(save, COLONIZE_COL1_EXT_TAG_ESCORT, n > 0 ? esc : NULL, n > 0 ? 4u + 4u * (size_t)n : 0u);
+    free(esc);
+  }
   const bool has_active_unit = active_col1 >= 0;
   save->head.active_unit = has_active_unit ? (uint16_t)active_col1 : 0xffffu;
   save->head.map_mode = view_pieces_mode ? 1u : 0u;

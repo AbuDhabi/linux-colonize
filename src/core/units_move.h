@@ -207,7 +207,7 @@ void units_move_watch_notify(
 #define UNITS_ORDER_BUILD_ROAD 9
 #define UNITS_ORDER_AI_SAIL 11 /* Euro AI ship course (TURN fixtures) */
 #define UNITS_ORDER_AI_MOVE 12 /* Euro AI coastal / land course */
-#define UNITS_ORDER_FOLLOW 13 /* Stick to another unit (Brave escort / AI) */
+#define UNITS_ORDER_FOLLOW 13 /* Port-only Escort ("E"): stick to another unit's tile; COL1 exports 0, 'ESCT' keeps it */
 #define UNITS_GOTO_NONE 0xFF
 
 /* True if orders byte means "follow goto_x/y". */
@@ -278,6 +278,9 @@ bool units_follow_unit(ColonizeUnitPool* pool, int unit_id, int target_unit_id);
  * One step toward the follow target's current tile (retarget each call).
  * Clears FOLLOW if target missing/inactive. rng may be NULL.
  */
+/* An escort (UNITS_ORDER_FOLLOW) standing on its live, on-map leader's tile:
+ * nothing to do until the leader moves, so it stays out of the rotation. */
+bool units_follow_holding(const ColonizeUnitPool* pool, const ColonizeUnit* u);
 bool units_advance_follow_one_step_w(
   const ColonizeWorld* w,
   int unit_id

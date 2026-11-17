@@ -194,6 +194,10 @@ bool turn_unit_in_rotation(const ColonizeUnitPool* pool, const ColonizeUnit* u, 
   if (u->orders == UNITS_ORDER_SENTRY || u->orders == UNITS_ORDER_FORTIFIED) {
     return false;
   }
+  /* Port-only Escort: on its leader's tile it waits for the leader to move. */
+  if (units_follow_holding(pool, u)) {
+    return false;
+  }
   /*
    * DOS FUN_1427_1410 raw 8804-8805 (same clause in the sibling predicates
    * 1330 raw 8756-8757 and 13b0 raw 8776-8778): a unit is eligible only if

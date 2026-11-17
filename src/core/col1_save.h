@@ -388,6 +388,11 @@ bool col1_save_write_memory(
 /* 'BQUE': per-colony port-only build queues (ColonizeColony::build_queue). */
 #define COLONIZE_COL1_EXT_TAG_BUILD_QUEUE 0x45555142u
 
+/* 'ESCT': port-only Escort orders (UNITS_ORDER_FOLLOW, exported to DOS as
+ * order 0). Payload: u8 version 1, u8 0, u16 count, then count pairs of
+ * u16 (escort record index, leader record index) into the saved unit[]. */
+#define COLONIZE_COL1_EXT_TAG_ESCORT 0x54435345u
+
 /* 'UNXT': unit records past COLONIZE_COL1_DOS_UNIT_MAX. Payload: uint16
  * head.active_unit when it indexes one of these records (else 0xffff; the
  * DOS head then says "none"), uint16 0, then verbatim 28-byte

@@ -105,9 +105,10 @@ void unit_chrome_nation_shades_for_palette(
   );
 }
 
-/* Fallback @ORDERS letters if NAMES.TXT is unavailable. */
+/* Fallback @ORDERS letters if NAMES.TXT is unavailable. NAMES.TXT lists rows
+ * 0..12 only, so row 13 keeps 'E': the port-only Escort (UNITS_ORDER_FOLLOW). */
 static const char k_default_order_letters[UNIT_CHROME_ORDERS_MAX] = {
-  '-', 'S', 'T', 'G', 'L', 'F', 'F', 'B', 'P', 'R', '-', '-', '-', '-', '-', '-'
+  '-', 'S', 'T', 'G', 'L', 'F', 'F', 'B', 'P', 'R', '-', '-', '-', 'E', '-', '-'
 };
 
 static char g_order_letters[UNIT_CHROME_ORDERS_MAX];

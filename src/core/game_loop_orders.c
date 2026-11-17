@@ -1570,12 +1570,45 @@ static bool game_unit_group_action_fans_out(const ColonizeGameState* game, int a
     action != MAP_MENU_ACTION_TRADE_EDIT && action != MAP_MENU_ACTION_TRADE_DELETE;
 }
 
+/* A Go To for a group holding a Treasure train: the first treasure leads and
+ * gets the Go To; every member that can follow it (same domain) Escorts it
+ * (UNITS_ORDER_FOLLOW) instead and walks after it. Members that cannot
+ * escort keep the plain fan-out. */
+static void game_unit_group_escort_treasure(ColonizeGameState* game) {
+  int lead = -1;
+  for (int i = 0; i < game->unit_group_count && lead < 0; ++i) {
+    const ColonizeUnit* u = units_get_const(&game->units, game->unit_group[i]);
+    if (u && units_type_is_treasure(units_type(&game->units, u->type_index))) {
+      lead = i;
+    }
+  }
+  if (lead < 0) {
+    return;
+  }
+  const int lead_id = game->unit_group[lead];
+  int n = 0;
+  game->unit_group[n++] = lead_id;
+  for (int i = 0; i < game->unit_group_count; ++i) {
+    const int uid = game->unit_group[i];
+    if (uid != lead_id && !units_follow_unit(&game->units, uid, lead_id)) {
+      game->unit_group[n++] = uid;
+    }
+  }
+  game->unit_group_count = n;
+  game->units.selected_id = lead_id;
+}
+
 bool game_unit_group_order(ColonizeGameState* game, GameUnitGroupOrder kind, int a, int b) {
   if (!game || game->unit_group_count <= 0 || game->unit_group_dispatching ||
       game->unit_group_order != GAME_GROUP_ORDER_NONE ||
       !game_unit_group_has(game, game->units.selected_id) ||
       (kind == GAME_GROUP_ORDER_ACTION && !game_unit_group_action_fans_out(game, a))) {
     return false;
+  }
+  if (kind == GAME_GROUP_ORDER_GOTO ||
+      (kind == GAME_GROUP_ORDER_ACTION &&
+       (a == MAP_MENU_ACTION_GOTO_PLACE || a == MAP_MENU_ACTION_GOTO_PORT))) {
+    game_unit_group_escort_treasure(game);
   }
   game->unit_group_order = kind;
   game->unit_group_arg0 = a;
