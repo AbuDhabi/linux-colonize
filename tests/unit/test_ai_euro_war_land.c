@@ -392,8 +392,14 @@ static int unit_land_adjacent_combat_chain(void) {
  * unit_land_adjacent_combat_chain (defended foe) and from the goal-driven
  * MILITARY-goto capture path (this fires opportunistically regardless of
  * the unit's assigned goal).
+ *
+ * berthed_hull: a Caravel of the colony owner sits in the port. It is no
+ * land defender (FUN_5fef_0000 domain gate), so the seize still happens, and
+ * the capture arm's FUN_5fef_0ec0 sweep (FUN_5fef_1b0e raw 100878-100882)
+ * hands it to 0352's hull arm: a gunless land winner always damages it
+ * (+0x3148 bit 0x80) and it limps off the tile.
  */
-static int unit_land_adjacent_colony_seize(void) {
+static int land_adjacent_colony_seize(int berthed_hull) {
   const int nation = 1;
   const int foe = 2;
 
@@ -404,12 +410,16 @@ static int unit_land_adjacent_colony_seize(void) {
 
   ColonizeUnitPool units;
   fx_units_init(&units);
-  units.type_count = 1;
+  units.type_count = 2;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Soldier");
   units.types[0].movement = 3;
   units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
   units.types[0].attack = 8;
   units.types[0].defense = 1;
+  snprintf(units.types[1].name, sizeof(units.types[1].name), "Caravel");
+  units.types[1].movement = 4;
+  units.types[1].cargo = 2;
+  units.types[1].domain = COLONIZE_UNIT_DOMAIN_SEA;
 
   ColonizeColonyPool colonies;
   fx_colonies_init(&colonies);
@@ -448,6 +458,18 @@ static int unit_land_adjacent_colony_seize(void) {
   soldier->nation_id = nation;
   soldier->orders = 0;
   soldier->moves = 3 * UNITS_MP_PER_TILE;
+
+  int hull_id = -1;
+  if (berthed_hull) {
+    hull_id = units_spawn_allow_stack(&units, 1, target->x, target->y);
+    ColonizeUnit* hull = units_get(&units, hull_id);
+    if (!hull) {
+      fx_map_free(&map);
+      return fail("colony-seize spawn hull");
+    }
+    hull->nation_id = foe;
+    hull->orders = UNITS_ORDER_SENTRY;
+  }
 
   ColonizeCol1Save col1;
   col1_save_init(&col1);
@@ -497,10 +519,35 @@ static int unit_land_adjacent_colony_seize(void) {
     fx_map_free(&map);
     return fail("land unit should walk into and seize an undefended adjacent foe colony");
   }
+  if (berthed_hull) {
+    const ColonizeUnit* hull = units_get_const(&units, hull_id);
+    const int damaged = hull && hull->active && (hull->col1_flags15 & 0x80) != 0;
+    const int left = hull && (hull->x != target->x || hull->y != target->y);
+    if (!damaged || !left) {
+      fprintf(
+        stderr,
+        "unit_ai_euro_war: berthed hull active=%d flags15=%02x at (%d,%d)\n",
+        hull ? hull->active : -1,
+        hull ? hull->col1_flags15 : 0,
+        hull ? hull->x : -1,
+        hull ? hull->y : -1
+      );
+      fx_map_free(&map);
+      return fail("raw 100878-100882: the capture sweep must damage the berthed hull and move it off");
+    }
+  }
 
   fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_war: land adjacent undefended colony seize ok\n");
   return 0;
+}
+
+static int unit_land_adjacent_colony_seize(void) {
+  return land_adjacent_colony_seize(0);
+}
+
+static int unit_land_adjacent_colony_seize_berthed_hull(void) {
+  return land_adjacent_colony_seize(1);
 }
 
 /*
@@ -1165,6 +1212,7 @@ static const TestCase k_cases[] = {
     {"unit_sticky_contact_rehunt", unit_sticky_contact_rehunt},
     {"unit_land_adjacent_combat_chain", unit_land_adjacent_combat_chain},
     {"unit_land_adjacent_colony_seize", unit_land_adjacent_colony_seize},
+    {"unit_land_adjacent_colony_seize_berthed_hull", unit_land_adjacent_colony_seize_berthed_hull},
     {"unit_land_adjacent_foe_prefer_weak", unit_land_adjacent_foe_prefer_weak},
     {"unit_land_adjacent_foe_prefer_treasure", unit_land_adjacent_foe_prefer_treasure},
     {"unit_land_adjacent_foe_prefer_open_over_stockade", unit_land_adjacent_foe_prefer_open_over_stockade},
