@@ -360,16 +360,19 @@ int europe_custom_house_autosell_ex_w(
     if (mirror) {
       tax = eu->tax_percent;
     } else if (col1 && nation >= 0 && nation < (int)COLONIZE_COL1_NATION_COUNT) {
-      tax = (int)col1->nation[nation].tax_rate;
+      tax = europe_tax_byte(col1->nation[nation].tax_rate);
     } else {
       tax = eu->tax_percent;
     }
   }
-  if (tax < 0) {
-    tax = 0;
-  }
-  if (tax > 100) {
-    tax = 100;
+  /* raw 57282 has no clamp (DB-78). */
+  if (!europe_tax_signed()) {
+    if (tax < 0) {
+      tax = 0;
+    }
+    if (tax > 100) {
+      tax = 100;
+    }
   }
   ColonizeCol1Nation* nat =
     (col1 && nation >= 0 && nation < (int)COLONIZE_COL1_NATION_COUNT) ? &col1->nation[nation]
@@ -1398,18 +1401,19 @@ void europe_cheat_add_gold(EuropeScreen* eu, int amount) {
 }
 
 /* Same function, `]` / `[`: nation record byte +1 (tax rate) +-1. DOS wraps the
- * byte; the port clamps to 0..100 because the sim reads the tax mirror (user
- * choice, port_bugs.md #1169). The human's tax lives in the screen mirror and
- * the record; both are written. */
+ * signed byte (127 -> -128, 0 -> -1; dos_bugs.md DB-78); mods.tax_unsigned
+ * clamps to 0..100 (port_bugs.md #1169). The human's tax lives in the screen
+ * mirror and the record; both are written. */
 void europe_cheat_adjust_tax(EuropeScreen* eu, int delta) {
   if (!eu) {
     return;
   }
   eu->tax_percent += delta;
-  if (eu->tax_percent < 0) {
+  if (europe_tax_signed()) {
+    eu->tax_percent = europe_tax_byte((uint8_t)eu->tax_percent);
+  } else if (eu->tax_percent < 0) {
     eu->tax_percent = 0;
-  }
-  if (eu->tax_percent > 100) {
+  } else if (eu->tax_percent > 100) {
     eu->tax_percent = 100;
   }
   const int n = europe_purse_nation(eu);

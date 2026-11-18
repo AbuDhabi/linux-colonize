@@ -885,6 +885,21 @@ static int unit_king_galleon_offer(void) {
     fprintf(stderr, "galleon: Cortes share want tax 20\n");
     goto fail;
   }
+  /* DB-78: DOS reads tax 200 as -56, a negative cut; mods.tax_unsigned caps 90. */
+  c1.nation[0].tax_rate = 200;
+  const int share_dos = units_king_galleon_share_pct(&c1, 0);
+  const uint32_t mods_saved = mods_campaign_mask();
+  dos_buggy_behavior_set(false);
+  mods_campaign_set(1u << MOD_TAX_UNSIGNED);
+  const int share_fixed = units_king_galleon_share_pct(&c1, 0);
+  mods_campaign_set(mods_saved);
+  dos_buggy_behavior_set(true);
+  c1.nation[0].tax_rate = 20;
+  if (share_dos != -56 || share_fixed != 90) {
+    fprintf(stderr, "galleon: Cortes tax 200 share DOS %d (want -56) fixed %d (want 90)\n",
+            share_dos, share_fixed);
+    goto fail;
+  }
   c1.nation[0].founding_fathers[FF_HERNAN_CORTES / 8] = 0;
 
   const int tid = units_spawn_allow_stack(&pool, treasure_ti, cx, cy);

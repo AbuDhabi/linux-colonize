@@ -210,7 +210,7 @@ static const ModId k_mods_rules[] = {
   MOD_MODERN_PRNG,       MOD_NO_EDUCATION_LIES, MOD_COLONY_GOVERNOR,
 };
 static const ModId k_mods_fixes[] = {
-  MOD_GOTO_NATIVE_WAIT, MOD_BEG_REFUSAL_ALARM, MOD_RIDERS_KEEP_SHIP
+  MOD_GOTO_NATIVE_WAIT, MOD_BEG_REFUSAL_ALARM, MOD_RIDERS_KEEP_SHIP, MOD_TAX_UNSIGNED
 };
 static const ModId k_mods_ai[] = {MOD_AI_IMPROVEMENTS, MOD_ALTERNATE_MAP_GENERATOR};
 #define MODS_PAGE_LEN(a) ((int)(sizeof(a) / sizeof((a)[0])))

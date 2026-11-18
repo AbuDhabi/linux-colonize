@@ -333,7 +333,7 @@ void ai_king_enqueue_teaparty_ok(ColonizeTurnContext* ctx, int human, int cargo)
     AI_POPUP_TAG_KING_TAX,
     human,
     ai_king_crown_nation_col1(ctx->col1_ok ? ctx->col1 : NULL, human),
-    ctx->col1 && ctx->col1_ok ? (int)ctx->col1->nation[human].tax_rate : 0,
+    ctx->col1 && ctx->col1_ok ? europe_tax_byte(ctx->col1->nation[human].tax_rate) : 0,
     NULL,
     body
   );

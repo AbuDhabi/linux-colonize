@@ -505,7 +505,7 @@ static double gov_sale_value(const ColonizeWorld* w, int nation, int cargo, bool
   }
   int tax = w->europe ? w->europe->tax_percent : 0;
   if (col1) {
-    tax = col1->head.game_options.woi ? 0 : (int)col1->nation[nation].tax_rate;
+    tax = col1->head.game_options.woi ? 0 : europe_tax_byte(col1->nation[nation].tax_rate);
   }
   return price * (100 - tax) / 100.0;
 }

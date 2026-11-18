@@ -739,6 +739,11 @@ int colony_prod_colony_bells_ff(
   }
   if (all_bells_bonus_pct > 0) {
     bells = bells * (100 + all_bells_bonus_pct) / 100;
+  } else if (all_bells_bonus_pct < 0) {
+    /* DOS-LITERAL raw 12629: `(uint)(int)tax * (uint)v & 0xffff) / 100`, an
+     * unsigned 16-bit product, so a negative tax (DB-78) adds
+     * (65536 + tax * v) / 100, up to 655 bells, instead of taking any away. */
+    bells += (int)(((uint32_t)(uint16_t)all_bells_bonus_pct * (uint32_t)(uint16_t)bells & 0xffffu) / 100u);
   }
   /* AI bells subsidy, player-confirmed 2026-08-15 (Viceroy difficulty): a
    * free-colonist Statesman produces 5 colony bells for an AI nation vs 3
@@ -791,7 +796,7 @@ int colony_prod_colony_bells_nation(
     founding_fathers_nation_has(col1, nation_id, FF_THOMAS_JEFFERSON) ? 50 : 0;
   const int paine_tax_pct =
     (in_range && founding_fathers_nation_has(col1, nation_id, FF_THOMAS_PAINE))
-      ? (int)col1->nation[nation_id].tax_rate
+      ? europe_tax_byte(col1->nation[nation_id].tax_rate)
       : 0;
   /* MOD_AI_IMPROVEMENTS 4.6 F5 (not DOS): no subsidy; bells come from seating. */
   const bool ai_subsidy = in_range && col1->player[nation_id].control != 0 &&

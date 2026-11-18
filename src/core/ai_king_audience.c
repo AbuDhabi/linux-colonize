@@ -158,7 +158,7 @@ static int ai_king_audience_roll(
   if (interval <= 0 || (int)(turn % (uint32_t)interval) != 0) {
     return 0;
   }
-  if (nat->tax_rate > 85) {
+  if (europe_tax_byte(nat->tax_rate) > 85) {
     return 0;
   }
 
@@ -176,7 +176,7 @@ static int ai_king_audience_roll(
                                        : (int)nat->rebel_sentiment;
   const int score =
     dos_rng_range(ctx->rng, 1, 1000) +
-    (sol * 2 - (int)nat->tax_rate) * 5 +
+    (sol * 2 - europe_tax_byte(nat->tax_rate)) * 5 +
     (int)(europe_nation_gold(ctx->europe, col1, human) / 100u) +
     (int)col1->stuff.census_pop_proxy[human] +
     (int)(turn / 30);
@@ -188,7 +188,7 @@ static int ai_king_audience_roll(
   int delta;
   if (score < 100) {
     const int roll = dos_rng_range(ctx->rng, 2, 5);
-    int cut = (roll < (int)nat->tax_rate) ? roll : (int)nat->tax_rate;
+    int cut = (roll < europe_tax_byte(nat->tax_rate)) ? roll : europe_tax_byte(nat->tax_rate);
     if (cut < 1) {
       return 0; /* DOS: no audience event when tax is already 0% */
     }
@@ -276,15 +276,22 @@ static int ai_king_audience_roll(
  * answered (port_bugs.md — the raise must not be in the save while the popup that
  * proposes it is still on screen).
  */
+/* FUN_38fd_3dc8 raw 64180: a byte add, read back signed, so a cheat tax of
+ * 125 raised by 5 wraps to -126 and dodges the 75 cap (DB-78). */
+static int ai_king_audience_tax_after(const ColonizeCol1Nation* nat, int applied) {
+  const int t = europe_tax_byte(nat->tax_rate) + applied;
+  return europe_tax_signed() ? (int)(int8_t)t : t;
+}
+
 static int ai_king_audience_preview_delta(const ColonizeCol1Nation* nat, int delta) {
   int applied = delta;
   if (applied < 0) {
     const int mag = -applied;
-    if (mag > (int)nat->tax_rate) {
-      applied = -(int)nat->tax_rate;
+    if (mag > europe_tax_byte(nat->tax_rate)) {
+      applied = -europe_tax_byte(nat->tax_rate);
     }
   }
-  const int new_tax = (int)nat->tax_rate + applied;
+  const int new_tax = ai_king_audience_tax_after(nat, applied);
   if (new_tax > 75) {
     applied -= (new_tax - 75);
   }
@@ -294,11 +301,11 @@ static int ai_king_audience_preview_delta(const ColonizeCol1Nation* nat, int del
 /* Same clamp as the preview, plus the store. */
 static void ai_king_audience_apply_delta(ColonizeCol1Nation* nat, int delta, int* out_applied) {
   const int applied = ai_king_audience_preview_delta(nat, delta);
-  int new_tax = (int)nat->tax_rate + applied;
+  int new_tax = ai_king_audience_tax_after(nat, applied);
   if (new_tax > 75) {
     new_tax = 75;
   }
-  if (new_tax < 0) {
+  if (new_tax < 0 && !europe_tax_signed()) {
     new_tax = 0; /* safety net; the floor clamp above already prevents this */
   }
   nat->tax_rate = (uint8_t)new_tax;
@@ -422,7 +429,7 @@ void ai_king_tax_teaparty(ColonizeTurnContext* ctx, int human, int cargo) {
    * apply-then-revert reaches the same rate.
    */
   if (ctx->europe) {
-    ctx->europe->tax_percent = nat->tax_rate;
+    ctx->europe->tax_percent = europe_tax_byte(nat->tax_rate);
   }
   nat->boycott_bitmap = (uint16_t)(nat->boycott_bitmap | (uint16_t)(1u << cargo));
   ai_king_set_boycott(ctx->col1, 1);
@@ -529,7 +536,7 @@ void ai_king_tax_commit(ColonizeTurnContext* ctx, int human, int delta) {
   int applied = 0;
   ai_king_audience_apply_delta(nat, delta, &applied);
   if (ctx->europe) {
-    ctx->europe->tax_percent = nat->tax_rate;
+    ctx->europe->tax_percent = europe_tax_byte(nat->tax_rate);
   }
   /* (2026-09-06) The invented "grow REF pools on every audience event"
    * stand-in was removed: FUN_43f7_1d42's real mechanic — royal_money
@@ -592,12 +599,12 @@ void ai_king_tax_hike_apply(
       tok.string2 = flavor_string2;
       tok.number0 = -applied;
       tok.has_number0 = true;
-      tok.number1 = (int)nat->tax_rate;
+      tok.number1 = europe_tax_byte(nat->tax_rate);
       tok.has_number1 = true;
       char body[AI_POPUP_BODY_LEN];
       popup_msg_fill(ctx->messages, section, &tok, "", body, sizeof(body));
       if (ai_popup_enqueue_ok_ctx(ctx->ai_popups, AI_POPUP_TAG_KING_TAX, human,
-                                  ai_king_crown_nation_col1(ctx->col1_ok ? ctx->col1 : NULL, human), (int)nat->tax_rate,
+                                  ai_king_crown_nation_col1(ctx->col1_ok ? ctx->col1 : NULL, human), europe_tax_byte(nat->tax_rate),
                                   NULL, body)) {
         /* DOS 3dc8's message-only arm (38fd:402a `MOV word [0x1f5c],0x8`,
          * then FUN_281f_03fe) wears the King flair too — the port had it on
@@ -613,7 +620,7 @@ void ai_king_tax_hike_apply(
   }
 
   /* applied > 0: a real hike is on the table. */
-  const int proposed = (int)nat->tax_rate + applied;
+  const int proposed = ai_king_audience_tax_after(nat, applied);
 
   int weight_buf[COLONIZE_CARGO_COUNT];
   const int* weights = NULL;
@@ -651,7 +658,7 @@ void ai_king_tax_hike_apply(
       tok.string2 = flavor_string2;
       tok.number0 = applied;
       tok.has_number0 = true;
-      tok.number1 = (int)nat->tax_rate;
+      tok.number1 = europe_tax_byte(nat->tax_rate);
       tok.has_number1 = true;
       char body[AI_POPUP_BODY_LEN];
       popup_msg_fill(ctx->messages, section, &tok, "", body, sizeof(body));
@@ -659,7 +666,7 @@ void ai_king_tax_hike_apply(
        * separate 0x56 dispatch belongs only to the completed tea party. */
       sound_play(0x3e);
       if (ai_popup_enqueue_ok_ctx(ctx->ai_popups, AI_POPUP_TAG_KING_TAX, human,
-                                  ai_king_crown_nation_col1(ctx->col1_ok ? ctx->col1 : NULL, human), (int)nat->tax_rate,
+                                  ai_king_crown_nation_col1(ctx->col1_ok ? ctx->col1 : NULL, human), europe_tax_byte(nat->tax_rate),
                                   NULL, body)) {
         /* Same 38fd:402a arm — DOS reaches it when no cargo is eligible for
          * the tea party, and still stands the King beside the message. */
@@ -1522,7 +1529,7 @@ void ai_king_menu_audience(ColonizeTurnContext* ctx) {
 /* FUN_38fd_4590: ask for lower taxes. */
 static void ai_king_audience_petition(ColonizeTurnContext* ctx, int human) {
   const int d = (int)ctx->col1->head.difficulty;
-  const int tax = (int)ctx->col1->nation[human].tax_rate;
+  const int tax = europe_tax_byte(ctx->col1->nation[human].tax_rate);
   const int t = ai_king_petition_threshold(d, (int)ctx->col1->head.turn);
   AiKingAudienceFlavor flavor;
   memset(&flavor, 0, sizeof(flavor));
@@ -1556,7 +1563,7 @@ void ai_king_audience_choice(ColonizeTurnContext* ctx, int human, int choice) {
       break;
     case 3:
       /* FUN_38fd_44a4: refused at 60% tax or more. */
-      if (nat->tax_rate >= 60) {
+      if (europe_tax_byte(nat->tax_rate) >= 60) {
         ai_king_audience_notice(ctx, human, "KINGNO", 0);
       } else {
         const int grant =
@@ -1609,7 +1616,7 @@ static void ai_king_audience_specialist_offer(ColonizeTurnContext* ctx, int huma
     return;
   }
   const int rise = ai_king_specialist_rise(ctx->col1->nation[human].unknown23_pad[2]);
-  if ((int)ctx->col1->nation[human].tax_rate + rise > 75) {
+  if (europe_tax_byte(ctx->col1->nation[human].tax_rate) + rise > 75) {
     ai_king_audience_notice(ctx, human, "KINGNO", 0);
     return;
   }
@@ -1656,7 +1663,7 @@ void ai_king_audience_specialist(ColonizeTurnContext* ctx, int human, int job, i
   }
   ColonizeCol1Nation* nat = &ctx->col1->nation[human];
   ai_king_audience_apply_delta(nat, rise, NULL);
-  eu->tax_percent = (int)nat->tax_rate;
+  eu->tax_percent = europe_tax_byte(nat->tax_rate);
   /* The audience's own nation (hot-seat: the human at the controls), the same
    * nation whose tax and 0x20 latch the chamber uses. */
   uint8_t* count = &nat->unknown23_pad[2];

@@ -815,15 +815,26 @@ int europe_nation_buy_price(
   return p < 0 ? 0 : p;
 }
 
+bool europe_tax_signed(void) {
+  return dos_buggy_behavior() || !mods_on(MOD_TAX_UNSIGNED);
+}
+
+int europe_tax_byte(uint8_t tax_rate) {
+  return europe_tax_signed() ? (int)(int8_t)tax_rate : (int)tax_rate;
+}
+
 int europe_net_after_tax(int gross, int tax_percent) {
   if (gross <= 0) {
     return 0;
   }
-  if (tax_percent < 0) {
-    tax_percent = 0;
-  }
-  if (tax_percent > 100) {
-    tax_percent = 100;
+  /* DOS has no clamp: a negative tax pays more than the gross (DB-78). */
+  if (!europe_tax_signed()) {
+    if (tax_percent < 0) {
+      tax_percent = 0;
+    }
+    if (tax_percent > 100) {
+      tax_percent = 100;
+    }
   }
   /* FUN_364b_0688: tax = (tax·gross)/100 (32-bit), net = gross − tax. */
   const long taxed = ((long)tax_percent * (long)gross) / 100L;
@@ -941,7 +952,7 @@ void europe_apply_trade_volume(
       /* 1dfa: gold[cargo] += (sell_price·amount·(100−tax))/100 — note the
        * ledger rounds the other way from the treasury credit (54 lumber @1,
        * 35% → ledger +35, treasury +36). */
-      const int tax = (int)col1->nation[seller_nation].tax_rate;
+      const int tax = europe_tax_byte(col1->nation[seller_nation].tax_rate);
       /* `IMUL word; MOV CX,AX ... MOV AX,CX; CWD`: 16-bit product (#1587). */
       const long gross =
         (long)(int16_t)(europe_nation_sell_price(eu, col1, seller_nation, cargo_type) * amount);
