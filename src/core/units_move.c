@@ -2703,6 +2703,139 @@ static bool units_bfs_next_step(
   return ok;
 }
 
+/*
+ * TB-64 fix (!dos_buggy_behavior(), human far tier): the cheapest path to the
+ * goal in real move thirds (map_move_spent_thirds: roads and cardinal river
+ * steps cost 1), so a long Go To stays on the road or river instead of aiming
+ * at the coarse waypoint's sample tile. Label-correcting search seeded at the
+ * goal; same enterability, wagon colony toll and ownership terms as the flood.
+ * Returns false when the goal is unreachable (the DOS tiers then run).
+ */
+static bool units_cost_next_step(
+  const ColonizeUnitPool* pool,
+  const ColonizeCol1Save* col1,
+  int unit_id,
+  const ColonizeWorldMap* map,
+  const ColonizeColonyPool* colonies,
+  int gx,
+  int gy,
+  int* out_x,
+  int* out_y
+) {
+  const ColonizeUnit* u = units_get_const(pool, unit_id);
+  if (!u || !map) {
+    return false;
+  }
+  const int w = (int)map->width;
+  const int h = (int)map->height;
+  if (w <= 0 || h <= 0 || w * h > 128 * 128) {
+    return false;
+  }
+  const int cells = w * h;
+  int* dist = (int*)malloc((size_t)cells * sizeof(int));
+  int* queue = (int*)malloc((size_t)cells * sizeof(int));
+  uint8_t* state = (uint8_t*)calloc((size_t)cells, 1); /* bit0 queued, bit1 enter known, bit2 enterable */
+  if (!dist || !queue || !state) {
+    free(dist);
+    free(queue);
+    free(state);
+    return false;
+  }
+  for (int i = 0; i < cells; ++i) {
+    dist[i] = -1;
+  }
+  const UnitsFloodReq r = {
+    .goal_x = gx, .goal_y = gy,
+    .colony_toll = ((u->orders == UNITS_ORDER_GOTO || u->orders == UNITS_ORDER_TRADE_ROUTE) &&
+                    units_type_is_wagon(units_type(pool, u->type_index)))
+                     ? UNITS_MP_PER_TILE
+                     : 0
+  };
+  const int start = u->y * w + u->x;
+  const int goal = gy * w + gx;
+  dist[goal] = 0;
+  int head = 0;
+  int count = 1;
+  queue[0] = goal;
+  state[goal] |= 1;
+  while (count > 0) {
+    const int ci = queue[head];
+    head = (head + 1) % cells;
+    --count;
+    state[ci] &= (uint8_t)~1u;
+    if (ci == start) {
+      continue; /* the mover's own tile is never stepped through */
+    }
+    const int cx = ci % w;
+    const int cy = ci / w;
+    /* Stepping from (nx,ny) into (cx,cy). */
+    const int toll = units_flood_colony_toll(colonies, &r, cx, cy);
+    for (int d = 0; d < 8; ++d) {
+      const int nx = cx + MAP_DIR8_DX[d];
+      const int ny = cy + MAP_DIR8_DY[d];
+      if (!map_coords_inset(map, nx, ny)) {
+        continue;
+      }
+      const int ni = ny * w + nx;
+      if (ni != start) {
+        if (!(state[ni] & 2)) {
+          state[ni] |= 2;
+          if (units_flood_can_enter(pool, colonies, map, u->type_index, nx, ny, unit_id) &&
+              units_flood_owner_term(map, colonies, col1, u->nation_id, nx, ny) >= 0) {
+            state[ni] |= 4;
+          }
+        }
+        if (!(state[ni] & 4)) {
+          continue;
+        }
+      }
+      /* A refused tile (-1) only reaches here as the goal: no term. */
+      const int term = units_flood_owner_term(map, colonies, col1, u->nation_id, cx, cy);
+      const int c = dist[ci] + map_move_spent_thirds(map, nx, ny, cx, cy) + toll + (term > 0 ? term : 0);
+      if (dist[ni] >= 0 && c >= dist[ni]) {
+        continue;
+      }
+      dist[ni] = c;
+      if (!(state[ni] & 1) && count < cells) {
+        state[ni] |= 1;
+        queue[(head + count) % cells] = ni;
+        ++count;
+      }
+    }
+  }
+  bool ok = false;
+  if (dist[start] >= 0) {
+    int best = -1;
+    int best_tie = 0;
+    for (int d = 0; d < 8; ++d) {
+      const int nx = u->x + MAP_DIR8_DX[d];
+      const int ny = u->y + MAP_DIR8_DY[d];
+      if (!map_coords_inset(map, nx, ny)) {
+        continue;
+      }
+      const int ni = ny * w + nx;
+      if (dist[ni] < 0 || (ni != goal && !(state[ni] & 4))) {
+        continue;
+      }
+      const int term = units_flood_owner_term(map, colonies, col1, u->nation_id, nx, ny);
+      const int c = dist[ni] + map_move_spent_thirds(map, u->x, u->y, nx, ny) +
+                    units_flood_colony_toll(colonies, &r, nx, ny) + (term > 0 ? term : 0);
+      const int tie = map_dos_dist(gx - nx, gy - ny);
+      if (best < 0 || c < best || (c == best && tie < best_tie)) {
+        best = c;
+        best_tie = tie;
+        *out_x = nx;
+        *out_y = ny;
+        ok = true;
+      }
+    }
+  }
+  free(dist);
+  free(queue);
+  free(state);
+  return ok;
+}
+
 /* DOS dir8 table (DS:0xb4/0xbe), also used project-wide; index^4 = reverse. */
 static int units_dir8_index(int dx, int dy) {
   for (int i = 0; i < 8; ++i) {
@@ -3493,6 +3626,13 @@ static bool units_goto_director(
       s_far_bfs = (e && e[0] == '1') ? 1 : 0;
     }
     if (s_far_bfs && units_bfs_next_step(pool, unit_id, map, colonies, gx, gy, out_x, out_y)) {
+      return true;
+    }
+    /* TB-64: DOS floods toward the next coarse cell's sample tile, ignoring
+     * roads and rivers, so a long Go To veers off them every few tiles. */
+    if (!dos_buggy_behavior() && u->nation_id == g_units_combat_human_nation &&
+        units_cost_next_step(pool, units_world_col1(w), unit_id, map, colonies, gx, gy, out_x, out_y)) {
+      if (out_flood) *out_flood = true;
       return true;
     }
     (void)units_bfs_next_step;

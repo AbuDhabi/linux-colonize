@@ -2082,6 +2082,79 @@ static int unit_far_bfs_next_step(void) {
 #endif
 }
 
+
+/* TB-64: a human colonist on a long Go To (far tier, goal > 7 away) stays on
+ * a bent road and on a river; DOS (buggy arm) veers to the coarse-cell sample
+ * tiles every 4 tiles. Every fixed-arm step costs 1 third. */
+static int unit_goto_far_stays_on_road(void) {
+  int rc = 0;
+  for (int variant = 0; variant < 2; ++variant) {
+    dos_buggy_behavior_set(false);
+    units_reset_state();
+    ColonizeUnitPool pool;
+    memset(&pool, 0, sizeof(pool));
+    pool.type_count = 1;
+    pool.types[0].movement = 1;
+    pool.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+    ColonizeWorldMap map;
+    memset(&map, 0, sizeof(map));
+    char err[128];
+    if (!map_alloc(&map, 40, 24, err, sizeof(err))) {
+      fprintf(stderr, "goto_far_road: map_alloc failed: %s\n", err);
+      return 1;
+    }
+    for (int i = 0; i < 40 * 24; ++i) {
+      map.terrain[i] = 2; /* plains */
+      map.layer3[i] = 0xf1;
+    }
+    const int sx = 3, sy = 5;
+    int gx = 30, gy = 15;
+    if (variant == 0) { /* road: diagonal to (13,15), then east */
+      for (int i = 0; i <= 10; ++i) map_tile_set_road(&map, sx + i, sy + i, true);
+      for (int x = sx + 10; x <= gx; ++x) map_tile_set_road(&map, x, gy, true);
+    } else { /* river due south */
+      gx = 3;
+      gy = 20;
+      for (int y = sy; y <= gy; ++y) map.terrain[y * 40 + 3] |= 0x40;
+    }
+    map.layer2[sy * 40 + sx] |= MAP_OCCUPANCY_HAS_CITY;
+    map.layer2[gy * 40 + gx] |= MAP_OCCUPANCY_HAS_CITY;
+    ColonizeColonyPool colonies;
+    colonies_init(&colonies);
+    const int id = units_spawn_allow_stack(&pool, 0, sx, sy);
+    ColonizeUnit* u = units_get(&pool, id);
+    g_units_combat_human_nation = 0;
+    u->nation_id = 0;
+    u->orders = UNITS_ORDER_GOTO;
+    u->goto_x = gx;
+    u->goto_y = gy;
+    const ColonizeWorld w = {.units = &pool, .colonies = &colonies, .map = &map};
+    for (int k = 0; k < 40 && (u->x != gx || u->y != gy); ++k) {
+      int nx = -1, ny = -1;
+      if (!units_next_goto_step_w(&w, id, &nx, &ny)) {
+        fprintf(stderr, "goto_far_road v%d: no step at (%d,%d)\n", variant, u->x, u->y);
+        rc = 1;
+        break;
+      }
+      if (map_move_spent_thirds(&map, u->x, u->y, nx, ny) != 1) {
+        fprintf(stderr, "goto_far_road v%d: off-road step (%d,%d)->(%d,%d)\n", variant, u->x, u->y, nx, ny);
+        rc = 1;
+      }
+      u->x = (uint8_t)nx;
+      u->y = (uint8_t)ny;
+    }
+    if (u->x != gx || u->y != gy) {
+      fprintf(stderr, "goto_far_road v%d: stopped at (%d,%d)\n", variant, u->x, u->y);
+      rc = 1;
+    }
+    map_free(&map);
+  }
+  g_units_combat_human_nation = -1;
+  dos_buggy_behavior_set(true);
+  units_reset_state();
+  return rc;
+}
+
 /* units_flood_colony_toll: a Go To wagon one tile west of its own
  * colony on a road row, goal on the far side. Through the colony is 3 road
  * thirds plus the 3-third toll. Round it over plains (7) the wagon still walks
@@ -2303,6 +2376,7 @@ static const TestCase k_cases[] = {
   {"unit_board_gate_reseed_1443", unit_board_gate_reseed_1443},
   {"unit_goto_native_wait_mod", unit_goto_native_wait_mod},
   {"unit_wagon_colony_detour", unit_wagon_colony_detour},
+  {"unit_goto_far_stays_on_road", unit_goto_far_stays_on_road},
   {"unit_ai_undefended_colony_band", unit_ai_undefended_colony_band},
   {"unit_colony_entry_bvar4_reseed_1323", unit_colony_entry_bvar4_reseed_1323},
   {"unit_tb44_flood_key_rules", unit_tb44_flood_key_rules},

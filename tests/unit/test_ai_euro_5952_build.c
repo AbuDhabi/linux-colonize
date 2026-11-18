@@ -606,7 +606,8 @@ static int case_improved_small_colony_not_idle(void) {
 /*
  * MOD_AI_IMPROVEMENTS (#1863): no tools gift at completion, so an improved
  * colony short of the Artillery's tools, with no tools made and no
- * Blacksmith's House with ore, starts nothing.
+ * Blacksmith's House with ore, starts no unit. #1882: it spends the hammers
+ * on a building it needs no tools for (here the missing Blacksmith's House).
  */
 static int case_improved_unit_needs_tools_source(void) {
   Fx f;
@@ -627,13 +628,19 @@ static int case_improved_unit_needs_tools_source(void) {
   mods_campaign_set(1u << MOD_AI_IMPROVEMENTS);
   ai_euro_5952_build_cascade(&f.ctx, f.col);
   const int none = f.col->building_in_production;
+  const ColonizeBuildingType* none_bt = none >= 0 ? colonies_building_type(&f.colonies, none) : NULL;
+  const int none_tools = none_bt ? none_bt->tools_cost : -1;
+  f.col->building_in_production = -1;
   f.col->stock[COLONIZE_CARGO_TOOLS] = 40;
   ai_euro_5952_build_cascade(&f.ctx, f.col);
   const int funded = f.col->building_in_production;
   mods_campaign_set(0);
   fx_done(&f);
-  if (none != -1) {
-    return fail("improved colony with no tools source started a unit");
+  if (none < 0 || colonies_unit_build_info(none, NULL, NULL, NULL)) {
+    return fail("improved colony with no tools source started a unit or nothing");
+  }
+  if (none_tools != 0) {
+    return fail("tool-free fallback picked a building that needs tools");
   }
   if (funded == -1) {
     return fail("improved colony with the tools in stock started nothing");

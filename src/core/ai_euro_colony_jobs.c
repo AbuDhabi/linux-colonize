@@ -3026,6 +3026,23 @@ static AiEuro5952CascadeStatus ai_euro_5952_cascade_idle_fill(AiEuro5952Cascade*
   if (col->building_in_production < 0 && s->arty_on_tile < 3) {
     ai_euro_5952_set_unit_project(s, 0x0b);
   }
+  /* #1882: everything above was out of tool reach (no tools, no way to make
+   * them): spend the hammers on the cheapest building the stock can finish. */
+  int best_hammers = INT_MAX;
+  for (int i = 0; col->building_in_production < 0 && i < s->n_buildable; ++i) {
+    const ColonizeBuildingType* bt = colonies_building_type(s->pool, s->buildable[i]);
+    if (bt && bt->tools_cost <= col->stock[COLONIZE_CARGO_TOOLS] && bt->hammers < best_hammers) {
+      best_hammers = bt->hammers;
+    }
+  }
+  for (int i = 0; col->building_in_production < 0 && i < s->n_buildable; ++i) {
+    const ColonizeBuildingType* bt = colonies_building_type(s->pool, s->buildable[i]);
+    if (bt && bt->tools_cost <= col->stock[COLONIZE_CARGO_TOOLS] && bt->hammers == best_hammers) {
+      col->building_in_production = s->buildable[i];
+      col->colony_flags =
+        (uint8_t)(col->colony_flags & (uint8_t)~COLONIZE_COLONY_FLAG_BUILD_COMPLETE);
+    }
+  }
   return col->building_in_production >= 0 ? AI_EURO_5952_CASCADE_RETURN : st;
 }
 
@@ -3069,7 +3086,8 @@ void ai_euro_5952_build_cascade_for_owner(
   if (st == AI_EURO_5952_CASCADE_NEXT) {
     st = ai_euro_5952_cascade_chain_upgrades(&s);
   }
-  if (st == AI_EURO_5952_CASCADE_WANTS && col->building_in_production < 0 &&
+  /* Also RETURN with no project: a pick out of tool reach (#1882). */
+  if (col->building_in_production < 0 &&
       ai_euro_improved(ctx, s.nation)) {
     (void)ai_euro_5952_cascade_idle_fill(&s); /* the colony still wants hands */
   }

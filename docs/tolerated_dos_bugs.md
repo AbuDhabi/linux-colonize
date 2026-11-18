@@ -688,3 +688,25 @@ it. Test: `unit_stage_seams` `test_break_treaty_waits_for_half`. Native
 
 **Blocks removal:** not tried.
 **Status:** tolerated (user, 2026-11-16). Fixed in opencol 2026-11-16, gated on `!dos_buggy_behavior()`; test binaries still reproduce DOS.
+
+### TB-64 — A long Go To leaves the road or river every few tiles
+**DOS:** `FUN_6662_0f74` sends a goal more than 6 tiles away to the far tier:
+`FUN_6662_0b4e` picks the next 4x4 coarse cell and the `FUN_6662_00f2` flood
+aims at that cell's 2x2 sample tile (rows/cols `4c+1..4c+2`), not at the goal.
+The sample tile ignores roads and rivers, so the step toward it often leaves them.
+
+**Effect:** discard campaign: a colonist going New Holland -> Jamestown stepped
+off the road onto a field, and units going south along the river from Boston
+stepped into the forest, each costing turns. Synthetic map: a bent road walk
+costs 39 thirds instead of 27, a river walk 23 instead of 15.
+
+**Port (DOS arm, under `dos_buggy_behavior()`):** the far tier of
+`units_goto_director` in `src/core/units_move.c`. The fix, for units of the
+human nation only (AI movement stays DOS), runs `units_cost_next_step` first: a
+whole-map cheapest path in `map_move_spent_thirds` with the flood's
+enterability, wagon colony toll and ownership terms; the DOS tiers run when it
+finds no path. Test: `unit_units_movement` `unit_goto_far_stays_on_road`.
+
+**Blocks removal:** not tried; human Go To moves in the regression replays and
+idle campaigns would need re-blessing.
+**Status:** tolerated (user, 2026-11-18). Fixed in opencol 2026-11-18, gated on `!dos_buggy_behavior()`; test binaries still reproduce DOS.

@@ -608,3 +608,5 @@ village, where it stood for 180 turns; the unload never picks such a tile
 bought no cargo at all and held 1 tool across seven colonies, which meant no
 Pioneers; an improved hull now buys tools anyway, but still no muskets or
 horses, which colonies spend arming their colonists (#1881).
+
+At t214 Isabella still banked about 500 hammers with nothing in production (#1882). With no tools and no way to make them, the tools skip dropped every pick, and the delivery picker only sent tools to a colony whose project needed them. An improved colony left with no project now builds the cheapest building its tools stock covers, and a colony with no project and 100+ banked hammers counts as 100 tools short when a ship picks where to unload tools.

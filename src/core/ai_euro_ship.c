@@ -247,11 +247,14 @@ static int ai_euro_20e6_delivery_colony_pick(
       }
       score += (cap - stock) - 1; /* md:2083-2084 */
       /* MOD_AI_IMPROVEMENTS (#1867): tools go first to a colony short of its
-       * project's tools. */
+       * project's tools. #1882: one banking hammers with no project is short
+       * of tools too (the cascade skipped every pick out of tool reach). */
       int project_tools = 0;
       if (g == COLONIZE_CARGO_TOOLS && ai_euro_improved(ctx, nation) &&
-          colonies_construction_cost(ctx->colonies, c, NULL, &project_tools) &&
-          project_tools > stock) {
+          !colonies_construction_cost(ctx->colonies, c, NULL, &project_tools) && c->hammers >= 100) {
+        project_tools = 100; /* ponytail: Fort/Cathedral size; read the skipped pick if this misroutes */
+      }
+      if (g == COLONIZE_CARGO_TOOLS && ai_euro_improved(ctx, nation) && project_tools > stock) {
         score += (project_tools - stock) * ai_euro_ship_price_84bc(ctx, nation, g) * 8;
       }
     }
