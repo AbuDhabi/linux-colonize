@@ -229,14 +229,21 @@ static double gov_teach_value(const GovCtx* g, const ColonizeColony* c) {
     if (t->profession == UNITS_JOB_SOLDIER) {
       s += g->wt->veteran;
     }
+    /* Each expert of his kind working elsewhere could take a non-expert's
+     * place, so only the rest count: otherwise the need held a free colonist
+     * on the job (New Amsterdam cut lumber with one beside idle experts). */
+    int need = 0;
     for (int j = 0; j < c->colonist_count; ++j) {
       const ColonizeColonist* p = &c->colonists[j];
       const int job = p->building_type >= 0 ? colonies_building_occupation(pool, p->building_type)
                                             : p->field_job;
-      if (j != i && job == t->profession && p->profession != t->profession) {
-        s += GOV_TEACH_NEED;
+      if (j != i && job == t->profession) {
+        need += p->profession != t->profession;
+      } else if (j != i && p->profession == t->profession) {
+        --need;
       }
     }
+    s += (need > 0 ? need : 0) * GOV_TEACH_NEED;
   }
   return s;
 }
