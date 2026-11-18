@@ -722,6 +722,13 @@ bool ai_euro_land_mass_below(const ColonizeWorldMap* map, int x, int y, int n);
 /* MOD_AI_IMPROVEMENTS: an own colony borders the sea around (x, y) (layer3
  * tags every sea region 1, so it cannot tell two seas apart). */
 bool ai_euro_sea_has_own_colony(const ColonizeTurnContext* ctx, int x, int y, int nation);
+/* #1889: own coastal colonies short of tools for their build (0 = mod off). */
+int ai_euro_tools_short_colonies(ColonizeTurnContext* ctx, int nation);
+/* #1887: own colony the hull reaches on a land mass short of Pioneers for its
+ * open jobs; need_aboard = only with a tooled Pioneer aboard or boarding. */
+bool ai_euro_pioneer_ferry_dest(
+  ColonizeTurnContext* ctx, const ColonizeUnit* ship, int nation, bool need_aboard, int* out_x, int* out_y
+);
 bool ai_euro_pioneer_released(ColonizeTurnContext* ctx, ColonizeUnit* u);
 /* RTST record: {u8 nation, x, y, kind} per job. */
 #define AI_EURO_PJOB_EXPORT_MAX (4 * AI_EURO_PJOB_MAX * 4)

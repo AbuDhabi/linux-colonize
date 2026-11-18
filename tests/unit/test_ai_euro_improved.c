@@ -113,7 +113,14 @@ static int case_pioneer_released(void) {
     fprintf(stderr, "pioneer_released: walking to a job released\n");
     rc = 1;
   }
+  /* #1888: arrived on its job tile, work starts next turn. */
   pu->orders = 0;
+  pu->x = 8;
+  pu->y = 8;
+  if (ai_euro_pioneer_released(&ctx, pu)) {
+    fprintf(stderr, "pioneer_released: standing on its job released\n");
+    rc = 1;
+  }
   pu->x = 10;
   pu->y = 10;
   if (ai_euro_pioneer_released(&ctx, pu)) {

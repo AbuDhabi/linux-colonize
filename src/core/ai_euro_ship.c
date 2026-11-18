@@ -212,6 +212,17 @@ static bool ai_euro_tools_wanted_elsewhere(ColonizeTurnContext* ctx, int nation,
   return false;
 }
 
+/* #1889: own coastal colonies short of tools for their build. */
+int ai_euro_tools_short_colonies(ColonizeTurnContext* ctx, int nation) {
+  int n = 0;
+  for (int i = 0; ctx->colonies && i < COLONIZE_COLONIES_MAX; ++i) {
+    const ColonizeColony* c = &ctx->colonies->colonies[i];
+    n += c->active && c->nation_id == nation && (c->colony_flags & COLONIZE_COLONY_FLAG_COASTAL) &&
+         ai_euro_colony_tools_short(ctx, nation, c) > 0;
+  }
+  return n;
+}
+
 static int ai_euro_20e6_delivery_colony_pick(
   ColonizeTurnContext* ctx,
   const ColonizeUnit* ship,
@@ -1294,6 +1305,15 @@ static int ai_euro_20e6_ship_berth_arrival(
           continue; /* raw goto 32e3 */
         }
         mark = 1;
+        /* MOD_AI_IMPROVEMENTS #1887 (not DOS): a Pioneer with tools boards
+         * only when its land mass has more Pioneers than open jobs and
+         * another has fewer. */
+        if (ai_euro_improved(ctx, nation_id) && lu->tools >= UNITS_EQUIP_TOOLS_STEP) {
+          int fx = 0;
+          int fy = 0;
+          mark = ai_euro_pjob_open_on(ctx, nation_id, cid) < ai_euro_pioneers_on(ctx, nation_id, cid) &&
+                 ai_euro_pioneer_ferry_dest(ctx, ship, nation_id, false, &fx, &fy);
+        }
       }
       /* MOD_AI_IMPROVEMENTS #1880 (not DOS): DOS never ships a Colonist out of
        * a colony; with no colony on this land mass wanting it, take it. */
@@ -1481,6 +1501,11 @@ int ai_euro_try_ship_trade_haul_snapshot(
     const int urgency = ai_euro_0a60_work_registered(nation_id);
     int cx = 0;
     int cy = 0;
+    if (ai_euro_pioneer_ferry_dest(ctx, ship, nation_id, true, &cx, &cy)) { /* #1887 */
+      ship->col1_ai_plan = 0x34;
+      ai_euro_set_goto(ship, AI_EURO_ACT_GOAL, cx, cy);
+      return 2;
+    }
     if (band.stack_other > 0 &&
         (band.civilians != 0 ||
          ((band.pioneers != band.stack_other || urgency > 0x18) && berth_mask == 0)) &&
@@ -1823,6 +1848,67 @@ bool ai_euro_sea_has_own_colony(const ColonizeTurnContext* ctx, int x, int y, in
   }
   free(seen);
   return any;
+}
+
+/*
+ * MOD_AI_IMPROVEMENTS #1887 (not DOS): an own colony this hull reaches by sea
+ * on a land mass with more open Pioneer jobs than Pioneers there; the most
+ * short wins, nearer on ties. With `need_aboard`, only when a Pioneer with
+ * tools is aboard or boarding (Sentry on the hull's tile). Discard t286: the
+ * mark scan shuttled eight Spanish Pioneers between the two colonies of a
+ * northern island with two jobs while eighteen jobs waited on the mainland.
+ */
+bool ai_euro_pioneer_ferry_dest(
+  ColonizeTurnContext* ctx, const ColonizeUnit* ship, int nation, bool need_aboard, int* out_x, int* out_y
+) {
+  if (!ai_euro_improved(ctx, nation) || !ctx->map || !ctx->colonies || !ctx->units ||
+      !map_in_bounds(ctx->map, ship->x, ship->y)) {
+    return false;
+  }
+  if (need_aboard) {
+    bool aboard = false;
+    for (int i = 0; i < units_slot_end(ctx->units) && !aboard; ++i) {
+      const ColonizeUnit* u = &ctx->units->units[i];
+      aboard = u->active && u->id != ship->id && u->tools >= UNITS_EQUIP_TOOLS_STEP &&
+               units_type_is_pioneer(units_type(ctx->units, u->type_index)) &&
+               (u->aboard_ship_id == ship->id ||
+                (u->aboard_ship_id < 0 && u->x == ship->x && u->y == ship->y && u->orders == UNITS_ORDER_SENTRY));
+    }
+    if (!aboard) {
+      return false;
+    }
+  }
+  if (map_tile_is_land(ctx->map, ship->x, ship->y)) {
+    const int here = map_continent_id_at(ctx->map, ship->x, ship->y);
+    if (ai_euro_pjob_open_on(ctx, nation, here) > ai_euro_pioneers_on(ctx, nation, here)) {
+      return false; /* arrived: they land here */
+    }
+  }
+  uint8_t* seen = (uint8_t*)calloc((size_t)ctx->map->width * ctx->map->height, 1);
+  if (!seen || !ai_euro_sea_reach(ctx->map, ship->x, ship->y, seen)) {
+    free(seen);
+    return false;
+  }
+  int best = 0;
+  int best_d = 0;
+  for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+    const ColonizeColony* c = &ctx->colonies->colonies[i];
+    if (!c->active || c->nation_id != nation || (c->x == ship->x && c->y == ship->y) ||
+        !ai_euro_sea_touches(ctx->map, seen, c->x, c->y)) {
+      continue;
+    }
+    const int cid = map_continent_id_at(ctx->map, c->x, c->y);
+    const int need = ai_euro_pjob_open_on(ctx, nation, cid) - ai_euro_pioneers_on(ctx, nation, cid);
+    const int d = map_dos_dist(c->x - ship->x, c->y - ship->y);
+    if (need > best || (need == best && need > 0 && d < best_d)) {
+      best = need;
+      best_d = d;
+      *out_x = c->x;
+      *out_y = c->y;
+    }
+  }
+  free(seen);
+  return best > 0;
 }
 
 /*

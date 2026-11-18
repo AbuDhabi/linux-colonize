@@ -1632,6 +1632,7 @@ static int ai_euro_20e6_labor_arm(ColonizeTurnContext* ctx, ColonizeUnit* u, Ai2
   if (s->is_ship || !ctx->colonies) {
     return 0;
   }
+  const bool improved = ai_euro_improved(ctx, u->nation_id);
   int best = -1;
   int best_score = 9999;
   for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
@@ -1642,8 +1643,13 @@ static int ai_euro_20e6_labor_arm(ColonizeTurnContext* ctx, ColonizeUnit* u, Ai2
     if (map_continent_id_at(ctx->map, c->x, c->y) != s->cid) {
       continue;
     }
+    /* MOD_AI_IMPROVEMENTS #1890 (not DOS): a joiner keeps the colony it walks
+     * to while the bit flickers (campaign7 all-AI t301: ten Spanish colonists
+     * re-aimed every turn as one stack and rarely arrived). */
+    const bool walking_here =
+      improved && u->col1_ai_plan == 0x33 && u->goto_x == c->x && u->goto_y == c->y;
     if (!(c->ai_flags & COLONIZE_COLONY_AI_NEEDS_COLONISTS) &&
-        u->profession != UNITS_JOB_CONVERT) {
+        u->profession != UNITS_JOB_CONVERT && !walking_here) {
       continue; /* 27 = Indian Convert (DOS profession 0x1b) */
     }
 
@@ -1663,7 +1669,18 @@ static int ai_euro_20e6_labor_arm(ColonizeTurnContext* ctx, ColonizeUnit* u, Ai2
     /* 8aac case 2 = TOTAL units standing on the colony tile (PUSH 0x2 at
      * viceroy_overlays.asm 135593; real 0d38 case-2 body counts every stack
      * member, not just military — corrected 2026-09-06). */
-    const int stack = ai_euro_20e6_stack_count(ctx, c->x, c->y);
+    int stack = ai_euro_20e6_stack_count(ctx, c->x, c->y);
+    if (improved) {
+      /* #1890: joiners already walking in count against the room. */
+      for (int k = 0; k < units_slot_end(ctx->units); ++k) {
+        const ColonizeUnit* o = &ctx->units->units[k];
+        stack += o->active && o != u && o->nation_id == u->nation_id && o->col1_ai_plan == 0x33 &&
+                 o->goto_x == c->x && o->goto_y == c->y && !(o->x == c->x && o->y == c->y);
+      }
+      if (walking_here) {
+        score = -1;
+      }
+    }
     if (stack + (int)c->population < wanted + 2 && score < best_score) {
       best_score = score;
       best = i;
@@ -1703,7 +1720,6 @@ static int ai_euro_20e6_labor_arm(ColonizeTurnContext* ctx, ColonizeUnit* u, Ai2
   }
   /* MOD_AI_IMPROVEMENTS (not DOS): the 20 tools come out of the colony's
    * stock; without them the colonist stays a colonist. */
-  const bool improved = ai_euro_improved(ctx, u->nation_id);
   ColonizeColony* labor_home =
     s->home_colony >= 0 ? colonies_get_mut(ctx->colonies, s->home_colony) : NULL;
   if (s->home_dist == 0 && s->home_colony >= 0 &&

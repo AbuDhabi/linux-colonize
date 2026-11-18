@@ -12,7 +12,7 @@
  * and Europe-freeze investigations kept rewriting (port_bugs.md #953).
  *
  * Usage:
- *   ai_replay <save.SAV> [turns] [--units] [--seed N] [--mods MASK] [--game] [--all-ai]
+ *   ai_replay <save.SAV> [turns] [--units] [--seed N] [--mods MASK] [--game] [--all-ai] [--save-every N DIR]
  *
  *   turns    number of turn_end calls (default 20)
  *   --units  also dump every AI unit (id / nation / type / xy / orders / MP /
@@ -22,6 +22,8 @@
  *            e.g. 0x800000 for ai_improvements
  *   --game   tolerated DOS bugs off, as opencol and play_driver run; the
  *            default is the test binaries' DOS-buggy mode (goldens)
+ *   --save-every N DIR  write DIR/replay_turn_NNN.sav every N turns and after
+ *            the last (sav_json reads them)
  *
  * Run from the repo root: NAMES.TXT and COLONY.TXT are read from COLONIZE/.
  *
@@ -136,6 +138,8 @@ int main(int argc, char** argv) {
   unsigned seed = 100u;
   long mods_mask = -1;
   int all_ai = 0;
+  int save_every = 0;
+  const char* save_dir = NULL;
   for (int a = 1; a < argc; ++a) {
     if (strcmp(argv[a], "--units") == 0) {
       dump_units = 1;
@@ -145,6 +149,9 @@ int main(int argc, char** argv) {
       mods_mask = (long)strtoul(argv[++a], NULL, 0);
     } else if (strcmp(argv[a], "--all-ai") == 0) {
       all_ai = 1;
+    } else if (strcmp(argv[a], "--save-every") == 0 && a + 2 < argc) {
+      save_every = atoi(argv[++a]);
+      save_dir = argv[++a];
     } else if (strcmp(argv[a], "--game") == 0) {
       dos_buggy_behavior_set(false);
     } else if (!path) {
@@ -154,7 +161,7 @@ int main(int argc, char** argv) {
     }
   }
   if (!path) {
-    fprintf(stderr, "usage: ai_replay <save.SAV> [turns] [--units] [--seed N] [--mods MASK] [--game]\n");
+    fprintf(stderr, "usage: ai_replay <save.SAV> [turns] [--units] [--seed N] [--mods MASK] [--game] [--all-ai] [--save-every N DIR]\n");
     return 2;
   }
   if (turns < 0) {
@@ -257,6 +264,15 @@ int main(int argc, char** argv) {
       );
     }
     fflush(stdout);
+    if (save_dir && save_every > 0 && ((t + 1) % save_every == 0 || t + 1 == turns)) {
+      const ColonizeWorld w = world_from_turn_ctx(&ctx);
+      char out[512];
+      snprintf(out, sizeof(out), "%s/replay_turn_%03u.sav", save_dir, turn_number);
+      if (!col1_bridge_capture_w(&w, year, autumn, turn_number, ctx.human_nation, 0, 0, 0, 0, -1, false, err, sizeof(err)) ||
+          !col1_save_write_file(out, &save, err, sizeof(err))) {
+        fprintf(stderr, "ai_replay: save %s: %s\n", out, err);
+      }
+    }
   }
 
   if (dump_units) {

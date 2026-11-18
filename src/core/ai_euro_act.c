@@ -484,10 +484,11 @@ static int ai_euro_20e6_ship_dos(ColonizeTurnContext* ctx, ColonizeUnit* u, int 
       /* MOD_AI_IMPROVEMENTS #1886 (not DOS): soldiers no colony wants for war
        * land where colonists would (discard t214: two French Galleons roamed
        * 40 turns with ten Dragoons aboard). */
-      if (sail_gate &&
+      if (ai_euro_pioneer_ferry_dest(ctx, u, nation_id, true, &cx, &cy) || /* #1887 */
+          (sail_gate &&
           (ai_euro_20e6_colony_sail_pick(ctx, u, nation_id, mil, pioneers_b4, urgency, &cx, &cy) ||
            (mil > 0 && ai_euro_improved(ctx, nation_id) &&
-            ai_euro_20e6_colony_sail_pick(ctx, u, nation_id, 0, pioneers_b4, urgency, &cx, &cy)))) {
+            ai_euro_20e6_colony_sail_pick(ctx, u, nation_id, 0, pioneers_b4, urgency, &cx, &cy))))) {
         u->col1_ai_plan = 0x34; /* -> 27f5 -> 20c6 with DX = '4' (OVL14 0x3f47) */
         ai_euro_set_goto(u, AI_EURO_ACT_GOAL, cx, cy);
         ai_euro_20e6_ship_tail_5a78(ctx, u, nation_id);

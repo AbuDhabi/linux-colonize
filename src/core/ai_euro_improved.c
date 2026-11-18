@@ -247,7 +247,7 @@ bool ai_euro_pioneer_released(ColonizeTurnContext* ctx, ColonizeUnit* u) {
   }
   if ((u->orders == AI_EURO_ACT_GOAL && ai_euro_pjob_listed(u->nation_id, u->goto_x, u->goto_y)) ||
       u->orders == UNITS_ORDER_CLEAR_PLOW || u->orders == UNITS_ORDER_BUILD_ROAD ||
-      (u->col1_counter16 > 0 && ai_euro_pjob_listed(u->nation_id, u->x, u->y)) ||
+      ai_euro_pjob_listed(u->nation_id, u->x, u->y) || /* #1888: arrived, starts next turn */
       colonies_id_at(ctx->colonies, u->x, u->y) >= 0) {
     return false;
   }

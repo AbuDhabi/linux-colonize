@@ -1658,6 +1658,9 @@ static void ai_euro_5d04_hire_tail_departing_ships(Ai5d04HireTail* t) {
   const int buy_any = expand_signal && !improved;
   int held[COLONIZE_CARGO_COUNT] = {0};
   int held_colonies = 0;
+  /* #1889: colonies banking hammers short of tools (the DOS cell counts only
+   * empty stocks, less one per Pioneer, and the held cap counts a hoarder). */
+  int tools_short_n = improved ? ai_euro_tools_short_colonies(ctx, nation_id) : 0;
   if (improved && ctx->colonies) {
     for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
       const ColonizeColony* c = &ctx->colonies->colonies[i];
@@ -1752,9 +1755,10 @@ static void ai_euro_5d04_hire_tail_departing_ships(Ai5d04HireTail* t) {
             if (f->cargo_short && p != COLONIZE_CARGO_TOOLS) {
               continue;
             }
-            if ((cargo_demand_bar <= (int)cargo_demand[p] || buy_any) &&
+            const bool tools_short = p == COLONIZE_CARGO_TOOLS && tools_short_n > 0;
+            if ((cargo_demand_bar <= (int)cargo_demand[p] || buy_any || tools_short) &&
                 ((!tools_trained_this_pass && tools_hire_mask == 0) || (cap - used > 2 || buy_any)) &&
-                !(improved && held[p] >= 50 * held_colonies)) {
+                (tools_short || !(improved && held[p] >= 50 * held_colonies))) {
               /* raw 93041-93046 (bug #1029): gold gate is price * DS:0x8dc4,
                * the last hold removal anywhere (DOSBox 1591: a French unload
                * left 100, so the Dutch hull with a boycotted hold bought
@@ -1766,6 +1770,7 @@ static void ai_euro_5d04_hire_tail_departing_ships(Ai5d04HireTail* t) {
                 ai_euro_5d04_cb_apply_bump(idx2, p, 100);
                 cargo_demand[p]--; /* raw 93050 */
                 held[p] += 100;
+                tools_short_n -= tools_short;
               }
             }
           }
