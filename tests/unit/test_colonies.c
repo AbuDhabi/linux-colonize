@@ -2570,6 +2570,18 @@ static int unit_foreign_colony_trade(void) {
     "counter-offer is the most valuable affordable stock"
   );
 
+  /* raw 98970-98973: with the relation's war bit (FUN_281f_0a38 & 2) set
+   * outside the WoI, the after-tax price is halved before the haggle:
+   * 108 >> 1 = 54; 54 + (10*54)/-100 = 49. */
+  {
+    const uint8_t rel = ai_diplo_read(&col1, 0, 1);
+    ai_diplo_write(&col1, 0, 1, (uint8_t)(rel | AI_DIPLO_WAR));
+    ColonizeForeignTradeDeal war_deal;
+    CHECK(colonies_foreign_trade_prepare(&w, NULL, 0, uid, 0, &war_deal) == 1, "war deal prepared");
+    CHECK(war_deal.gold == 49, "war bit halves the after-tax price before the haggle");
+    ai_diplo_write(&col1, 0, 1, rel);
+  }
+
   /* Take the goods: the hold is overwritten, the colony banks the sugar. */
   ColonizeForeignTradeDeal goods_deal = deal;
   CHECK(colonies_foreign_trade_apply(&w, 0, uid, 0, &goods_deal, 1) == 1, "barter applied");
