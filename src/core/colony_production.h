@@ -128,6 +128,8 @@ int colony_prod_sol_percent(const ColonizeCol1Save* col1, const ColonizeColony* 
  * See sons_of_liberty.md / difficulty.md.
  */
 int colony_prod_sol_bonus(const ColonizeCol1Save* col1, const ColonizeColony* colony);
+/* Tory-count divisor of the term above; 0 = Tories ignored (AI, withdrawn). */
+int colony_prod_tory_thresh(const ColonizeCol1Save* col1, const ColonizeColony* colony);
 
 /* FUN_15eb_18ec field-yield term: same as colony_prod_sol_bonus. */
 int colony_prod_sol_bonus_field(const ColonizeCol1Save* col1, const ColonizeColony* colony);

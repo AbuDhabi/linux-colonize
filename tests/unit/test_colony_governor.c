@@ -410,6 +410,14 @@ static int case_teacher_dearest(void) {
     /* An indoor expert: a field expert would teach for his future surplus. */
     c->colonists[3].profession = COLONIZE_PROF_CARPENTER;
     c->stock[COLONIZE_CARGO_FOOD] = 150; /* covers the deficit, so teaching pays */
+    /* Three Elder Statesmen fill the Town Hall past the SoL steady state, so
+     * bells do not compete for the two experts. */
+    for (int i = 4; i < 7; ++i) {
+      c->colonists[i] = c->colonists[0];
+      c->colonists[i].profession = COLONIZE_PROF_STATESMAN;
+    }
+    c->colonist_count = 7;
+    c->population = 7;
     c->governor = COLONY_GOVERNOR_CASH;
     colony_governor_run_w(&f.w, c->id);
     if (c->colonists[soldier].building_type != college ||
@@ -1039,7 +1047,43 @@ static int case_cash_custom_house(void) {
   return 0;
 }
 
+/* Cash still keeps some bells: SoL moves every worker's output (the 50% and
+ * 100% steps, the Tory penalty), so an 8-colonist colony seats its Elder
+ * Statesman in the Town Hall rather than make one bell a turn. */
+static int case_cash_keeps_bells(void) {
+  GovFx f;
+  if (!gov_fx_open(&f)) {
+    return 1;
+  }
+  ColonizeColony* c = f.col;
+  for (int i = 4; i < 8; ++i) {
+    c->colonists[i] = c->colonists[0];
+  }
+  c->colonist_count = 8;
+  c->population = 8;
+  c->colonists[4].profession = COLONIZE_PROF_STATESMAN;
+  c->colonists[4].building_type = -1;
+  c->stock[COLONIZE_CARGO_FOOD] = 150;
+  static ColonizeCol1Save col1; /* human, Viceroy: Tories over 6 cost a step */
+  memset(&col1, 0, sizeof(col1));
+  col1.head.difficulty = 4;
+  for (int k = 0; k < (int)COLONIZE_COL1_CARGO_TYPES; ++k) {
+    col1.nation[0].trade.euro_price[k] = 6;
+  }
+  f.w.col1 = &col1;
+  f.w.col1_ok = true;
+  colony_governor_seat_w(&f.w, c->id, COLONY_GOVERNOR_CASH);
+  const int bells = gov_preview(&f).bells;
+  gov_fx_close(&f);
+  if (bells < 4) {
+    fprintf(stderr, "bells %d\n", bells);
+    return 1;
+  }
+  return 0;
+}
+
 static const TestCase k_cases[] = {
+  {"cash_keeps_bells", case_cash_keeps_bells},
   {"cash_custom_house", case_cash_custom_house},
   {"military_teaches_veterans", case_military_teaches_veterans},
   {"docks_when_fish_pay", case_docks_when_fish_pay},

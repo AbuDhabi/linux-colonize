@@ -100,6 +100,14 @@
  * not a model of the nation's army needs. */
 #define GOV_VETERAN_MUSKETS 50.0
 #define GOV_VETERAN_TURNS 6.0
+/* SoL moves every worker's output by a step (colony_prod_sol_bonus): +1 at
+ * the 50% and 100% latches, -1 per `thresh` Tories. The rebel pair is a
+ * 64-turn moving average whose steady state is bells / (2 x pop), so each
+ * bell a turn, up to 2 x pop, is worth its share of those steps for every
+ * colonist, at the average weight of what the colony makes, times this
+ * (the steady state is a long way off). ponytail: linear ramp, not the
+ * steps themselves, so the hill climb sees each statesman's share. */
+#define GOV_SOL_SHARE 0.5
 
 typedef struct GovWeights {
   double goods[COLONIZE_CARGO_COUNT]; /* food here = the net surplus */
@@ -113,6 +121,8 @@ typedef struct GovWeights {
   double tools_needed; /* a tool the project still lacks */
   double balance;      /* Industry: per added tool matched by an added musket */
   double veteran;      /* Military: per turn a Veteran Soldier teaches */
+  double sol_bell;     /* per bell a turn, up to sol_bells_max: the SoL steps */
+  int sol_bells_max;
 } GovWeights;
 
 /* One seat: a work plot with a field job, or an indoor workplace. */
@@ -323,6 +333,7 @@ static double gov_score(const GovCtx* g, const ColonizeColony* plan) {
       }
       s -= dry * GOV_RAN_OUT_COST;
     }
+    s += (pv.bells < wt->sol_bells_max ? pv.bells : wt->sol_bells_max) * wt->sol_bell;
     const int kept = pv.bells < wt->bells_upkeep ? pv.bells : wt->bells_upkeep;
     s += kept * wt->bells + (pv.bells - kept) * wt->bells_pool + pv.crosses * wt->crosses;
   }
@@ -597,6 +608,23 @@ static void gov_weights(const ColonizeWorld* w, const ColonizeColony* col, int g
   wt->bells_pool = gov_bells_pool_open(w->col1, col->nation_id) ? GOV_BELLS_POOL * wt->bells : 0.0;
   wt->bells *= sol >= 50 && sol < 100 ? 1.0 : 1.5;
   wt->bells_upkeep = sol < 100 ? INT_MAX : 2 * col->colonist_count;
+  const int pop = col->colonist_count;
+  if (pop > 0) {
+    ColonizeColonyPreview pv;
+    colony_preview_compute_w(w, col, &pv);
+    double worth = pv.hammers * wt->hammers;
+    int units = pv.hammers;
+    for (int k = 0; k < COLONIZE_CARGO_COUNT; ++k) {
+      if (pv.goods[k] > 0) {
+        worth += pv.goods[k] * wt->goods[k];
+        units += pv.goods[k];
+      }
+    }
+    const int thresh = colony_prod_tory_thresh(w->col1_ok ? w->col1 : NULL, col);
+    const double steps = (thresh > 0 ? 1.0 / (2 * thresh) : 0.0) + 1.0 / pop;
+    wt->sol_bell = units > 0 ? GOV_SOL_SHARE * pop * steps * worth / units : 0.0;
+    wt->sol_bells_max = 2 * pop;
+  }
   /* A tool the project lacks is worth a tool and a hammer: it needs both. */
   wt->tools_needed = wt->hammers + wt->goods[COLONIZE_CARGO_TOOLS];
 }

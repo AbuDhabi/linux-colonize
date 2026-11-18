@@ -296,24 +296,10 @@ int colony_prod_sol_percent(const ColonizeCol1Save* col1, const ColonizeColony* 
   return sol;
 }
 
-int colony_prod_sol_bonus(const ColonizeCol1Save* col1, const ColonizeColony* colony) {
-  if (!colony) {
-    return 0;
-  }
-  const int sol = colony_prod_sol_percent(col1, colony);
-  /* colonist_count first, population as the fallback: the colonists[] array is
-   * the live source of truth (turn.c's birth/starvation paths grow/shrink it
-   * and then mirror `population = colonist_count`; col1_bridge re-derives
-   * `population` from it on both import and export). `population` is only a
-   * mirror, and is the field that goes stale in synthetic/partial records.
-   * colonies_headcount (colony.h) is that precedence. */
-  int pop = colonies_headcount(colony);
-  if (pop < 0) {
-    pop = 0;
-  }
-  /* Round half-up Tory share (decomp ~11880). */
-  int tories = (pop * (100 - sol) + 50) / 100;
-
+/* The Tory threshold FUN_15eb_18ec divides the Tory count by: 10 - difficulty
+ * for a human, 6 + difficulty for an improved AI, 0 (Tories ignored) for any
+ * other AI or withdrawn nation; 10 without a save. */
+int colony_prod_tory_thresh(const ColonizeCol1Save* col1, const ColonizeColony* colony) {
   int thresh = 10;
   if (col1 && colony->nation_id >= 0 &&
       colony->nation_id < (int)COLONIZE_COL1_NATION_COUNT) {
@@ -348,8 +334,33 @@ int colony_prod_sol_bonus(const ColonizeCol1Save* col1, const ColonizeColony* co
        * AI or withdrawn nation's Tory count is zeroed; only the latch steps
        * below apply (DOSBox independence-seed-100: Spain's Plymouth, pop 12
        * at 17% SoL, makes 19 bells with three Elder Statesmen, not 13). */
-      tories = 0;
+      thresh = 0;
     }
+  }
+  return thresh;
+}
+
+int colony_prod_sol_bonus(const ColonizeCol1Save* col1, const ColonizeColony* colony) {
+  if (!colony) {
+    return 0;
+  }
+  const int sol = colony_prod_sol_percent(col1, colony);
+  /* colonist_count first, population as the fallback: the colonists[] array is
+   * the live source of truth (turn.c's birth/starvation paths grow/shrink it
+   * and then mirror `population = colonist_count`; col1_bridge re-derives
+   * `population` from it on both import and export). `population` is only a
+   * mirror, and is the field that goes stale in synthetic/partial records.
+   * colonies_headcount (colony.h) is that precedence. */
+  int pop = colonies_headcount(colony);
+  if (pop < 0) {
+    pop = 0;
+  }
+  /* Round half-up Tory share (decomp ~11880). */
+  int tories = (pop * (100 - sol) + 50) / 100;
+
+  const int thresh = colony_prod_tory_thresh(col1, colony);
+  if (thresh == 0) {
+    tories = 0;
   }
   /*
    * port_bugs.md ("SoL >50% yet still over the Tory limit"): there is no separate
@@ -361,7 +372,7 @@ int colony_prod_sol_bonus(const ColonizeCol1Save* col1, const ColonizeColony* co
    * gone: it silently capped the penalty for large low-SoL colonies. The only
    * clamp DOS has is on the FINISHED yield, which never goes below 0.
    */
-  int mod = -(tories / thresh);
+  int mod = thresh ? -(tories / thresh) : 0;
 
   /*
    * Latch bits ONLY (FUN_15eb_18ec 11881-11886: colony +0x1c bit4 → +1,

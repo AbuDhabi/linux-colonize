@@ -77,7 +77,14 @@ other turn (seat churn only: the +2 latch holds down to 95%,
 only feed the nation's pool (DOS clamps the rebel dividend to the divisor,
 FUN_364b_0688), so they get half weight. They get none once every Father is
 elected before the declaration, or once intervention is announced and the
-pool's signed score word is full. A specialist out-produces anyone on his
+pool's signed score word is full. On top, every governor values each bell a
+turn, up to 2 x pop, for the SoL it holds: SoL moves every worker's output a
+step (+1 at the 50% and 100% latches, -1 per `thresh` Tories,
+`colony_prod_sol_bonus` / `colony_prod_tory_thresh`), and the rebel pair's
+steady state is bells / (2 x pop), so a bell is worth (1/(2 thresh) + 1/pop)
+steps for each colonist, at the average weight of what the colony makes now,
+times 0.5 (`GOV_SOL_SHARE`: the steady state is far off). A Cash colony that
+made one bell a turn now seats statesmen toward 100%. A specialist out-produces anyone on his
 own job, so the swaps seat him there unless his output is unwanted or has no
 room, and then he works elsewhere. Where trading seats changes no output (a
 master carpenter and a free colonist in a Lumber Mill with more hands than
