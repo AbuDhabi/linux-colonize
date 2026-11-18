@@ -2264,6 +2264,75 @@ static int unit_royal_loss_tax_cut(void) {
   return 0;
 }
 
+/* Both FUN_5fef_0352 damage entries that send a human hull with no repair
+ * port to Europe, the naval loss (gunless winner, always damaged) and the
+ * FUN_5fef_0f14 raid (raw 99567, always damaged), keep +0x3148 0x40 on the
+ * damaged harbor slot: DOS only ORs bit7 in (raw 99618) and never clears the
+ * Crown's gift bit, which the tax cut (raw 99671, 99653-99690) reads when the
+ * hull is lost later. */
+static int unit_damaged_to_europe_keeps_royal_gift(void) {
+  int rc = 0;
+  for (int arm = 0; arm < 2 && rc == 0; ++arm) {
+    for (int gift = 0; gift < 2 && rc == 0; ++gift) {
+      ColonizeUnitPool pool;
+      memset(&pool, 0, sizeof(pool));
+      units_set_occupancy_map(NULL);
+      pool.type_count = 2;
+      snprintf(pool.types[0].name, sizeof(pool.types[0].name), "Merchantman");
+      pool.types[0].domain = COLONIZE_UNIT_DOMAIN_SEA;
+      pool.types[0].movement = 5;
+      pool.types[0].defense = 6;
+      pool.types[0].hull = 10;
+      snprintf(pool.types[1].name, sizeof(pool.types[1].name), "Caravel");
+      pool.types[1].domain = COLONIZE_UNIT_DOMAIN_SEA;
+      pool.types[1].movement = 4;
+      pool.types[1].defense = 2; /* guns column 0: the loser never sinks */
+      static ColonizeColonyPool colonies;
+      colonies_init(&colonies);
+      colonies_set_occupancy_map(NULL);
+      ColonizeCol1Save c1;
+      memset(&c1, 0, sizeof(c1));
+      for (int i = 0; i < (int)COLONIZE_COL1_FF_COUNT; ++i) {
+        c1.head.founding_father[i] = -1;
+      }
+      static EuropeScreen eu;
+      memset(&eu, 0, sizeof(eu));
+      units_reset_hooks();
+      units_set_combat_colonies(&colonies);
+      units_set_combat_human_nation(1);
+      units_set_combat_europe(&eu);
+      const int sid = units_spawn_allow_stack(&pool, 0, 3, 3);
+      ColonizeUnit* ship = units_get(&pool, sid);
+      if (!ship) {
+        units_reset_hooks();
+        fprintf(stderr, "gift damage: ship spawn failed\n");
+        return 1;
+      }
+      units_set_nation(ship, 1);
+      ship->col1_flags15 = (uint8_t)(gift ? 0x40u : 0u);
+      int damaged;
+      if (arm == 0) {
+        const int wid = units_spawn_allow_stack(&pool, 1, 4, 3);
+        units_set_nation(units_get(&pool, wid), 2);
+        damaged = units_apply_naval_loss_outcome(&pool, sid, wid, 0, 0, 0, &c1, NULL);
+      } else {
+        damaged = units_raid_damage_ship(&pool, sid, &c1, NULL);
+      }
+      const ColonizeUnit* after = units_get(&pool, sid);
+      if (damaged != 1 || (after && after->active) || eu.harbor_ships != 1 ||
+          !eu.harbor[0].damaged || eu.harbor[0].royal_gift != (gift != 0)) {
+        fprintf(stderr,
+                "gift damage (%s, gift %d): damaged %d on map %d harbor %d royal_gift %d\n",
+                arm ? "raid" : "naval", gift, damaged, after && after->active, eu.harbor_ships,
+                eu.harbor_ships ? eu.harbor[0].royal_gift : -1);
+        rc = 1;
+      }
+      units_reset_hooks();
+    }
+  }
+  return rc;
+}
+
 /*
  * Naval win against a STACK: DOS's 0ec0 sweep hands every stackmate on the
  * loser tile to 0352, so a won fight must leave none of them untouched.
@@ -3425,6 +3494,7 @@ out:
 static const TestCase k_cases[] = {
   {"unit_village_loot_spawn_failure_silent", unit_village_loot_spawn_failure_silent},
   {"unit_royal_loss_tax_cut", unit_royal_loss_tax_cut},
+  {"unit_damaged_to_europe_keeps_royal_gift", unit_damaged_to_europe_keeps_royal_gift},
   {"unit_combat_music_sting", unit_combat_music_sting},
   {"unit_fort_fire_dissolve_and_europe", unit_fort_fire_dissolve_and_europe},
   {"unit_fort_fire_aims_chain_head", unit_fort_fire_aims_chain_head},
