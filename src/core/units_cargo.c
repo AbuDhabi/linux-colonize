@@ -710,8 +710,11 @@ int units_ship_departure_pickup(
   const bool fixed = !dos_buggy_behavior() && mods_on(MOD_RIDERS_KEEP_SHIP);
   /* FUN_1427_10be raw 8630-8644, the at-sea arm (DOS only; with the fix
    * every hull keeps its riders, so the arm would move no one): a Trade
-   * Route hull off a settlement and off the Europe park runs FUN_1427_101c
-   * (raw 8566-8602) first. Every other hull on the tile, top of the 04d6
+   * Route hull off a settlement and off its Europe slot runs FUN_1427_101c
+   * (raw 8566-8602) first. The slot test is x == nation - 0x14 as a byte
+   * (236+n) only; FUN_137f_03e4 returns -1 for any off-map xy
+   * (FUN_137f_000a bounds), so the arm also runs on the Europe lanes, e.g.
+   * the 224+n landing (FUN_48d3_064e). Every other hull on the tile, top of the 04d6
    * order first, runs its own pickup with the plain budget (DAT_0200
    * re-entry guard, raw 8624-8626 / 8678) and leaves for the -2 chain with
    * what it took (here: x = -1 until the return), so the next hull cannot
@@ -721,8 +724,9 @@ int units_ship_departure_pickup(
    * on the tile, else 0; the hulls come back (040c) before it walks. */
   static bool s_route_prepass;
   bool route_budget = true;
-  if (!fixed && !s_route_prepass && ship->orders == UNITS_ORDER_TRADE_ROUTE &&
-      !units_coords_in_europe_park(x, y) && !(map && map_tile_has_city(map, x, y))) {
+  const bool europe_slot = x == EUROPE_PARK_XY + ship->nation_id;
+  if (!fixed && !s_route_prepass && ship->orders == UNITS_ORDER_TRADE_ROUTE && !europe_slot &&
+      !(map && map_tile_has_city(map, x, y))) {
     s_route_prepass = true;
     int parked[COLONIZE_UNITS_MAX];
     int np = 0;
@@ -829,10 +833,11 @@ int units_ship_departure_pickup(
   }
   int room = units_ship_capacity(pool, ship_id) - goods;
   /* FUN_1427_10be raw 8630-8644: a Trade Route hull (+0x314c == 2) on a
-   * settlement tile (FUN_137f_03e4 >= 0) keeps budget 0, so it takes no one
-   * and its own riders stay ashore. DB-104: fixed with the DB-109 toggle,
-   * the route hull then boards like any other. */
-  if (!fixed && ship->orders == UNITS_ORDER_TRADE_ROUTE && map && map_tile_has_city(map, x, y)) {
+   * settlement tile (FUN_137f_03e4 >= 0) or in its Europe slot keeps budget
+   * 0, so it takes no one and its own riders stay ashore. DB-104: fixed with
+   * the DB-109 toggle, the route hull then boards like any other. */
+  if (!fixed && ship->orders == UNITS_ORDER_TRADE_ROUTE &&
+      (europe_slot || (map && map_tile_has_city(map, x, y)))) {
     room = 0;
   }
   if (!route_budget) {
@@ -961,6 +966,83 @@ int units_ship_departure_pickup(
     }
   }
   return taken;
+}
+
+static void units_lane_move_hull(ColonizeUnitPool* pool, ColonizeUnit* hull, int x, int y) {
+  const int ox = hull->x;
+  const int oy = hull->y;
+  hull->x = x;
+  hull->y = y;
+  units_occupancy_notify_moved(pool, ox, oy, x, y);
+  for (int c = 0; c < hull->cargo_count; ++c) {
+    ColonizeUnit* pax = units_get(pool, hull->cargo_ids[c]);
+    if (pax) {
+      pax->x = x;
+      pax->y = y;
+    }
+  }
+}
+
+void units_lane_arrivals_pickup(
+  ColonizeUnitPool* pool, const ColonizeWorldMap* map, const int* ships, int n, int lane_x,
+  int lane_y
+) {
+  if (!pool || !ships || n < 2 || (!dos_buggy_behavior() && mods_on(MOD_RIDERS_KEEP_SHIP))) {
+    return;
+  }
+  static int home_x[COLONIZE_UNITS_MAX];
+  static int home_y[COLONIZE_UNITS_MAX];
+  static int first_host[COLONIZE_UNITS_MAX]; /* rider id -> hull it crossed on */
+  if (n > COLONIZE_UNITS_MAX) {
+    n = COLONIZE_UNITS_MAX;
+  }
+  /* ships[] is head first: sinking each in turn to the oldest end
+   * (units_tile_stack_sink) leaves ships[0] at the head, where 064e
+   * (07e0 head walk) takes it first. */
+  for (int k = 0; k < n; ++k) {
+    ColonizeUnit* hull = units_get(pool, ships[k]);
+    home_x[k] = hull ? hull->x : -1;
+    home_y[k] = hull ? hull->y : -1;
+    if (!hull) {
+      continue;
+    }
+    for (int c = 0; c < hull->cargo_count; ++c) {
+      if (hull->cargo_ids[c] >= 0 && hull->cargo_ids[c] < COLONIZE_UNITS_MAX) {
+        first_host[hull->cargo_ids[c]] = hull->id;
+      }
+    }
+    units_lane_move_hull(pool, hull, lane_x, lane_y);
+    units_tile_stack_sink(pool, hull->id);
+  }
+  /* 064e: per hull from the chain head, 0920 (10be on the lane) then 048e
+   * places it; here back on the tile it was given. */
+  for (int k = 0; k < n; ++k) {
+    ColonizeUnit* hull = units_get(pool, ships[k]);
+    if (!hull) {
+      continue;
+    }
+    (void)units_ship_departure_pickup(pool, map, hull->id, lane_x, lane_y);
+    units_tile_stack_ship_relink(pool, hull->id, false);
+    units_lane_move_hull(pool, hull, home_x[k], home_y[k]);
+  }
+  /* Every leftover finds room (the hulls it left lost as many riders as it
+   * found), so nothing should stay on the lane; never strand one off the
+   * map: it goes back aboard the hull it crossed on. */
+  for (int i = 0; i < units_slot_end(pool); ++i) {
+    ColonizeUnit* u = &pool->units[i];
+    if (!u->active || units_is_sea(pool, u->id) || u->aboard_ship_id >= 0 || u->x != lane_x ||
+        u->y != lane_y) {
+      continue;
+    }
+    ColonizeUnit* host = units_get(pool, first_host[u->id]);
+    if (host && host->cargo_count < COLONIZE_UNIT_CARGO_MAX) {
+      diag_warn("lane arrival: unit %d left on the lane, back aboard %d", u->id, host->id);
+      u->aboard_ship_id = host->id;
+      u->x = host->x;
+      u->y = host->y;
+      host->cargo_ids[host->cargo_count++] = u->id;
+    }
+  }
 }
 
 bool units_unload_passenger_w(
