@@ -548,17 +548,37 @@ Test: `unit_units_movement` `unit_goto_native_wait_mod`.
 **Status:** done (user-approved toggle, default on).
 
 ### DB-78 — A tax of 128 or more reads as negative
-**DOS:** the nation tax byte (Col1 nation +1) is read as a signed char. A tax of 128 or
-more (the `]`/`[` tax cheat, an edited save) is then negative: the Royal loss cut in
-FUN_5fef_0352 (raw 99680-99686, `min(tax, cut)` with `0 < cut`) cuts nothing, and
-Thomas Paine's statesman bonus in FUN_2f2b_348c (raw 50647) becomes a penalty.
+**DOS:** every reader takes the nation tax byte (Col1 nation +1, DS -0x77f7 + nation *
+0x13c) as a signed char, and the Europe cheat keys `]`/`[` (FUN_38fd_4f6e raw 67581 /
+67597) add or subtract 1 with no clamp, so 127 becomes -128 and 0 becomes -1. A negative
+tax then:
+- pays more than the gross on a harbor sale (FUN_38fd_23c4 / 1dfa raw 60286-60560), the
+  Custom House (FUN_364b_0688 raw 57282) and a de Witt trade (FUN_5f7a_020e raw 98969);
+  a tax of 101..127 takes more than the gross;
+- adds `(65536 + tax * bells) / 100`, up to 655 bells, with Thomas Paine: the colony bell
+  word takes an unsigned 16-bit product (FUN_15eb_1f72 raw 12629, also FUN_129f_0008 /
+  FUN_12fd_006c), while the AI's statesman estimate (FUN_2f2b_348c raw 50647) shrinks;
+- makes the Crown's treasure cut negative with Cortes (FUN_5fef_1908 raw 100196) and on
+  a treasure cashed in Europe (FUN_48d3_06ba raw 77990 caps only above 50);
+- cuts nothing on a Royal unit loss (FUN_5fef_0352 raw 99680-99686, `0 < cut`);
+- escapes the King's 75 cap: FUN_38fd_3dc8 (raw 64180) adds the raise as a byte, so a
+  cheat tax of 125 raised by 5 wraps to -126.
 
-**Port:** every tax reader takes the byte unsigned. The last two signed reads,
-`units_royal_loss_tax_cut` (`units_combat.c`) and the Paine bonus in
-`ai_euro_colony_jobs.c`, read it unsigned too. Normal play keeps the tax below 128, so
-goldens and replays are unchanged and there is no `dos_buggy_behavior()` gate. Tests:
+**Port:** fixed behind the `mods.tax_unsigned` toggle (on by default; off = DOS, and
+always DOS under `dos_buggy_behavior()`). Every reader goes through `europe_tax_byte`
+(`europe_harbor.c`), signed unless the toggle is on; the 0..100 clamps on the cheat keys
+(port_bugs.md #1169), `europe_net_after_tax`, the 1dfa trade ledger
+(`europe_apply_trade_volume`), the Custom House and the King's tax change, and the 0
+floor on the Cortes cut, apply only with the toggle on. `europe_sell_hold` returns the
+negative proceeds of a DOS tax of 101..127 (0 only on a boycott refusal). The save
+bridge writes the byte back as is (it used to clamp to 0..99). The Paine bell composer
+takes the DOS 16-bit product for a negative tax (`colony_prod_colony_bells_ff`). Normal
+play keeps the tax at 0..75, so goldens and replays are unchanged. Tests:
 `unit_units_combat` `unit_royal_loss_tax_cut`, `unit_ai_euro_5952_indoor`
-`paine_bonus_reads_tax_unsigned`.
+`paine_bonus_tax_byte`, `unit_europe` `case_europe_tax_byte_signed` and
+`case_europe_workflow` (cheat keys, sale at tax 120, ledger at byte 246), `unit_colonies` `unit_foreign_colony_trade`,
+`unit_units_ships` (Cortes share), `unit_founding_fathers` (Paine bells at -10),
+`unit_ai_king_core` (King's rise 125 + 5).
 **Status:** done.
 
 ### DB-79 — A finished Warehouse Expansion left selected eats 20 tools a turn

@@ -16,6 +16,7 @@
 #include "core/europe_internal.h"
 #include "core/founding_fathers.h"
 #include "core/map.h"
+#include "core/dos_buggy.h"
 #include "core/mods.h"
 #include "core/pioneer_plan.h"
 #include "core/runtime_ext.h"
@@ -2323,6 +2324,40 @@ static bool test_blank_census_counts_europe_side(char* err, size_t err_size) {
   return ok;
 }
 
+/* dos_bugs.md DB-78: the human's tax byte loads into the Europe mirror signed
+ * (200 -> -56) or, with mods.tax_unsigned, unsigned, and the capture writes the
+ * same byte back in both modes (it used to clamp to 0..99). */
+static bool test_tax_byte_round_trip(char* err, size_t err_size) {
+  for (int fixed = 0; fixed < 2; ++fixed) {
+    static ColonizeCol1Save save;
+    col1_save_init(&save);
+    save.head.human_player = 0;
+    save.player[0].control = 0;
+    save.nation[0].tax_rate = 200;
+    static EuropeScreen eu;
+    memset(&eu, 0, sizeof(eu));
+    const uint32_t mods_saved = mods_campaign_mask();
+    dos_buggy_behavior_set(!fixed);
+    mods_campaign_set(fixed ? mods_saved | 1u << MOD_TAX_UNSIGNED : mods_saved);
+    Col1ApplyCtx a = {.save = &save, .europe = &eu, .err = err, .err_size = err_size};
+    a.local.human_nation = 0;
+    col1_bridge_apply_europe_nation(&a);
+    const int mirror = eu.tax_percent;
+    save.nation[0].tax_rate = 0;
+    Col1CaptureCtx c = {.save = &save, .europe = &eu, .err = err, .err_size = err_size,
+                        .human_nation = 0};
+    col1_bridge_capture_nation_europe(&c);
+    mods_campaign_set(mods_saved);
+    dos_buggy_behavior_set(true);
+    if (mirror != (fixed ? 200 : -56) || save.nation[0].tax_rate != 200) {
+      snprintf(err, err_size, "%s: mirror %d byte %u (want %d 200)", fixed ? "fixed" : "DOS",
+               mirror, (unsigned)save.nation[0].tax_rate, fixed ? 200 : -56);
+      return false;
+    }
+  }
+  return true;
+}
+
 static bool test_imported_tile_chain_order(char* err, size_t err_size) {
   ColonizeCol1Save save;
   col1_save_init(&save);
@@ -2542,6 +2577,10 @@ int main(void) {
   fprintf(stderr, "Col1 bridge apply/capture stage seams ok\n");
   if (!test_blank_census_counts_europe_side(err, sizeof(err))) {
     fprintf(stderr, "blank census europe: %s\n", err);
+    return 1;
+  }
+  if (!test_tax_byte_round_trip(err, sizeof(err))) {
+    fprintf(stderr, "tax byte round trip: %s\n", err);
     return 1;
   }
   if (!test_imported_tile_chain_order(err, sizeof(err))) {

@@ -2557,6 +2557,11 @@ int main(void) {
     if (bells_paine != 8) {
       return fail("Paine tax% bells");
     }
+    /* DB-78: a negative (signed DOS) tax goes through raw 12629's unsigned
+     * 16-bit product: 7 + (65526 * 7 & 0xffff) / 100 = 7 + 654. */
+    if (colony_prod_colony_bells_ff(&pool, col, 0, -10, false, 0) != 661) {
+      return fail("Paine at tax -10: DOS 16-bit product");
+    }
     /* Both: Jefferson then media(none) then Paine: 10 × 120/100 = 12. */
     const int bells_both = colony_prod_colony_bells_ff(&pool, col, 50, 20, false, 0);
     if (bells_both != 12) {

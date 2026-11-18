@@ -2172,13 +2172,18 @@ static void unit_tax_hook(void* user, int nation_id, int new_tax) {
   s_tax_hook_value = new_tax;
 }
 static int unit_royal_loss_tax_cut(void) {
-  static const struct { const char* name; int tax; int want_cut; int want_hook; } k[] = {
-    {"Caravel", 30, 4, 1},   {"Merchantman", 30, 6, 1}, {"Galleon", 30, 3, 1},
-    {"Privateer", 30, 8, 1}, {"Frigate", 30, 0, 0},     {"Artillery", 30, 0, 0},
-    {"Caravel", 3, 3, 1},    {"Caravel", 0, 0, 0},
-    {"Caravel", 200, 4, 1}, /* dos_bugs.md DB-78: read unsigned, DOS cuts nothing */
+  /* dos_bugs.md DB-78: DOS reads tax 200 as -56 and cuts nothing;
+   * mods.tax_unsigned (`fixed`) reads it unsigned and cuts. */
+  static const struct { const char* name; int tax; int want_cut; int want_hook; bool fixed; } k[] = {
+    {"Caravel", 30, 4, 1, false},   {"Merchantman", 30, 6, 1, false},
+    {"Galleon", 30, 3, 1, false},   {"Privateer", 30, 8, 1, false},
+    {"Frigate", 30, 0, 0, false},   {"Artillery", 30, 0, 0, false},
+    {"Caravel", 3, 3, 1, false},    {"Caravel", 0, 0, 0, false},
+    {"Caravel", 200, 0, 0, false},  {"Caravel", 200, 4, 1, true},
   };
   for (size_t i = 0; i < sizeof(k) / sizeof(k[0]); ++i) {
+    dos_buggy_behavior_set(!k[i].fixed);
+    mods_campaign_set(k[i].fixed ? 1u << MOD_TAX_UNSIGNED : 0u);
     ColonizeUnitPool pool;
     memset(&pool, 0, sizeof(pool));
     pool.type_count = 1;
@@ -2196,6 +2201,8 @@ static int unit_royal_loss_tax_cut(void) {
     s_tax_hook_nation = -1;
     s_tax_hook_value = -1;
     const int cut = units_royal_loss_tax_cut(&c1, &pool, &u);
+    dos_buggy_behavior_set(true);
+    mods_campaign_set(0u);
     const int want_tax = k[i].tax - k[i].want_cut;
     if (cut != k[i].want_cut || (int)c1.nation[1].tax_rate != want_tax ||
         (k[i].want_hook && (s_tax_hook_nation != 1 || s_tax_hook_value != want_tax)) ||

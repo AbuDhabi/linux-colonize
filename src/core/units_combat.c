@@ -4237,18 +4237,18 @@ int units_royal_loss_tax_cut(
   }
   const int row_cut = mercy ? k_cut_byte[k] : k_cut_byte[i];
   ColonizeCol1Nation* nat = &col1->nation[nation];
-  /* DOS reads the tax as a signed char, so a tax of 128 or more (the ]/[ cheat,
-   * an edited save) cuts nothing. Read it unsigned, like every other port reader. */
-  int cut = (int)nat->tax_rate;
+  /* raw 99680: signed char tax, so 128 or more (the ]/[ cheat, an edited
+   * save) cuts nothing (DB-78; unsigned with mods.tax_unsigned). */
+  int cut = europe_tax_byte(nat->tax_rate);
   if (row_cut < cut) {
     cut = row_cut;
   }
   if (cut <= 0) {
     return 0;
   }
-  nat->tax_rate = (uint8_t)((int)nat->tax_rate - cut);
+  nat->tax_rate = (uint8_t)(europe_tax_byte(nat->tax_rate) - cut);
   if (g_units_tax_change) {
-    g_units_tax_change(g_units_tax_change_user, nation, (int)nat->tax_rate);
+    g_units_tax_change(g_units_tax_change_user, nation, europe_tax_byte(nat->tax_rate));
   }
   if (mercy && g_units_combat_popups && g_units_combat_game_txt &&
       nation == col1_save_human_nation(col1)) {
@@ -4260,7 +4260,7 @@ int units_royal_loss_tax_cut(
     tok.string2 = pool->types[lose->type_index].name;
     tok.number0 = cut;
     tok.has_number0 = true;
-    tok.number1 = (int)nat->tax_rate;
+    tok.number1 = europe_tax_byte(nat->tax_rate);
     tok.has_number1 = true;
     char body[AI_POPUP_BODY_LEN];
     popup_msg_fill(g_units_combat_game_txt, "KINGMERCY", &tok, "", body, sizeof(body));

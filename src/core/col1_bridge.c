@@ -2440,7 +2440,7 @@ COLONIZE_INTERNAL void col1_bridge_apply_europe_nation(Col1ApplyCtx* ctx) {
       europe->last_exit_valid = true;
     }
     europe->gold = (int)nat->gold;
-    europe->tax_percent = nat->tax_rate;
+    europe->tax_percent = europe_tax_byte(nat->tax_rate);
     europe->difficulty = save->head.difficulty > 8 ? 8 : save->head.difficulty;
     /* 0xFFFF is the fingerprint of the removed Euro-war all-cargo embargo
      * stand-in (port_bugs.md all_boycotted.SAV). DOS boycotts are king tea-party,
@@ -3041,7 +3041,8 @@ COLONIZE_INTERNAL void col1_bridge_capture_nation_europe(Col1CaptureCtx* ctx) {
   if (europe && col1_all_ai_fixed_nation(save) < 0) {
     ColonizeCol1Nation* nat = &save->nation[human_nation];
     nat->gold = (uint32_t)(europe->gold < 0 ? 0 : europe->gold);
-    nat->tax_rate = (uint8_t)(europe->tax_percent < 0 ? 0 : (europe->tax_percent > 99 ? 99 : europe->tax_percent));
+    /* The byte round-trips: a signed DOS tax (DB-78) or an unsigned one. */
+    nat->tax_rate = (uint8_t)europe->tax_percent;
     nat->artillery_count =
       (uint16_t)(europe->artillery_bought < 0 ? 0 : europe->artillery_bought);
     nat->recruit_count = europe->recruit_count > 180 ? 180 : europe->recruit_count;
