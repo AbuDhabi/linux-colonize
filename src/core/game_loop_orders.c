@@ -1259,6 +1259,11 @@ void game_reveal_sight_for_unit(ColonizeGameState* game, const ColonizeUnit* u) 
   }
 }
 
+static void game_after_unit_tail_post_lcr(
+  ColonizeGameState* game, ColonizeUnit* u, ColonizeUnit* mover, bool stepped,
+  bool lcr_count_changed, bool landho_scan, int landho_x, int landho_y
+);
+
 /* After spending moves: keep unit, advance to next with moves, or tile-select.
  * `stepped`: the selected unit's action was a committed step (see
  * game_after_unit_step). */
@@ -1335,9 +1340,7 @@ static void game_after_unit_tail(ColonizeGameState* game, bool stepped) {
    * Cibola, treasure, burial mounds, …); de Soto keeps outcomes positive.
    * FUN_465b_0000 raw 75450 / 75792: an LCR that changed the unit count
    * (DS:0x539c) jumps to LAB_465b_0bd1, so none of the FUN_5bfb_3180 contact
-   * work below runs on this move. The burial search waits behind the
-   * player's answer, so its outcome has not changed the count yet
-   * (docs/known_divergences.md). */
+   * work below runs on this move. */
   bool lcr_count_changed = false;
   /* The step read FUN_281f_075e before its arrival stamp (raw 75764). */
   if (units_take_rumour_step(u->id) && game->world_map_ok && units_is_on_map(u)) {
@@ -1349,6 +1352,18 @@ static void game_after_unit_tail(ColonizeGameState* game, bool stepped) {
       &game->ai_popups, AI_POPUP_TAG_FOUNTAIN_YOUTH, -1, AI_POPUP_KEY_ANY, 0, 0
     );
     (void)units_resolve_lcr_rumour_w(&w, u->id, game->human_nation);
+    /* DOS asks @LOSTCITY4 modally inside FUN_65dd_0004 (65dd:04eb), and a
+     * "search" pays out (claim, gold dice, a Treasure via FUN_281f_095c,
+     * raw 103653-103715) before the raw-75792 count test. The port's question
+     * is queued, so the rest of this tail waits for the answer
+     * (game_burial_tail_resume). A rumour step is never a board step, so the
+     * mover is u and the Land Ho scan is u's own tile. */
+    if (ai_popup_pending(&game->ai_popups, AI_POPUP_TAG_LCR_BURIAL, -1, AI_POPUP_KEY_ANY, 0, 0)) {
+      game->burial_tail_unit_plus1 = u->id + 1;
+      game->burial_tail_units_before = units_before;
+      game->burial_tail_stepped = stepped;
+      return;
+    }
     lcr_count_changed = units_active_count(&game->units) != units_before;
     /* Fountain of Youth: DOS's eight FUN_291f_0d2c picks (raw 103729-103731)
      * create dock records through FUN_38fd_0718 -> FUN_281f_095c inside the
@@ -1372,10 +1387,17 @@ static void game_after_unit_tail(ColonizeGameState* game, bool stepped) {
       return;
     }
   }
+  game_after_unit_tail_post_lcr(game, u, mover, stepped, lcr_count_changed, landho_scan, landho_x, landho_y);
+}
+
+/* FUN_465b_0000 from the raw-75792 count test on, then the FUN_4720_049e
+ * Land Ho scan and the unit hand-off. */
+static void game_after_unit_tail_post_lcr(
+  ColonizeGameState* game, ColonizeUnit* u, ColonizeUnit* mover, bool stepped,
+  bool lcr_count_changed, bool landho_scan, int landho_x, int landho_y
+) {
   /* The step's 3180 sentry wake, held back by units_move_finish until the LCR
-   * above has run; a count change skips it (raw 75792). Same gap as the 3180
-   * arm below: a burial search's outcome has not changed the count yet, so
-   * the wake runs where DOS may skip it. */
+   * has run; a count change skips it (raw 75792). */
   units_465b_deferred_wake(
     &game->units, game->world_map_ok ? &game->world_map : NULL,
     game->colonies_ok ? &game->colonies : NULL, u->id, !lcr_count_changed
@@ -1429,6 +1451,24 @@ static void game_after_unit_tail(ColonizeGameState* game, bool stepped) {
     return;
   }
   game_no_unit_left(game, exhausted_x, exhausted_y);
+}
+
+void game_burial_tail_resume(ColonizeGameState* game, int lcr_x, int lcr_y) {
+  if (!game || game->burial_tail_unit_plus1 <= 0) {
+    return;
+  }
+  ColonizeUnit* u = units_get(&game->units, game->burial_tail_unit_plus1 - 1);
+  game->burial_tail_unit_plus1 = 0;
+  if (!u || !u->active || u->x != lcr_x || u->y != lcr_y) {
+    g_units_wake_deferred_id = -1;
+    game_after_unit_action(game);
+    return;
+  }
+  const bool stepped = game->burial_tail_stepped;
+  const bool count_changed = units_active_count(&game->units) != game->burial_tail_units_before;
+  game_after_unit_tail_post_lcr(
+    game, u, u, stepped, count_changed, stepped && u->nation_id == game->human_nation, u->x, u->y
+  );
 }
 
 void game_after_unit_action(ColonizeGameState* game) {

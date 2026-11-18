@@ -1337,6 +1337,162 @@ static int test_human_lcr_count_change_skips_contact(void) {
   return rc;
 }
 
+/* One explorer step from (3,4) onto the rumour at (3,3), a sentried Dutch unit
+ * at (2,3). Returns the queued @LOSTCITY4 request's payload, or -1 when this
+ * seed's roll is not the burial question. */
+static int burial_step(ColonizeGameState* game, int seed, int* uid, int* dutch_id, int* skill) {
+  for (int i = 0; i < units_slot_end(&game->units); ++i) {
+    if (game->units.units[i].active) {
+      units_despawn(&game->units, game->units.units[i].id);
+    }
+  }
+  game->world_map.layer2[3 * 8 + 3] &= (uint8_t)~MAP_LAYER2_LCR_CONSUMED;
+  game->world_map.layer3[3 * 8 + 3] |= 0xf0u;
+  game->col1.player[0].lcr_case5_bonus_used = 0;
+  units_lcr_counters_import((const uint8_t[2]){0, 0});
+  ai_popup_init(&game->ai_popups);
+  game->burial_tail_unit_plus1 = 0;
+  ColonizeUnit* u = units_get(&game->units, units_spawn(&game->units, 0, 3, 4));
+  ColonizeUnit* dutch = units_get(&game->units, units_spawn_allow_stack(&game->units, 0, 2, 3));
+  if (!u || !dutch) {
+    return -1;
+  }
+  u->nation_id = 0;
+  u->moves = 6;
+  dutch->nation_id = 1;
+  dutch->last_dir = -1;
+  dutch->orders = UNITS_ORDER_SENTRY;
+  *uid = u->id;
+  *dutch_id = dutch->id;
+  game->units.selected_id = u->id;
+  game->col1.head.turn = 1;
+  ai_diplo_talk_reset();
+  ai_diplo_write(&game->col1, 0, 1, 0);
+  ai_diplo_write(&game->col1, 1, 0, 0);
+  dos_rng_set_83a6((int32_t)seed * 12345);
+  dos_rng_seed(&game->move_rng, (uint32_t)seed * 12345u);
+  (void)game_try_unit_move(game, 3, 3);
+  for (int q = 0; q < game->ai_popups.queue_count; ++q) {
+    if (game->ai_popups.queue[q].tag == AI_POPUP_TAG_LCR_BURIAL) {
+      *skill = game->ai_popups.queue[q].nation_b;
+      return game->ai_popups.queue[q].payload;
+    }
+  }
+  return -1;
+}
+
+/* FUN_65dd_0004 asks @LOSTCITY4 modally (65dd:04eb) and a search pays out
+ * (raw 103653-103715) before FUN_465b_0000's count test at raw 75792, so the
+ * 3180 contact work (raw 75794-75797) and its sentry wake wait for the answer:
+ * a search that spawned a Treasure skips them; a search that left the count
+ * alone, "stay clear" and Esc run them. */
+static int test_human_burial_answer_gates_move_tail(void) {
+  ColonizeGameState game;
+  memset(&game, 0, sizeof(game));
+  if (!fx_map_alloc(&game.world_map, 8, 8, /*terrain_fill=*/2, /*with_seen=*/true)) {
+    return fail("burial map alloc");
+  }
+  if (!assets_msg_load_file(&game.messages, "COLONIZE/GAME.TXT")) {
+    fx_map_free(&game.world_map);
+    fprintf(stderr, "SKIP burial: COLONIZE/GAME.TXT not present (no @LOSTCITY4 question)\n");
+    return TR_SKIP;
+  }
+  game.world_map_ok = true;
+  game.human_nation = 0;
+  game.col1_ok = true;
+  fx_units_init(&game.units);
+  game.units_ok = true;
+  game.units.type_count = 2;
+  game.units.types[0].kind_plus1 = UNITS_KIND_COLONIST + 1;
+  game.units.types[0].movement = 2;
+  game.units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  game.units.types[1].kind_plus1 = UNITS_KIND_TREASURE + 1;
+  game.units.types[1].movement = 1;
+  game.units.types[1].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  fx_colonies_init(&game.colonies);
+  game.colonies_ok = true;
+  units_set_occupancy_map(&game.world_map);
+  colonies_set_occupancy_map(&game.world_map);
+  game.col1.player[0].named_new_world = 1;
+  for (int n = 1; n < 4; ++n) {
+    game.col1.player[n].control = 1;
+  }
+  game.world_map.layer3[3 * 8 + 3] = 0xf0u;
+  for (uint16_t s = 1; s < 512 && !map_tile_has_rumour(&game.world_map, 3, 3); ++s) {
+    game.world_map.prime_resource_seed = s;
+  }
+  uint8_t saved_lcr_counters[2];
+  units_lcr_counters_export(saved_lcr_counters);
+  const int32_t saved_83a6 = dos_rng_get_83a6();
+  int rc = map_tile_has_rumour(&game.world_map, 3, 3) ? 0 : fail("burial: no rumour at (3,3)");
+  int uid = -1;
+  int dutch_id = -1;
+  int skill = 0;
+  int seed = 1;
+  while (rc == 0 && seed < 2000 && burial_step(&game, seed, &uid, &dutch_id, &skill) < 0) {
+    ++seed;
+  }
+  if (rc == 0 && seed >= 2000) {
+    rc = fail("burial: no seed rolled the burial question");
+  }
+  /* choice 1 = search, 2 = stay clear; gate 99 = BURIAL3 Treasure, 0 = BURIAL1. */
+  static const struct {
+    int choice;
+    bool cancelled;
+    int gate;
+    bool tail_runs;
+    const char* what;
+  } k_answers[] = {
+    {1, false, 99, false, "search, Treasure"},
+    {1, false, 0, true, "search, empty mounds"},
+    {2, false, 99, true, "stay clear"},
+    {1, true, 99, true, "Esc"},
+  };
+  for (size_t a = 0; rc == 0 && a < sizeof(k_answers) / sizeof(k_answers[0]); ++a) {
+    const int payload = burial_step(&game, seed, &uid, &dutch_id, &skill);
+    const ColonizeUnit* dutch = units_get_const(&game.units, dutch_id);
+    if (payload < 0 || !dutch) {
+      rc = fail("burial: seed did not repeat");
+      break;
+    }
+    if (dutch->orders != UNITS_ORDER_SENTRY || dutch->last_dir >= 0 ||
+        (ai_diplo_read(&game.col1, 0, 1) & COL1_INDIAN_MET_BIT) != 0) {
+      fprintf(stderr, "burial: 3180 ran before the @LOSTCITY4 answer (%s)\n", k_answers[a].what);
+      rc = 1;
+      break;
+    }
+    const int before = units_active_count(&game.units);
+    game.ai_popups.queue_count = 0;
+    game.ai_popups.has_result = true;
+    game.ai_popups.result_tag = AI_POPUP_TAG_LCR_BURIAL;
+    game.ai_popups.result_cancelled = k_answers[a].cancelled;
+    game.ai_popups.result_choice_id = k_answers[a].choice;
+    game.ai_popups.result_nation_a = 0;
+    game.ai_popups.result_nation_b = skill;
+    game.ai_popups.result_payload = (payload & 0xffff) | (k_answers[a].gate << 16);
+    game_apply_ai_popup_result(&game);
+    dutch = units_get_const(&game.units, dutch_id);
+    const bool changed = units_active_count(&game.units) != before;
+    const bool woke = dutch && dutch->orders != UNITS_ORDER_SENTRY;
+    const bool faced = dutch && dutch->last_dir >= 0;
+    const bool met = (ai_diplo_read(&game.col1, 0, 1) & COL1_INDIAN_MET_BIT) != 0;
+    if (changed == k_answers[a].tail_runs || woke != k_answers[a].tail_runs ||
+        faced != k_answers[a].tail_runs || met != k_answers[a].tail_runs ||
+        game.burial_tail_unit_plus1 != 0) {
+      fprintf(stderr, "burial %s: changed %d woke %d faced %d met %d parked %d\n",
+              k_answers[a].what, changed, woke, faced, met, game.burial_tail_unit_plus1);
+      rc = 1;
+    }
+  }
+  dos_rng_set_83a6(saved_83a6);
+  units_lcr_counters_import(saved_lcr_counters);
+  colonies_set_occupancy_map(NULL);
+  units_set_occupancy_map(NULL);
+  assets_msg_free(&game.messages);
+  fx_map_free(&game.world_map);
+  return rc;
+}
+
 /* Step-tail fixture: land everywhere but the ocean column x=2 rows 3..4; an
  * unmet village at (4,3); an AI French unit at (3,2) facing -1. Type 0 =
  * colonist, type 1 = caravel. A FUN_5bfb_3180 run from (3,3) stamps the
@@ -7048,6 +7204,7 @@ static const TestCase k_cases[] = {
     {"test_trade_route_begin_moves_wagon_to_selected_stop", test_trade_route_begin_moves_wagon_to_selected_stop},
     {"test_goto_treasure_gets_king_galleon_offer", test_goto_treasure_gets_king_galleon_offer},
     {"test_human_lcr_count_change_skips_contact", test_human_lcr_count_change_skips_contact},
+    {"test_human_burial_answer_gates_move_tail", test_human_burial_answer_gates_move_tail},
     {"test_map_o_key_does_not_board", test_map_o_key_does_not_board},
     {"test_map_enter_and_h_keys", test_map_enter_and_h_keys},
     {"test_europe_command_set_europe", test_europe_command_set_europe},

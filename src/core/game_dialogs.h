@@ -174,6 +174,13 @@ struct ColonizeGameState {
   bool landho_deferred;
   int landho_x;
   int landho_y;
+  /* The FUN_465b_0000 tail of a step whose LCR queued the @LOSTCITY4 burial
+   * question: DOS pays out before its raw-75792 count test, so the tail
+   * waits for the answer (game_burial_tail_resume). Unit id + 1 (0 = none),
+   * the live unit count before the LCR and the tail's `stepped`. */
+  int burial_tail_unit_plus1;
+  int burial_tail_units_before;
+  bool burial_tail_stepped;
   /*
    * DOS DS:0x97b0: set when Move Pieces hands the player a unit awaiting
    * orders (FUN_2b5a_3802 raw 46235-46236), zeroed at the Move Pieces entry
@@ -546,6 +553,10 @@ void game_after_unit_action(ColonizeGameState* game);
  * disembark, landfall, boarding, docking and sea-lane steps; never combat,
  * village or colony entries (LAB_465b_0bd1). */
 void game_after_unit_step(ColonizeGameState* game);
+/* After the @LOSTCITY4 answer (search, stay clear or Esc) for the rumour at
+ * lcr_x/lcr_y: runs the parked step tail, skipping the 3180 work when the
+ * payout changed the unit count (FUN_465b_0000 raw 75792). */
+void game_burial_tail_resume(ColonizeGameState* game, int lcr_x, int lcr_y);
 
 /* Foreign-colony trade (FUN_5f7a_020e) — docs/foreign_colony_trade.md. */
 bool game_foreign_trade_open(

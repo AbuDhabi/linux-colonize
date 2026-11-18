@@ -3842,11 +3842,13 @@ static bool game_apply_popup_combat_and_gifts(ColonizeGameState* game) {
   }
   if (game->ai_popups.result_tag == AI_POPUP_TAG_LCR_BURIAL) {
     const ColonizeWorld w = game_world(game);
+    const int payload = game->ai_popups.result_payload;
     (void)units_lcr_burial_apply_popup_w(
       &w,
       &game->ai_popups, game->human_nation
     );
     ai_popup_consume_result(&game->ai_popups);
+    game_burial_tail_resume(game, payload & 0xff, (payload >> 8) & 0xff);
   return true;
   }
   if (game->ai_popups.result_tag == AI_POPUP_TAG_FOUNTAIN_YOUTH) {
