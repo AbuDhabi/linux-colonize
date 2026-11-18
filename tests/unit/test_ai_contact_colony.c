@@ -1351,9 +1351,67 @@ done:
   return rc;
 }
 
+static int tribute_stock_total(const ColonizeColony* c) {
+  int sum = 0;
+  for (int g = 0; g < COLONIZE_CARGO_COUNT; ++g) {
+    sum += c->stock[g];
+  }
+  return sum;
+}
+
+/*
+ * The win arm of thunk_FUN_1000_a5f4: an own colony on the unit's continent
+ * and rand(0,indian) < rand(0,euro) (euro 24, indian 0 here). The village
+ * latches tribute_paid (+3 bit 0x10), at least 10 of its top bid[] good go into
+ * the colony, and alarm rises (bump x2). A second demand at the same village
+ * finds the latch set and takes @EXTORTPOOR: no goods, no alarm.
+ */
+static int test_demand_tribute_win_extortstuff(void) {
+  TributeFixture f;
+  int rc = 1;
+  if (!tribute_fixture(&f, true)) {
+    fail("tribute win: alloc");
+    goto done;
+  }
+  ColonizeColony* col = &s_tribute_colonies.colonies[0];
+  col->active = true;
+  col->id = 1;
+  col->nation_id = 0;
+  col->x = 3;
+  col->y = 5;
+  col->population = 1;
+  s_tribute_colonies.colony_count = 1;
+  ColonizeUnit* sol = tribute_spawn(0, 6, 5);
+  if (!sol) {
+    fail("tribute win: spawn soldier");
+    goto done;
+  }
+  census_euro_and_tribe(&f.ctx, 0, 4);
+  const int alarm0 = ai_diplo_indian_alarm(&f.col1, 4, 0);
+  ai_contact_demand_tribute(&f.ctx, 0, 4, sol, &f.col1.tribe[0]);
+  const int got = tribute_stock_total(col);
+  const int alarm1 = ai_diplo_indian_alarm(&f.col1, 4, 0);
+  if (!f.col1.tribe[0].state.tribute_paid || got < 10 || alarm1 <= alarm0) {
+    fprintf(stderr, "tribute win: paid %d stock %d alarm %d -> %d\n",
+            (int)f.col1.tribe[0].state.tribute_paid, got, alarm0, alarm1);
+    fail("tribute win: @EXTORTSTUFF must latch the village, stock the colony and raise alarm");
+    goto done;
+  }
+  ai_contact_demand_tribute(&f.ctx, 0, 4, sol, &f.col1.tribe[0]);
+  if (tribute_stock_total(col) != got || ai_diplo_indian_alarm(&f.col1, 4, 0) != alarm1) {
+    fail("tribute win: a village that already paid answers @EXTORTPOOR (no goods, no alarm)");
+    goto done;
+  }
+  rc = 0;
+done:
+  tribute_fixture_free(&f);
+  return rc;
+}
+
 static const TestCase k_cases[] = {
     {"test_demand_tribute_reads_census", test_demand_tribute_reads_census},
     {"test_demand_tribute_indian_side", test_demand_tribute_indian_side},
+    {"test_demand_tribute_win_extortstuff", test_demand_tribute_win_extortstuff},
     {"test_found_claim_stamp_1ba8", test_found_claim_stamp_1ba8},
     {"test_colony_tick_war_5952", test_colony_tick_war_5952},
     {"test_land_work_alarm_6582", test_land_work_alarm_6582},
