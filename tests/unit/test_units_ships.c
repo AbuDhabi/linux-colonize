@@ -114,6 +114,42 @@ static int unit_spawn_room_dos_gates(void) {
   return 0;
 }
 
+/* The Fountain of Youth count test (game_loop_orders.c) asks the same
+ * FUN_1427_06b4 gates (raw 7719-7720) without the @TOOMANYUNITS popup
+ * (asm 0x6e85): a human at census 201 or at 300 records is refused, quietly. */
+static int unit_spawn_room_quiet_refuses_without_popup(void) {
+  ColonizeUnitPool pool;
+  memset(&pool, 0, sizeof(pool));
+  for (int i = 0; i < 0x124; ++i) {
+    pool.units[i].active = true;
+    pool.units[i].id = pool.next_id++;
+  }
+  units_pool_sync(&pool);
+  units_set_spawn_gate_hook(test_gate_inputs, NULL);
+  units_set_spawn_refused_hook(test_gate_refused);
+  g_gate_refused = 0;
+  g_gate_human = true;
+  g_gate_census = 0xc8;
+  const bool census_200 = units_spawn_room_quiet(&pool, 1);
+  g_gate_census = 0xc9;
+  const bool census_201 = units_spawn_room_quiet(&pool, 1);
+  g_gate_census = 0;
+  for (int i = 0x124; i < 300; ++i) {
+    pool.units[i].active = true;
+    pool.units[i].id = pool.next_id++;
+  }
+  units_pool_sync(&pool);
+  const bool human_300 = units_spawn_room_quiet(&pool, 1);
+  units_set_spawn_refused_hook(NULL);
+  units_set_spawn_gate_hook(NULL, NULL);
+  if (!census_200 || census_201 || human_300 || g_gate_refused != 0) {
+    fprintf(stderr, "quiet 06b4 gates: c200=%d c201=%d h300=%d refused=%d\n", census_200,
+            census_201, human_300, g_gate_refused);
+    return 1;
+  }
+  return 0;
+}
+
 static void capture_refit_sound(int id) {
   g_refit_sound_id = id;
   g_refit_sound_calls++;
@@ -1410,6 +1446,7 @@ static const TestCase k_cases[] = {
   {"unit_own_colony_dock_ignores_squatter", unit_own_colony_dock_ignores_squatter},
   {"unit_europe_arrival_reveals", unit_europe_arrival_reveals},
   {"unit_spawn_room_dos_gates", unit_spawn_room_dos_gates},
+  {"unit_spawn_room_quiet_refuses_without_popup", unit_spawn_room_quiet_refuses_without_popup},
   {"unit_hs_fallback_skips_map_rim", unit_hs_fallback_skips_map_rim},
   {"unit_hs_ring_skips_map_rim", unit_hs_ring_skips_map_rim},
   {"unit_tb2_departure_own_riders_only", unit_tb2_departure_own_riders_only},

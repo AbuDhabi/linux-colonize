@@ -57,11 +57,41 @@ static inline const ColonizeMsgCatalog* test_menu_txt(void) {
   return state == 1 ? &cat : NULL;
 }
 
-/* Longest token-free run (no %TOKEN, {markup}, caret or quote) found on any
- * content line of the section, copied to out. False if none is >= 8 chars. */
-static inline bool test_section_needle(const char* section, char* out, size_t out_size) {
+/* GAME.TXT @section, or NULL. */
+static inline const ColonizeMsgSection* test_game_section(const char* section) {
   const ColonizeMsgCatalog* cat = test_game_txt();
-  const ColonizeMsgSection* sec = cat ? assets_msg_find(cat, section) : NULL;
+  return cat ? assets_msg_find(cat, section) : NULL;
+}
+
+/* Next token-free run (no %TOKEN, {markup}, caret or quote) of a catalog line,
+ * starting at *pos: sets *run / *len and moves *pos past it. False at the end. */
+static inline bool test_line_next_run(const char* line, size_t* pos, const char** run, size_t* len) {
+  const size_t n = strlen(line);
+  if (*pos > n) {
+    return false;
+  }
+  size_t k = *pos;
+  while (line[k] && line[k] != '%' && line[k] != '{' && line[k] != '}' && line[k] != '^' &&
+         line[k] != '"') {
+    k++;
+  }
+  *run = line + *pos;
+  *len = k - *pos;
+  size_t next = k + 1;
+  if (line[k] == '%') { /* a %TOKEN runs to the next non-identifier char */
+    while (line[next] == '$' || (line[next] >= 'A' && line[next] <= 'Z') ||
+           (line[next] >= '0' && line[next] <= '9')) {
+      next++;
+    }
+  }
+  *pos = next;
+  return true;
+}
+
+/* Longest token-free run found on any content line of the section, copied to
+ * out. False if none is >= 8 chars. */
+static inline bool test_section_needle(const char* section, char* out, size_t out_size) {
+  const ColonizeMsgSection* sec = test_game_section(section);
   if (!sec || !out || out_size == 0) {
     return false;
   }
@@ -72,23 +102,13 @@ static inline bool test_section_needle(const char* section, char* out, size_t ou
     if (!line[0] || line[0] == '@') {
       continue;
     }
-    size_t start = 0;
-    const size_t n = strlen(line);
-    for (size_t k = 0; k <= n; ++k) {
-      const char c = line[k];
-      if (c == '\0' || c == '%' || c == '{' || c == '}' || c == '^' || c == '"') {
-        if (k - start > best_len) {
-          best_ptr = line + start;
-          best_len = k - start;
-        }
-        start = k + 1;
-        if (c == '%') { /* a %TOKEN runs to the next non-identifier char */
-          while (line[start] == '$' || (line[start] >= 'A' && line[start] <= 'Z') ||
-                 (line[start] >= '0' && line[start] <= '9')) {
-            start++;
-          }
-          k = start - 1;
-        }
+    size_t pos = 0;
+    const char* run;
+    size_t len;
+    while (test_line_next_run(line, &pos, &run, &len)) {
+      if (len > best_len) {
+        best_ptr = run;
+        best_len = len;
       }
     }
   }
@@ -103,11 +123,55 @@ static inline bool test_section_needle(const char* section, char* out, size_t ou
   return true;
 }
 
+/* For a section with no 8-char run (@SHIPSUNK: four tokens between three short
+ * runs): true when every non-blank run of one content line appears in body in
+ * order, and those runs total at least 8 chars. */
+static inline bool test_body_has_line_runs(const char* body, const ColonizeMsgSection* sec) {
+  for (int i = 0; i < sec->line_count; ++i) {
+    const char* line = sec->lines[i];
+    if (!line[0] || line[0] == '@') {
+      continue;
+    }
+    const char* at = body;
+    size_t total = 0;
+    size_t pos = 0;
+    const char* run;
+    size_t len;
+    while (at && test_line_next_run(line, &pos, &run, &len)) {
+      if (strspn(run, " ") >= len) {
+        continue;
+      }
+      char piece[COLONIZE_MSG_LINE_LEN];
+      if (len >= sizeof(piece)) {
+        at = NULL;
+        break;
+      }
+      memcpy(piece, run, len);
+      piece[len] = '\0';
+      at = strstr(at, piece);
+      if (at) {
+        at += len;
+        total += len;
+      }
+    }
+    if (at && total >= 8) {
+      return true;
+    }
+  }
+  return false;
+}
+
 /* True when `body` carries the text of GAME.TXT @section. */
 static inline bool test_body_is_section(const char* body, const char* section) {
   char needle[COLONIZE_MSG_LINE_LEN];
-  return body && test_section_needle(section, needle, sizeof(needle)) &&
-         strstr(body, needle) != NULL;
+  if (!body) {
+    return false;
+  }
+  if (test_section_needle(section, needle, sizeof(needle))) {
+    return strstr(body, needle) != NULL;
+  }
+  const ColonizeMsgSection* sec = test_game_section(section);
+  return sec && test_body_has_line_runs(body, sec);
 }
 
 #endif /* COLONIZE_TESTS_COMMON_TEST_CATALOGS_H */
