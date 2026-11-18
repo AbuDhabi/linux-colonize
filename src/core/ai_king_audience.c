@@ -750,7 +750,7 @@ void ai_king_tax_hike_apply(
  *   - rank the 4 powers ascending by ship_counts*3 + colony_counts*2 +
  *     census_pop_proxy (raw 73627-73629, ai_king_rank_nations_0218);
  *   - weakest AI (local_c) is merged INTO the next-weakest AI (local_a):
- *     its colonies change owner (rebel accumulators +0xc2/+0xc4 zeroed),
+ *     its colonies change owner (32-bit rebel dividend +0xc2/+0xc4 zeroed),
  *     its units transfer when standing in a colony and are DESPAWNED in
  *     the field (`0302(x,y)==0 → 0808`); seen bits, layer3 owner nibbles
  *     and village mission nibbles pass to the heir;
@@ -815,7 +815,8 @@ void ai_king_succession(ColonizeTurnContext* ctx) {
       }
     }
   }
-  /* Colonies: owner swap + rebel accumulators zeroed (DOS +0xc2/+0xc4), and
+  /* Colonies: owner swap + the 32-bit rebel dividend zeroed (DOS +0xc2/+0xc4,
+   * raw 73693-73694; the +0xc6 divisor stays), and
    * the tile's owner nibble stamped for the heir (raw 73696 FUN_281f_0704 ->
    * FUN_137f_0228). 0228's other arm runs only when FUN_137f_0392 finds a
    * village on the tile, never true under a Euro colony or unit. */
@@ -834,7 +835,6 @@ void ai_king_succession(ColonizeTurnContext* ctx) {
       if ((int)c->nation_id == merged) {
         c->nation_id = (uint8_t)heir;
         c->rebel_dividend = 0;
-        c->rebel_divisor = 0;
       }
     }
   }

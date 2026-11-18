@@ -1198,6 +1198,7 @@ typedef struct SuccFx {
   ColonizeUnitPool units;
   ColonizeWorldMap map;
   ColonizeCol1Tribe tribes[2];
+  ColonizeCol1Colony col1_colonies[2];
 } SuccFx;
 
 static int succ_fx_run(SuccFx* f) {
@@ -1216,6 +1217,16 @@ static int succ_fx_run(SuccFx* f) {
   f->tribes[1].mission = 1u;
   f->c.tribe = f->tribes;
   f->c.head.tribe_count = 2;
+  /* Saved colony records: one of the merged nation, one of nation 1. */
+  memset(f->col1_colonies, 0, sizeof(f->col1_colonies));
+  f->col1_colonies[0].nation_id = 3;
+  f->col1_colonies[0].rebel_dividend = 70000u;
+  f->col1_colonies[0].rebel_divisor = 9u;
+  f->col1_colonies[1].nation_id = 1;
+  f->col1_colonies[1].rebel_dividend = 5u;
+  f->col1_colonies[1].rebel_divisor = 6u;
+  f->c.colony = f->col1_colonies;
+  f->c.head.colony_count = 2;
   if (!fx_map_alloc(&f->map, 8, 8, 2, true)) {
     return fail("succession: alloc map");
   }
@@ -1320,7 +1331,30 @@ static int case_succession_reruns_census(void) {
   return rc;
 }
 
+/* FUN_43f7_0218 raw 73690-73695: each saved colony of the merged nation gets
+ * the heir's byte at +0x1a and both words of the 32-bit +0xc2 rebel dividend
+ * zeroed; the +0xc6 divisor is left alone. Other nations' records untouched. */
+static int case_succession_zeroes_dividend_only(void) {
+  static SuccFx f;
+  if (succ_fx_run(&f) != 0) {
+    return 1;
+  }
+  const ColonizeCol1Colony* m = &f.col1_colonies[0];
+  const ColonizeCol1Colony* o = &f.col1_colonies[1];
+  int rc = 0;
+  if (m->nation_id != 2 || m->rebel_dividend != 0 || m->rebel_divisor != 9u ||
+      o->nation_id != 1 || o->rebel_dividend != 5u || o->rebel_divisor != 6u) {
+    fprintf(stderr, "merged nat %u div %u/%u  other nat %u div %u/%u\n", m->nation_id,
+            (unsigned)m->rebel_dividend, (unsigned)m->rebel_divisor, o->nation_id,
+            (unsigned)o->rebel_dividend, (unsigned)o->rebel_divisor);
+    rc = fail("succession: the heir's colony records lose the dividend only");
+  }
+  map_free(&f.map);
+  return rc;
+}
+
 static const TestCase k_cases[] = {
+    {"case_succession_zeroes_dividend_only", case_succession_zeroes_dividend_only},
     {"case_tory_uprising_reads_live_colony", case_tory_uprising_reads_live_colony},
     {"case_tory_uprising_full_moves", case_tory_uprising_full_moves},
     {"case_tory_uprising_starts_north", case_tory_uprising_starts_north},
