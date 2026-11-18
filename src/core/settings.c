@@ -137,6 +137,7 @@ static const SettingsBoolOpt k_mod_opts[] = {
   SETTINGS_MOD("colony_governor", MOD_COLONY_GOVERNOR, false),
   SETTINGS_MOD("ai_improvements", MOD_AI_IMPROVEMENTS, false),
   SETTINGS_MOD("alternate_map_generator", MOD_ALTERNATE_MAP_GENERATOR, false),
+  SETTINGS_MOD("tax_unsigned", MOD_TAX_UNSIGNED, true),
 };
 
 #define SETTINGS_OPT_COUNT(t) ((int)(sizeof(t) / sizeof((t)[0])))

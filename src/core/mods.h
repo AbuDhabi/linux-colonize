@@ -83,6 +83,10 @@ typedef enum ModId {
    * (plates, winds, rainfall; docs/map_gen_alt.md). Read once, at map
    * generation; the map itself is saved like any other. */
   MOD_ALTERNATE_MAP_GENERATOR = 24,
+  /* DOS bug fix (dos_bugs.md DB-78): the tax byte reads unsigned and the cheat
+   * keys, sales and the Custom House keep it to 0..100, instead of DOS's
+   * signed read where 128 or more is negative (europe_tax_byte). */
+  MOD_TAX_UNSIGNED = 25,
   MOD_COUNT
 } ModId;
 

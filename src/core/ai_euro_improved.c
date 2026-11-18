@@ -590,7 +590,7 @@ int ai_euro_colony_focus(const ColonizeTurnContext* ctx, const ColonizeColony* c
    * bells. ponytail: the 50% line is a guess, not measured. */
   if (pop < 4) {
     const int tax = col1 && col->nation_id >= 0 && col->nation_id < 4
-                      ? (int)col1->nation[col->nation_id].tax_rate : 0;
+                      ? europe_tax_byte(col1->nation[col->nation_id].tax_rate) : 0;
     return tax >= 50 ? COLONY_GOVERNOR_FARMING : COLONY_GOVERNOR_CASH;
   }
   return COLONY_GOVERNOR_INDUSTRY;

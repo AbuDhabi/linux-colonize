@@ -261,9 +261,28 @@ static int case_europe_workflow(void) {
     return 1;
   }
 
+  /* DB-78: DOS wraps the signed byte (0 -> -1, 127 -> -128); mods.tax_unsigned
+   * clamps to 0..100. */
   europe_cheat_adjust_tax(&eu, -1);
-  if (eu.tax_percent != 0) {
-    fprintf(stderr, "tax should clamp at 0, got %d\n", eu.tax_percent);
+  const int dos_below_zero = eu.tax_percent;
+  eu.tax_percent = 127;
+  europe_cheat_adjust_tax(&eu, 1);
+  const int dos_past_127 = eu.tax_percent;
+  dos_buggy_behavior_set(false);
+  mods_campaign_set(1u << MOD_TAX_UNSIGNED);
+  eu.tax_percent = 0;
+  europe_cheat_adjust_tax(&eu, -1);
+  const int fixed_below_zero = eu.tax_percent;
+  eu.tax_percent = 100;
+  europe_cheat_adjust_tax(&eu, 1);
+  const int fixed_past_100 = eu.tax_percent;
+  mods_campaign_set(0u);
+  dos_buggy_behavior_set(true);
+  eu.tax_percent = 0;
+  if (dos_below_zero != -1 || dos_past_127 != -128 || fixed_below_zero != 0 ||
+      fixed_past_100 != 100) {
+    fprintf(stderr, "tax cheat: DOS %d %d (want -1 -128), fixed %d %d (want 0 100)\n",
+            dos_below_zero, dos_past_127, fixed_below_zero, fixed_past_100);
     europe_free(&eu);
     return 1;
   }
@@ -3265,6 +3284,29 @@ done:
 /* TB-4 / TB-48 fixes (dos_buggy_behavior off): the AI dump-sell books its
  * trade ledger once (1dfa only), and a reversed ship turns back after the
  * turns it already sailed. */
+/* dos_bugs.md DB-78: DOS reads the tax byte signed and never clamps a sale
+ * (FUN_38fd_23c4, the Custom House raw 57282): tax 200 is -56 and pays above
+ * the gross, 120 takes more than the gross. mods.tax_unsigned: unsigned, 0..100. */
+static int case_europe_tax_byte_signed(void) {
+  const int dos_byte = europe_tax_byte(200);
+  const int dos_neg = europe_net_after_tax(100, -10);
+  const int dos_over = europe_net_after_tax(100, 120);
+  dos_buggy_behavior_set(false);
+  mods_campaign_set(1u << MOD_TAX_UNSIGNED);
+  const int fixed_byte = europe_tax_byte(200);
+  const int fixed_neg = europe_net_after_tax(100, -10);
+  const int fixed_over = europe_net_after_tax(100, 120);
+  mods_campaign_set(0u);
+  dos_buggy_behavior_set(true);
+  if (dos_byte != -56 || dos_neg != 110 || dos_over != -20 || fixed_byte != 200 ||
+      fixed_neg != 100 || fixed_over != 0) {
+    fprintf(stderr, "tax byte: DOS %d %d %d (want -56 110 -20), fixed %d %d %d (want 200 100 0)\n",
+            dos_byte, dos_neg, dos_over, fixed_byte, fixed_neg, fixed_over);
+    return 1;
+  }
+  return 0;
+}
+
 static int case_europe_tb4_tb48_fixed(void) {
   int rc = 1;
   dos_buggy_behavior_set(false);
@@ -4560,6 +4602,7 @@ static const TestCase k_cases[] = {
     {"case_europe_dock_mirror_follows_row", case_europe_dock_mirror_follows_row},
     {"case_europe_brewster_mirror_one_roll", case_europe_brewster_mirror_one_roll},
     {"case_europe_reverse_transit_keeps_turns", case_europe_reverse_transit_keeps_turns},
+    {"case_europe_tax_byte_signed", case_europe_tax_byte_signed},
     {"case_europe_tb4_tb48_fixed", case_europe_tb4_tb48_fixed},
     {"case_europe_improved_ai_volume_mirror", case_europe_improved_ai_volume_mirror},
     {"case_europe_improved_ai_no_rise_cap", case_europe_improved_ai_no_rise_cap},

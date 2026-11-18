@@ -952,9 +952,9 @@ int ai_euro_jobs_menu_estimate(
       v += v >> 1;
     }
     if (founding_fathers_nation_has(col1, col->nation_id, FF_THOMAS_PAINE)) {
-      /* DOS reads the tax as a signed char (a tax of 128+ turns the bonus into a
-       * penalty); read unsigned, like every other port reader. */
-      v += (int)col1->nation[col->nation_id].tax_rate * v / 100;
+      /* raw 50647: signed char tax, so 128+ turns the bonus into a penalty
+       * (DB-78; unsigned with mods.tax_unsigned). */
+      v += europe_tax_byte(col1->nation[col->nation_id].tax_rate) * v / 100;
     }
     if (colonies_has_building_row(pool, col, COLONY_BUILDING_NEWSPAPER)) {
       v <<= 1;
@@ -3485,7 +3485,7 @@ COLONIZE_INTERNAL void ai_euro_5952_specialist_arms(
   if (!train_flag) {
     return;
   }
-  const int tax = col1 ? (int)col1->nation[nation].tax_rate : 0;
+  const int tax = col1 ? europe_tax_byte(col1->nation[nation].tax_rate) : 0;
   if (tax > 0x19) {
     return;
   }
