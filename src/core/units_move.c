@@ -2010,6 +2010,14 @@ UnitsColumnStep units_column_step_check(const ColonizeWorld* w, int leader_id, i
   return UNITS_COLUMN_OK;
 }
 
+void units_column_release(ColonizeUnitPool* pool, int leader_id) {
+  int esc[UNITS_TILE_STACK_MAX];
+  const int n = units_column_escorts(pool, leader_id, esc, UNITS_TILE_STACK_MAX);
+  for (int k = 0; k < n; ++k) {
+    units_clear_orders(pool, esc[k]);
+  }
+}
+
 void units_column_follow_w(const ColonizeWorld* w, const int* ids, int n, int nx, int ny) {
   ColonizeWorld calm = *w;
   calm.rng = NULL;
@@ -3790,6 +3798,7 @@ bool units_advance_goto_one_step_w(
       if (u->orders != UNITS_ORDER_TRADE_ROUTE && u->orders != UNITS_ORDER_AI_MOVE) {
         units_clear_orders(pool, unit_id);
       }
+      units_column_release(pool, unit_id);
     }
   }
   return true;

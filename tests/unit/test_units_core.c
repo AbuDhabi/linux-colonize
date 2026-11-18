@@ -2365,6 +2365,15 @@ static int case_escort_column(void) {
     fx_close();
     return 1;
   }
+  ua->moves = units_max_mp(&pool, a);
+  ub->moves = units_max_mp(&pool, b);
+  if (!units_advance_goto_one_step_w(&w, a) || ua->x != fx + 2 || ub->x != ua->x ||
+      ua->orders != UNITS_ORDER_NONE || ub->orders != UNITS_ORDER_NONE) {
+    fprintf(stderr, "arrival: leader (%d,%d) orders %d, escort (%d,%d) orders %d\n", ua->x,
+            ua->y, ua->orders, ub->x, ub->y, ub->orders);
+    fx_close();
+    return 1;
+  }
   fx_close();
   return 0;
 }

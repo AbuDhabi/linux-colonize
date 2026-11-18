@@ -299,6 +299,8 @@ int units_column_escorts(const ColonizeUnitPool* pool, int leader_id, int* out, 
 UnitsColumnStep units_column_step_check(const ColonizeWorld* w, int leader_id, int nx, int ny);
 /* After the leader stepped onto (nx,ny): walk each escort there in turn
  * (rng-free, so a step the check passed can never roll). */
+/* Go To arrival: the escorts on the leader's tile drop their Escort order. */
+void units_column_release(ColonizeUnitPool* pool, int leader_id);
 void units_column_follow_w(const ColonizeWorld* w, const int* ids, int n, int nx, int ny);
 bool units_advance_follow_one_step_w(
   const ColonizeWorld* w,

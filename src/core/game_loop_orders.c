@@ -1224,7 +1224,12 @@ int game_issue_goto(ColonizeGameState* game, int uid, int dest_x, int dest_y) {
   if (!lane_sail && u->moves > 0 &&
       dx >= -1 && dx <= 1 && dy >= -1 && dy <= 1 && (dx != 0 || dy != 0)) {
     game->units.selected_id = uid;
-    return game_try_unit_move(game, dest_x, dest_y) ? 1 : -1;
+    const bool moved = game_try_unit_move(game, dest_x, dest_y);
+    const ColonizeUnit* lead = units_get_const(&game->units, uid);
+    if (lead && lead->active && lead->x == dest_x && lead->y == dest_y) {
+      units_column_release(&game->units, uid);
+    }
+    return moved ? 1 : -1;
   }
   const ColonizeWorld w = game_world(game);
   return units_set_goto_w(&w, uid, dest_x, dest_y)
