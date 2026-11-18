@@ -4083,6 +4083,29 @@ static int case_audience_flow(void) {
     return fail("audience: a specialist rise past 75% tax must be refused (@KINGNO), up to 75% offered");
   }
 
+  /* DB-78: FUN_38fd_3dc8 raw 64180 adds the rise as a byte, so a cheat tax of
+   * 125 + 5 wraps to -126 (byte 130) and dodges the 75 cap; mods.tax_unsigned
+   * caps it at 75. */
+  c.nation[0].tax_rate = 125;
+  ai_king_audience_specialist(&ctx, 0, COLONIZE_PROF_GUNSMITH, 5);
+  const int wrap_byte = c.nation[0].tax_rate;
+  const int wrap_mirror = eu.tax_percent;
+  const uint32_t mods_saved = mods_campaign_mask();
+  dos_buggy_behavior_set(false);
+  mods_campaign_set(mods_saved | 1u << MOD_TAX_UNSIGNED);
+  c.nation[0].tax_rate = 125;
+  ai_king_audience_specialist(&ctx, 0, COLONIZE_PROF_GUNSMITH, 5);
+  const int capped_byte = c.nation[0].tax_rate;
+  mods_campaign_set(mods_saved);
+  dos_buggy_behavior_set(true);
+  c.nation[0].unknown23_pad[2] = 3;
+  if (wrap_byte != 130 || wrap_mirror != -126 || capped_byte != 75) {
+    fprintf(stderr, "tax 125+5: DOS byte %d mirror %d (want 130 -126), fixed %d (want 75)\n",
+            wrap_byte, wrap_mirror, capped_byte);
+    mods_campaign_set(0);
+    return fail("audience: the King's tax rise is a byte add (DB-78)");
+  }
+
   /* Hot-seat: a second human (nation 1) at the controls, head.human_player
    * still 0. Latch, tax and specialist count all land on nation 1. */
   ai_popup_clear(&pops);

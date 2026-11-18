@@ -126,7 +126,7 @@ static void europe_push_sale_status(EuropeScreen* eu, int cargo_type, int amount
     gross,
     eu->tax_percent,
     europe_label(eu, "CMESSAGE", 0x11, ""),
-    tax_paid < 0 ? 0 : tax_paid,
+    tax_paid < 0 && !europe_tax_signed() ? 0 : tax_paid, /* DOS prints it signed (DB-78) */
     europe_label(eu, "CMESSAGE", 0x12, ""),
     net
   );
