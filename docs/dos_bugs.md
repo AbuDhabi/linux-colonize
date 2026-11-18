@@ -575,7 +575,8 @@ play keeps the tax at 0..75, so goldens and replays are unchanged. Tests:
 `unit_units_combat` `unit_royal_loss_tax_cut`, `unit_ai_euro_5952_indoor`
 `paine_bonus_tax_byte`, `unit_europe` `case_europe_tax_byte_signed` and
 `case_europe_workflow` (cheat keys), `unit_colonies` `unit_foreign_colony_trade`,
-`unit_units_ships` (Cortes share), `unit_founding_fathers` (Paine bells at -10).
+`unit_units_ships` (Cortes share), `unit_founding_fathers` (Paine bells at -10),
+`unit_ai_king_core` (King's rise 125 + 5).
 **Status:** done.
 
 ### DB-79 — A finished Warehouse Expansion left selected eats 20 tools a turn
