@@ -70,8 +70,12 @@ static bool turn_emit_inefficient_gov_chrome(
   if (sol > 100) {
     sol = 100;
   }
-  /* Decomp local_82: trunc tories (not half-up used in colony_prod_sol_bonus). */
-  const int tories = (pop * (100 - sol)) / 100;
+  /* DOS-LITERAL FUN_364b_0688 local_82 (raw 57470 area): trunc tories, while the
+   * yield penalty (colony_prod_sol_bonus) rounds half-up, so the popup could
+   * say "efficient" while the penalty still applied. Fixed: half-up here too
+   * (docs/tolerated_dos_bugs.md TB-65). */
+  const int tories = dos_buggy_behavior() ? (pop * (100 - sol)) / 100
+                                          : (pop * (100 - sol) + 50) / 100;
   /* raw 57470: 10 − difficulty, for every colony (no control test). */
   int diff = (int)col1->head.difficulty;
   if (diff < 0) {

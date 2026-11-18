@@ -710,3 +710,22 @@ finds no path. Test: `unit_units_movement` `unit_goto_far_stays_on_road`.
 **Blocks removal:** not tried; human Go To moves in the regression replays and
 idle campaigns would need re-blessing.
 **Status:** tolerated (user, 2026-11-18). Fixed in opencol 2026-11-18, gated on `!dos_buggy_behavior()`; test binaries still reproduce DOS.
+
+### TB-65 — "Efficient government" popup while the Tory penalty still applies
+**DOS:** `FUN_364b_0688` (raw 57470 area) sets/clears the inefficient-government
+latch (colony `+0x1c` bit3, `@INEFFICIENT` / `@EFFICIENT`) from
+`tories = pop*(100-SoL)/100`, truncated. The yield penalty in `FUN_15eb_18ec`
+(raw ~11880) and `FUN_15eb_1d4c` counts `tories = (pop*(100-SoL)+50)/100`,
+rounded half-up. When the exact Tory count sits in `[thresh-0.5, thresh)`, the
+popup says the government improved while the colony keeps its -1.
+
+**Effect:** discard campaign: `@EFFICIENT` shown, colony screen still showed the
+Tory penalty at 6 Tories (Viceroy threshold 6).
+
+**Port (DOS arm, under `dos_buggy_behavior()`):** `turn_emit_inefficient_gov_chrome`
+in `src/core/turn_production.c`. The fix rounds half-up there too, matching
+`colony_prod_sol_bonus`. Test: `unit_turn_core` `phase_d_tory_pressure`.
+
+**Blocks removal:** not tried; the latch bit is saved, so goldens and idle
+campaigns that cross the boundary would need re-blessing.
+**Status:** tolerated (user, 2026-11-18). Fixed in opencol 2026-11-18, gated on `!dos_buggy_behavior()`; test binaries still reproduce DOS.

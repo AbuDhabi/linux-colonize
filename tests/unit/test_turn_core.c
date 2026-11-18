@@ -3163,6 +3163,33 @@ static int case_phase_d_tory_pressure(void) {
   }
 
   /*
+   * TB-65: pop 12 at ~18% SoL = ~9.8 Tories at thresh 10. DOS truncates to 9
+   * (latch clears, "efficient") while the yield rounds to 10 (penalty stays);
+   * the fix rounds half-up here too, so the latch stays set.
+   */
+  col1.head.colony_report_options.report_inefficient_government = 0;
+  for (int buggy = 1; buggy >= 0; --buggy) {
+    dos_buggy_behavior_set(buggy != 0);
+    col1c.rebel_dividend = 19u << 6;
+    col1c.rebel_divisor = 100u << 6;
+    c->stock[COLONIZE_CARGO_FOOD] = 200;
+    c->colony_flags = COLONIZE_COLONY_FLAG_INEFFICIENT_GOV;
+    memset(&prod, 0, sizeof(prod));
+    turn_run_colony_production_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .map=(ColonizeWorldMap*)(NULL), .col1=(ColonizeCol1Save*)(&col1), .col1_ok=true, .rng=(ColonizeDosRng*)(NULL), .europe=(EuropeScreen*)(&eu)}, 0, &prod, &pops, &game_txt);
+    const bool latched = (c->colony_flags & COLONIZE_COLONY_FLAG_INEFFICIENT_GOV) != 0;
+    if (latched == (buggy != 0)) {
+      fprintf(stderr, "TB-65 buggy=%d: latch=%d (sol %d)\n", buggy, (int)latched,
+              colony_prod_sol_percent(&col1, c));
+      dos_buggy_behavior_set(true);
+      assets_msg_free(&game_txt);
+      return 1;
+    }
+  }
+  dos_buggy_behavior_set(true);
+  eu.status[0] = '\0';
+  ai_popup_clear(&pops);
+
+  /*
    * smell #29: DOS FUN_364b_0688 keeps the bit3 latch for EVERY colony of
    * the ticked nation (viceroy 57470-57485 — the OR/AND-clear pair sits in
    * the open function body); only the two dialogs are human-gated, and by
