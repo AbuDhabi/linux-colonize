@@ -77,6 +77,11 @@
  * moves to one that makes something, even something the weights value at 0
  * (bells past a closed pool, say). Small next to every real weight. */
 #define GOV_OUTPUT_TIEBREAK 0.01
+/* Per expert on his own job: when trading seats changes no output (a master
+ * carpenter and a free colonist in a Lumber Mill that has more hands than
+ * lumber), the expert takes his job, so the next pass can move the spare
+ * hand to something productive. Below one unit of output. */
+#define GOV_EXPERT_TIEBREAK 0.005
 /* Industry: tools and muskets past a hold's worth in store are a stockpile,
  * worth what they sell for, so the project's hammers come first. */
 #define GOV_INDUSTRY_STOCK 100
@@ -234,6 +239,12 @@ static double gov_score(const GovCtx* g, const ColonizeColony* plan) {
     }
     if (p->profession == COLONIZE_PROF_CONVERT && p->building_type >= 0) {
       s -= GOV_HORIZON * GOV_CONVERT_INDOORS;
+    }
+    const int job = p->building_type >= 0
+                      ? colonies_building_occupation(g->w->colonies, p->building_type)
+                      : p->field_job;
+    if (job >= 0 && job == p->profession) {
+      s += GOV_EXPERT_TIEBREAK;
     }
   }
   for (int turn = 0; turn < GOV_HORIZON; ++turn) {

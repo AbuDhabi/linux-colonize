@@ -77,9 +77,12 @@ other turn (seat churn only: the +2 latch holds down to 95%,
 only feed the nation's pool (DOS clamps the rebel dividend to the divisor,
 FUN_364b_0688), so they get half weight. They get none once every Father is
 elected before the declaration, or once intervention is announced and the
-pool's signed score word is full. There is no specialist bonus: a specialist out-produces
-anyone on his own job, so the swaps seat him there unless his output is
-unwanted or has no room, and then he works elsewhere.
+pool's signed score word is full. A specialist out-produces anyone on his
+own job, so the swaps seat him there unless his output is unwanted or has no
+room, and then he works elsewhere. Where trading seats changes no output (a
+master carpenter and a free colonist in a Lumber Mill with more hands than
+lumber), 0.005 per expert on his own job breaks the tie, so the expert takes
+it and the next pass moves the spare hand to productive work.
 
 Stickiness: a free colonist, servant or criminal already on a sugar, tobacco,
 cotton or fur plot whose expert the nation lacks (`turn_produce_discover`'s
