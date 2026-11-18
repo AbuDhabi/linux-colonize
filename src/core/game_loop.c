@@ -628,6 +628,21 @@ COLONIZE_INTERNAL int game_slide_wait_next(uint32_t t0, uint32_t total_ms, int f
   return next < GAME_SLIDE_STEPS ? next : GAME_SLIDE_STEPS;
 }
 
+/* Port-only: a Shift-group fan-out, an Escort, or a column leader slides 4x faster. */
+static bool game_move_in_group(const ColonizeGameState* game, const ColonizeUnitPool* pool, int unit_id) {
+  if (game->unit_group_order != GAME_GROUP_ORDER_NONE) {
+    return true;
+  }
+  for (int i = 0; i < units_slot_end(pool); ++i) {
+    const ColonizeUnit* u = &pool->units[i];
+    if (u->active && u->orders == UNITS_ORDER_FOLLOW &&
+        (u->id == unit_id || u->follow_unit_id == unit_id)) {
+      return true;
+    }
+  }
+  return false;
+}
+
 COLONIZE_INTERNAL void game_move_watch_w(
   const ColonizeWorld* w,
   void* user,
@@ -754,7 +769,8 @@ COLONIZE_INTERNAL void game_move_watch_w(
         const int x1 = txl * 16 - shx;
         const int y1 = MAP_MENU_BAR_H + tyl * 16 - shy;
         const int steps = GAME_SLIDE_STEPS;
-        const uint32_t total_ms = game_slide_total_ms(game);
+        const uint32_t total_ms =
+          game_slide_total_ms(game) / (game_move_in_group(game, pool, unit_id) ? 4u : 1u);
         const bool was_active = mu->active;
         mu->active = false; /* keep the base frame from drawing it at `to` */
         s_vision_slide_unit = unit_id; /* its sight already lifted the fog at `to` */
