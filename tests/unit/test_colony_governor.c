@@ -1082,7 +1082,36 @@ static int case_cash_keeps_bells(void) {
   return 0;
 }
 
+/* Military, every building up and a Shipyard: after each unit the governor
+ * turns to the other one, Artillery and Privateer in turn. */
+static int case_military_units_alternate(void) {
+  GovFx f;
+  if (!gov_fx_open(&f)) {
+    return 1;
+  }
+  ColonizeColony* c = f.col;
+  for (int b = 0; b < COLONIZE_BUILDING_TYPES_MAX; ++b) {
+    c->has_building[b] = true;
+  }
+  c->stock[COLONIZE_CARGO_FOOD] = 150;
+  c->governor = COLONY_GOVERNOR_MILITARY;
+  c->building_in_production = COLONIZE_UNIT_BUILD_ARTILLERY;
+  int picked[2];
+  for (int k = 0; k < 2; ++k) {
+    c->governor_rethink = true;
+    colony_governor_run_w(&f.w, c->id);
+    picked[k] = c->building_in_production;
+  }
+  gov_fx_close(&f);
+  if (picked[0] != COLONIZE_UNIT_BUILD_PRIVATEER || picked[1] != COLONIZE_UNIT_BUILD_ARTILLERY) {
+    fprintf(stderr, "picked %d then %d\n", picked[0], picked[1]);
+    return 1;
+  }
+  return 0;
+}
+
 static const TestCase k_cases[] = {
+  {"military_units_alternate", case_military_units_alternate},
   {"cash_keeps_bells", case_cash_keeps_bells},
   {"cash_custom_house", case_cash_custom_house},
   {"military_teaches_veterans", case_military_teaches_veterans},

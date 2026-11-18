@@ -836,8 +836,10 @@ static const int k_gov_industry[] = {
 };
 static const int k_gov_military[] = {
   COLONY_BUILDING_STOCKADE, COLONY_BUILDING_ARMORY, COLONY_BUILDING_FORT, COLONY_BUILDING_STABLE,
-  COLONY_BUILDING_FORTRESS, COLONY_BUILDING_MAGAZINE, COLONY_BUILDING_LUMBER_MILL, COLONY_BUILDING_ARSENAL, COLONY_BUILDING_PRINTING_PRESS,
-  COLONY_BUILDING_WAREHOUSE, GOV_UNIT | COLONIZE_UNIT_BUILD_ARTILLERY, GOV_END,
+  COLONY_BUILDING_FORTRESS, COLONY_BUILDING_MAGAZINE, COLONY_BUILDING_BLACKSMITHS_SHOP,
+  COLONY_BUILDING_LUMBER_MILL, COLONY_BUILDING_ARSENAL, COLONY_BUILDING_IRON_WORKS,
+  COLONY_BUILDING_PRINTING_PRESS, COLONY_BUILDING_WAREHOUSE, GOV_UNIT | COLONIZE_UNIT_BUILD_ARTILLERY,
+  GOV_UNIT | COLONIZE_UNIT_BUILD_PRIVATEER, GOV_END,
 };
 static const int k_gov_politics[] = {
   COLONY_BUILDING_PRINTING_PRESS, COLONY_BUILDING_NEWSPAPER, COLONY_BUILDING_CHURCH,
@@ -999,12 +1001,20 @@ static void gov_pick_project(const ColonizeWorld* w, ColonizeColony* col, int go
   for (int i = 0; list[i] != GOV_END && nw < 48; ++i) {
     want[nw++] = list[i];
   }
-  for (int i = 0; i < nw; ++i) {
-    const int bid = (want[i] & GOV_UNIT) ? (want[i] & ~GOV_UNIT)
-                                         : colonies_building_row(pool, (ColonizeBuildingRow)want[i]);
-    if (bid >= 0 && gov_listed(ids, n, bid) &&
-        colonies_set_construction_ex(pool, col->id, bid, &opts)) {
-      return;
+  /* After a unit completes, the next startable unit on the list goes first,
+   * so Artillery and ships take turns rather than the first starving the rest;
+   * the same unit again only when no other is startable. */
+  for (int pass = 0; pass < 2; ++pass) {
+    for (int i = 0; i < nw; ++i) {
+      const int bid = (want[i] & GOV_UNIT) ? (want[i] & ~GOV_UNIT)
+                                           : colonies_building_row(pool, (ColonizeBuildingRow)want[i]);
+      if (pass == 0 && rethink && (want[i] & GOV_UNIT) && bid == cur) {
+        continue;
+      }
+      if (bid >= 0 && gov_listed(ids, n, bid) &&
+          colonies_set_construction_ex(pool, col->id, bid, &opts)) {
+        return;
+      }
     }
   }
   /* Nothing wanted: "(No Production)"; the hammers bank for a later pick. */

@@ -129,12 +129,16 @@ then the governor's list (Cash first tries every
 crop chain that pays, most valuable first, each through all its tiers, house,
 shop and factory, the Fur Trading Post included: a chain is worth the crop
 the colony grows now, or its best seatable plot if more, at the processed
-good's sale value, so a boycotted good with no Custom House drops out; Industry ends with Artillery and ships; Military puts Stockade, Armory, Fort, Stable, Fortress first and ends with Artillery).
+good's sale value, so a boycotted good with no Custom House drops out; Industry ends with Artillery and ships; Military puts Stockade, Armory, Fort, Stable, Fortress first, builds the
+Blacksmith's Shop and Iron Works for the musket line, and ends with Artillery
+and the Privateer, which like every ship needs a Shipyard).
 The first startable row is picked; with none, "(No Production)", and the
 hammers bank for a later turn. A unit project (Artillery, Wagon Train, ships)
 repeats after each unit; when one completes and no queued plan takes over,
 `colonies_try_complete_unit_construction` sets `governor_rethink` (bit 6 of
 the record 18 byte), and the next governor run picks anew once, as if the
-slot were empty, keeping the unit when nothing listed is wanted. Kept, it
+slot were empty, keeping the unit when nothing listed is wanted. On that pick
+the unit just built goes last, so the list's units take turns (Artillery,
+Privateer, Artillery, ...; Industry's Artillery and ships likewise). Kept, it
 then runs on until the next unit completes. A capture (`colonies_capture_show_ex`) resets
 the governor to none. Covered by `unit_colony_governor`.
