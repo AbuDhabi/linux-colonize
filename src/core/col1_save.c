@@ -411,7 +411,29 @@ bool col1_save_ext_put(
   return true;
 }
 
-/* ---------------- Records past the DOS limits ('UNXT', 'COXT') ---------------- */
+/* ---------------- Records past the DOS limits ('UNXT', 'COXT', 'TRXT') ---------------- */
+
+static bool s_routes_unlimited;
+
+void col1_trade_routes_set_unlimited(bool on) {
+  s_routes_unlimited = on;
+}
+
+int col1_trade_routes_cap(void) {
+  return s_routes_unlimited ? (int)COLONIZE_COL1_TRADE_ROUTE_MAX
+                            : (int)COLONIZE_COL1_TRADE_ROUTE_COUNT;
+}
+
+/* trade_route[] slots past the DOS 12 up to the last live one ('TRXT'). */
+static size_t col1_save_route_spill(const ColonizeCol1Save* save) {
+  for (size_t i = COLONIZE_COL1_TRADE_ROUTE_MAX; i > COLONIZE_COL1_TRADE_ROUTE_COUNT; --i) {
+    const ColonizeCol1TradeRoute* r = &save->trade_route[i - 1];
+    if (r->name[0] != '\0' || r->dest_count > 0) {
+      return i - COLONIZE_COL1_TRADE_ROUTE_COUNT;
+    }
+  }
+  return 0;
+}
 
 static uint16_t col1_save_dos_unit_count(const ColonizeCol1Save* save) {
   return save->head.unit_count > COLONIZE_COL1_DOS_UNIT_MAX
@@ -499,7 +521,8 @@ static bool col1_save_file_ext(
   const uint16_t dos_colonies = col1_save_dos_colony_count(save);
   const bool units_spill = save->head.unit_count > dos && save->unit;
   const bool colonies_spill = save->head.colony_count > dos_colonies && save->colony;
-  if (!units_spill && !colonies_spill) {
+  const size_t routes_spill = col1_save_route_spill(save);
+  if (!units_spill && !colonies_spill && routes_spill == 0) {
     return true;
   }
   ColonizeCol1Save shell;
@@ -513,6 +536,16 @@ static bool col1_save_file_ext(
         COLONIZE_COL1_EXT_TAG_COLONY_OVERFLOW,
         (const uint8_t*)(save->colony + dos_colonies),
         (size_t)(save->head.colony_count - dos_colonies) * sizeof(ColonizeCol1Colony)
+      )) {
+    free(shell.ext);
+    return false;
+  }
+  if (routes_spill > 0 &&
+      !col1_save_ext_put(
+        &shell,
+        COLONIZE_COL1_EXT_TAG_ROUTE_OVERFLOW,
+        (const uint8_t*)(save->trade_route + COLONIZE_COL1_TRADE_ROUTE_COUNT),
+        routes_spill * sizeof(ColonizeCol1TradeRoute)
       )) {
     free(shell.ext);
     return false;
@@ -618,7 +651,26 @@ static void col1_save_unspill_colonies(ColonizeCol1Save* save) {
   (void)col1_save_ext_put(save, COLONIZE_COL1_EXT_TAG_COLONY_OVERFLOW, NULL, 0);
 }
 
+/* After a read: fold a 'TRXT' chunk back onto trade_route[12..]. */
+static void col1_save_unspill_routes(ColonizeCol1Save* save) {
+  const uint8_t* payload = NULL;
+  size_t size = 0;
+  if (!col1_save_ext_find(save, COLONIZE_COL1_EXT_TAG_ROUTE_OVERFLOW, &payload, &size)) {
+    return;
+  }
+  const size_t extra = size / sizeof(ColonizeCol1TradeRoute);
+  if (extra == 0 || size % sizeof(ColonizeCol1TradeRoute) != 0 ||
+      extra > COLONIZE_COL1_TRADE_ROUTE_MAX - COLONIZE_COL1_TRADE_ROUTE_COUNT) {
+    diag_warn("col1_save: malformed %zu-byte TRXT chunk ignored", size);
+    return;
+  }
+  memcpy(save->trade_route + COLONIZE_COL1_TRADE_ROUTE_COUNT, payload, size);
+  save->head.trade_route_count = (uint16_t)(COLONIZE_COL1_TRADE_ROUTE_COUNT + extra);
+  (void)col1_save_ext_put(save, COLONIZE_COL1_EXT_TAG_ROUTE_OVERFLOW, NULL, 0);
+}
+
 static void col1_save_unspill(ColonizeCol1Save* save) {
+  col1_save_unspill_routes(save);
   col1_save_unspill_colonies(save);
   col1_save_unspill_units(save);
 }
@@ -882,7 +934,11 @@ static bool parse_from_stream(
     return false;
   }
   if (!take(ctx, &out->post_map, sizeof(out->post_map), err, err_size, "post_map") ||
-      !take(ctx, out->trade_route, sizeof(out->trade_route), err, err_size, "trade_routes")) {
+      !take(
+        ctx, out->trade_route,
+        COLONIZE_COL1_TRADE_ROUTE_COUNT * sizeof(ColonizeCol1TradeRoute),
+        err, err_size, "trade_routes"
+      )) {
     return false;
   }
 
@@ -926,6 +982,9 @@ static bool emit_to_stream(
   const uint16_t dos_colonies = col1_save_dos_colony_count(save);
   head.unit_count = dos_units;
   head.colony_count = dos_colonies; /* the rest rides in 'COXT' */
+  if (head.trade_route_count > COLONIZE_COL1_TRADE_ROUTE_COUNT) {
+    head.trade_route_count = COLONIZE_COL1_TRADE_ROUTE_COUNT; /* the rest rides in 'TRXT' */
+  }
   if (head.active_unit != 0xffffu && head.active_unit >= dos_units) {
     head.active_unit = 0xffffu; /* the active unit lives in 'UNXT' */
     head.no_unit_selected = 1;
@@ -1007,7 +1066,10 @@ static bool emit_to_stream(
     put(ctx, save->map.path, save->map.tile_count, err, err_size, "map.path") &&
     put(ctx, save->map.seen, save->map.tile_count, err, err_size, "map.seen") &&
     put(ctx, &save->post_map, sizeof(save->post_map), err, err_size, "post_map") &&
-    put(ctx, save->trade_route, sizeof(save->trade_route), err, err_size, "trade_routes");
+    put(
+      ctx, save->trade_route, COLONIZE_COL1_TRADE_ROUTE_COUNT * sizeof(ColonizeCol1TradeRoute),
+      err, err_size, "trade_routes"
+    );
   free(dos_mask);
   if (!map_ok) {
     return false;

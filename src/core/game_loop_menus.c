@@ -813,7 +813,7 @@ static const TravelDestWho* game_trade_phantom(
 
 void game_trade_open_editor(ColonizeGameState* game, int route) {
   if (!game || !game->col1_ok || route < 0 ||
-      route >= (int)COLONIZE_COL1_TRADE_ROUTE_COUNT) {
+      route >= (int)COLONIZE_COL1_TRADE_ROUTE_MAX) {
     return;
   }
   game->trade_last_edited = route;
@@ -954,7 +954,7 @@ void game_trade_open_cargo_picker(ColonizeGameState* game, int stop_i, bool is_l
  */
 void game_trade_open_stop_picker(ColonizeGameState* game, int route, int preselect) {
   if (!game || !game->col1_ok || route < 0 ||
-      route >= (int)COLONIZE_COL1_TRADE_ROUTE_COUNT) {
+      route >= (int)COLONIZE_COL1_TRADE_ROUTE_MAX) {
     return;
   }
   const ColonizeCol1TradeRoute* r = &game->col1.trade_route[route];
@@ -1056,7 +1056,7 @@ void game_trade_default_name(
   bool suffixed = false;
   for (int guard = 0; guard < 32; ++guard) {
     bool clash = false;
-    for (int i = 0; i < (int)COLONIZE_COL1_TRADE_ROUTE_COUNT; ++i) {
+    for (int i = 0; i < (int)COLONIZE_COL1_TRADE_ROUTE_MAX; ++i) {
       const ColonizeCol1TradeRoute* r = &game->col1.trade_route[i];
       if ((r->name[0] || r->dest_count) && strncmp(r->name, out, sizeof(r->name)) == 0) {
         clash = true;
@@ -1164,7 +1164,7 @@ void game_apply_trade_dest(ColonizeGameState* game, int id) {
     /* Commit (DOS: record written, count bumped, editor opened). */
     game->trade_create_stage = 0;
     int slot = -1;
-    for (int i = 0; i < (int)COLONIZE_COL1_TRADE_ROUTE_COUNT; ++i) {
+    for (int i = 0; i < (int)COLONIZE_COL1_TRADE_ROUTE_MAX; ++i) {
       const ColonizeCol1TradeRoute* r = &game->col1.trade_route[i];
       if (r->name[0] == '\0' && r->dest_count == 0) {
         slot = i;
@@ -1316,7 +1316,7 @@ void game_apply_cheat_list_result(ColonizeGameState* game) {
       PopupMsgTokens tok;
       memset(&tok, 0, sizeof(tok));
       const char* rname =
-        (game->col1_ok && id >= 0 && id < (int)COLONIZE_COL1_TRADE_ROUTE_COUNT &&
+        (game->col1_ok && id >= 0 && id < (int)COLONIZE_COL1_TRADE_ROUTE_MAX &&
          game->col1.trade_route[id].name[0])
           ? game->col1.trade_route[id].name
           : (label && label[0] ? label : "");

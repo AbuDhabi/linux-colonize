@@ -122,7 +122,7 @@ static void colonies_trade_stops_on_delete(
   if (!col1 || rank < 0) {
     return;
   }
-  for (int route = 0; route < (int)COLONIZE_COL1_TRADE_ROUTE_COUNT; ++route) {
+  for (int route = 0; route < (int)COLONIZE_COL1_TRADE_ROUTE_MAX; ++route) {
     ColonizeCol1TradeRoute* r = &col1->trade_route[route];
     for (int j = (int)r->dest_count - 1; j >= 0; --j) {
       uint16_t* p = &r->stop[j].colony_index;

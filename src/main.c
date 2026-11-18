@@ -185,6 +185,7 @@ int main(int argc, char** argv) {
     const ColonizeSettings* prefs = settings_get();
     units_set_unlimited(prefs->unlimited_units);
     colonies_set_unlimited(prefs->unlimited_colonies);
+    col1_trade_routes_set_unlimited(prefs->unlimited_routes);
     if (!cli.data_dir_from_cli && prefs->data_dir[0]) {
       cli.data_dir = prefs->data_dir;
     }

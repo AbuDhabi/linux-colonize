@@ -151,7 +151,7 @@ bool trade_screen_handle_input(
   if (!ts || !ts->open || !input) {
     return false;
   }
-  if (!col1 || ts->route < 0 || ts->route >= (int)COLONIZE_COL1_TRADE_ROUTE_COUNT) {
+  if (!col1 || ts->route < 0 || ts->route >= (int)COLONIZE_COL1_TRADE_ROUTE_MAX) {
     ts->request = TRADE_SCREEN_REQ_CLOSE;
     return true;
   }
@@ -263,7 +263,7 @@ void trade_screen_render(
   ColonizeFramebuffer8* framebuffer
 ) {
   if (!ts || !ts->open || !framebuffer || !col1 || ts->route < 0 ||
-      ts->route >= (int)COLONIZE_COL1_TRADE_ROUTE_COUNT) {
+      ts->route >= (int)COLONIZE_COL1_TRADE_ROUTE_MAX) {
     return;
   }
   const ColonizeCol1TradeRoute* r = &col1->trade_route[ts->route];

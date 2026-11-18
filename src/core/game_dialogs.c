@@ -1093,7 +1093,7 @@ int game_trade_route_count(const ColonizeGameState* game) {
     return 0;
   }
   int n = 0;
-  for (int i = 0; i < (int)COLONIZE_COL1_TRADE_ROUTE_COUNT; ++i) {
+  for (int i = 0; i < (int)COLONIZE_COL1_TRADE_ROUTE_MAX; ++i) {
     if (game->col1.trade_route[i].name[0] != '\0' ||
         game->col1.trade_route[i].dest_count > 0) {
       n = i + 1;
@@ -1109,7 +1109,7 @@ int game_trade_route_count(const ColonizeGameState* game) {
  */
 static void game_do_trade_delete_slot(ColonizeGameState* game, int slot) {
   if (!game || !game->col1_ok || slot < 0 ||
-      slot >= (int)COLONIZE_COL1_TRADE_ROUTE_COUNT) {
+      slot >= (int)COLONIZE_COL1_TRADE_ROUTE_MAX) {
     return;
   }
   if (game->units_ok) {
@@ -1176,7 +1176,7 @@ void game_trade_begin_route(ColonizeGameState* game, int route) {
     return;
   }
   const int sid = game->units.selected_id;
-  if (sid < 0 || route < 0 || route >= (int)COLONIZE_COL1_TRADE_ROUTE_COUNT) {
+  if (sid < 0 || route < 0 || route >= (int)COLONIZE_COL1_TRADE_ROUTE_MAX) {
     return;
   }
   const ColonizeCol1TradeRoute* r = &game->col1.trade_route[route];
@@ -1206,7 +1206,7 @@ void game_trade_begin_at_stop(ColonizeGameState* game, int route, int stop_i) {
     return;
   }
   ColonizeUnit* u = units_get(&game->units, sid);
-  if (!u || route < 0 || route >= (int)COLONIZE_COL1_TRADE_ROUTE_COUNT) {
+  if (!u || route < 0 || route >= (int)COLONIZE_COL1_TRADE_ROUTE_MAX) {
     return;
   }
   u->follow_unit_id = route;
@@ -2107,12 +2107,11 @@ void game_open_trade_route_picker(ColonizeGameState* game, int mode) {
     ai_popup_enqueue_ok(&game->ai_popups, AI_POPUP_TAG_INFO, NULL, body);
     return;
   }
-  const char* labels[CHEAT_LIST_MAX_OPTIONS];
-  int ids[CHEAT_LIST_MAX_OPTIONS];
-  char name_bufs[CHEAT_LIST_MAX_OPTIONS][CHEAT_LIST_LABEL_LEN];
+  const char* labels[COLONIZE_COL1_TRADE_ROUTE_MAX];
+  int ids[COLONIZE_COL1_TRADE_ROUTE_MAX];
+  char name_bufs[COLONIZE_COL1_TRADE_ROUTE_MAX][CHEAT_LIST_LABEL_LEN];
   int count = 0;
-  for (int i = 0; i < (int)COLONIZE_COL1_TRADE_ROUTE_COUNT && count < CHEAT_LIST_MAX_OPTIONS;
-       ++i) {
+  for (int i = 0; i < (int)COLONIZE_COL1_TRADE_ROUTE_MAX; ++i) {
     const ColonizeCol1TradeRoute* r = &game->col1.trade_route[i];
     if (r->name[0] == '\0' && r->dest_count == 0) {
       continue;
@@ -2153,11 +2152,6 @@ void game_open_trade_route_picker(ColonizeGameState* game, int mode) {
     prompt,
     sizeof(prompt)
   );
-  if (!cheat_list_open_trade_select(&game->cheat_list, prompt, labels, ids, count)) {
-    game->trade_select_mode = 0;
-    diag_warn("trade route picker: cheat list refused to open");
-    return;
-  }
   /* FUN_647e_0796 param_2 = the FUN_291f_08ec default row (#1718): Begin passes the
    * unit's route nibble (FUN_281f_0858, raw 42847), Edit DS:0x1d69 (raw 103110), Delete 0
    * (raw 103169). The port holds the nibble only while orders == 2. */
@@ -2168,7 +2162,21 @@ void game_open_trade_route_picker(ColonizeGameState* game, int mode) {
   } else if (mode == 2) {
     def_route = game->trade_last_edited;
   }
-  for (int row = 0; row < count; ++row) {
+  /* DOS lists at most 12 routes in one box; past that (divergences.unlimited_routes)
+   * the list pages like the stop picker (FUN_647e_01c6 pager, (More) rows). */
+  const bool opened =
+    count > (int)COLONIZE_COL1_TRADE_ROUTE_COUNT
+      ? cheat_list_open_dest_pages(
+          &game->cheat_list, CHEAT_LIST_KIND_TRADE_SELECT, prompt, labels, ids, NULL, count,
+          false, def_route, NULL
+        )
+      : cheat_list_open_trade_select(&game->cheat_list, prompt, labels, ids, count);
+  if (!opened) {
+    game->trade_select_mode = 0;
+    diag_warn("trade route picker: cheat list refused to open");
+    return;
+  }
+  for (int row = 0; !game->cheat_list.paged && row < count; ++row) {
     if (ids[row] == def_route) {
       cheat_list_set_selection(&game->cheat_list, row);
     }
@@ -2290,7 +2298,7 @@ static void game_apply_name_entry_result(ColonizeGameState* game) {
     if (!game->name_entry.result_cancelled && game->col1_ok &&
         game->name_entry.result_name[0] &&
         game->name_entry.result_target >= 0 &&
-        game->name_entry.result_target < (int)COLONIZE_COL1_TRADE_ROUTE_COUNT) {
+        game->name_entry.result_target < (int)COLONIZE_COL1_TRADE_ROUTE_MAX) {
       ColonizeCol1TradeRoute* r =
         &game->col1.trade_route[game->name_entry.result_target];
       str_copy_trunc(r->name, sizeof(r->name), game->name_entry.result_name);

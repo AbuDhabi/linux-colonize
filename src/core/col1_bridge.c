@@ -175,17 +175,33 @@ uint8_t col1_mp_terrain_to_tile(uint8_t mp_terrain_byte) {
  * throws away — dropping the automation at load time instead of declining to
  * write it.
  *
- * The nibble spans 0..15 but only 12 routes exist, and capture writes
+ * The nibble spans 0..15 but only 12 routes exist (64 under
+ * divergences.unlimited_routes: col1_bridge_trade_cursor_pack), and capture writes
  * UNITS_JOB_NONE (0x1c — low nibble 12) into that byte for a route unit whose
  * slot went stale, so the bound check is load-bearing on the decode side.
  */
 /* ===================== Trade-route cursor & Europe dock/job helpers (col1_bridge_trade_cursor_valid .. col1_find_human_nation) ===================== */
+/*
+ * Cursor byte pack/unpack. DOS: low nibble = slot, high nibble = stop. A route
+ * has at most 4 stops, so stop needs bits 4-5 only; the port parks slot bits
+ * 4-5 in bits 6-7 for divergences.unlimited_routes (slots 12..63). Always 0
+ * for a DOS-limit route, so DOS saves decode unchanged.
+ */
+static uint8_t col1_bridge_trade_cursor_pack(int route, int stop) {
+  return (uint8_t)((route & 0xf) | ((stop & 0x3) << 4) | (((route >> 4) & 0x3) << 6));
+}
+
+static void col1_bridge_trade_cursor_unpack(uint8_t b, int* route, int* stop) {
+  *route = (int)(b & 0x0fu) | (int)((b >> 6) << 4);
+  *stop = (int)((b >> 4) & 0x3u);
+}
+
 static bool col1_bridge_trade_cursor_valid(
   const ColonizeCol1Save* save,
   int route,
   bool unit_is_sea
 ) {
-  if (!save || route < 0 || route >= (int)COLONIZE_COL1_TRADE_ROUTE_COUNT) {
+  if (!save || route < 0 || route >= (int)COLONIZE_COL1_TRADE_ROUTE_MAX) {
     return false;
   }
   const ColonizeCol1TradeRoute* r = &save->trade_route[route];
@@ -204,7 +220,7 @@ static int col1_bridge_trade_cursor_stop(
   int route,
   int stop
 ) {
-  if (!save || route < 0 || route >= (int)COLONIZE_COL1_TRADE_ROUTE_COUNT) {
+  if (!save || route < 0 || route >= (int)COLONIZE_COL1_TRADE_ROUTE_MAX) {
     return 0;
   }
   const int stops = (int)save->trade_route[route].dest_count;
@@ -228,8 +244,9 @@ static void col1_bridge_europe_ship_route_load(
   if (!save || !src || !slot || src->orders != UNITS_ORDER_TRADE_ROUTE) {
     return;
   }
-  const int route = (int)(src->profession & 0x0fu);
-  const int stop = (int)((src->profession >> 4) & 0x0fu);
+  int route = 0;
+  int stop = 0;
+  col1_bridge_trade_cursor_unpack(src->profession, &route, &stop);
   if (!col1_bridge_trade_cursor_valid(save, route, /*unit_is_sea=*/true)) {
     return;
   }
@@ -2007,8 +2024,9 @@ COLONIZE_INTERNAL Col1StageStatus col1_bridge_apply_units(Col1ApplyCtx* ctx) {
        * than parking the unit in the activation queue forever.
        */
       if (u->orders == UNITS_ORDER_TRADE_ROUTE) {
-        const int route = (int)(src->profession & 0x0fu);
-        const int stop = (int)((src->profession >> 4) & 0x0fu);
+        int route = 0;
+        int stop = 0;
+        col1_bridge_trade_cursor_unpack(src->profession, &route, &stop);
         const bool unit_sea = ut && ut->domain == COLONIZE_UNIT_DOMAIN_SEA;
         /* Same rule capture applies before it writes the cursor — see
          * col1_bridge_trade_cursor_valid. Kept here for saves written before
@@ -3504,7 +3522,7 @@ COLONIZE_INTERNAL void col1_bridge_capture_unit_records(Col1CaptureCtx* ctx) {
         if (col1_bridge_trade_cursor_valid(save, src->follow_unit_id, unit_sea)) {
           const int stop =
             col1_bridge_trade_cursor_stop(save, src->follow_unit_id, src->col1_counter16);
-          dst->profession = (uint8_t)(((stop & 0xf) << 4) | (src->follow_unit_id & 0xf));
+          dst->profession = col1_bridge_trade_cursor_pack(src->follow_unit_id, stop);
         } else {
           /* Symmetry with apply: a cursor the decoder would reject must not
            * be written with orders 2 behind it, or the automation is dropped
@@ -4186,7 +4204,7 @@ COLONIZE_INTERNAL void col1_bridge_capture_europe_lanes(Col1CaptureCtx* ctx) {
         }
         dst->orders = on_route ? (uint8_t)UNITS_ORDER_TRADE_ROUTE : 0;
         if (on_route) {
-          dst->profession = (uint8_t)(((route_stop & 0xf) << 4) | (route_slot & 0xf));
+          dst->profession = col1_bridge_trade_cursor_pack(route_slot, route_stop);
         }
         dst->goto_x = gx;
         dst->goto_y = gy;

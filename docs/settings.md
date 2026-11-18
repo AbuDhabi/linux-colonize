@@ -60,7 +60,7 @@ defaults no matter what file is sitting in the build directory.
     "trace_autosaves": false, "input_logger": false, "input_logger_directory": "./input_logs"
   },
   "divergences": {
-    "unlimited_units": false, "unlimited_colonies": false
+    "unlimited_units": false, "unlimited_colonies": false, "unlimited_routes": false
   },
   "mods": {
     "wagon_loot": false, "goto_native_wait": true, "population_floor": false, "raid_scalps": false,
@@ -129,6 +129,16 @@ saved in the `COXT` port extension chunk (docs/savegame.md), so DOS still loads
 the first 48 and never sees the rest. Turning the flag off again does not drop
 colonies: a save already above 48 loads whole, and new colonies wait until the
 count falls back under the DOS limit.
+`divergences.unlimited_routes` (read at startup, `main.c` ->
+`col1_trade_routes_set_unlimited`) raises the Create Trade Route cap
+(`@TRADEMANY`, 12 in DOS) to `COLONIZE_COL1_TRADE_ROUTE_MAX` (64, what the
+unit's route cursor byte can address: slot bits 4-5 ride in its bits 6-7, which
+a 4-stop route never uses). The Begin / Edit / Delete route pickers page like
+the stop picker ("(More)" rows, 10 per page) once more than 12 routes exist.
+Routes past 12 are saved in the `TRXT` port extension chunk (docs/savegame.md);
+DOS loads the first 12 and sees a 12-route head. A unit on a route past 12
+carries a cursor DOS cannot follow. Turning the flag off again keeps every
+route; new ones wait until the count falls under 12.
 `pioneer_plan`, `scout_autoexplore`, `ship_autoexplore`, `hard_king`,
 `current_vision`, `modern_prng` and `alternate_map_generator` used to be `divergences` keys; they are per-campaign `mods` now
 (below). A file that still has one of them under `divergences` and not under

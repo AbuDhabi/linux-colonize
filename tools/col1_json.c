@@ -1412,7 +1412,13 @@ void col1_write_json(FILE* f, const ColonizeCol1Save* s) {
   write_post_map(f, &s->post_map);
   jkey(f, &n, "trade_routes");
   fputc('[', f);
-  for (int i = 0; i < (int)COLONIZE_COL1_TRADE_ROUTE_COUNT; ++i) {
+  /* DOS 12, plus any 'TRXT' routes (divergences.unlimited_routes) up to the last live one. */
+  int route_n = (int)COLONIZE_COL1_TRADE_ROUTE_MAX;
+  while (route_n > (int)COLONIZE_COL1_TRADE_ROUTE_COUNT &&
+         !s->trade_route[route_n - 1].name[0] && !s->trade_route[route_n - 1].dest_count) {
+    --route_n;
+  }
+  for (int i = 0; i < route_n; ++i) {
     if (i) fputc(',', f);
     write_trade_route(f, &s->trade_route[i]);
   }
@@ -1547,7 +1553,7 @@ bool col1_read_json(const JsonValue* root, ColonizeCol1Save* out, char* err, siz
 
   JsonValue* routes = json_obj_get(root, "trade_routes");
   if (routes && routes->type == JV_ARR) {
-    for (size_t i = 0; i < COLONIZE_COL1_TRADE_ROUTE_COUNT && i < json_arr_len(routes); ++i) {
+    for (size_t i = 0; i < COLONIZE_COL1_TRADE_ROUTE_MAX && i < json_arr_len(routes); ++i) {
       read_trade_route(json_arr_at(routes, i), &out->trade_route[i]);
     }
   }

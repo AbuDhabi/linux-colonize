@@ -80,7 +80,7 @@ typedef struct ColonizeCol1Save {
   ColonizeCol1Stuff stuff;
   ColonizeCol1Map map;
   ColonizeCol1PostMap post_map;
-  ColonizeCol1TradeRoute trade_route[COLONIZE_COL1_TRADE_ROUTE_COUNT];
+  ColonizeCol1TradeRoute trade_route[COLONIZE_COL1_TRADE_ROUTE_MAX];
   /*
    * Port-only extension block appended AFTER the last DOS section (see
    * "Port extension block" in docs/savegame.md). DOS reads the .SAV section
@@ -404,6 +404,16 @@ bool col1_save_write_memory(
  * ColonizeCol1Colony records. Handled like 'UNXT': in memory the save simply
  * has head.colony_count > 48 and no such chunk. */
 #define COLONIZE_COL1_EXT_TAG_COLONY_OVERFLOW 0x54584f43u
+
+/* 'TRXT': trade_route[] records past COLONIZE_COL1_TRADE_ROUTE_COUNT, verbatim
+ * 74-byte ColonizeCol1TradeRoute records up to the last live one. Handled
+ * like 'COXT': in memory the save simply has routes in slots 12.. */
+#define COLONIZE_COL1_EXT_TAG_ROUTE_OVERFLOW 0x54585254u
+
+/* Port divergence (settings.json divergences.unlimited_routes): the route
+ * create gate becomes COLONIZE_COL1_TRADE_ROUTE_MAX instead of DOS's 12. */
+void col1_trade_routes_set_unlimited(bool on);
+int col1_trade_routes_cap(void);
 
 /* True when `data` is a well-formed ext block (magic, version, chunk walk). */
 bool col1_save_ext_valid(const uint8_t* data, size_t size);

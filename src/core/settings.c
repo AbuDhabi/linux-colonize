@@ -105,6 +105,7 @@ static const SettingsBoolOpt k_debug_opts[] = {
 static const SettingsBoolOpt k_divergence_opts[] = {
   SETTINGS_BOOL(unlimited_units, false),
   SETTINGS_BOOL(unlimited_colonies, false),
+  SETTINGS_BOOL(unlimited_routes, false),
 };
 
 /* "mods": one row per live ModId (retired slots have none), in ModId order. DOS bug fixes default on,

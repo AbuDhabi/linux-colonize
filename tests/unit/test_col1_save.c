@@ -537,7 +537,7 @@ static bool build_synthetic(ColonizeCol1Save* save, char* err, size_t err_size) 
   fill_pattern(save->map.path, save->map.tile_count, 0xb3);
   fill_pattern(save->map.seen, save->map.tile_count, 0xc4);
   fill_pattern((uint8_t*)&save->post_map, sizeof(save->post_map), 0xd5);
-  fill_pattern((uint8_t*)save->trade_route, sizeof(save->trade_route), 0xf7);
+  fill_pattern((uint8_t*)save->trade_route, COLONIZE_COL1_TRADE_ROUTE_COUNT * sizeof(ColonizeCol1TradeRoute), 0xf7);
 
   /* Keep signature / version intact after pattern fills. */
   col1_save_stamp_head(&save->head);
@@ -685,6 +685,41 @@ static bool test_colony_overflow(char* err, size_t err_size) {
   }
   if (!ok) {
     fprintf(stderr, "colony overflow: round trip failed (%s)\n", err);
+  }
+  free(data);
+  col1_save_free(&back);
+  col1_save_free(&save);
+  return ok;
+}
+
+/* divergences.unlimited_routes: routes past the DOS 12 ride in 'TRXT', the DOS
+ * head says 12, and the read puts them back in their slots. */
+static bool test_route_overflow(char* err, size_t err_size) {
+  ColonizeCol1Save save;
+  if (!build_synthetic(&save, err, err_size)) {
+    return false;
+  }
+  const int last = (int)COLONIZE_COL1_TRADE_ROUTE_MAX - 1;
+  snprintf(save.trade_route[last].name, sizeof(save.trade_route[last].name), "Far Route");
+  save.trade_route[last].dest_count = 2;
+  save.head.trade_route_count = (uint16_t)(last + 1);
+  uint8_t* data = NULL;
+  size_t size = 0;
+  bool ok = col1_save_write_memory(&save, &data, &size, err, err_size);
+  ColonizeCol1Save back;
+  col1_save_init(&back);
+  if (ok) {
+    ColonizeCol1Head dos_head;
+    memcpy(&dos_head, data, sizeof(dos_head));
+    ok = dos_head.trade_route_count == COLONIZE_COL1_TRADE_ROUTE_COUNT &&
+         col1_save_read_memory(data, size, &back, err, err_size) &&
+         strcmp(back.trade_route[last].name, "Far Route") == 0 &&
+         back.trade_route[last].dest_count == 2 &&
+         memcmp(back.trade_route, save.trade_route, sizeof(save.trade_route)) == 0 &&
+         !col1_save_ext_find(&back, COLONIZE_COL1_EXT_TAG_ROUTE_OVERFLOW, NULL, NULL);
+  }
+  if (!ok) {
+    fprintf(stderr, "route overflow: round trip failed (%s)\n", err);
   }
   free(data);
   col1_save_free(&back);
@@ -2458,6 +2493,9 @@ int main(void) {
     return 1;
   }
   if (!test_colony_overflow(err, sizeof(err))) {
+    return 1;
+  }
+  if (!test_route_overflow(err, sizeof(err))) {
     return 1;
   }
   if (!test_unit_overflow(err, sizeof(err))) {
@@ -4571,13 +4609,14 @@ int main(void) {
       assets_msg_free(&names);
       return 1;
     }
-    /* Slot 2 is a live two-stop route; slot 3 stays empty. */
-    save.head.trade_route_count = 3;
-    snprintf(save.trade_route[2].name, sizeof(save.trade_route[2].name), "%s", "Wagon Loop");
-    save.trade_route[2].sea = 0;
-    save.trade_route[2].dest_count = 2;
-    save.trade_route[2].stop[0].colony_index = 0;
-    save.trade_route[2].stop[1].colony_index = 1;
+    /* Slot 18 (past DOS's 12: divergences.unlimited_routes, slot bit 4 rides in
+     * cursor bit 6) is a live two-stop route; slot 3 stays empty. */
+    save.head.trade_route_count = 19;
+    snprintf(save.trade_route[18].name, sizeof(save.trade_route[18].name), "%s", "Wagon Loop");
+    save.trade_route[18].sea = 0;
+    save.trade_route[18].dest_count = 2;
+    save.trade_route[18].stop[0].colony_index = 0;
+    save.trade_route[18].stop[1].colony_index = 1;
 
     static ColonizeUnitPool units;
     memset(&units, 0, sizeof(units));
@@ -4606,7 +4645,7 @@ int main(void) {
     }
     w->nation_id = 0;
     w->orders = UNITS_ORDER_TRADE_ROUTE;
-    w->follow_unit_id = 2;
+    w->follow_unit_id = 18;
     w->col1_counter16 = 1;
     sv->nation_id = 0;
     sv->orders = UNITS_ORDER_TRADE_ROUTE;
@@ -4640,9 +4679,9 @@ int main(void) {
           packed = (int)save.unit[i].profession;
         }
       }
-      if (packed != ((1 << 4) | 2)) {
+      if (packed != ((1 << 6) | (1 << 4) | 2)) {
         fprintf(
-          stderr, "trade-route cursor: capture packed 0x%02x (want 0x12)\n", (unsigned)packed
+          stderr, "trade-route cursor: capture packed 0x%02x (want 0x52)\n", (unsigned)packed
         );
         units_set_occupancy_map(NULL);
         col1_save_free(&save);
@@ -4695,11 +4734,11 @@ int main(void) {
         sv2 = u;
       }
     }
-    if (!w2 || w2->orders != UNITS_ORDER_TRADE_ROUTE || w2->follow_unit_id != 2 ||
+    if (!w2 || w2->orders != UNITS_ORDER_TRADE_ROUTE || w2->follow_unit_id != 18 ||
         w2->col1_counter16 != 1) {
       fprintf(
         stderr,
-        "trade-route cursor: apply gave orders=%d route=%d stop=%d (want 2/2/1)\n",
+        "trade-route cursor: apply gave orders=%d route=%d stop=%d (want 2/18/1)\n",
         w2 ? w2->orders : -1,
         w2 ? w2->follow_unit_id : -1,
         w2 ? w2->col1_counter16 : -1

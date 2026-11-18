@@ -663,7 +663,7 @@ void game_europe_deliver_bound_ships(ColonizeGameState* game) {
        * must actually visit Europe, then carry on) — same TRADE_ROUTE
        * encoding as game_apply_trade_dest (follow_unit_id = route slot).
        */
-      if (trade_route >= 0 && trade_route < (int)COLONIZE_COL1_TRADE_ROUTE_COUNT &&
+      if (trade_route >= 0 && trade_route < (int)COLONIZE_COL1_TRADE_ROUTE_MAX &&
           game->col1_ok && game->col1.trade_route[trade_route].dest_count > 0) {
         ship->orders = UNITS_ORDER_TRADE_ROUTE;
         ship->follow_unit_id = trade_route;
@@ -1245,7 +1245,7 @@ int game_trade_route_aim_stop(ColonizeGameState* game, ColonizeUnit* u, int stop
     return 0;
   }
   const int route = u->follow_unit_id;
-  if (route < 0 || route >= (int)COLONIZE_COL1_TRADE_ROUTE_COUNT) {
+  if (route < 0 || route >= (int)COLONIZE_COL1_TRADE_ROUTE_MAX) {
     return 0;
   }
   const ColonizeCol1TradeRoute* r = &game->col1.trade_route[route];
@@ -1305,7 +1305,7 @@ static const ColonizeCol1TradeRoute* game_trade_route_at_stop(
     return NULL;
   }
   const int route = u->follow_unit_id;
-  if (route < 0 || route >= (int)COLONIZE_COL1_TRADE_ROUTE_COUNT) {
+  if (route < 0 || route >= (int)COLONIZE_COL1_TRADE_ROUTE_MAX) {
     return NULL;
   }
   const ColonizeCol1TradeRoute* r = &game->col1.trade_route[route];
@@ -1480,7 +1480,7 @@ void game_europe_service_trade_harbor(ColonizeGameState* game) {
       continue;
     }
     const int route = ship->trade_route_plus1 - 1;
-    if (route < 0 || route >= (int)COLONIZE_COL1_TRADE_ROUTE_COUNT) {
+    if (route < 0 || route >= (int)COLONIZE_COL1_TRADE_ROUTE_MAX) {
       ship->trade_route_plus1 = 0;
       ++i;
       continue;
@@ -2056,11 +2056,11 @@ static GameMenuActionStatus game_menu_action_goto_and_cargo(ColonizeGameState* g
         set_status(game, "No save data for trade routes", NULL);
         return GAME_MENU_ACTION_DONE;
       }
-      /* DOS OVL19: 12-route cap → @TRADEMANY {%NUMBER0}. */
-      if (game_trade_route_count(game) >= (int)COLONIZE_COL1_TRADE_ROUTE_COUNT) {
+      /* DOS OVL19: 12-route cap → @TRADEMANY {%NUMBER0} (divergences.unlimited_routes: 64). */
+      if (game_trade_route_count(game) >= col1_trade_routes_cap()) {
         PopupMsgTokens tok;
         memset(&tok, 0, sizeof(tok));
-        tok.number0 = (int)COLONIZE_COL1_TRADE_ROUTE_COUNT;
+        tok.number0 = col1_trade_routes_cap();
         tok.has_number0 = true;
         char body[AI_POPUP_BODY_LEN];
         popup_msg_fill(

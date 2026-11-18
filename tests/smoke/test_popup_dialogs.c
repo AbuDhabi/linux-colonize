@@ -1633,6 +1633,48 @@ static int trade_click(TradeScreen* ts, const ColonizeCol1Save* col1, int x, int
   return ts->request;
 }
 
+/* divergences.unlimited_routes: more than DOS's 12 routes page in the Edit / Delete picker
+ * (FUN_647e_01c6 pager, 10 a page); 12 or fewer keep DOS's single box. */
+static int case_trade_route_picker_pages(void) {
+  ColonizeGameState* game = calloc(1, sizeof(*game));
+  if (!game) {
+    return fail("allocate game state");
+  }
+  assets_msg_init(&game->messages);
+  ai_popup_init(&game->ai_popups);
+  game->col1_ok = true;
+  int rc = 0;
+  for (int i = 0; i < 12; ++i) {
+    snprintf(game->col1.trade_route[i].name, sizeof(game->col1.trade_route[i].name), "R%d", i);
+    game->col1.trade_route[i].dest_count = 2;
+  }
+  game_open_trade_route_picker(game, 2);
+  if (!game->cheat_list.open || game->cheat_list.paged || game->cheat_list.option_count != 12) {
+    rc = fail("12 routes: one DOS box");
+  }
+  for (int i = 12; i < 15; ++i) {
+    snprintf(game->col1.trade_route[i].name, sizeof(game->col1.trade_route[i].name), "R%d", i);
+    game->col1.trade_route[i].dest_count = 2;
+  }
+  game->trade_last_edited = 3;
+  game_open_trade_route_picker(game, 3);
+  if (rc == 0 && (!game->cheat_list.paged || game->cheat_list.option_count != 11 ||
+                  game->cheat_list.option_ids[10] != 0x3e6 || game->cheat_list.selection != 0)) {
+    rc = fail("15 routes: page 0 = routes 0..9 + More, Delete preselects row 0");
+  }
+  dest_pick(&game->cheat_list, 10);
+  if (rc == 0 && (game->cheat_list.option_count != 6 || game->cheat_list.option_ids[5] != 14)) {
+    rc = fail("15 routes: page 1 = Previous + routes 10..14");
+  }
+  dest_pick(&game->cheat_list, 5);
+  if (rc == 0 && (!game->cheat_list.has_result || game->cheat_list.result_id != 14 ||
+                  game->cheat_list.result_kind != CHEAT_LIST_KIND_TRADE_SELECT)) {
+    rc = fail("15 routes: the last row returns route 14");
+  }
+  free(game);
+  return rc;
+}
+
 static int case_trade_cargo_columns_are_dos(void) {
   static ColonizeCol1Save col1;
   memset(&col1, 0, sizeof(col1));
@@ -2092,6 +2134,7 @@ static const TestCase k_cases[] = {
     {"cheat_prompts_and_text_entry_dos", case_cheat_prompts_and_text_entry_dos},
     {"dest_pager_is_dos", case_dest_pager_is_dos},
     {"find_colony_is_dos", case_find_colony_is_dos},
+    {"trade_route_picker_pages", case_trade_route_picker_pages},
     {"trade_cargo_columns_are_dos", case_trade_cargo_columns_are_dos},
 };
 

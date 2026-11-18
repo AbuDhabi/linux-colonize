@@ -52,7 +52,11 @@
 #define COLONIZE_COL1_UNKNOWN_E_SIZE 504u
 #define COLONIZE_COL1_UNKNOWN_F_SIZE 110u
 #define COLONIZE_COL1_TRADE_ROUTE_SIZE 74u
-#define COLONIZE_COL1_TRADE_ROUTE_COUNT 12u
+#define COLONIZE_COL1_TRADE_ROUTE_COUNT 12u /* DOS DS:0x53a0 limit, routes on disk */
+/* In-memory trade_route[] size: settings divergences.unlimited_routes lifts the
+ * DOS 12 to this; routes 12.. ride in the 'TRXT' extension chunk. 64 = what the
+ * unit cursor byte can address (col1_bridge: slot bits 4-5 in bits 6-7). */
+#define COLONIZE_COL1_TRADE_ROUTE_MAX 64u
 #define COLONIZE_COL1_TRADE_ROUTE_STOPS 4u
 #define COLONIZE_COL1_CARGO_TYPES 16u
 #define COLONIZE_COL1_FF_COUNT 25u

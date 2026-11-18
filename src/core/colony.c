@@ -1428,7 +1428,7 @@ static void colonies_trade_stops_on_insert(ColonizeCol1Save* col1, int rank) {
   if (!col1 || rank < 0) {
     return;
   }
-  for (int route = 0; route < (int)COLONIZE_COL1_TRADE_ROUTE_COUNT; ++route) {
+  for (int route = 0; route < (int)COLONIZE_COL1_TRADE_ROUTE_MAX; ++route) {
     ColonizeCol1TradeRoute* r = &col1->trade_route[route];
     for (int j = 0; j < (int)r->dest_count; ++j) {
       uint16_t* p = &r->stop[j].colony_index;

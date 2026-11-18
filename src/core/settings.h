@@ -112,6 +112,7 @@ typedef struct ColonizeSettings {
    * process-wide, read at startup. Per-campaign toggles are "mods" below. */
   bool unlimited_units; /* skip the FUN_1427_06b4 unit limits (units_set_unlimited) */
   bool unlimited_colonies; /* skip the 48-colony founding gate (colonies_set_unlimited) */
+  bool unlimited_routes; /* 64 trade routes, not 12 (col1_trade_routes_set_unlimited) */
 
   /* "mods": per-toggle defaults a new game copies into its campaign (mods.h).
    * Indexed by ModId. A running campaign never reads these. */
