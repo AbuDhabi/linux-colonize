@@ -787,3 +787,20 @@ the hammer deficit instead, so a bank past the cost stays. Price and the
 +0x98 purchased tally are unchanged (deficit 0 in that case). Ungated: no AI
 or golden path buys. Test: `unit_colonies` `unit_buy_keeps_surplus_hammers`.
 **Status:** done (user report, 2026-11-16).
+
+### DB-113 — The Arsenal gets no factory input discount
+**DOS:** the Arsenal needs Adam Smith like the other five factory buildings
+(build gate raw 13707-13711), yet `FUN_15eb_1f72` (raw 12683-12689) emits the
+muskets pair through `FUN_15eb_0b96(0xe, gross[muskets] @DS:0x8de6)` instead of
+`FUN_15eb_0bd4`. So it skips both the factory `(G<<1)/3` input discount (raw
+10171) and the `(U*3)/2` unmet rescale (raw 10175-10180): an Arsenal makes 9
+muskets from 9 tools, not 6 (port_bugs.md #910 recorded the literal reading).
+
+**Port:** the tools -> muskets pair goes through the same 0bd4 math as the
+other factory chains (`colony_prod_chain_input_for_total_output`,
+`colony_prod_manufacturing_input_row` in `src/core/colony_production.c`; the
+unmet rescale in `colony_craft_run`, `src/core/colony_craft.c`). Armory and
+Magazine stay 1:1 (039e < 3). Ungated: golden_ai_joint unmoved; replay
+`turns_bldg_factory_tiers` re-blessed. Test: `unit_turn_core`
+`arsenal_factory_discount`.
+**Status:** done (user call, 2026-11-18).

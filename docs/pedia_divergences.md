@@ -288,8 +288,9 @@ in record +8, read by `FUN_15eb_3650` raw 13663 and `colonies_building_is_builda
   Drydock "population of 6" → 4; Weaver's/Tobacconist's Shop, Rum Distillery, Fur Trader's Shop,
   Blacksmith's Shop "at least 4" → 1; Coat Factory "at least 8" → 6.
 - **Arsenal** "doubles the output of muskets": Armory 3, Magazine 6, Arsenal 9, so the Arsenal is
-  ×1.5 over the Magazine, and muskets never get the factory input saving (9 tools in, 9 out).
-  `FUN_15eb_1f72` raw 12689 emits muskets via `0b96`, not `0bd4`; port_bugs #910.
+  ×1.5 over the Magazine. DOS never gives muskets the factory input saving (9 tools in, 9 out;
+  `FUN_15eb_1f72` raw 12689 emits muskets via `0b96`, not `0bd4`; port_bugs #910); the port
+  does (9 out / 6 in, dos_bugs.md DB-113).
 - **Stables** "horse reproduction is doubled": see Goods/Horses.
 - **Cathedral** "dramatically increasing … cross production": the passive part is +1 (1 base, +1
   Church bit, +1 Cathedral bit); the real gain is that every church worker's output doubles

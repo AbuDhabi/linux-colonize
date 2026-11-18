@@ -1189,8 +1189,8 @@ void ai_euro_5952_ledgers(
   /* Craft workers: uncapped worker capacity out per worker. The input row is
    * FUN_15eb_0bd4's ONE divide over the colony's total gross[out] (raw
    * 10168-10175: `(G << 1) / 3` at the factory tier), exactly as the tick's
-   * craft pass does (colony_craft.c, port_bugs.md #851); the muskets pair
-   * stays flat (raw 12689, colony_prod_chain_input_is_flat). */
+   * craft pass does (colony_craft.c, port_bugs.md #851; the Arsenal too,
+   * docs/dos_bugs.md DB-113). */
   int craft_row[COLONIZE_CARGO_COUNT];
   int craft_in[COLONIZE_CARGO_COUNT];
   for (int c = 0; c < COLONIZE_CARGO_COUNT; ++c) {

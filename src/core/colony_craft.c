@@ -54,9 +54,8 @@ static const ColonizeCraftRecipe k_recipes[] = {
   {COLONIES_CHAIN_WEAVER, COLONIZE_CARGO_COTTON, COLONIZE_CARGO_CLOTH, COLONIZE_PROF_WEAVER},
   {COLONIES_CHAIN_FUR, COLONIZE_CARGO_FURS, COLONIZE_CARGO_COATS, COLONIZE_PROF_FUR_TRADER},
   {COLONIES_CHAIN_RUM, COLONIZE_CARGO_SUGAR, COLONIZE_CARGO_RUM, COLONIZE_PROF_DISTILLER},
-  /* The muskets pair is the `0b96` ledger row, never `0bd4` — 1:1 tools at
-   * Armory/Magazine/Arsenal alike, and no unmet rescale. See
-   * colony_prod_chain_input_is_flat. port_bugs.md #910. */
+  /* DOS keeps the muskets pair 1:1 at every tier; the port gives the
+   * Arsenal the factory discount (docs/dos_bugs.md DB-113). */
   {COLONIES_CHAIN_ARMORY, COLONIZE_CARGO_TOOLS, COLONIZE_CARGO_MUSKETS, COLONIZE_PROF_GUNSMITH},
 };
 
@@ -167,12 +166,7 @@ static bool colony_craft_pairs_next(
     /* One floor divide over the colony total, exactly where DOS does it
      * (FUN_15eb_0bd4 raw 10168-10172): `(total << 1) / 3` when the colony
      * owns all three buildings of the chain (039e > 2), else 1:1.
-     * port_bugs.md #851.
-     *
-     * Flat-input chains (tools -> muskets) never reach 0bd4 at all —
-     * FUN_15eb_1f72 raw 12689 hands the muskets gross straight to
-     * FUN_15eb_0b96 as the tools demand — so the helper keeps them 1:1 even
-     * at the Arsenal's factory tier. port_bugs.md #910. */
+     * port_bugs.md #851. The Arsenal gets it too (docs/dos_bugs.md DB-113). */
     const int total_in =
       colony_prod_chain_input_for_total_output(pool, colony, rec->chain, total_out);
     it->done_pair[rec->in_cargo][rec->out_cargo] = true;
@@ -285,7 +279,7 @@ static void colony_craft_run(
       if (unmet < 0) {
         unmet = 0;
       }
-      if (unmet != 0 && total_in != total_out && !colony_prod_chain_input_is_flat(rec->chain)) {
+      if (unmet != 0 && total_in != total_out) {
         unmet = (unmet == total_in) ? total_out : (unmet * 3) / 2;
       }
       actual_out = total_out - unmet;

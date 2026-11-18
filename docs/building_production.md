@@ -82,7 +82,7 @@ Field experts: food/fish **+2**, other jobs **×2** — [terrain_yields.md](terr
 |------|------:|---------------------------|-------------------------:|---------------------------:|
 | **1 — House / base** | 0 | `*'s House`, Carpenter’s Shop, Armory, Town Hall (bells), Church | **3** | **3** (1:1) |
 | **2 — Shop / mill** | 1 | `*'s Shop`, Lumber Mill, Rum Distillery, Fur Trading Post, Magazine | **6** | **6** (1:1) |
-| **3 — Factory** | 2 | `* Factory`, Textile Mill, Iron Works, Arsenal (**Adam Smith**) | **9** | **6** (1.5× — `input = (total_out * 2) / 3`, one floor divide over the colony total; **except the muskets chain**, see below) |
+| **3 — Factory** | 2 | `* Factory`, Textile Mill, Iron Works, Arsenal (**Adam Smith**) | **9** | **6** (1.5× — `input = (total_out * 2) / 3`, one floor divide over the colony total; the Arsenal too in the port, DOS keeps it 1:1, see below) |
 
 **Exceptions / special cases**
 
@@ -90,7 +90,7 @@ Field experts: food/fish **+2**, other jobs **×2** — [terrain_yields.md](terr
 |----------|--------|
 | **Lumber Mill** | Manual: **doubles** hammers vs Carpenter’s Shop (3→**6**); lumber 1:1. |
 | **Magazine** | Manual: **doubles** muskets vs Armory (3→**6**). |
-| **Arsenal** | Factory-tier muskets **output** (9 per free colonist), but the tools **input** is 1:1 — **9 out / 9 in** (port_bugs.md #910). The muskets pair is the only chain DOS emits through `FUN_15eb_0b96` instead of `FUN_15eb_0bd4`: `FUN_15eb_1f72` raw 12689 closes the ledger with `FUN_15eb_0b96(0xe, gross[muskets] @DS:0x8de6)`, and both the factory `(G<<1)/3` discount (raw 10171) and the `(U*3)/2` unmet rescale (raw 10175-10180) live only inside `0bd4`. There is no `0bd4(0xe, 0xf)` call anywhere. The earlier “6 tools → 9 muskets” reading here was a port-side inference from the manual’s “half the tools” prose, not decomp, and is **wrong**. Armory 3←3, Magazine 6←6, Arsenal 9←9. |
+| **Arsenal** | Factory-tier muskets **output** (9 per free colonist). **Port: 9 out / 6 in**, the same factory discount and unmet rescale as every other Adam Smith factory (dos_bugs.md DB-113). **DOS: 9 out / 9 in** (port_bugs.md #910). The muskets pair is the only chain DOS emits through `FUN_15eb_0b96` instead of `FUN_15eb_0bd4`: `FUN_15eb_1f72` raw 12689 closes the ledger with `FUN_15eb_0b96(0xe, gross[muskets] @DS:0x8de6)`, and both the factory `(G<<1)/3` discount (raw 10171) and the `(U*3)/2` unmet rescale (raw 10175-10180) live only inside `0bd4`. There is no `0bd4(0xe, 0xf)` call anywhere. The earlier “6 tools → 9 muskets” reading here was a port-side inference from the manual’s “half the tools” prose, not decomp, and is **wrong**. DOS: Armory 3←3, Magazine 6←6, Arsenal 9←9. |
 | **Iron Works / luxury factories** | **6** raw → **9** finished. |
 | **Printing Press** | **+50%** liberty bells colony-wide (manual). |
 | **Newspaper** | **+100%** liberty bells colony-wide. |
@@ -397,7 +397,7 @@ output = max(v, 0)
 input = (G << 1) / 3 at factory tier, else G  ; G = the colony's summed gross for the
                                               ; finished good, one truncating divide
                                               ; (colony_prod_chain_input_for_total_output);
-                                              ; muskets chain 1:1 at every tier
+                                              ; (DOS: muskets chain 1:1 at every tier, DB-113)
 ```
 
 ### Factory input
@@ -409,7 +409,8 @@ give 6). `FUN_15eb_0bd4` (raw 10159-10182) → `0b96` → `0b52` write the deman
 word, `FUN_15eb_0b0c` (raw 10102-10110) nets `gross - demand - unmet`. Only the
 five `0bd4` chains (ore→tools, tobacco→cigars, cotton→cloth, furs→coats,
 sugar→rum) get the discount; tools→muskets is emitted through `0b96` directly
-(`colony_prod_chain_input_is_flat`, port_bugs.md #910). A factory gross of 1
+(port_bugs.md #910); the port gives the Arsenal the discount anyway
+(dos_bugs.md DB-113). A factory gross of 1
 demands `(1*2)/3 = 0` and is produced free (#913).
 
 ### Partial input (2026-09-23, port_bugs.md #897 / #898)

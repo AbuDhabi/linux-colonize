@@ -7464,14 +7464,13 @@ static int case_factory_input_colony_total(void) {
 }
 
 /*
- * port_bugs.md #910 / #913: the muskets pair is DOS's FUN_15eb_0b96 ledger row
- * (FUN_15eb_1f72 raw 12689), so it never gets the factory `(G<<1)/3` input
- * discount nor the `(U*3)/2` unmet rescale that live inside FUN_15eb_0bd4 —
- * an Arsenal is 1:1 tools->muskets and its shortfall cuts 1:1. The third
- * scenario covers #913: a factory gross of 1 demands `(1*2)/3 == 0` and is
- * produced free.
+ * docs/dos_bugs.md DB-113: DOS keeps the muskets pair 1:1 at every tier
+ * (FUN_15eb_1f72 raw 12689 emits it through 0b96, not 0bd4); the port gives the
+ * Arsenal the factory `(G<<1)/3` input discount and the `(U*3)/2` unmet
+ * rescale like every other factory. The third scenario covers #913: a factory
+ * gross of 1 demands `(1*2)/3 == 0` and is produced free.
  */
-static int case_armory_flat_input(void) {
+static int case_arsenal_factory_discount(void) {
   ColonizeColonyPool pool;
   colonies_init(&pool);
   colonies_set_occupancy_map(NULL);
@@ -7486,7 +7485,7 @@ static int case_armory_flat_input(void) {
   pool.building_type_count = 6;
 
   /* Scenario 1: one Master Gunsmith at an Arsenal (18 muskets), ample tools
-   * — input is 1:1, not the factory (18*2)/3 = 12. The whole chain is owned:
+   * — input is the factory (18*2)/3 = 12, not DOS's 1:1. The whole chain is owned:
    * 1d4c's tier is the owned count (port_bugs.md #1692). */
   ColonizeColony* c = &pool.colonies[0];
   memset(c, 0, sizeof(*c));
@@ -7509,19 +7508,19 @@ static int case_armory_flat_input(void) {
   memset(&delta, 0, sizeof(delta));
   colony_craft_one_colony(&pool, c, &delta, 0);
   const int muskets = delta.goods[COLONIZE_CARGO_MUSKETS];
-  if (muskets != 18 || delta.goods[COLONIZE_CARGO_TOOLS] != -18) {
+  if (muskets != 18 || delta.goods[COLONIZE_CARGO_TOOLS] != -12) {
     fprintf(
       stderr,
-      "arsenal full stock: muskets=%d tools=%d expected +18/-18 (1:1, not the 2:3 discount)\n",
+      "arsenal full stock: muskets=%d tools=%d expected +18/-12 (2:3 discount)\n",
       muskets,
       delta.goods[COLONIZE_CARGO_TOOLS]
     );
     return 1;
   }
 
-  /* Scenario 2: partial input. One free colonist = gross 9 muskets, stock 5
-   * tools: DOS cuts muskets 1:1 by the unmet 4 -> 5 muskets. The 0bd4
-   * rescale would have given 9 - (4*3)/2 = 3. */
+  /* Scenario 2: partial input. One free colonist = gross 9 muskets, demand
+   * (9*2)/3 = 6, stock 5 tools: unmet 1 rescales to (1*3)/2 = 1 -> 8 muskets.
+   * DOS cuts 1:1 against a demand of 9 -> 5 muskets. */
   memset(c, 0, sizeof(*c));
   c->id = 0;
   c->has_building[0] = c->has_building[4] = c->has_building[5] = true;
@@ -7536,10 +7535,10 @@ static int case_armory_flat_input(void) {
   c->stock[COLONIZE_CARGO_TOOLS] = 5;
   memset(&delta, 0, sizeof(delta));
   colony_craft_one_colony(&pool, c, &delta, 0);
-  if (delta.goods[COLONIZE_CARGO_MUSKETS] != 5 || delta.goods[COLONIZE_CARGO_TOOLS] != -5) {
+  if (delta.goods[COLONIZE_CARGO_MUSKETS] != 8 || delta.goods[COLONIZE_CARGO_TOOLS] != -5) {
     fprintf(
       stderr,
-      "arsenal shortfall: muskets=%d tools=%d expected +5/-5 (1:1 cut, not the 3/2 rescale)\n",
+      "arsenal shortfall: muskets=%d tools=%d expected +8/-5 (3/2 rescale)\n",
       delta.goods[COLONIZE_CARGO_MUSKETS],
       delta.goods[COLONIZE_CARGO_TOOLS]
     );
@@ -8409,7 +8408,7 @@ static const TestCase k_cases[] = {
   {"carpenter_stockade", case_carpenter_stockade},
   {"craft_chain", case_craft_chain},
   {"factory_input_colony_total", case_factory_input_colony_total},
-  {"armory_flat_input", case_armory_flat_input},
+  {"arsenal_factory_discount", case_arsenal_factory_discount},
   {"production_rules_field", case_production_rules_field},
   {"production_rules_manufacturing", case_production_rules_manufacturing},
   {"field_lumberjack", case_field_lumberjack},
