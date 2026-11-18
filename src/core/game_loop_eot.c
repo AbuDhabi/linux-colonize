@@ -1168,12 +1168,12 @@ void game_hof_save(const ColonizeGameState* game) {
  * reach (dos_bugs.md DB-107).
  */
 static bool game_trade_stop_colony_ok(
-  const ColonizeGameState* game, const ColonizeUnit* u, uint16_t colony_index
+  const ColonizeGameState* game, int nation_id, uint16_t colony_index
 ) {
   const ColonizeColony* c = colonies_get(
     &game->colonies, colonies_id_at_dos_index(&game->colonies, (int)colony_index)
   );
-  return c && c->active && c->nation_id == u->nation_id;
+  return c && c->active && c->nation_id == nation_id;
 }
 
 /*
@@ -1213,7 +1213,7 @@ static int game_trade_stop_coords(
   const ColonizeColony* c = colonies_get(
     &game->colonies, colonies_id_at_dos_index(&game->colonies, (int)colony_index)
   );
-  if (!game_trade_stop_colony_ok(game, u, colony_index)) {
+  if (!game_trade_stop_colony_ok(game, u->nation_id, colony_index)) {
     return 0;
   }
   /*
@@ -1320,7 +1320,7 @@ static const ColonizeCol1TradeRoute* game_trade_route_at_stop(
   const int at_dest =
     (u->goto_x >= UNITS_GOTO_NONE || u->goto_y >= UNITS_GOTO_NONE) ||
     (u->x == u->goto_x && u->y == u->goto_y) ||
-    (st && st->colony_index != 999 && !game_trade_stop_colony_ok(game, u, st->colony_index));
+    (st && st->colony_index != 999 && !game_trade_stop_colony_ok(game, u->nation_id, st->colony_index));
   if (!at_dest) {
     return NULL;
   }
@@ -1431,7 +1431,7 @@ void game_trade_route_retarget(ColonizeGameState* game, ColonizeUnit* u) {
      */
     const int cid = colonies_id_at_dos_index(&game->colonies, (int)st->colony_index);
     const ColonizeColony* col = colonies_get(&game->colonies, cid);
-    if (col && game_trade_stop_colony_ok(game, u, st->colony_index)) {
+    if (col && game_trade_stop_colony_ok(game, u->nation_id, st->colony_index)) {
       if (u->x != col->x || u->y != col->y) {
         (void)game_trade_route_aim_stop(game, u, si_here);
         return;
@@ -1450,7 +1450,7 @@ void game_trade_route_retarget(ColonizeGameState* game, ColonizeUnit* u) {
   int next = (u->col1_counter16 + 1) % (int)r->dest_count;
   /* DB-107: step past invalid colony stops; with none valid, the aim fails as before. */
   for (int k = 1; k < (int)r->dest_count && r->stop[next].colony_index != 999 &&
-                  !game_trade_stop_colony_ok(game, u, r->stop[next].colony_index);
+                  !game_trade_stop_colony_ok(game, u->nation_id, r->stop[next].colony_index);
        ++k) {
     next = (next + 1) % (int)r->dest_count;
   }
@@ -1516,7 +1516,20 @@ void game_europe_service_trade_harbor(ColonizeGameState* game) {
       (void)europe_buy_cargo_w(&w, game->human_nation, i, ct, 100);
     }
     game_europe_drain_price_events(game); /* sells/buys now stamp the record themselves (G3) */
-    const int next = (si + 1) % (int)r->dest_count;
+    int next = (si + 1) % (int)r->dest_count;
+    /* DB-107 here too: step past colony stops the human no longer owns, so the
+     * ship does not cross to a captured colony's coast. Only onto a valid colony
+     * stop before the next Europe stop; with none, it sails as before (the map
+     * arm then advances it). */
+    for (int k = 1, s = next; k < (int)r->dest_count && r->stop[s].colony_index != 999 &&
+                              !game_trade_stop_colony_ok(game, game->human_nation, r->stop[s].colony_index);
+         ++k) {
+      s = (s + 1) % (int)r->dest_count;
+      if (r->stop[s].colony_index != 999 &&
+          game_trade_stop_colony_ok(game, game->human_nation, r->stop[s].colony_index)) {
+        next = s;
+      }
+    }
     (void)game_trade_route_loop_warn(game, r); /* #1750: the Europe arm too */
     if (r->stop[next].colony_index == 999) {
       /* DOS sails only from the not-arrived arm (raw 77231-77233: still in

@@ -490,6 +490,24 @@ static int case_heresy_third_nation_seeds_mission(void) {
 }
 
 /*
+ * thunk_FUN_1000_a594 tests the mission byte signed (`-1 < (char)+5`): 0x80,
+ * bit 7 over the denouncer's nibble 0, is no mission, the same as 0xff.
+ */
+static int case_heresy_mission_bit7_is_none(void) {
+  int mine_none = 0;
+  int mine_bit7 = 0;
+  const int pro_none =
+    heresy_weights_ex(12, 10, 10, 7, false, -1, NULL, 0, 1, COL1_TRIBE_MISSION_NONE, &mine_none);
+  const int pro_bit7 = heresy_weights_ex(12, 10, 10, 7, false, -1, NULL, 0, 1, 0x80, &mine_bit7);
+  if (mine_bit7 != mine_none || pro_bit7 != pro_none) {
+    fprintf(stderr, "heresy bit7: mine %d/%d pro_me %d/%d (0x80 vs 0xff)\n", mine_bit7,
+            mine_none, pro_bit7, pro_none);
+    return fail("a mission byte with bit 7 must weigh like no mission");
+  }
+  return 0;
+}
+
+/*
  * FUN_4cc6_03f8 ring pass (raw 81045-81057): the tile belongs to its chain
  * head's nation (FUN_281f_07e0, newest arrival) and the sum then takes every
  * armed unit in the chain, whatever its nation. Base: the (12,10) Dutch
@@ -1046,6 +1064,7 @@ static const TestCase k_cases[] = {
     {"case_heresy_presence_dos_distance", case_heresy_presence_dos_distance},
     {"case_heresy_human_difficulty", case_heresy_human_difficulty},
     {"case_heresy_third_nation_seeds_mission", case_heresy_third_nation_seeds_mission},
+    {"case_heresy_mission_bit7_is_none", case_heresy_mission_bit7_is_none},
     {"case_830_stores_amount_is_a_roll", case_830_stores_amount_is_a_roll},
     {"case_832_stores_cargo_retry_loop", case_832_stores_cargo_retry_loop},
     {"case_795_buy_candidate_uses_sorted_slot", case_795_buy_candidate_uses_sorted_slot},

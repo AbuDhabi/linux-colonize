@@ -663,8 +663,12 @@ the route unit re-aims a colony tile it can never stand on and never moves on.
 valid only while its colony is active and the route unit's nation owns it. An invalid
 current stop counts as reached (`game_trade_route_at_stop`), so `game_trade_route_retarget`
 services nothing and advances, stepping past further invalid stops; with no valid stop
-the aim fails as it did for a missing colony. Ungated: every golden still matches.
-Test: unit_stage_seams `test_trade_route_skips_captured_stop`.
+the aim fails as it did for a missing colony. A ship leaving Europe
+(`game_europe_service_trade_harbor`) steps past invalid stops the same way before it
+takes its landfall tile, so it does not cross to a captured colony's coast. Ungated:
+every golden still matches.
+Tests: unit_stage_seams `test_trade_route_skips_captured_stop`, unit_europe
+`case_europe_trade_route_skips_captured_stop` (the Europe arm).
 **Status:** done (user 2026-11-11).
 
 ### DB-104 — A Trade Route ship boards no passengers in Europe or at a colony stop
