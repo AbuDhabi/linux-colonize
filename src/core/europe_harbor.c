@@ -952,7 +952,11 @@ void europe_apply_trade_volume(
       /* 1dfa: gold[cargo] += (sell_price·amount·(100−tax))/100 — note the
        * ledger rounds the other way from the treasury credit (54 lumber @1,
        * 35% → ledger +35, treasury +36). */
-      const int tax = europe_tax_byte(col1->nation[seller_nation].tax_rate);
+      int tax = europe_tax_byte(col1->nation[seller_nation].tax_rate);
+      /* Same 0..100 clamp as europe_net_after_tax under the fix toggle. */
+      if (!europe_tax_signed() && tax > 100) {
+        tax = 100;
+      }
       /* `IMUL word; MOV CX,AX ... MOV AX,CX; CWD`: 16-bit product (#1587). */
       const long gross =
         (long)(int16_t)(europe_nation_sell_price(eu, col1, seller_nation, cargo_type) * amount);

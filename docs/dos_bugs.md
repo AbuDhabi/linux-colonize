@@ -567,14 +567,16 @@ tax then:
 **Port:** fixed behind the `mods.tax_unsigned` toggle (on by default; off = DOS, and
 always DOS under `dos_buggy_behavior()`). Every reader goes through `europe_tax_byte`
 (`europe_harbor.c`), signed unless the toggle is on; the 0..100 clamps on the cheat keys
-(port_bugs.md #1169), `europe_net_after_tax`, the Custom House and the King's tax
-change, and the 0 floor on the Cortes cut, apply only with the toggle on. The save
+(port_bugs.md #1169), `europe_net_after_tax`, the 1dfa trade ledger
+(`europe_apply_trade_volume`), the Custom House and the King's tax change, and the 0
+floor on the Cortes cut, apply only with the toggle on. `europe_sell_hold` returns the
+negative proceeds of a DOS tax of 101..127 (0 only on a boycott refusal). The save
 bridge writes the byte back as is (it used to clamp to 0..99). The Paine bell composer
 takes the DOS 16-bit product for a negative tax (`colony_prod_colony_bells_ff`). Normal
 play keeps the tax at 0..75, so goldens and replays are unchanged. Tests:
 `unit_units_combat` `unit_royal_loss_tax_cut`, `unit_ai_euro_5952_indoor`
 `paine_bonus_tax_byte`, `unit_europe` `case_europe_tax_byte_signed` and
-`case_europe_workflow` (cheat keys), `unit_colonies` `unit_foreign_colony_trade`,
+`case_europe_workflow` (cheat keys, sale at tax 120, ledger at byte 246), `unit_colonies` `unit_foreign_colony_trade`,
 `unit_units_ships` (Cortes share), `unit_founding_fathers` (Paine bells at -10),
 `unit_ai_king_core` (King's rise 125 + 5).
 **Status:** done.
