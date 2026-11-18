@@ -273,6 +273,7 @@ typedef enum GameUnitGroupOrder {
 } GameUnitGroupOrder;
 void game_unit_group_set(ColonizeGameState* game, const int* ids, int n, bool escort);
 void game_unit_group_clear(ColonizeGameState* game);
+bool game_unit_group_has(const ColonizeGameState* game, int uid);
 /* False: no group order (the caller issues it to the selected unit alone). */
 bool game_unit_group_order(ColonizeGameState* game, GameUnitGroupOrder kind, int a, int b);
 void game_unit_group_service(ColonizeGameState* game);

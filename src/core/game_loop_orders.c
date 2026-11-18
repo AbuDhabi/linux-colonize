@@ -1493,7 +1493,7 @@ static bool game_unit_group_member_ok(const ColonizeGameState* game, const Colon
   return game_unit_selectable(game, u) && u->orders == UNITS_ORDER_NONE && !u->automated;
 }
 
-static bool game_unit_group_has(const ColonizeGameState* game, int uid) {
+bool game_unit_group_has(const ColonizeGameState* game, int uid) {
   for (int i = 0; i < game->unit_group_count; ++i) {
     if (game->unit_group[i] == uid) {
       return true;
@@ -1545,8 +1545,11 @@ static bool game_unit_group_can_step(const ColonizeGameState* game) {
       turn_processor_active(&game->turn_proc) || game->turn_flow_deferred) {
     return false;
   }
+  /* Only a member's walk holds the fan-out: a non-member the rotation picked
+   * next would keep the group order (and its fast slide) alive. */
   const ColonizeUnit* sel = units_get_const(&game->units, game->units.selected_id);
-  return !(sel && sel->active && sel->moves > 0 && units_orders_follow_goto(sel->orders));
+  return !(sel && sel->active && sel->moves > 0 && units_orders_follow_goto(sel->orders) &&
+           game_unit_group_has(game, sel->id));
 }
 
 static void game_unit_group_step(ColonizeGameState* game) {
