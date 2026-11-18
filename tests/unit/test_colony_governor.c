@@ -975,7 +975,41 @@ static int case_docks_when_fish_pay(void) {
   return 0;
 }
 
+/* Military: a Veteran Soldier with free colonists to teach. With a
+ * Schoolhouse the governor builds the College, and there seats him. */
+static int case_military_teaches_veterans(void) {
+  GovFx f;
+  if (!gov_fx_open(&f)) {
+    return 1;
+  }
+  ColonizeColony* c = f.col;
+  const int school = colonies_building_row(&f.pool, COLONY_BUILDING_SCHOOLHOUSE);
+  const int college = colonies_building_row(&f.pool, COLONY_BUILDING_COLLEGE);
+  c->has_building[school] = true;
+  for (int i = 4; i < 8; ++i) { /* the College needs 8 colonists */
+    c->colonists[i] = c->colonists[0];
+  }
+  c->colonist_count = 8;
+  c->population = 8;
+  c->colonists[3].profession = UNITS_JOB_SOLDIER;
+  c->stock[COLONIZE_CARGO_FOOD] = 150;
+  c->building_in_production = -1;
+  c->governor = COLONY_GOVERNOR_MILITARY;
+  colony_governor_run_w(&f.w, c->id);
+  const int project = c->building_in_production;
+  c->has_building[college] = true;
+  colony_governor_run_w(&f.w, c->id);
+  const int seat = c->colonists[3].building_type;
+  gov_fx_close(&f);
+  if (project != college || seat != college) {
+    fprintf(stderr, "project %d seat %d (college %d)\n", project, seat, college);
+    return 1;
+  }
+  return 0;
+}
+
 static const TestCase k_cases[] = {
+  {"military_teaches_veterans", case_military_teaches_veterans},
   {"docks_when_fish_pay", case_docks_when_fish_pay},
   {"unit_project_rethink", case_unit_project_rethink},
   {"no_crosses_in_war", case_no_crosses_in_war},

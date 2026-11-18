@@ -10,6 +10,7 @@
 #include "core/colony_yield.h"
 #include "core/dos_buggy.h"
 #include "core/europe.h"
+#include "core/units.h"
 #include "core/founding_fathers.h"
 #include "core/mods.h"
 #include "core/turn.h"
@@ -93,6 +94,12 @@
  * them back (#1863: a blacksmith with ore idled 12 turns two tools short of
  * a Galleon). ponytail: flat factor, not the hammers it frees. */
 #define GOV_TOOLS_BLOCKED 4.0
+/* Military: a Veteran Soldier graduate counts as this many muskets (a
+ * veteran fights at 3 where a colonist with muskets fights at 2), spread over
+ * the six turns a College teacher takes. ponytail: flat musket-equivalent,
+ * not a model of the nation's army needs. */
+#define GOV_VETERAN_MUSKETS 50.0
+#define GOV_VETERAN_TURNS 6.0
 
 typedef struct GovWeights {
   double goods[COLONIZE_CARGO_COUNT]; /* food here = the net surplus */
@@ -105,6 +112,7 @@ typedef struct GovWeights {
   double hammers;
   double tools_needed; /* a tool the project still lacks */
   double balance;      /* Industry: per added tool matched by an added musket */
+  double veteran;      /* Military: per turn a Veteran Soldier teaches */
 } GovWeights;
 
 /* One seat: a work plot with a field job, or an indoor workplace. */
@@ -207,6 +215,9 @@ static double gov_teach_value(const GovCtx* g, const ColonizeColony* c) {
     s += GOV_TEACH_VALUE + colonies_job_train_cost(t->profession) / GOV_TEACH_PRICE;
     if (t->profession >= 0 && t->profession < COLONIZE_FIELD_JOB_COUNT) {
       s += g->teach_gain[t->profession];
+    }
+    if (t->profession == UNITS_JOB_SOLDIER) {
+      s += g->wt->veteran;
     }
     for (int j = 0; j < c->colonist_count; ++j) {
       const ColonizeColonist* p = &c->colonists[j];
@@ -557,6 +568,7 @@ static void gov_weights(const ColonizeWorld* w, const ColonizeColony* col, int g
       wt->goods[COLONIZE_CARGO_TOOLS] = 2.0;
       wt->goods[COLONIZE_CARGO_ORE] = 1.0;
       wt->hammers = 3.0;
+      wt->veteran = GOV_VETERAN_MUSKETS * wt->goods[COLONIZE_CARGO_MUSKETS] / GOV_VETERAN_TURNS;
       break;
     case COLONY_GOVERNOR_POLITICS:
       wt->bells = 6.0;

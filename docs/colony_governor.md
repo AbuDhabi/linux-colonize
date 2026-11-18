@@ -96,7 +96,11 @@ non-expert), so with no real need the school takes the dearest expert to spare.
 A field expert teacher (farmer, fisherman, ...) also scores his graduates'
 future surplus: his yield over a non-expert's on the best open plot for the
 job, at the governor's weight for it, times 2.5 (`GOV_TEACH_FUTURE`), while
-the colony has more such plots than experts (a fisherman needs the Docks); a seated teacher is not moved while there
+the colony has more such plots than experts (a fisherman needs the Docks). Under
+Military a Veteran Soldier teacher also scores his graduates as 50 muskets
+each over the College's six turns (`GOV_VETERAN_MUSKETS`, about 42 a turn),
+so a veteran with students teaches, and the College probe builds the College
+for him; a seated teacher is not moved while there
 is a student, and is free to work once none is left. Unseated workers
 (`idle_job1`) are not moved; no one enters or leaves the colony. The result is
 committed through `colonies_assign_field_w` / `colonies_assign_workplace`, the
