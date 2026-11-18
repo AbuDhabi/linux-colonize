@@ -533,11 +533,8 @@ static int unit_fort_fire_fortfire_gate(void) {
     for (int q = 0; q < pops.queue_count; ++q) {
       fortfire += test_body_is_section(pops.queue[q].body, "FORTFIRE");
       shipdamage += test_body_is_section(pops.queue[q].body, "SHIPDAMAGE");
-      /* @SHIPSUNK has no token-free run long enough for a body match: count
-       * the ship tag and take the @FORTFIRE and damage notices off. */
-      shipsunk += pops.queue[q].tag == AI_POPUP_TAG_COMBAT_SHIP;
+      shipsunk += test_body_is_section(pops.queue[q].body, "SHIPSUNK");
     }
-    shipsunk -= fortfire + shipdamage;
     const ColonizeUnit* fu = units_get_const(&pool, foe);
     const int gone = !(fu && fu->active && fu->x == 3 && fu->y == 2);
     if (!gone || shipdamage != (sink ? 0 : k[c].want) || shipsunk != (sink ? k[c].want : 0)) {
