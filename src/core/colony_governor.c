@@ -530,7 +530,8 @@ static bool gov_bells_pool_open(const ColonizeCol1Save* col1, int nation) {
 static void gov_weights(const ColonizeWorld* w, const ColonizeColony* col, int gov, GovWeights* wt) {
   memset(wt, 0, sizeof(*wt));
   /* Sale value, scaled down for the governors that are not after money. */
-  const bool custom_house = gov_nation_has_custom_house(w->colonies, col->nation_id);
+  const bool custom_house = gov_nation_has_custom_house(w->colonies, col->nation_id) ||
+                            colonies_has_building_row(w->colonies, col, COLONY_BUILDING_CUSTOM_HOUSE);
   for (int k = 1; k < COLONIZE_CARGO_COUNT; ++k) {
     wt->goods[k] = gov_sale_value(w, col->nation_id, k, custom_house) *
                    (gov == COLONY_GOVERNOR_CASH ? 1.0 : 0.25);
@@ -867,20 +868,24 @@ static int gov_cash_chains(const ColonizeWorld* w, const ColonizeColony* col, in
   }
 }
 
-/* The next unbuilt tier of the school and church chains, and the Docks (the
- * fishing tier only: Drydock and Shipyard seat no one), each wanted when the
- * seating, run as if it stood, beats today's by GOV_BUILD_GAIN a turn.
+/* The next unbuilt tier of the school and church chains, the Docks (the
+ * fishing tier only: Drydock and Shipyard seat no one) and the Custom House,
+ * each wanted when the seating, run as if it stood, beats today's by
+ * GOV_BUILD_GAIN a turn. A Custom House is probed exporting what the colony
+ * exports now, or every good if nothing yet (the player picks the goods):
+ * it pays through sales past a boycott or the War of Independence, and
+ * through stock that no longer fills the warehouse.
  * Appends to want[] and returns the new count. */
 static int gov_probe_rows(const ColonizeWorld* w, const ColonizeColony* col, int gov, int* want,
                           int nw, int max) {
   static const int k_chain[] = {COLONY_BUILDING_DOCKS, COLONY_BUILDING_SCHOOLHOUSE,
-                                 COLONY_BUILDING_CHURCH};
+                                 COLONY_BUILDING_CHURCH, COLONY_BUILDING_CUSTOM_HOUSE};
   const ColonizeColonyPool* pool = w->colonies;
   GovWeights wt;
   gov_weights(w, col, gov, &wt);
   ColonizeColony plan;
   const double base = gov_plan(w, col, &wt, false, &plan);
-  for (int k = 0; k < 3 && nw < max; ++k) {
+  for (int k = 0; k < 4 && nw < max; ++k) {
     const int* rows = colonies_building_chain_rows(colonies_building_row_chain(k_chain[k]));
     int r = 0;
     while (rows && rows[r] >= 0 && colonies_has_building_row(pool, col, rows[r])) {
@@ -892,7 +897,14 @@ static int gov_probe_rows(const ColonizeWorld* w, const ColonizeColony* col, int
     }
     ColonizeColony probe = *col;
     probe.has_building[bid] = true;
-    if (gov_plan(w, &probe, &wt, false, &plan) - base > GOV_HORIZON * GOV_BUILD_GAIN) {
+    GovWeights pw = wt;
+    if (k_chain[k] == COLONY_BUILDING_CUSTOM_HOUSE) {
+      if (!probe.custom_house_bits) {
+        probe.custom_house_bits = (uint16_t)~(1u << COLONIZE_CARGO_FOOD);
+      }
+      gov_weights(w, &probe, gov, &pw);
+    }
+    if (gov_plan(w, &probe, &pw, false, &plan) - base > GOV_HORIZON * GOV_BUILD_GAIN) {
       want[nw++] = rows[r];
     }
   }

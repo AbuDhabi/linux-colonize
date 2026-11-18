@@ -111,10 +111,13 @@ Production)", a built building, or no longer startable. When a good has no
 room left, or fills within three turns at its current rate, Warehouse and
 Warehouse Expansion go first; then the Docks, the next unbuilt tier of the
 school chain (Schoolhouse, College, University) and of the church chain
-(Church, Cathedral), each when the seating, rerun as if it stood, scores over
-2 a turn more (`gov_probe_rows`: fishermen for sea plots that beat what the
-colonists do now, teachers for spare students, preachers for hands whose best
-job is worth little); only Industry also lists the Docks, for its ships;
+(Church, Cathedral), and the Custom House, each when the seating, rerun as if
+it stood, scores over 2 a turn more (`gov_probe_rows`: fishermen for sea plots
+that beat what the colonists do now, teachers for spare students, preachers
+for hands whose best job is worth little; the Custom House is probed with the
+weights rerun, exporting what the colony exports now or every good if none,
+so it pays through sales past a boycott or the War of Independence and stock
+that no longer fills the warehouse); only Industry also lists the Docks, for its ships;
 then the governor's list (Cash first tries every
 crop chain that pays, most valuable first, each through all its tiers, house,
 shop and factory, the Fur Trading Post included: a chain is worth the crop

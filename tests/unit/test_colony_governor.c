@@ -1008,7 +1008,39 @@ static int case_military_teaches_veterans(void) {
   return 0;
 }
 
+/* Cash in the War of Independence: no sales without a Custom House, so with
+ * Peter Stuyvesant in the governor builds one first. */
+static int case_cash_custom_house(void) {
+  GovFx f;
+  if (!gov_fx_open(&f)) {
+    return 1;
+  }
+  static ColonizeCol1Save col1;
+  memset(&col1, 0, sizeof(col1));
+  col1.head.game_options.woi = 1;
+  col1.nation[0].founding_fathers[0] = 1u << 3; /* Peter Stuyvesant */
+  for (int k = 0; k < (int)COLONIZE_COL1_CARGO_TYPES; ++k) {
+    col1.nation[0].trade.euro_price[k] = 4;
+  }
+  f.w.col1 = &col1;
+  f.w.col1_ok = true;
+  ColonizeColony* c = f.col;
+  const int house = colonies_building_row(&f.pool, COLONY_BUILDING_CUSTOM_HOUSE);
+  c->stock[COLONIZE_CARGO_FOOD] = 150;
+  c->building_in_production = -1;
+  c->governor = COLONY_GOVERNOR_CASH;
+  colony_governor_run_w(&f.w, c->id);
+  const int project = c->building_in_production;
+  gov_fx_close(&f);
+  if (project != house) {
+    fprintf(stderr, "project %d (custom house %d)\n", project, house);
+    return 1;
+  }
+  return 0;
+}
+
 static const TestCase k_cases[] = {
+  {"cash_custom_house", case_cash_custom_house},
   {"military_teaches_veterans", case_military_teaches_veterans},
   {"docks_when_fish_pay", case_docks_when_fish_pay},
   {"unit_project_rethink", case_unit_project_rethink},
