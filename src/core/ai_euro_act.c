@@ -479,8 +479,15 @@ static int ai_euro_20e6_ship_dos(ColonizeTurnContext* ctx, ColonizeUnit* u, int 
         fprintf(stderr, "[sailgate] unit %d n%d (%d,%d) stack_other %d civ %d pioneers %d mil %d urgency %d mask 0x%x\n",
                 id, nation_id, u->x, u->y, tile_stack_others, civ, pioneers, mil, urgency, entry_unload_mask);
       }
-      if (tile_stack_others > 0 && (civ != 0 || ((pioneers != tile_stack_others || urgency > 0x18) && entry_unload_mask == 0)) &&
-          ai_euro_20e6_colony_sail_pick(ctx, u, nation_id, mil, pioneers_b4, urgency, &cx, &cy)) {
+      const bool sail_gate =
+        tile_stack_others > 0 && (civ != 0 || ((pioneers != tile_stack_others || urgency > 0x18) && entry_unload_mask == 0));
+      /* MOD_AI_IMPROVEMENTS #1886 (not DOS): soldiers no colony wants for war
+       * land where colonists would (discard t214: two French Galleons roamed
+       * 40 turns with ten Dragoons aboard). */
+      if (sail_gate &&
+          (ai_euro_20e6_colony_sail_pick(ctx, u, nation_id, mil, pioneers_b4, urgency, &cx, &cy) ||
+           (mil > 0 && ai_euro_improved(ctx, nation_id) &&
+            ai_euro_20e6_colony_sail_pick(ctx, u, nation_id, 0, pioneers_b4, urgency, &cx, &cy)))) {
         u->col1_ai_plan = 0x34; /* -> 27f5 -> 20c6 with DX = '4' (OVL14 0x3f47) */
         ai_euro_set_goto(u, AI_EURO_ACT_GOAL, cx, cy);
         ai_euro_20e6_ship_tail_5a78(ctx, u, nation_id);

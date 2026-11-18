@@ -1234,6 +1234,18 @@ typedef struct Ai5d04HireTail {
   int colony_demand_total; /* DOS local_24 */
 } Ai5d04HireTail;
 
+/* MOD_AI_IMPROVEMENTS #1885 (not DOS): an improved nation with a Soldier or
+ * Dragoon per colony already stops arming Europe recruits; DOS arms every
+ * one the colonies' military demand asks for (discard t254: France held 23
+ * Dragoons idle beside 15 colonies of 1-4 colonists). */
+static bool ai_euro_military_saturated(ColonizeTurnContext* ctx, int nation_id, const ColonizeCol1Stuff* stuff) {
+  if (!ai_euro_improved(ctx, nation_id) || !stuff || !ctx->colonies) {
+    return false;
+  }
+  const int armed = (int)stuff->unit_type_counts[nation_id][1] + (int)stuff->unit_type_counts[nation_id][4];
+  return armed >= colonies_count_for_nation(ctx->colonies, nation_id);
+}
+
 static void ai_euro_5d04_hire_tail_candidates(Ai5d04HireTail* t) {
   ColonizeTurnContext* ctx = t->ctx;
   const int nation_id = t->nation_id;
@@ -1297,7 +1309,7 @@ static void ai_euro_5d04_hire_tail_candidates(Ai5d04HireTail* t) {
                   dos_rng_range(ctx->rng, 0, profession_gated + 2) == 0 && turn > 99) {
                 try_train = 1;
               }
-              if (try_train) {
+              if (try_train && !ai_euro_military_saturated(ctx, nation_id, stuff)) {
                 /* LAB_521d_6454: tools-side training. */
                 uint32_t musket_stock_cost = (uint32_t)(ai_euro_5d04_cb_price(COLONIZE_CARGO_MUSKETS) * 50); /* DOS local_1a */
                 if (nat->musket_bank_lots != 0) {
@@ -1465,7 +1477,8 @@ static void ai_euro_5d04_hire_tail_colony_demand(Ai5d04HireTail* t) {
     colony_demand_base += ai_euro_5d04_cb_colony_demand_query(dock_head_idx, 0xc);
   }
   if (colony_demand_base != 0 && !f->cargo_short &&
-      (!has_any_colony || (!unit_flag_bit5 && !every_third_turn && !woi))) {
+      (!has_any_colony || (!unit_flag_bit5 && !every_third_turn && !woi)) &&
+      !ai_euro_military_saturated(ctx, nation_id, stuff)) {
     colony_demand_total = ai_euro_5d04_cb_colony_demand_query(dock_head_idx, 0xe);
     int demand_remaining = colony_demand_total - colony_demand_base; /* DOS local_42 */
     if (turn > 0x50) {

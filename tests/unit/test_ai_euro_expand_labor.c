@@ -2,6 +2,7 @@
  * colony labor binding, food emergency, colony AI flags, 0a60 work plan gate. */
 #include "test_ai_euro_expand_common.h"
 #include "core/ai_euro_internal.h"
+#include "core/mods.h"
 
 static int unit_labor_shortage_join(void) {
   const int nation = 1;
@@ -1084,9 +1085,106 @@ static int unit_0a60_own_colony_block_coastal_gate(void) {
   return rc;
 }
 
+/*
+ * MOD_AI_IMPROVEMENTS #1884: a Soldier standing in an own colony it is not
+ * bound to garrison joins it when the colony wants colonists; DOS keeps it
+ * there as a soldier.
+ */
+static int soldier_join_run(bool improved, int* pop_after, bool* soldier_left) {
+  const int nation = 1;
+  ColonizeWorldMap map;
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
+    return fail("soldier-join alloc map");
+  }
+  ColonizeUnitPool units;
+  fx_units_init(&units);
+  units.type_count = 1;
+  snprintf(units.types[0].name, sizeof(units.types[0].name), "Soldiers");
+  units.types[0].kind_plus1 = UNITS_KIND_SOLDIER + 1;
+  units.types[0].movement = 1;
+  units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  ColonizeColonyPool colonies;
+  fx_colonies_init(&colonies);
+  for (int i = 0; i < 2; ++i) {
+    ColonizeColony* c = &colonies.colonies[i];
+    c->id = i;
+    c->active = true;
+    c->nation_id = nation;
+    c->x = i == 0 ? 4 : 12;
+    c->y = i == 0 ? 4 : 12;
+    c->population = 3;
+    c->colonist_count = 3;
+    c->stock[COLONIZE_CARGO_FOOD] = 80;
+    c->building_in_production = -1;
+  }
+  colonies.colony_count = 2;
+  colonies.next_id = 2;
+  const int uid = units_spawn(&units, 0, 12, 12);
+  ColonizeUnit* u = units_get(&units, uid);
+  if (!u) {
+    fx_map_free(&map);
+    return fail("soldier-join spawn");
+  }
+  u->nation_id = nation;
+  u->orders = 0;
+  u->moves = UNITS_MP_PER_TILE;
+  ai_euro_20e6_origin_set(u, 0); /* garrison of the other colony */
+  ai_goals_reset();
+  ColonizeCol1Save col1;
+  col1_save_init(&col1);
+  memset(col1.nation, 0, sizeof(col1.nation));
+  memset(col1.head.nation_relation, 0, sizeof(col1.head.nation_relation));
+  for (int i = 0; i < 4; ++i) {
+    col1.player[i].control = 0;
+    col1.player[i].diplomacy = 0;
+  }
+  col1.player[nation].control = 1; /* AI */
+  col1.nation[nation].gold = 200;
+  col1.stuff.ship_counts[nation] = 1;
+  uint32_t turn = 52;
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.turn_number = &turn;
+  ctx.units = &units;
+  ctx.colonies = &colonies;
+  ctx.map = &map;
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+  ctx.rng_seed = 42;
+  mods_campaign_set(improved ? 1u << MOD_AI_IMPROVEMENTS : 0);
+  ai_euro_dispatcher_turn(&ctx, nation);
+  mods_campaign_set(0);
+  u = units_get(&units, uid);
+  *soldier_left = u == NULL || !u->active;
+  *pop_after = colonies.colonies[1].population;
+  fx_map_free(&map);
+  return 0;
+}
+
+static int unit_improved_soldier_joins_colony(void) {
+  int pop = 0;
+  bool left = false;
+  if (soldier_join_run(true, &pop, &left) != 0) {
+    return 1;
+  }
+  if (!left || pop != 4) {
+    fprintf(stderr, "improved: soldier left=%d pop %d\n", left, pop);
+    return fail("improved Soldier did not join the colony wanting colonists");
+  }
+  if (soldier_join_run(false, &pop, &left) != 0) {
+    return 1;
+  }
+  if (left || pop != 3) {
+    fprintf(stderr, "dos: soldier left=%d pop %d\n", left, pop);
+    return fail("DOS mode Soldier joined");
+  }
+  return 0;
+}
+
 static const TestCase k_cases[] = {
     {"unit_0a60_own_colony_block_coastal_gate", unit_0a60_own_colony_block_coastal_gate},
     {"unit_labor_shortage_join", unit_labor_shortage_join},
+    {"unit_improved_soldier_joins_colony", unit_improved_soldier_joins_colony},
     {"unit_food_shortage_no_labor_goal", unit_food_shortage_no_labor_goal},
     {"unit_expert_farmer_no_food_labor_goal", unit_expert_farmer_no_food_labor_goal},
     {"unit_tools_short_pioneer_labor", unit_tools_short_pioneer_labor},
