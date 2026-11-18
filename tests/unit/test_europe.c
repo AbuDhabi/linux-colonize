@@ -429,6 +429,27 @@ static int case_europe_workflow(void) {
       return 1;
     }
   }
+  /* DOS tax 120 (DB-78): the sale still goes through and returns its negative
+   * proceeds, not the boycott refusal's 0. */
+  {
+    const int gold_before = eu.gold;
+    const int32_t royal_before = sell_col1.nation[0].royal_money;
+    eu.tax_percent = 120;
+    eu.harbor[0].hold_goods_type[1] = COLONIZE_CARGO_SUGAR;
+    eu.harbor[0].hold_goods_amount[1] = 40;
+    const int want = europe_net_after_tax((sugar_bid - 1) * 40, 120);
+    const int got = europe_sell_hold(&eu, &sell_col1, 0, 0, 1);
+    const bool ok = want < 0 && got == want && eu.gold == gold_before + want &&
+                    eu.harbor[0].hold_goods_amount[1] == 0;
+    eu.tax_percent = 50;
+    eu.gold = gold_before;
+    sell_col1.nation[0].royal_money = royal_before;
+    if (!ok) {
+      fprintf(stderr, "sell at tax 120: got %d want %d (<0)\n", got, want);
+      europe_free(&eu);
+      return 1;
+    }
+  }
 
   /*
    * FUN_479b_0f60 mode 1 (the Europe `U` key, port_bugs.md #1176): per slot
@@ -2007,6 +2028,28 @@ static int case_europe_workflow(void) {
       europe_free(&led);
       europe_free(&eu);
       return 1;
+    }
+    /* Tax byte 246: DOS reads -10, so the ledger books 54·110/100 = 59 (DB-78);
+     * the fix toggle reads 246 and clamps to 100, booking 0. */
+    {
+      col1.nation[3].tax_rate = 246;
+      col1.nation[3].trade.gold[lumber] = 0;
+      europe_apply_trade_volume(&led, &col1, 3, 3, lumber, 54, 0, 0);
+      const int dos_gold = (int)col1.nation[3].trade.gold[lumber];
+      col1.nation[3].trade.gold[lumber] = 0;
+      dos_buggy_behavior_set(false);
+      mods_campaign_set(1u << MOD_TAX_UNSIGNED);
+      europe_apply_trade_volume(&led, &col1, 3, 3, lumber, 54, 0, 0);
+      mods_campaign_set(0u);
+      dos_buggy_behavior_set(true);
+      const int fixed_gold = (int)col1.nation[3].trade.gold[lumber];
+      if (dos_gold != 59 || fixed_gold != 0) {
+        fprintf(stderr, "1dfa ledger at tax byte 246: DOS %d (want 59), fixed %d (want 0)\n",
+                dos_gold, fixed_gold);
+        europe_free(&led);
+        europe_free(&eu);
+        return 1;
+      }
     }
     fprintf(stderr, "europe 1dfa sale ledger (dutch2 pair) ok\n");
     europe_free(&led);

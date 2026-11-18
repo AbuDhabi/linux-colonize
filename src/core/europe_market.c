@@ -47,7 +47,8 @@ static int europe_sell_commit(
   int* hold_types,
   int* hold_amounts,
   int slot,
-  int amt
+  int amt,
+  bool* sold
 );
 static int europe_custom_house_cargo_eligible(int cargo_type);
 static int europe_custom_house_bit_enabled(uint16_t bits, int cargo_type);
@@ -163,7 +164,8 @@ static void europe_push_sale_status(EuropeScreen* eu, int cargo_type, int amount
  *
  * `hold_types` / `hold_amounts` are the caller's EuropeHarborShip mirror
  * arrays (EUROPE_SHIP_CARGO_MAX), `slot` the hold sold from. Returns
- * the proceeds, or 0 when the boycott gate refused (nothing is mutated).
+ * the proceeds (negative at a DOS tax of 101..127, DB-78) and sets *sold;
+ * *sold false means the boycott gate refused (nothing is mutated).
  * The caller keeps its own diag_info line: the three differ in what they
  * can name (ship name / unit id) and whether a partial shows "amt/held".
  * ---------------------------------------------------------------------
@@ -175,10 +177,12 @@ static int europe_sell_commit(
   int* hold_types,
   int* hold_amounts,
   int slot,
-  int amt
+  int amt,
+  bool* sold
 ) {
   const int ctype = hold_types[slot];
   const int held = hold_amounts[slot];
+  *sold = false;
   if (europe_cargo_boycotted_ex(eu, col1, seller_nation, ctype)) {
     return 0; /* human entry points raise @KISSUP first (game_europe_boycott_gate) */
   }
@@ -197,6 +201,7 @@ static int europe_sell_commit(
     ctype, amt, 0, 1
   );
   eu->status[0] = '\0';
+  *sold = true;
   return gained;
 }
 
@@ -219,10 +224,11 @@ int europe_sell_hold(
   if (amt <= 0 || amt >= 255) {
     return 0;
   }
+  bool sold;
   const int gained = europe_sell_commit(
-    eu, col1, seller_nation, ship->hold_goods_type, ship->hold_goods_amount, hold_index, amt
+    eu, col1, seller_nation, ship->hold_goods_type, ship->hold_goods_amount, hold_index, amt, &sold
   );
-  if (gained <= 0) {
+  if (!sold) {
     return 0;
   }
   const char* cname =
@@ -256,10 +262,11 @@ int europe_sell_hold_partial(
     return 0;
   }
   const int amt = amount < held ? amount : held;
+  bool sold;
   const int gained = europe_sell_commit(
-    eu, col1, seller_nation, ship->hold_goods_type, ship->hold_goods_amount, hold_index, amt
+    eu, col1, seller_nation, ship->hold_goods_type, ship->hold_goods_amount, hold_index, amt, &sold
   );
-  if (gained <= 0) {
+  if (!sold) {
     return 0;
   }
   const char* cname =
