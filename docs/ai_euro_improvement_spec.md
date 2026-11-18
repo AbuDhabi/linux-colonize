@@ -595,3 +595,16 @@ The user's discard campaign (Viceroy, t127) showed French colonies stuck at
 one or two colonists: the governor planned on the AI food subsidy F1 had
 removed, so absorbed colonists starved (#1877), and colonies kept asking for
 colonists their land could not feed (#1878).
+
+At t188 the same campaign showed three Spanish faults. A colony that cannot
+feed another colonist no longer takes one (#1878), and DOS never ships a
+Colonist out of a colony, so surplus colonists on Santo Domingo's 9-tile
+island wandered there. A spare Colonist with no site and no colony wanting it
+on its land mass now waits in the nearest colony, and a ship berthing there
+takes it while a colony elsewhere wants colonists (#1880). The first landing
+had put Spain's Veteran Soldier on a tile whose only land neighbour is a
+village, where it stood for 180 turns; the unload never picks such a tile
+(#1879). Spain's small fleet tripped `cargo_short` on every departure, so it
+bought no cargo at all and held 1 tool across seven colonies, which meant no
+Pioneers; an improved hull now buys tools anyway, but still no muskets or
+horses, which colonies spend arming their colonists (#1881).

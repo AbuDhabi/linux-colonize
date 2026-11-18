@@ -2,6 +2,7 @@
 #include "core/internal.h"
 
 #include "core/ai_diplo.h"
+#include "core/ai_euro.h"
 #include "core/ai_euro_internal.h" /* test-seam prototypes of this file's externs */
 #include "core/ai_internal.h"
 #include "core/assets.h"
@@ -700,6 +701,33 @@ void ai_goals_repair_site_scores(ColonizeWorldMap* map, const struct ColonizeMsg
 }
 
 /*
+ * MOD_AI_IMPROVEMENTS #1879 (not DOS): a land tile whose every land neighbour
+ * is a village. A unit landed there can never walk off (AI moves never enter
+ * a village tile); the discard campaign's Spanish Veteran Soldier stood on
+ * one for 180 turns.
+ */
+static bool ai_goals_land_pocket(const ColonizeWorldMap* map, const ColonizeCol1Save* col1, int x, int y) {
+  for (int d = 0; d < 8; ++d) {
+    const int hx = x + k_ai_dir8_dx[d];
+    const int hy = y + k_ai_dir8_dy[d];
+    if (!map_coords_inset(map, hx, hy) || map_tile_is_water(map, hx, hy) || map_tile_is_high_seas(map, hx, hy)) {
+      continue;
+    }
+    bool village = false;
+    for (uint16_t ti = 0; col1 && col1->tribe && ti < col1->head.tribe_count; ++ti) {
+      if ((int)col1->tribe[ti].x == hx && (int)col1->tribe[ti].y == hy && col1->tribe[ti].nation_id >= 4) {
+        village = true;
+        break;
+      }
+    }
+    if (!village) {
+      return false;
+    }
+  }
+  return true;
+}
+
+/*
  * FUN_521d_06ae — pick_best_adjacent_founding_tile.
  * Decomp viceroy_unpacked.c ~87237. Base score = DS:0x2f77[class]; when
  * score_extras, add 0492(candidate continent)*0x10 + (074a & 0xf) per land
@@ -815,6 +843,11 @@ int ai_goals_pick_founding_tile_ex_w(
           continue;
         }
       }
+    }
+
+    if (dir != 8 && ai_euro_improved_nation(col1, w->human_nation, nation_id) &&
+        ai_goals_land_pocket(map, col1, nx, ny)) {
+      continue; /* MOD_AI_IMPROVEMENTS #1879: never land a unit where it cannot walk off */
     }
 
     /*

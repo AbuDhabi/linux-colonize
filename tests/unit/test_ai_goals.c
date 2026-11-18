@@ -3,6 +3,7 @@
 #include "core/ai_euro_internal.h"
 
 #include "core/col1_save.h"
+#include "core/mods.h"
 #include "core/units.h"
 
 #include "../common/ai_fixture.h"
@@ -473,6 +474,58 @@ static int case_06ae_lands_beside_colony(void) {
 }
 
 /*
+ * MOD_AI_IMPROVEMENTS #1879: an improved nation never lands a unit on a tile
+ * whose only land neighbour is a village (it could never walk off); DOS does.
+ */
+static int case_06ae_skips_land_pocket(void) {
+  ColonizeWorldMap map;
+  if (!fx_map_alloc(&map, 8, 8, 25, false)) { /* all ocean */
+    return fail("pocket map alloc");
+  }
+  for (int i = 0; i < 8 * 8; ++i) {
+    map.layer3[i] = 0xf0;
+  }
+  map.terrain[4 * 8 + 5] = 3; /* P (5,4): pocket */
+  map.terrain[4 * 8 + 6] = 3; /* village (6,4) */
+  map.terrain[4 * 8 + 3] = 3; /* Q (3,4) */
+  map.terrain[4 * 8 + 2] = 3; /* Q's onward land (2,4) */
+  ColonizeCol1Save col1;
+  col1_save_init(&col1);
+  ColonizeCol1Tribe tribe;
+  memset(&tribe, 0, sizeof(tribe));
+  tribe.x = 6;
+  tribe.y = 4;
+  tribe.nation_id = 5;
+  col1.head.tribe_count = 1;
+  col1.tribe = &tribe;
+  col1.owned = false;
+  col1.player[1].control = 1;
+  ColonizeUnitPool units;
+  fx_units_init(&units);
+  ColonizeColonyPool colonies;
+  fx_colonies_init(&colonies);
+  const ColonizeWorld w = {.units = &units, .colonies = &colonies, .map = &map, .col1 = &col1, .human_nation = 0};
+  int rc = 0;
+  int x = -1;
+  int y = -1;
+  mods_campaign_set(1u << MOD_AI_IMPROVEMENTS);
+  if (!ai_goals_pick_founding_tile_ex_w(&w, 1, 4, 4, 0, 0, &x, &y) || x != 3 || y != 4) {
+    rc = fail("pocket: improved nation must land on (3,4)");
+  }
+  map.terrain[4 * 8 + 3] = 25;
+  map.terrain[4 * 8 + 2] = 25;
+  if (rc == 0 && ai_goals_pick_founding_tile_ex_w(&w, 1, 4, 4, 0, 0, &x, &y)) {
+    rc = fail("pocket: improved nation must not land on the pocket");
+  }
+  mods_campaign_set(0);
+  if (rc == 0 && (!ai_goals_pick_founding_tile_ex_w(&w, 1, 4, 4, 0, 0, &x, &y) || x != 5 || y != 4)) {
+    rc = fail("pocket: DOS lands on the pocket");
+  }
+  fx_map_free(&map);
+  return rc;
+}
+
+/*
  * ai_goals_best_found_tile_near: port-side FOUND/MIL_EXPAND pick (no DOS body;
  * distance = the FUN_124c_0040 metric FUN_521d_0a60's goal scan uses). Order:
  * same landmass as `from`, then priority, then distance. Its only production
@@ -539,6 +592,7 @@ static const TestCase k_cases[] = {
     {"case_indian_hostility_gate", case_indian_hostility_gate},
     {"case_06ae_occupant_artillery_filter", case_06ae_occupant_artillery_filter},
     {"case_06ae_lands_beside_colony", case_06ae_lands_beside_colony},
+    {"case_06ae_skips_land_pocket", case_06ae_skips_land_pocket},
 };
 
 TEST_MAIN(k_cases)

@@ -1567,6 +1567,37 @@ static int ai_euro_20e6_village_arm(ColonizeTurnContext* ctx, ColonizeUnit* u, c
 }
 
 /*
+ * MOD_AI_IMPROVEMENTS #1880 (not DOS): no own colony on continent `cid` would
+ * admit a Colonist under the labor arm's gate below (NEEDS_COLONISTS and
+ * stack + population < wanted + 2), but one elsewhere wants colonists, so a
+ * spare Colonist there should wait for a ship.
+ */
+bool ai_euro_colonist_ferry_wanted(ColonizeTurnContext* ctx, int nation, int cid) {
+  if (!ai_euro_improved(ctx, nation) || !ctx->colonies || !ctx->map) {
+    return false;
+  }
+  bool elsewhere = false;
+  for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+    const ColonizeColony* c = &ctx->colonies->colonies[i];
+    if (!c->active || c->nation_id != nation || !(c->ai_flags & COLONIZE_COLONY_AI_NEEDS_COLONISTS)) {
+      continue;
+    }
+    if (map_continent_id_at(ctx->map, c->x, c->y) != cid) {
+      elsewhere = true;
+      continue;
+    }
+    int wanted = ai_euro_colony_wanted_size(ctx->colonies, c);
+    if (wanted > 0x10) {
+      wanted = 0x10;
+    }
+    if (ai_euro_20e6_stack_count(ctx, c->x, c->y) + (int)c->population < wanted + 2) {
+      return false;
+    }
+  }
+  return elsewhere;
+}
+
+/*
  * FUN_521d_20e6 colonist labor loop (raw ~1617-1679): a type-0 Colonist that
  * is not exploring walks to (or joins) the min-score same-continent own
  * colony that wants colonists (+0x1b bit 0x10, i.e.
@@ -4292,6 +4323,19 @@ int ai_euro_move_scoring_gate(ColonizeTurnContext* ctx, ColonizeUnit* u, int nat
        */
       if (!force_wander && (s.dos_type == UNITS_KIND_SCOUT || s.dos_type == UNITS_KIND_PIONEER) &&
           s.stance == 0 && s.home_cid == s.cid && s.home_colony >= 0) {
+        const ColonizeColony* home = colonies_get(ctx->colonies, s.home_colony);
+        if (home && home->active) {
+          u->col1_ai_plan = 0x4e; /* 'N' */
+          ai_euro_set_goto(u, AI_EURO_ACT_GOAL, home->x, home->y);
+          return 0;
+        }
+      }
+      /* MOD_AI_IMPROVEMENTS #1880 (not DOS): a Colonist with no site and no
+       * colony wanting it on this land mass waits in the nearest own colony
+       * for a ship to take it where colonists are wanted (the berth mark in
+       * ai_euro_20e6_ship_berth_arrival), instead of wandering for good. */
+      if (!force_wander && s.dos_type == UNITS_KIND_COLONIST && u->profession != UNITS_JOB_CONVERT &&
+          s.home_colony >= 0 && s.home_cid == s.cid && ai_euro_colonist_ferry_wanted(ctx, nation_id, s.cid)) {
         const ColonizeColony* home = colonies_get(ctx->colonies, s.home_colony);
         if (home && home->active) {
           u->col1_ai_plan = 0x4e; /* 'N' */

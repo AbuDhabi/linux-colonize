@@ -7,6 +7,7 @@
 #include "core/colony.h"
 #include "core/colony_governor.h"
 #include "core/map.h"
+#include "core/mods.h"
 #include "core/pioneer_plan.h"
 #include "core/units.h"
 #include "platform/diagnostics.h"
@@ -179,6 +180,71 @@ static int case_land_mass_islet(void) {
   return rc;
 }
 
+/* ai_improvements mod (#1880): a Colonist waits for a ship only when no own
+ * colony on its continent would admit it and one elsewhere wants colonists. */
+static int case_colonist_ferry_wanted(void) {
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  char err[128];
+  if (!map_alloc(&map, 16, 16, err, sizeof(err))) {
+    return 1;
+  }
+  for (int i = 0; i < 16 * 16; ++i) {
+    map.terrain[i] = 2;
+    map.layer3[i] = (uint8_t)(0xf0 | (i % 16 < 8 ? 1 : 2)); /* continents 1 | 2 */
+  }
+  ColonizeUnitPool pool;
+  memset(&pool, 0, sizeof(pool));
+  units_reset(&pool);
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+  ColonizeColony* home = &colonies.colonies[0];
+  home->active = true;
+  home->nation_id = 1;
+  home->x = 3;
+  home->y = 3;
+  home->population = 20;
+  home->ai_flags = COLONIZE_COLONY_AI_NEEDS_COLONISTS; /* flagged, but full */
+  ColonizeColony* away = &colonies.colonies[1];
+  away->active = true;
+  away->nation_id = 1;
+  away->x = 12;
+  away->y = 3;
+  away->population = 3;
+  away->ai_flags = COLONIZE_COLONY_AI_NEEDS_COLONISTS;
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.map = &map;
+  ctx.colonies = &colonies;
+  ctx.units = &pool;
+  ctx.human_nation = 0;
+  int rc = 0;
+  mods_campaign_set(1u << MOD_AI_IMPROVEMENTS);
+  if (!ai_euro_colonist_ferry_wanted(&ctx, 1, 1)) {
+    fprintf(stderr, "colonist_ferry_wanted: full home colony, wanted elsewhere: want a ship\n");
+    rc = 1;
+  }
+  home->population = 3;
+  if (rc == 0 && ai_euro_colonist_ferry_wanted(&ctx, 1, 1)) {
+    fprintf(stderr, "colonist_ferry_wanted: the home colony admits it\n");
+    rc = 1;
+  }
+  home->population = 20;
+  away->ai_flags = 0;
+  if (rc == 0 && ai_euro_colonist_ferry_wanted(&ctx, 1, 1)) {
+    fprintf(stderr, "colonist_ferry_wanted: no colony elsewhere wants colonists\n");
+    rc = 1;
+  }
+  away->ai_flags = COLONIZE_COLONY_AI_NEEDS_COLONISTS;
+  mods_campaign_set(0);
+  if (rc == 0 && ai_euro_colonist_ferry_wanted(&ctx, 1, 1)) {
+    fprintf(stderr, "colonist_ferry_wanted: DOS mode never ferries\n");
+    rc = 1;
+  }
+  map_free(&map);
+  return rc;
+}
+
 /* ai_improvements mod (pt7d): two seas split by a land wall; a hull only
  * "has" the colony that borders its own sea. */
 static int case_sea_has_own_colony(void) {
@@ -227,5 +293,6 @@ static const TestCase k_cases[] = {
   {"pioneer_released", case_pioneer_released},
   {"land_mass_islet", case_land_mass_islet},
   {"sea_has_own_colony", case_sea_has_own_colony},
+  {"colonist_ferry_wanted", case_colonist_ferry_wanted},
 };
 TEST_MAIN_WRAPPED(k_cases, diag_init(0, NULL), diag_shutdown())

@@ -1728,8 +1728,16 @@ static void ai_euro_5d04_hire_tail_departing_ships(Ai5d04HireTail* t) {
              * never occupies a DOS hold, so a transport carrying colonists
              * still buys cargo here. */
             const int used = units_holds_used(ctx->units, sh->id);
-            if (cap == used || f->cargo_short || !has_any_colony) {
+            /* MOD_AI_IMPROVEMENTS #1881 (not DOS): cargo_short (a small fleet)
+             * sent every improved hull home empty; discard-campaign Spain
+             * bought no tools in 60 turns and could equip no Pioneer. An
+             * improved hull still buys tools; muskets and horses stay off,
+             * or the colonies arm their colonists (Spain lost 15 to arms). */
+            if (cap == used || (f->cargo_short && !improved) || !has_any_colony) {
               break;
+            }
+            if (f->cargo_short && p != COLONIZE_CARGO_TOOLS) {
+              continue;
             }
             if ((cargo_demand_bar <= (int)cargo_demand[p] || buy_any) &&
                 ((!tools_trained_this_pass && tools_hire_mask == 0) || (cap - used > 2 || buy_any)) &&

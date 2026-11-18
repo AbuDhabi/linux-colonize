@@ -712,6 +712,8 @@ int ai_euro_scouts_on(const ColonizeTurnContext* ctx, int nation, int cid);
 int ai_euro_missionaries_on(const ColonizeTurnContext* ctx, int nation, int cid);
 bool ai_euro_mission_site_near(const ColonizeTurnContext* ctx, int nation, int x, int y, int r);
 bool ai_euro_mission_claimed(const ColonizeUnitPool* pool, int nation, int x, int y);
+/* #1880: spare Colonists on continent cid should be shipped elsewhere. */
+bool ai_euro_colonist_ferry_wanted(ColonizeTurnContext* ctx, int nation, int cid);
 int ai_euro_20e6_site_probe(ColonizeTurnContext* ctx, ColonizeUnit* u, int nation_id);
 /* MOD_AI_IMPROVEMENTS: smallest land mass a colony may stand on or a ship may
  * land founders on (pt7b: the Dutch founded on a one-tile islet and starved). */

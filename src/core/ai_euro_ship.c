@@ -1252,6 +1252,11 @@ static int ai_euro_20e6_ship_berth_arrival(
         }
         mark = 1;
       }
+      /* MOD_AI_IMPROVEMENTS #1880 (not DOS): DOS never ships a Colonist out of
+       * a colony; with no colony on this land mass wanting it, take it. */
+      if (lt == 0 && lu->profession != UNITS_JOB_CONVERT && ai_euro_colonist_ferry_wanted(ctx, nation_id, cid)) {
+        mark = 1;
+      }
       if (mark) {
         /* md:3046-3050: act_state = 1, iStack_d2 -= 0x5238[type]. */
         lu->orders = UNITS_ORDER_SENTRY; /* +0x314c = 1 */
