@@ -354,6 +354,9 @@ runner's "matched no case" error instead of silently running everything. A
 case that cannot run here (no `COLONIZE/` assets) returns `TR_SKIP` (77); the
 runner prints `SKIP <name>` and, when every case that ran skipped, exits 77,
 which `colonize_add_test` maps to a ctest "Skipped" (`SKIP_RETURN_CODE`).
+A test that fails outright without `COLONIZE/` goes on the `game_data` list
+(the `foreach` next to the `game_data` test in CMakeLists.txt) instead: ctest then shows it as Not Run behind one
+`game_data` failure.
 
 **Hunting order dependencies**: for a converted binary, run it with
 `COLONIZE_TEST_REVERSE=1`, a few `COLONIZE_TEST_SHUFFLE=<seed>` values, and
