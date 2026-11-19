@@ -2724,6 +2724,16 @@ int main(void) {
     if (peu.current_crosses != 13) {
       return fail("turn Penn crosses accrued");
     }
+    /* FUN_4345_0a22 raw 73341 adds the pool as a word: 65530 + 12 wraps to 6
+     * (DB-114 note). A withdrawn slot skips the elect test, so only the add runs. */
+    pnat->liberty_bells_pool = 65530;
+    pcol1.player[0].control = 2;
+    turn_run_human_colony_eot(&pctx, NULL);
+    pcol1.player[0].control = 0;
+    if (pnat->liberty_bells_pool != 6) {
+      fprintf(stderr, "bell pool 65530 + 12: got %u\n", (unsigned)pnat->liberty_bells_pool);
+      return fail("bell pool does not wrap as DOS");
+    }
   }
 
   /* Peter Minuit: FUN_4cc6_07c2 land-buy gold → 0; founding on homeland cheaper/free. */
