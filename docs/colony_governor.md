@@ -69,7 +69,7 @@ a quarter of it plus their own goods (horses always 1.5x the governor's food wei
 hammers, tools, muskets, ore, lumber and a bonus per added tool matched by an
 added musket (so blacksmiths feed a gunsmith rather than either working
 alone); tools and muskets past 100 in store (a hold) weigh only their sale
-share, and the bonus stops there, so the project's hammers come first; Politics bells and crosses (bells 1, Farming 0.75, Politics 6; crosses 0.5, Politics 5, 0 during the War of Independence, when Europe sends no immigrants), Military food 3.5 (growth, so horses 5.25), muskets, the tools and ore for them, hammers 3. Bells are weighted by SoL: x1.5 under
+share, and the bonus stops there, so the project's hammers come first; each musket from the one that ties the net tools added on loses its own weight, so the net tools stay ahead of the muskets; Politics bells and crosses (bells 1, Farming 0.75, Politics 6; crosses 0.5, Politics 5, 0 during the War of Independence, when Europe sends no immigrants), Military food 3.5 (growth, so horses 5.25), muskets, the tools and ore for them, hammers 3. Bells are weighted by SoL: x1.5 under
 50%, x1 from 50%. At 100%, the 2 x pop a turn that keeps the colony there
 weigh x1.5; at less, SoL slipped to 99% and called the statesman back every
 other turn (seat churn only: the +2 latch holds down to 95%,

@@ -120,6 +120,7 @@ typedef struct GovWeights {
   double hammers;
   double tools_needed; /* a tool the project still lacks */
   double balance;      /* Industry: per added tool matched by an added musket */
+  double musket_excess; /* Industry: per added musket not under the net tools */
   double veteran;      /* Military: per turn a Veteran Soldier teaches */
   double sol_bell;     /* per bell a turn, up to sol_bells_max: the SoL steps */
   int sol_bells_max;
@@ -322,6 +323,12 @@ static double gov_score(const GovCtx* g, const ColonizeColony* plan) {
     const int m = added[COLONIZE_CARGO_MUSKETS];
     if (t > 0 && m > 0) {
       s += wt->balance * (t < m ? t : m);
+    }
+    /* Industry keeps the net tools ahead of the muskets: each musket from
+     * the one that ties them on loses its own weight. */
+    const int over = m - (added[COLONIZE_CARGO_TOOLS] > 0 ? added[COLONIZE_CARGO_TOOLS] : 1) + 1;
+    if (m > 0 && over > 0) {
+      s -= wt->musket_excess * (over < m ? over : m);
     }
     const int h = pv.hammers < hammers_need ? pv.hammers : hammers_need;
     hammers_need -= h;
@@ -574,6 +581,7 @@ static void gov_weights(const ColonizeWorld* w, const ColonizeColony* col, int g
       wt->goods[COLONIZE_CARGO_TOOLS] = 4.0;
       wt->goods[COLONIZE_CARGO_MUSKETS] = 4.0;
       wt->balance = 6.0;
+      wt->musket_excess = wt->goods[COLONIZE_CARGO_MUSKETS];
       wt->goods[COLONIZE_CARGO_ORE] = 1.0;
       wt->goods[COLONIZE_CARGO_LUMBER] = 0.5;
       wt->full_upto[COLONIZE_CARGO_TOOLS] = GOV_INDUSTRY_STOCK;

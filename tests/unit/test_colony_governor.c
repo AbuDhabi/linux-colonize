@@ -431,7 +431,8 @@ static int case_teacher_dearest(void) {
   return rc;
 }
 
-/* Industry with ore and an Armory makes tools and muskets both. */
+/* Industry with ore and an Armory makes tools and muskets both, more net
+ * tools than muskets. */
 static int case_industry_tools_and_muskets(void) {
   GovFx f;
   if (!gov_fx_open(&f)) {
@@ -446,9 +447,11 @@ static int case_industry_tools_and_muskets(void) {
   colony_governor_run_w(&f.w, c->id);
   const ColonizeColonyPreview pv = gov_preview(&f);
   gov_fx_close(&f);
-  if (pv.goods[COLONIZE_CARGO_TOOLS] <= 0 || pv.goods[COLONIZE_CARGO_MUSKETS] <= 0) {
+  if (pv.goods[COLONIZE_CARGO_MUSKETS] <= 0 ||
+      pv.goods[COLONIZE_CARGO_TOOLS] <= pv.goods[COLONIZE_CARGO_MUSKETS]) {
     fprintf(stderr, "tools %d muskets %d\n", pv.goods[COLONIZE_CARGO_TOOLS],
-            pv.goods[COLONIZE_CARGO_MUSKETS]);    return 1;
+            pv.goods[COLONIZE_CARGO_MUSKETS]);
+    return 1;
   }
   return 0;
 }

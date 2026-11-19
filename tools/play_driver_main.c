@@ -2339,7 +2339,14 @@ static bool command(char* line) {
   } else if (strcmp(op, "colonies") == 0) {
     print_colonies();
   } else if (strcmp(op, "govern") == 0) {
-    /* MOD_COLONY_GOVERNOR's end-of-turn pass now, without ending the turn. */
+    /* MOD_COLONY_GOVERNOR's end-of-turn pass now, without ending the turn.
+     * `govern G` first hands every human colony governor G. */
+    for (int i = 0; argc > 1 && i < COLONIZE_COLONIES_MAX; ++i) {
+      ColonizeColony* c = &g_game->colonies.colonies[i];
+      if (c->active && c->nation_id == g_game->human_nation) {
+        c->governor = a1;
+      }
+    }
     const ColonizeWorld w = game_world(g_game);
     colony_governor_run_nation_w(&w, g_game->human_nation);
   } else if (strcmp(op, "nestedpick") == 0) {
