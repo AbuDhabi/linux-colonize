@@ -483,6 +483,17 @@ static int case_father_pick(void) {
     fprintf(stderr, "father_pick: six Fur Trappers: %d, want Hudson\n", pick);
     rc = 1;
   }
+  /* Spain: Cortes 60, and 80 with two villages burned. */
+  const int war[5] = {FF_PETER_MINUIT, FF_FERDINAND_MAGELLAN, FF_HERNAN_CORTES, FF_THOMAS_PAINE, FF_JEAN_DE_BREBEUF};
+  if (rc == 0 && founding_fathers_improved_pick(&ctx, 1, war) != FF_FERDINAND_MAGELLAN) {
+    fprintf(stderr, "father_pick: France takes Magellan over Cortes\n");
+    rc = 1;
+  }
+  col1.nation[2].villages_burned = 2;
+  if (rc == 0 && founding_fathers_improved_pick(&ctx, 2, war) != FF_HERNAN_CORTES) {
+    fprintf(stderr, "father_pick: Spain with 2 villages burned takes Cortes\n");
+    rc = 1;
+  }
   const int empty[5] = {-1, -1, -1, -1, -1};
   if (rc == 0 && founding_fathers_improved_pick(&ctx, 1, empty) != -1) {
     fprintf(stderr, "father_pick: empty slate\n");

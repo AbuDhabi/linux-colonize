@@ -685,10 +685,17 @@ static int ff_pick_strongest_category(const ColonizeCol1Save* col1, int nation) 
  * (FUN_4345_015a) whatever he does: 26 of 48 all-AI nations had Henry Hudson
  * first with no Fur Trapper to double, and only 4-6 ever got Stuyvesant.
  * de Witt does nothing for a computer nation (FUN_5f7a_020e is human-only;
- * Bolivar's +20 SoL is, but the mod extends it); Fugger, Hudson, de Brebeuf and Las Casas
- * count a live boycott, Fur Trappers, own missions or Converts. A tie keeps
- * the earlier row, as an idle human's Space does.
+ * Bolivar's +20 SoL is too, but the mod extends it). Fugger, Hudson,
+ * de Brebeuf and Las Casas count a live boycott, Fur Trappers, own missions
+ * or Converts. Cortes and Sepulveda rise for Spain, whose native-combat and
+ * convert bonuses (units_combat.c, nation 2) they stack on, and Cortes for
+ * each village the nation burned: Spain burned 48 of 56 villages in the
+ * replays and no Spanish nation took Cortes. A tie keeps the earlier row, as
+ * an idle human's Space does.
  */
+/* Spain's DOS nation id (the native-combat and convert arms of units_combat.c). */
+#define FF_SPAIN 2
+
 int founding_fathers_improved_pick(const ColonizeTurnContext* ctx, int nation, const int slate[5]) {
   static const int base[COLONIZE_COL1_FF_COUNT] = {
     [FF_ADAM_SMITH] = 65, [FF_JAKOB_FUGGER] = 0, [FF_PETER_MINUIT] = 45,
@@ -739,6 +746,11 @@ int founding_fathers_improved_pick(const ColonizeTurnContext* ctx, int nation, c
       score += 5 * (missions < 8 ? missions : 8);
     } else if (i == FF_BARTOLOME_DE_LAS_CASAS) {
       score += 10 * (converts < 6 ? converts : 6);
+    } else if (i == FF_HERNAN_CORTES) {
+      const int burned = col1->nation[nation].villages_burned;
+      score += (nation == FF_SPAIN ? 40 : 0) + 10 * (burned < 4 ? burned : 4);
+    } else if (i == FF_JUAN_DE_SEPULVEDA && nation == FF_SPAIN) {
+      score += 30;
     }
     if (score > best_score) {
       best = i;
