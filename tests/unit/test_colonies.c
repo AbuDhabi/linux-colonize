@@ -2296,7 +2296,8 @@ static int case_colonies_core(void) {
             "SoL flags clear when SoL drops");
 
       /*
-       * FUN_15eb_0274 Bolivar: +20 display for human; AI control gets none; cap 100.
+       * FUN_15eb_0274 Bolivar: +20 display for human; AI control gets none (but
+       * an improved AI does, #1894); cap 100.
        * Cite: sons_of_liberty.md; founding_fathers_bolivar_sol_bonus.
        */
       {
@@ -2319,6 +2320,12 @@ static int case_colonies_core(void) {
         col1c.rebel_dividend = 40;
         col1.player[c->nation_id].control = 1; /* AI */
         CHECK(colony_prod_sol_percent(&col1, c) == 40, "SoL Bolivar skipped for AI");
+        {
+          const uint32_t mods_was = mods_campaign_mask();
+          mods_campaign_set(1u << MOD_AI_IMPROVEMENTS); /* #1894: improved AI gets the +20 */
+          CHECK(colony_prod_sol_percent(&col1, c) == 60, "SoL Bolivar improved AI 40+20");
+          mods_campaign_set(mods_was);
+        }
         col1.head.founding_father[FF_SIMON_BOLIVAR] = -1;
         col1.nation[c->nation_id].founding_fathers[FF_SIMON_BOLIVAR / 8] &=
           (uint8_t)~(1u << (FF_SIMON_BOLIVAR % 8));

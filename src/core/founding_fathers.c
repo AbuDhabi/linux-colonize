@@ -1,4 +1,5 @@
 #include "core/ai_king.h"
+#include "core/ai_euro.h"
 #include "core/founding_fathers.h"
 
 #include "core/ai_diplo.h"
@@ -22,7 +23,7 @@
 /*
  * Sections:
  *  - Reset, bell pool & bells-needed, per-father query predicates (founding_fathers_reset .. revere_should_auto_arm)
- *  - Candidate availability, century band & weighted category picks (ff_available_to .. ff_pick_strongest_category)
+ *  - Candidate availability, century band & weighted category picks (ff_available_to .. founding_fathers_improved_pick)
  *  - WOI bell pool, debate popups & next-candidate bookkeeping (consume_woi_bell_pool .. ensure_next_candidate)
  *  - Per-father election effects & apply_effect dispatcher (effect_coronado_reveal .. apply_effect)
  *  - Election commit, popup results & per-turn tick (elect_commit .. try_elect)
@@ -138,11 +139,13 @@ unsigned founding_fathers_bells_needed(const ColonizeCol1Save* col1, int nation)
 }
 
 int founding_fathers_bolivar_sol_bonus(const ColonizeCol1Save* col1, int nation) {
-  /* FUN_15eb_0274: FF 0x12 + owner < 4 + player[owner].control == 0 → +20. */
+  /* FUN_15eb_0274: FF 0x12 + owner < 4 + player[owner].control == 0 → +20.
+   * MOD_AI_IMPROVEMENTS #1894 (not DOS): an improved computer nation gets
+   * the +20 too; DOS lets the AI elect Bolivar for nothing. */
   if (!col1 || nation < 0 || nation >= 4) {
     return 0;
   }
-  if (col1->player[nation].control != 0) {
+  if (col1->player[nation].control != 0 && !ai_euro_improved_nation(col1, -1, nation)) {
     return 0;
   }
   if (!founding_fathers_nation_has(col1, nation, FF_SIMON_BOLIVAR)) {
@@ -674,6 +677,77 @@ static int ff_pick_strongest_category(const ColonizeCol1Save* col1, int nation) 
   return best_type;
 }
 
+/*
+ * MOD_AI_IMPROVEMENTS #1894 (not DOS): an improved nation sees the slate a
+ * human's Congress debate shows (one weighted roll per category, the DOS
+ * rolls FUN_4345_06d2 makes for every nation) and takes the row worth most
+ * to it, where DOS keeps the roll of the category with the most Fathers left
+ * (FUN_4345_015a) whatever he does: 26 of 48 all-AI nations had Henry Hudson
+ * first with no Fur Trapper to double, and only 4-6 ever got Stuyvesant.
+ * de Witt does nothing for a computer nation (FUN_5f7a_020e is human-only;
+ * Bolivar's +20 SoL is, but the mod extends it); Fugger, Hudson, de Brebeuf and Las Casas
+ * count a live boycott, Fur Trappers, own missions or Converts. A tie keeps
+ * the earlier row, as an idle human's Space does.
+ */
+int founding_fathers_improved_pick(const ColonizeTurnContext* ctx, int nation, const int slate[5]) {
+  static const int base[COLONIZE_COL1_FF_COUNT] = {
+    [FF_ADAM_SMITH] = 65, [FF_JAKOB_FUGGER] = 0, [FF_PETER_MINUIT] = 45,
+    [FF_PETER_STUYVESANT] = 80, [FF_JAN_DE_WITT] = 0, [FF_FERDINAND_MAGELLAN] = 60,
+    [FF_FRANCISCO_CORONADO] = 15, [FF_HERNANDO_DE_SOTO] = 65, [FF_HENRY_HUDSON] = 30,
+    [FF_SIEUR_DE_LA_SALLE] = 50, [FF_HERNAN_CORTES] = 20, [FF_GEORGE_WASHINGTON] = 50,
+    [FF_PAUL_REVERE] = 40, [FF_FRANCIS_DRAKE] = 20, [FF_JOHN_PAUL_JONES] = 70,
+    [FF_THOMAS_JEFFERSON] = 100, [FF_POCAHONTAS] = 35, [FF_THOMAS_PAINE] = 55,
+    [FF_SIMON_BOLIVAR] = 70, [FF_BENJAMIN_FRANKLIN] = 75, [FF_WILLIAM_BREWSTER] = 40,
+    [FF_WILLIAM_PENN] = 75, [FF_JEAN_DE_BREBEUF] = 30, [FF_JUAN_DE_SEPULVEDA] = 30,
+    [FF_BARTOLOME_DE_LAS_CASAS] = 10,
+  };
+  const ColonizeCol1Save* col1 = ctx ? ctx->col1 : NULL;
+  if (!col1 || !slate || nation < 0 || nation >= (int)COLONIZE_COL1_NATION_COUNT) {
+    return -1;
+  }
+  int trappers = 0;
+  int converts = 0;
+  for (int i = 0; ctx->colonies && i < COLONIZE_COLONIES_MAX; ++i) {
+    const ColonizeColony* c = &ctx->colonies->colonies[i];
+    if (!c->active || c->nation_id != nation) {
+      continue;
+    }
+    for (int k = 0; k < COLONIZE_COLONY_POP_MAX; ++k) {
+      const ColonizeColonist* m = &c->colonists[k];
+      trappers += m->active && m->field_job == COLONIZE_JOB_FUR_TRAPPER;
+      converts += m->active && m->profession == UNITS_JOB_CONVERT;
+    }
+  }
+  int missions = 0;
+  for (int i = 0; col1->tribe && i < (int)col1->head.tribe_count; ++i) {
+    const uint8_t m = col1->tribe[i].mission;
+    missions += m != COL1_TRIBE_MISSION_NONE && (int)(m & COL1_TRIBE_MISSION_NATION_MASK) == nation;
+  }
+  int best = -1;
+  int best_score = -1;
+  for (int t = 0; t < 5; ++t) {
+    const int i = slate[t];
+    if (i < 0 || i >= (int)COLONIZE_COL1_FF_COUNT) {
+      continue;
+    }
+    int score = base[i];
+    if (i == FF_JAKOB_FUGGER && col1->nation[nation].boycott_bitmap != 0) {
+      score = 85;
+    } else if (i == FF_HENRY_HUDSON) {
+      score += 10 * (trappers < 6 ? trappers : 6);
+    } else if (i == FF_JEAN_DE_BREBEUF) {
+      score += 5 * (missions < 8 ? missions : 8);
+    } else if (i == FF_BARTOLOME_DE_LAS_CASAS) {
+      score += 10 * (converts < 6 ? converts : 6);
+    }
+    if (score > best_score) {
+      best = i;
+      best_score = score;
+    }
+  }
+  return best;
+}
+
 void founding_fathers_consume_woi_bell_pool(ColonizeTurnContext* ctx, int nation_id) {
   founding_fathers_reset_bells_pool(ctx, nation_id);
 }
@@ -858,6 +932,13 @@ static void ensure_next_candidate(ColonizeTurnContext* ctx, int nation_id) {
         nat->next_founding_father = (int16_t)rolled[t];
         return;
       }
+    }
+    return;
+  }
+  if (ai_euro_improved_nation(col1, ctx->human_nation, nation_id)) {
+    const int pick = founding_fathers_improved_pick(ctx, nation_id, rolled);
+    if (pick >= 0) {
+      nat->next_founding_father = (int16_t)pick;
     }
     return;
   }

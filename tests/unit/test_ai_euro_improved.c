@@ -7,6 +7,7 @@
 #include "core/col1_save.h"
 #include "core/colony.h"
 #include "core/colony_governor.h"
+#include "core/founding_fathers.h"
 #include "core/map.h"
 #include "core/mods.h"
 #include "core/pioneer_plan.h"
@@ -444,6 +445,52 @@ static int case_fleet_short(void) {
   return rc;
 }
 
+/* #1894: an improved nation takes the slate row worth most to it. */
+static int case_father_pick(void) {
+  ColonizeCol1Save col1;
+  col1_save_init(&col1);
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+  ColonizeColony* c = &colonies.colonies[0];
+  c->active = true;
+  c->nation_id = 1;
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+  ctx.colonies = &colonies;
+  ctx.human_nation = 0;
+  int rc = 0;
+  /* Trade, Exploration, Military, Political, Religious rows. */
+  int slate[5] = {FF_PETER_MINUIT, FF_HENRY_HUDSON, FF_PAUL_REVERE, FF_THOMAS_JEFFERSON, FF_WILLIAM_PENN};
+  int pick = founding_fathers_improved_pick(&ctx, 1, slate);
+  if (pick != FF_THOMAS_JEFFERSON) {
+    fprintf(stderr, "father_pick: %d, want Jefferson\n", pick);
+    rc = 1;
+  }
+  slate[3] = FF_JAN_DE_WITT; /* human-only effect */
+  pick = founding_fathers_improved_pick(&ctx, 1, slate);
+  if (rc == 0 && pick != FF_WILLIAM_PENN) {
+    fprintf(stderr, "father_pick: %d, want Penn over de Witt\n", pick);
+    rc = 1;
+  }
+  for (int m = 0; m < 6; ++m) {
+    c->colonists[m].active = true;
+    c->colonists[m].field_job = COLONIZE_JOB_FUR_TRAPPER;
+  }
+  pick = founding_fathers_improved_pick(&ctx, 1, slate);
+  if (rc == 0 && pick != FF_HENRY_HUDSON) {
+    fprintf(stderr, "father_pick: six Fur Trappers: %d, want Hudson\n", pick);
+    rc = 1;
+  }
+  const int empty[5] = {-1, -1, -1, -1, -1};
+  if (rc == 0 && founding_fathers_improved_pick(&ctx, 1, empty) != -1) {
+    fprintf(stderr, "father_pick: empty slate\n");
+    rc = 1;
+  }
+  return rc;
+}
+
 static const TestCase k_cases[] = {
   {"colony_focus_small_cash", case_colony_focus_small_cash},
   {"pjob_resume", case_pjob_resume},
@@ -453,5 +500,6 @@ static const TestCase k_cases[] = {
   {"colonist_ferry_wanted", case_colonist_ferry_wanted},
   {"scout_target", case_scout_target},
   {"fleet_short", case_fleet_short},
+  {"father_pick", case_father_pick},
 };
 TEST_MAIN_WRAPPED(k_cases, diag_init(0, NULL), diag_shutdown())

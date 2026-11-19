@@ -96,6 +96,9 @@ bool founding_fathers_try_elect(ColonizeTurnContext* ctx, int nation_id);
  * citizens (viceroy_unpacked.c:71068-71413), so nothing is scored here.
  */
 void founding_fathers_consume_woi_bell_pool(ColonizeTurnContext* ctx, int nation_id);
+/* MOD_AI_IMPROVEMENTS #1894: the row of a Congress slate (one Father per
+ * category, -1 = none) an improved computer nation values most, or -1. */
+int founding_fathers_improved_pick(const ColonizeTurnContext* ctx, int nation, const int slate[5]);
 
 /* Reset per-session FF scratch (the persistent Congress slate) — new game. */
 void founding_fathers_reset(void);
