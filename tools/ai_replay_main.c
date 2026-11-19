@@ -17,7 +17,9 @@
  *   turns    number of turn_end calls (default 20)
  *   --units  also dump every AI unit (id / nation / type / xy / orders / MP /
  *            goto / carrier / cargo) before the first turn and after the last
- *   --seed   DOS RNG seed (default 100, the value the AI goldens use)
+ *   --seed   DOS RNG seed (default 100, the value the AI goldens use); under
+ *            modern_prng it also reseeds the xoshiro stream, which otherwise
+ *            resumes from the save
  *   --mods   campaign mod mask (mods.h bit per ModId) set after the load,
  *            e.g. 0x800000 for ai_improvements
  *   --game   tolerated DOS bugs off, as opencol and play_driver run; the
@@ -136,6 +138,7 @@ int main(int argc, char** argv) {
   int turns = 20;
   int dump_units = 0;
   unsigned seed = 100u;
+  int seed_given = 0;
   long mods_mask = -1;
   int all_ai = 0;
   int save_every = 0;
@@ -145,6 +148,7 @@ int main(int argc, char** argv) {
       dump_units = 1;
     } else if (strcmp(argv[a], "--seed") == 0 && a + 1 < argc) {
       seed = (unsigned)strtoul(argv[++a], NULL, 10);
+      seed_given = 1;
     } else if (strcmp(argv[a], "--mods") == 0 && a + 1 < argc) {
       mods_mask = (long)strtoul(argv[++a], NULL, 0);
     } else if (strcmp(argv[a], "--all-ai") == 0) {
@@ -202,6 +206,12 @@ int main(int argc, char** argv) {
 
   if (mods_mask >= 0) {
     mods_campaign_set((uint32_t)mods_mask);
+  }
+  /* modern_prng: the load resumed the save's xoshiro stream, which --seed
+   * would not touch; an explicit --seed (or a stream --mods just turned on
+   * with no saved state) seeds it instead. */
+  if (mods_on(MOD_MODERN_PRNG) && (seed_given || !dos_rng_modern_state())) {
+    dos_rng_modern_seed(seed);
   }
   if (all_ai) {
     /* --all-ai: the human's power plays as AI too (control 1, as an all-AI
