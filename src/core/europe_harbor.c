@@ -1226,14 +1226,9 @@ static void europe_market_phase4(const EuropeMarketTick* t, int* out_rise, int* 
       }
     }
     /* raw 58989-58992: a single-cargo call takes the attrition back out. */
+    /* The shedding above moves toward 0, so nr is still a 16-bit value here. */
     if (t->only_cargo >= 0) {
-      nr -= attrition;
-    }
-    if (nr < -32768) {
-      nr = -32768;
-    }
-    if (nr > 32767) {
-      nr = 32767;
+      nr = europe_nr_add((int16_t)nr, -attrition);
     }
     t->nr[c] = (int16_t)nr;
     /*
