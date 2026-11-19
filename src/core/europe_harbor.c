@@ -877,6 +877,17 @@ static void europe_quote_settle(EuropeCargoQuote* q) {
 static void europe_market_tick_single_cargo(
   EuropeScreen* eu, struct ColonizeCol1Save* col1, int nation, int cargo
 );
+/* Pressure word add. DOS adds in 16 bits (1d80/1dfa and 0058), so a long glut
+ * wraps to a shortage and the price climbs back (DB-114); the fix toggle
+ * saturates at the int16 edges instead. */
+static int16_t europe_nr_add(int16_t nr, int delta) {
+  const int v = (int)nr + delta;
+  if (dos_buggy_behavior() || !mods_on(MOD_PRESSURE_SATURATES)) {
+    return (int16_t)v;
+  }
+  return (int16_t)(v < INT16_MIN ? INT16_MIN : v > INT16_MAX ? INT16_MAX : v);
+}
+
 /* Write the screen's track through to its nation's col1 row. */
 static void europe_screen_track_to_col1(const EuropeScreen* eu, struct ColonizeCol1Save* col1);
 
@@ -908,7 +919,8 @@ void europe_apply_trade_volume(
    * count of 16+ leaves 0) then `ADD` — all 16-bit, wrapping. The record
    * writes below are plain `SUB`/`ADD word ptr [BX+0x8864]` (asm 97731 /
    * 97789) and the Dutch damping `SHL AX,1; CWD; IDIV 3` doubles in 16 bits
-   * too, so nothing saturates (port_bugs.md #1587). */
+   * too, so nothing saturates (port_bugs.md #1587) unless the DB-114 fix is
+   * on (europe_nr_add). */
   const int raw_term = (int16_t)((uint32_t)amount << ((unsigned)q->volatility & 0x1fu)) +
                        europe_1d44_term(amount, seller_is_human, difficulty);
   const int16_t term16 = (int16_t)raw_term;
@@ -927,16 +939,11 @@ void europe_apply_trade_volume(
       }
       const int tn = (!is_buy && n == 3) ? dutch16 : term16;
       col1->nation[n].trade.nr[cargo_type] =
-        (int16_t)(col1->nation[n].trade.nr[cargo_type] + (is_buy ? -tn : tn));
+        europe_nr_add(col1->nation[n].trade.nr[cargo_type], is_buy ? -tn : tn);
     }
   }
   const int term = (!is_buy && track == 3) ? dutch16 : term16;
-  int nr = (int)eu->trade_nr[cargo_type];
-  if (is_buy) {
-    nr -= term;
-  } else {
-    nr += term;
-  }
+  const int16_t nr = europe_nr_add(eu->trade_nr[cargo_type], is_buy ? -term : term);
   if (col1 && seller_nation >= 0 && seller_nation < (int)COLONIZE_COL1_NATION_COUNT &&
       (unsigned)cargo_type < COLONIZE_COL1_CARGO_TYPES) {
     ColonizeCol1NationTrade* t = &col1->nation[seller_nation].trade;
@@ -1026,14 +1033,7 @@ typedef struct EuropeMarketTick {
 } EuropeMarketTick;
 
 static void europe_market_nr_add(const EuropeMarketTick* t, int cargo, int delta) {
-  int nr = (int)t->nr[cargo] + delta;
-  if (nr < -32768) {
-    nr = -32768;
-  }
-  if (nr > 32767) {
-    nr = 32767;
-  }
-  t->nr[cargo] = (int16_t)nr;
+  t->nr[cargo] = europe_nr_add(t->nr[cargo], delta); /* 0058: `ADD word` (DB-114) */
 }
 
 /*

@@ -393,9 +393,11 @@ static void turn_ai_colony_bell_step(void* user, ColonizeColony* colony) {
   colony->prod_crosses_phase_a = crosses;
   colony->prod_compose_stamp = (uint32_t)step->ctx->col1->head.turn + 1u;
   unsigned last = (unsigned)step->nat->liberty_bells_last_turn + (unsigned)bells;
-  unsigned pool = (unsigned)step->nat->liberty_bells_pool + (unsigned)bells;
   step->nat->liberty_bells_last_turn = (uint16_t)(last > 65535u ? 65535u : last);
-  step->nat->liberty_bells_pool = (uint16_t)(pool > 65535u ? 65535u : pool);
+  /* FUN_4345_0a22 raw 73341: `ADD word [+0xc]`, wrapping. Once intervention
+   * is announced nothing resets the pool, and the score reads it signed
+   * (#1808), so DOS's bell points come back after the wrap. */
+  step->nat->liberty_bells_pool = (uint16_t)(step->nat->liberty_bells_pool + (unsigned)bells);
   /* FUN_364b_0688 raw 57231 calls FUN_4345_0a22 before this colony's
    * production; it checks the election even when this colony made no bells. */
   if (step->control == 2) {
