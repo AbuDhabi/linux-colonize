@@ -44,6 +44,10 @@
  * weights, lost to food, so projects stalled a few hammers short. Measured
  * with ai_replay (docs/ai_euro_improvement_spec.md section 7). */
 #define GOV_AI_HAMMERS 2.0
+/* AI project hammers (colony_governor_seat_w): turns of the building's
+ * per-turn gain one project's worth of hammers buys. ponytail: flat payback,
+ * not the turns left in the game. */
+#define GOV_PROJECT_PAYBACK 20.0
 /* A convert indoors makes a third of a free colonist; in the field he gets
  * +1. Per turn, so the swaps send converts out unless indoors pays clearly. */
 #define GOV_CONVERT_INDOORS 3.0
@@ -794,17 +798,22 @@ static double gov_plan(const ColonizeWorld* w, const ColonizeColony* col, const 
   return best;
 }
 
+static void gov_commit(const ColonizeWorld* w, ColonizeColony* col, const ColonizeColony* plan);
+
 static void gov_seat_colonists(const ColonizeWorld* w, ColonizeColony* col, const GovWeights* wt, bool rolling) {
-  ColonizeColonyPool* pool = w->colonies;
   ColonizeColony plan;
   (void)gov_plan(w, col, wt, rolling, &plan);
+  gov_commit(w, col, &plan);
+}
 
+static void gov_commit(const ColonizeWorld* w, ColonizeColony* col, const ColonizeColony* plan) {
+  ColonizeColonyPool* pool = w->colonies;
   /* Commit through the player's own assign calls: everyone who moves gets
    * up first, so no seat or building cap is still held by its old worker. */
   GovSeat target[COLONIZE_COLONY_POP_MAX];
   bool moves[COLONIZE_COLONY_POP_MAX];
   for (int i = 0; i < col->colonist_count; ++i) {
-    target[i] = gov_seat_of(&plan, i);
+    target[i] = gov_seat_of(plan, i);
     moves[i] = !gov_seat_eq(target[i], gov_seat_of(col, i));
     if (moves[i]) {
       const int t = gov_colonist_tile(col, i);
@@ -1086,7 +1095,29 @@ void colony_governor_seat_w(const ColonizeWorld* w, int colony_id, int gov) {
   gov_weights(w, col, gov, &wt);
   wt.hammers *= GOV_AI_HAMMERS;
   wt.tools_needed = wt.hammers + wt.goods[COLONIZE_CARGO_TOOLS];
-  gov_seat_colonists(w, col, &wt, true);
+  ColonizeColony plan;
+  const double base = gov_plan(w, col, &wt, true, &plan);
+  /* A building project prices its hammers by what the colony gains once it
+   * stands: the seating run as if it stood, against today's, per turn, over
+   * GOV_PROJECT_PAYBACK turns, spread over its hammers. Docks with stranded
+   * fishermen were frozen 50 turns behind a pair of statesmen (discard
+   * campaign t151: Roanoke +12 food a turn with them, 0 hammers without). */
+  int cost = 0;
+  const int bip = col->building_in_production;
+  if (bip >= 0 && bip < COLONIZE_BUILDING_TYPES_MAX && !colonies_unit_build_info(bip, NULL, NULL, NULL) &&
+      !col->has_building[bip] && colonies_construction_cost(w->colonies, col, &cost, NULL) && cost > 0) {
+    ColonizeColony probe = *col;
+    probe.has_building[bip] = true;
+    ColonizeColony probe_plan;
+    const double gain = (gov_plan(w, &probe, &wt, true, &probe_plan) - base) / GOV_HORIZON;
+    const double per_hammer = gain * GOV_PROJECT_PAYBACK / cost;
+    if (per_hammer > wt.hammers) {
+      wt.hammers = per_hammer;
+      wt.tools_needed = wt.hammers + wt.goods[COLONIZE_CARGO_TOOLS];
+      (void)gov_plan(w, col, &wt, true, &plan);
+    }
+  }
+  gov_commit(w, col, &plan);
 }
 
 void colony_governor_run_nation_w(const ColonizeWorld* w, int nation) {

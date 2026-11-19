@@ -59,7 +59,11 @@ to burn the last few lumber leaves once it is gone (human governors only; the
 AI's `colony_governor_seat_w` gets no popup). Hammers count while there is a
 project: fully up to its and the queue's remaining cost, half beyond (the
 surplus carries over, TB-57; none under `dos_buggy_behavior`). Every governor
-weights hammers (2, Industry 4), listed project or not. A tool the project
+weights hammers (2, Industry 4), listed project or not. AI colonies
+(`colony_governor_seat_w`, MOD_AI_IMPROVEMENTS) double that, and a building
+project that changes the seating (Docks with fishermen to seat, say) prices
+its hammers by the per-turn score gain of seating as if it stood, times 20
+turns, over its cost, when that beats the flat weight (#1895). A tool the project
 still lacks is worth a tool plus a hammer. A convert seated indoors costs 3 a
 turn (a third of the output there, +1 in the field). Sale value
 (`gov_sale_value`) is the Europe sell price after the nation's tax, 0 for a

@@ -29,7 +29,8 @@ void colony_governor_run_w(const struct ColonizeWorld* w, int colony_id);
  * governor field; the project is left alone. MOD_AI_IMPROVEMENTS AI
  * colonies (ai_euro_colony_jobs.c), so it does not test MOD_COLONY_GOVERNOR.
  * Their cascade re-picks the project each turn, so every hammer counts, at
- * twice the human governor's weight. */
+ * twice the human governor's weight, or at what a building project adds to
+ * the seating once it stands when that is more (#1895). */
 void colony_governor_seat_w(const struct ColonizeWorld* w, int colony_id, int gov);
 /* MOD_AI_IMPROVEMENTS #1878: as seated, plus one more colonist on the
  * colony's best free food plot, the colony still feeds itself. */

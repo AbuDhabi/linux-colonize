@@ -1113,7 +1113,51 @@ static int case_military_units_alternate(void) {
   return 0;
 }
 
+/* MOD_AI_IMPROVEMENTS AI seating: a Docks project is priced by the food its
+ * fishermen bring once it stands (discard campaign t151: Roanoke seated two
+ * statesmen and no carpenter for 50 turns, Docks at 0 of 52). A Stockade
+ * changes no seating, so it keeps the flat hammer weight. Industry seats a
+ * carpenter for either. */
+static int case_ai_docks_project(void) {
+  int rc = 0;
+  dos_buggy_behavior_set(false);
+  for (int gov = COLONY_GOVERNOR_FARMING; gov < COLONY_GOVERNOR_COUNT; ++gov) {
+    for (int docks_project = 0; docks_project < 2; ++docks_project) {
+      GovFx f;
+      g_fx_coastal = true;
+      const bool opened = gov_fx_open(&f);
+      g_fx_coastal = false;
+      if (!opened) {
+        dos_buggy_behavior_set(true);
+        return 1;
+      }
+      ColonizeColony* c = f.col;
+      const int hall = colonies_building_row(&f.pool, COLONY_BUILDING_TOWN_HALL);
+      for (int i = 0; i < c->colonist_count; ++i) {
+        c->colonists[i].building_type = hall;
+        c->colonists[i].profession = COLONIZE_JOB_FISHERMAN;
+      }
+      c->stock[COLONIZE_CARGO_FOOD] = 20;
+      c->stock[COLONIZE_CARGO_LUMBER] = 0;
+      c->building_in_production =
+        colonies_building_row(&f.pool, docks_project ? COLONY_BUILDING_DOCKS : COLONY_BUILDING_STOCKADE);
+      colony_governor_seat_w(&f.w, c->id, gov);
+      const int hammers = gov_preview(&f).hammers;
+      gov_fx_close(&f);
+      /* Politics keeps its statesmen: Tories cost more than a Docks pays. */
+      if (gov != COLONY_GOVERNOR_POLITICS && gov != COLONY_GOVERNOR_INDUSTRY &&
+          (hammers > 0) != (docks_project != 0)) {
+        fprintf(stderr, "governor %d, docks project %d: hammers %d\n", gov, docks_project, hammers);
+        rc = 1;
+      }
+    }
+  }
+  dos_buggy_behavior_set(true);
+  return rc;
+}
+
 static const TestCase k_cases[] = {
+  {"ai_docks_project", case_ai_docks_project},
   {"military_units_alternate", case_military_units_alternate},
   {"cash_keeps_bells", case_cash_keeps_bells},
   {"cash_custom_house", case_cash_custom_house},
