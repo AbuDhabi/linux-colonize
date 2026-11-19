@@ -573,6 +573,64 @@ static int unit_ring_hop_commits_far_goto(void) {
   return 0;
 }
 
+/*
+ * Arm order in 20e6: the explorer ring hop (md:2416-2458) runs before the
+ * surplus recall 'W' (OVL14 0x4bc4-0x4c26). An explorer bound to a colony
+ * that flags surplus takes the hop and leaves the flag and quota alone.
+ */
+static int unit_ring_hop_wins_over_surplus_recall(void) {
+  const int nation = 1;
+  Fixture f;
+  if (fixture_init(&f, nation) != 0) {
+    return 1;
+  }
+  fixture_free(&f);
+  if (!fx_map_alloc(&f.map, 32, 32, 2, true)) {
+    return fail("alloc big map");
+  }
+  ColonizeColony* c = &f.colonies.colonies[0];
+  c->id = 0;
+  c->active = true;
+  c->nation_id = 2; /* a rival's: no own colony, so the soldier explores */
+  c->x = 16;
+  c->y = 26;
+  c->population = 3;
+  c->colonist_count = 3;
+  c->building_in_production = -1;
+  c->ai_flags |= COLONIZE_COLONY_AI_MILITARY_SURPLUS;
+  c->garrison_quota = 1;
+  f.colonies.colony_count = 1;
+  f.colonies.next_id = 1;
+  const int sid = units_spawn(&f.units, 1, 16, 16);
+  ColonizeUnit* s = units_get(&f.units, sid);
+  if (!s) {
+    fixture_free(&f);
+    return fail("spawn soldier");
+  }
+  s->nation_id = nation;
+  s->moves = 1 * UNITS_MP_PER_TILE;
+  s->orders = 0;
+  s->col1_origin = 0;
+
+  ai_euro_dispatcher_turn(&f.ctx, nation);
+
+  s = units_get(&f.units, sid);
+  const int d = s ? cheb(s->goto_x, s->goto_y, 16, 16) : -1;
+  const int ok = s && s->active && s->col1_ai_plan != 0x57 && (d == 4 || d == 8) &&
+                 (c->ai_flags & COLONIZE_COLONY_AI_MILITARY_SURPLUS) != 0 &&
+                 c->garrison_quota == 1;
+  if (!ok) {
+    if (s) {
+      fprintf(stderr, "plan=%d goto=(%d,%d) cheb=%d flags=%x quota=%d\n", s->col1_ai_plan,
+              s->goto_x, s->goto_y, d, c->ai_flags, c->garrison_quota);
+    }
+    fixture_free(&f);
+    return fail("explorer took the surplus recall instead of the ring hop");
+  }
+  fixture_free(&f);
+  return 0;
+}
+
 /* 20e6 uses two distinct reads of DS:0x9faa: far probes require byte zero,
  * while the ring-hop gate tests only bits 1/2 (raw 88877). */
 static int unit_ring_hop_coarse_mask_ignores_unit_bit(void) {
@@ -4964,6 +5022,7 @@ static const TestCase k_cases[] = {
     {"unit_stale_goto_rescored_at_full_mp", unit_stale_goto_rescored_at_full_mp},
     {"unit_scout_visits_village_at_war", unit_scout_visits_village_at_war},
     {"unit_ring_hop_commits_far_goto", unit_ring_hop_commits_far_goto},
+    {"unit_ring_hop_wins_over_surplus_recall", unit_ring_hop_wins_over_surplus_recall},
     {"unit_ring_hop_coarse_mask_ignores_unit_bit", unit_ring_hop_coarse_mask_ignores_unit_bit},
     {"unit_explorer_clears_explore_goal_on_its_tile", unit_explorer_clears_explore_goal_on_its_tile},
     {"unit_colony_sail_targets_needy_colony", unit_colony_sail_targets_needy_colony},
