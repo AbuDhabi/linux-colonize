@@ -649,6 +649,53 @@ static int case_improved_unit_needs_tools_source(void) {
 }
 
 /*
+ * MOD_AI_IMPROVEMENTS #1898: an improved colony 30 tools short of the
+ * Artillery, with its hammers paid, picks it and buys the gap at the human
+ * Buy price (Europe price + 4 a tool) when the nation can pay; broke, it
+ * skips the Artillery as before.
+ */
+static int tools_gap_case(long gold, int* pick, int* tools, long* gold_left) {
+  Fx f;
+  if (naval_fx(&f) != 0) {
+    return 1;
+  }
+  f.col->colony_flags =
+    (uint8_t)(f.col->colony_flags & (uint8_t)~COLONIZE_COLONY_FLAG_COASTAL);
+  f.col->stock[COLONIZE_CARGO_ORE] = 0;
+  f.col->stock[COLONIZE_CARGO_TOOLS] = 10;
+  f.col->hammers = 192;
+  f.col1.nation[NATION].gold = (uint32_t)gold;
+  f.col1.nation[NATION].trade.euro_price[COLONIZE_CARGO_TOOLS] = 2;
+  mods_campaign_set(1u << MOD_AI_IMPROVEMENTS);
+  ai_euro_5952_build_cascade(&f.ctx, f.col);
+  mods_campaign_set(0);
+  *pick = f.col->building_in_production;
+  *tools = f.col->stock[COLONIZE_CARGO_TOOLS];
+  *gold_left = (long)f.col1.nation[NATION].gold;
+  fx_done(&f);
+  return 0;
+}
+
+static int case_improved_buys_small_tools_gap(void) {
+  int pick = 0;
+  int tools = 0;
+  long left = 0;
+  if (tools_gap_case(1000, &pick, &tools, &left) != 0) {
+    return 1;
+  }
+  if (pick != 42 || tools != 40 || left != 1000 - 30 * 6) {
+    return fail("paid-for Artillery 30 tools short not bought at 6 gold a tool");
+  }
+  if (tools_gap_case(0, &pick, &tools, &left) != 0) {
+    return 1;
+  }
+  if (pick == 42 || tools != 10) {
+    return fail("broke colony picked the Artillery or got tools");
+  }
+  return 0;
+}
+
+/*
  * asm 271b/273e — three or more Artillery already standing on the colony tile
  * clears the project slot and raises the wants-construction latch instead.
  */
@@ -2007,6 +2054,7 @@ static int case_census_reads_unseat_profession_cache(void) {
 }
 
 static const TestCase k_cases[] = {
+  {"case_improved_buys_small_tools_gap", case_improved_buys_small_tools_gap},
   {"case_census_skips_wagon_on_tile", case_census_skips_wagon_on_tile},
   {"case_census_reads_unseat_profession_cache", case_census_reads_unseat_profession_cache},
   {"case_seam_cascade_head_stage", case_seam_cascade_head_stage},

@@ -17,6 +17,7 @@
 #include "core/dos_rng.h"
 #include "core/map.h"
 #include "core/mods.h"
+#include "core/pioneer_plan.h"
 #include "core/turn.h"
 #include "core/units.h"
 
@@ -266,7 +267,84 @@ static int case_improved_war_keeps_army(void) {
   return stand_down_case(true, 3, 0);
 }
 
+/* #1897: a colony banking hammers with no project waits on 100 tools; an
+ * open Pioneer job equips no Pioneer from them, only from tools past them. */
+static int pioneer_case(int tools, bool want_pioneer) {
+  Fx f;
+  if (fx_build(&f) != 0) {
+    return 1;
+  }
+  mods_campaign_set(1u << MOD_AI_IMPROVEMENTS);
+  f.col->building_in_production = -1;
+  f.col->hammers = 150;
+  f.col->stock[COLONIZE_CARGO_TOOLS] = (int16_t)tools;
+  for (int i = 0; i < f.col->colonist_count; ++i) {
+    f.col->colonists[i].active = true; /* the eject refuses an inactive slot */
+  }
+  ai_euro_pjob_reset();
+  ai_euro_pjob_post(NATION, 9, 9, PIONEER_PLAN_ROAD);
+  (void)run_tick(&f, 0);
+  const int pioneer_t = units_kind_type_index(&f.units, UNITS_KIND_PIONEER);
+  int pioneers = 0;
+  int slot = 0;
+  for (const ColonizeUnit* u; (u = units_next_on_tile(&f.units, 8, 8, &slot)) != NULL;) {
+    pioneers += u->type_index == pioneer_t ? 1 : 0;
+  }
+  int rc = 0;
+  if ((pioneers > 0) != want_pioneer) {
+    rc = fail(want_pioneer ? "no Pioneer from spare tools" : "Pioneer equipped from the build's tools");
+  }
+  if (!want_pioneer && f.col->stock[COLONIZE_CARGO_TOOLS] != tools) {
+    rc = fail("the build's tools were spent");
+  }
+  ai_euro_pjob_reset();
+  mods_campaign_set(0);
+  fx_done(&f);
+  return rc;
+}
+
+static int case_improved_build_tools_kept(void) {
+  return pioneer_case(100, false);
+}
+
+static int case_improved_spare_tools_equip(void) {
+  return pioneer_case(200, true);
+}
+
+/* #1897: a short coastal colony stops counting once a hull carries its
+ * 100 tools, so a fleet in Europe does not buy a second lot for it. */
+static int case_improved_tools_aboard_cover_short(void) {
+  Fx f;
+  if (fx_build(&f) != 0) {
+    return 1;
+  }
+  mods_campaign_set(1u << MOD_AI_IMPROVEMENTS);
+  f.col->colony_flags |= COLONIZE_COLONY_FLAG_COASTAL;
+  f.col->hammers = 150;
+  int rc = 0;
+  if (ai_euro_tools_short_colonies(&f.ctx, NATION) != 1) {
+    rc = fail("no-project colony with 150 hammers not short of tools");
+  }
+  const int ship_t = units_kind_type_index(&f.units, UNITS_KIND_MERCHANTMAN);
+  ColonizeUnit* ship = units_get(&f.units, units_spawn_allow_stack(&f.units, ship_t, 9, 9));
+  if (!ship) {
+    rc = fail("spawn Merchantman");
+  } else {
+    ship->nation_id = NATION;
+    (void)units_load_goods(&f.units, ship->id, COLONIZE_CARGO_TOOLS, 100);
+    if (ai_euro_tools_short_colonies(&f.ctx, NATION) != 0) {
+      rc = fail("tools aboard a hull not counted against the shortfall");
+    }
+  }
+  mods_campaign_set(0);
+  fx_done(&f);
+  return rc;
+}
+
 static const TestCase k_cases[] = {
+  {"case_improved_tools_aboard_cover_short", case_improved_tools_aboard_cover_short},
+  {"case_improved_build_tools_kept", case_improved_build_tools_kept},
+  {"case_improved_spare_tools_equip", case_improved_spare_tools_equip},
   {"case_improved_peace_stands_down", case_improved_peace_stands_down},
   {"case_improved_war_keeps_army", case_improved_war_keeps_army},
   {"case_absorb_takes_docked_rider", case_absorb_takes_docked_rider},

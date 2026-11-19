@@ -2243,11 +2243,28 @@ static bool ai_euro_5952_makes_tools(const AiEuro5952Cascade* s, int min_gross) 
           (col->stock[COLONIZE_CARGO_ORE] >= 0x28 || s->gross[COLONIZE_CARGO_ORE] != 0));
 }
 
+/* MOD_AI_IMPROVEMENTS #1898 (not DOS): an improved colony buys a tools gap
+ * this small at completion, as a human pays the Buy surcharge rather than
+ * wait on a ship for a few tools; bigger gaps are imported. */
+#define AI_EURO_TOOLS_BUY_GAP 50
+
+/* Gold a human's Buy charges for `gap` tools (FUN_2f2b_5e44: Europe price + 4). */
+static long ai_euro_5952_tools_gap_gold(const ColonizeTurnContext* ctx, int nation, int gap) {
+  const int price = ctx->col1 ? (int)ctx->col1->nation[nation].trade.euro_price[COLONIZE_CARGO_TOOLS] : 0;
+  return (long)gap * (price + 4);
+}
+
+static bool ai_euro_5952_tools_gap_buyable(const ColonizeTurnContext* ctx, int nation, int gap) {
+  return ctx->col1 && gap <= AI_EURO_TOOLS_BUY_GAP &&
+         (long)europe_nation_gold(ctx->europe, ctx->col1, nation) >= ai_euro_5952_tools_gap_gold(ctx, nation, gap);
+}
+
 /* MOD_AI_IMPROVEMENTS (#1864): no tools gift at completion, so an improved
- * colony skips a project it lacks the tools for and cannot make them. */
+ * colony skips a project it lacks the tools for and can neither make nor buy. */
 static bool ai_euro_5952_tools_out_of_reach(const AiEuro5952Cascade* s, int tools) {
   return tools > s->col->stock[COLONIZE_CARGO_TOOLS] && ai_euro_improved(s->ctx, s->nation) &&
-         !ai_euro_5952_makes_tools(s, 1);
+         !ai_euro_5952_makes_tools(s, 1) &&
+         !ai_euro_5952_tools_gap_buyable(s->ctx, s->nation, tools - s->col->stock[COLONIZE_CARGO_TOOLS]);
 }
 
 /* DOS-LITERAL FUN_5952_0214 (asm 5952:0214-5952:027e, raw 93686-93716). */
@@ -3105,6 +3122,19 @@ void ai_euro_5952_build_cascade_for_owner(
   if (col->building_in_production < 0 &&
       ai_euro_improved(ctx, s.nation)) {
     (void)ai_euro_5952_cascade_idle_fill(&s); /* the colony still wants hands */
+  }
+  /* #1898: hammers paid, a few tools short: buy them like a human. */
+  int hammers_need = 0;
+  int tools_need = 0;
+  if (ai_euro_improved(ctx, s.nation) &&
+      colonies_construction_cost(ctx->colonies, col, &hammers_need, &tools_need) &&
+      col->hammers >= hammers_need && tools_need > col->stock[COLONIZE_CARGO_TOOLS] &&
+      ai_euro_5952_tools_gap_buyable(ctx, s.nation, tools_need - col->stock[COLONIZE_CARGO_TOOLS])) {
+    const int gold = (int)europe_nation_gold(ctx->europe, ctx->col1, s.nation);
+    int left = gold;
+    if (colonies_buy_construction_ex(ctx->colonies, col->id, ctx->col1, &left)) {
+      europe_nation_gold_add(ctx->europe, ctx->col1, s.nation, left - gold);
+    }
   }
   if (st != AI_EURO_5952_CASCADE_WANTS) {
     return;

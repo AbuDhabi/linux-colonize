@@ -1752,7 +1752,9 @@ static int ai_euro_20e6_labor_arm(ColonizeTurnContext* ctx, ColonizeUnit* u, Ai2
   ColonizeColony* labor_home =
     s->home_colony >= 0 ? colonies_get_mut(ctx->colonies, s->home_colony) : NULL;
   if (s->home_dist == 0 && s->home_colony >= 0 &&
-      (!improved || (labor_home && labor_home->stock[COLONIZE_CARGO_TOOLS] >= UNITS_EQUIP_TOOLS_STEP))) {
+      (!improved || (labor_home && labor_home->stock[COLONIZE_CARGO_TOOLS] -
+                                     ai_euro_colony_build_tools(ctx, labor_home->nation_id, labor_home) >=
+                                   UNITS_EQUIP_TOOLS_STEP))) { /* #1897: not the build's tools */
     if (improved) {
       labor_home->stock[COLONIZE_CARGO_TOOLS] -= UNITS_EQUIP_TOOLS_STEP;
     }

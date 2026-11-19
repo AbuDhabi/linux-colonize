@@ -735,6 +735,9 @@ bool ai_euro_sea_has_own_colony(const ColonizeTurnContext* ctx, int x, int y, in
 bool ai_euro_improved_fleet_short(const ColonizeTurnContext* ctx, int nation_id);
 /* #1889: own coastal colonies short of tools for their build (0 = mod off). */
 int ai_euro_tools_short_colonies(ColonizeTurnContext* ctx, int nation);
+/* #1867/#1882: tools colony c's build waits on (0 = none or mod off). #1897:
+ * Pioneers are not equipped from them. */
+int ai_euro_colony_build_tools(ColonizeTurnContext* ctx, int nation, const ColonizeColony* c);
 /* #1887: own colony the hull reaches on a land mass short of Pioneers for its
  * open jobs; need_aboard = only with a tooled Pioneer aboard or boarding. */
 bool ai_euro_pioneer_ferry_dest(

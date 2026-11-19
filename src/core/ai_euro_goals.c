@@ -1868,6 +1868,15 @@ static void ai_euro_improved_mount_soldier(ColonizeTurnContext* ctx, int nation_
   }
 }
 
+/* MOD_AI_IMPROVEMENTS #1897 (not DOS): an improved colony equips no Pioneer
+ * (who takes up to 100 tools) from tools its build waits on; discard t261,
+ * Havana's first 100 tools in 50 turns left as a Pioneer the turn they came.
+ * Always true for a DOS nation. */
+static bool ai_euro_pioneer_tools_spare(ColonizeTurnContext* ctx, int nation_id, const ColonizeColony* c) {
+  const int reserved = ai_euro_colony_build_tools(ctx, nation_id, c);
+  return reserved == 0 || c->stock[COLONIZE_CARGO_TOOLS] - reserved >= 100;
+}
+
 static void ai_euro_5952_equip_arm(
   ColonizeTurnContext* ctx, int nation_id, ColonizeColony* c, int stance
 ) {
@@ -1977,7 +1986,7 @@ static void ai_euro_5952_equip_arm(
     const int total_colonies = ctx->colonies ? ctx->colonies->colony_count : 0;
     if (wants_pioneer_roll && pioneers_afield == 0 &&
         ai_goals_founding_expansion_urgency(nation_id, total_colonies) != 0 &&
-        c->stock[COLONIZE_CARGO_TOOLS] > 0x13) {
+        c->stock[COLONIZE_CARGO_TOOLS] > 0x13 && ai_euro_pioneer_tools_spare(ctx, nation_id, c)) {
       equip_target_job = UNITS_JOB_PIONEER;
       have_equip_target = 1;
     }
@@ -1985,7 +1994,7 @@ static void ai_euro_5952_equip_arm(
   /* MOD_AI_IMPROVEMENTS 4.2 (not DOS): open Pioneer jobs on this continent and
    * no Pioneer there to take them: equip one from the colony's own tools. */
   if (!have_equip_target && ai_euro_improved(ctx, nation_id) &&
-      c->stock[COLONIZE_CARGO_TOOLS] >= UNITS_EQUIP_TOOLS_STEP) {
+      c->stock[COLONIZE_CARGO_TOOLS] >= UNITS_EQUIP_TOOLS_STEP && ai_euro_pioneer_tools_spare(ctx, nation_id, c)) {
     const int cid = map_continent_id_at(ctx->map, c->x, c->y);
     if (getenv("AI_IMPROVED_TRACE")) {
       fprintf(stderr, "[pjob] n%d colony %d pop %d tools %d open %d pioneers %d\n", nation_id, c->id,

@@ -185,10 +185,10 @@ static int ai_euro_ship_price_84bc(const ColonizeTurnContext* ctx, int nation, i
   return p > 0 ? p : 0;
 }
 
-/* MOD_AI_IMPROVEMENTS (#1867/#1882): tools colony c lacks for its project;
- * a colony banking hammers with no project (the cascade skipped every pick
- * out of tool reach) counts as 100 short. 0 = not short or mod off. */
-static int ai_euro_colony_tools_short(ColonizeTurnContext* ctx, int nation, const ColonizeColony* c) {
+/* MOD_AI_IMPROVEMENTS (#1867/#1882): tools colony c's build waits on: its
+ * project's tool cost, or 100 for a colony banking hammers with no project
+ * (the cascade skipped every pick out of tool reach). 0 = none or mod off. */
+int ai_euro_colony_build_tools(ColonizeTurnContext* ctx, int nation, const ColonizeColony* c) {
   if (!ai_euro_improved(ctx, nation)) {
     return 0;
   }
@@ -196,6 +196,12 @@ static int ai_euro_colony_tools_short(ColonizeTurnContext* ctx, int nation, cons
   if (!colonies_construction_cost(ctx->colonies, c, NULL, &need) && c->hammers >= 100) {
     need = 100; /* ponytail: Fort/Cathedral size; read the skipped pick if this misroutes */
   }
+  return need;
+}
+
+/* Tools colony c lacks for its build. 0 = not short or mod off. */
+static int ai_euro_colony_tools_short(ColonizeTurnContext* ctx, int nation, const ColonizeColony* c) {
+  const int need = ai_euro_colony_build_tools(ctx, nation, c);
   const int stock = (int)c->stock[COLONIZE_CARGO_TOOLS];
   return need > stock ? need - stock : 0;
 }
@@ -212,7 +218,8 @@ static bool ai_euro_tools_wanted_elsewhere(ColonizeTurnContext* ctx, int nation,
   return false;
 }
 
-/* #1889: own coastal colonies short of tools for their build. */
+/* #1889: own coastal colonies short of tools for their build, less one per
+ * 100 tools already aboard the nation's hulls (#1897). */
 int ai_euro_tools_short_colonies(ColonizeTurnContext* ctx, int nation) {
   int n = 0;
   for (int i = 0; ctx->colonies && i < COLONIZE_COLONIES_MAX; ++i) {
@@ -220,7 +227,16 @@ int ai_euro_tools_short_colonies(ColonizeTurnContext* ctx, int nation) {
     n += c->active && c->nation_id == nation && (c->colony_flags & COLONIZE_COLONY_FLAG_COASTAL) &&
          ai_euro_colony_tools_short(ctx, nation, c) > 0;
   }
-  return n;
+  int aboard = 0;
+  for (int i = 0; ctx->units && i < units_slot_end(ctx->units); ++i) {
+    const ColonizeUnit* u = &ctx->units->units[i];
+    if (u->active && u->nation_id == nation) {
+      for (int h = 0; h < units_goods_hold_count(ctx->units, u->id); ++h) {
+        aboard += u->hold_goods_type[h] == COLONIZE_CARGO_TOOLS ? units_hold_amount(ctx->units, u->id, h) : 0;
+      }
+    }
+  }
+  return n > aboard / 100 ? n - aboard / 100 : 0;
 }
 
 static int ai_euro_20e6_delivery_colony_pick(
@@ -241,6 +257,14 @@ static int ai_euro_20e6_delivery_colony_pick(
   int home_dist = 9999;
   const int home_colony = ai_euro_20e6_nearest_colony(ctx, ship->x, ship->y, nation, -1, &home_dist);
   const int loaded_at = ai_euro_20e6_origin_get(ship);
+  /* #1897: a hull with only tools aboard, kept for a short colony (#1883),
+   * skips the colonies that would only make it keep them again; the distance
+   * divisor below otherwise parked it between near ones for good. */
+  bool tools_only = tally[COLONIZE_CARGO_TOOLS] > 0;
+  for (int g = 0; g < COLONIZE_CARGO_COUNT; ++g) {
+    tools_only = tools_only && (g == COLONIZE_CARGO_TOOLS || tally[g] == 0);
+  }
+  const bool tools_for_short = tools_only && ai_euro_tools_wanted_elsewhere(ctx, nation, NULL);
   int best = -1; /* iStack_e2 seed */
   int pick = -1;
   for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
@@ -257,6 +281,9 @@ static int ai_euro_20e6_delivery_colony_pick(
     }
     if (c->id == loaded_at) {
       continue; /* md:2055: unit +0x314a */
+    }
+    if (tools_for_short && ai_euro_colony_tools_short(ctx, nation, c) == 0) {
+      continue;
     }
     const int cap = colonies_warehouse_capacity(ctx->colonies, c, COLONIZE_CARGO_TOOLS);
     if (max_type == COLONIZE_CARGO_HORSES &&
@@ -1165,12 +1192,13 @@ static int ai_euro_20e6_ship_berth_arrival(
    * MOD_AI_IMPROVEMENTS #1883 (not DOS): an improved hull keeps its tools
    * when this colony is not short of them and another is (a founding drop
    * left 200 tools in a pop 2 colony while Isabella banked 312 hammers);
-   * the delivery matrix below then routes them. */
-  const bool keep_tools = ai_euro_colony_tools_short(ctx, nation_id, c) == 0 &&
-                          ai_euro_tools_wanted_elsewhere(ctx, nation_id, c);
+   * the delivery matrix below then routes them. Re-tested per hold (#1897):
+   * a short colony takes lots only until its build is covered. */
   int dumped = 0;
   uint32_t dumped_types = 0;
   for (;;) {
+    const bool keep_tools = ai_euro_colony_tools_short(ctx, nation_id, c) == 0 &&
+                            ai_euro_tools_wanted_elsewhere(ctx, nation_id, c);
     int hold = -1;
     for (int h = 0; h < units_goods_hold_count(ctx->units, ship->id); ++h) {
       if (units_hold_amount(ctx->units, ship->id, h) > 0 &&

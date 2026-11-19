@@ -1823,6 +1823,8 @@ static void ai_euro_5d04_hire_tail_departing_ships(Ai5d04HireTail* t) {
                 cargo_demand[p]--; /* raw 93050 */
                 held[p] += 100;
                 tools_short_n -= tools_short;
+                /* #1897: a lot for each short colony, not one a visit. */
+                p += tools_short && tools_short_n > 0;
               }
             }
           }
