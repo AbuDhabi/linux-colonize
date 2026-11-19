@@ -844,3 +844,24 @@ Magazine stay 1:1 (039e < 3). Ungated: golden_ai_joint unmoved; replay
 `turns_bldg_factory_tiers` re-blessed. Test: `unit_turn_core`
 `arsenal_factory_discount`.
 **Status:** done (user call, 2026-11-18).
+
+### DB-114 — A long glut wraps the market pressure word
+**DOS:** the Europe market pressure word (nation `trade.nr`, the bound screen's
+copy) is added in 16 bits everywhere: the sale/buy volume term (FUN_38fd_1d80 /
+1dfa, `ADD`/`SUB word ptr [BX+0x8864]`, port_bugs.md #1587) and the end-of-turn
+tick (FUN_38fd_0058: the phase-2 nudge, attrition, the AI cap push). Each tick
+sheds only one threshold, so steady selling of one cargo piles pressure up
+until it wraps from +32767 to -32768: the glut reads as a shortage and the bid
+climbs back one step a turn. Silver (volatility 2, fall 1) gets there in about
+40 turns at 300 tons a turn, 20 at 600.
+
+**Port:** fixed behind the `mods.pressure_saturates` toggle (on by default;
+off = DOS, and always DOS under `dos_buggy_behavior()`): `europe_nr_add`
+(`src/core/europe_harbor.c`) stops the word at -32768 / 32767 on the sale path
+and in the tick. The terms themselves keep their DOS 16-bit math. Related, no
+toggle: the Founding Father bell pool now wraps as DOS (`ADD word`, FUN_4345_0a22
+raw 73341; it grows unreset after intervention, and the score reads it signed,
+#1808); crosses still stop at 65535, which nothing reads once the War of
+Independence stops immigration. Test: `unit_europe`
+`case_europe_pressure_wrap_db114`.
+**Status:** done.

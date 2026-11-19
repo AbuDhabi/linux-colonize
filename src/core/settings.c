@@ -138,6 +138,7 @@ static const SettingsBoolOpt k_mod_opts[] = {
   SETTINGS_MOD("ai_improvements", MOD_AI_IMPROVEMENTS, false),
   SETTINGS_MOD("alternate_map_generator", MOD_ALTERNATE_MAP_GENERATOR, false),
   SETTINGS_MOD("tax_unsigned", MOD_TAX_UNSIGNED, true),
+  SETTINGS_MOD("pressure_saturates", MOD_PRESSURE_SATURATES, true),
 };
 
 #define SETTINGS_OPT_COUNT(t) ((int)(sizeof(t) / sizeof((t)[0])))

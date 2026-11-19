@@ -3350,6 +3350,53 @@ static int case_europe_tax_byte_signed(void) {
   return 0;
 }
 
+/*
+ * DB-114: the pressure word adds in 16 bits on the sale path (1dfa) and in the
+ * end-of-turn tick (0058), so a glut wraps to a shortage; the fix toggle
+ * saturates at 32767.
+ */
+static int case_europe_pressure_wrap_db114(void) {
+  static EuropeScreen eu;
+  static ColonizeCol1Save col1;
+  char err[256];
+  const int sil = COLONIZE_CARGO_SILVER;
+  const int tg = COLONIZE_CARGO_TRADE_GOODS;
+  int sale[2], rec[2], tick[2];
+  for (int fixed = 0; fixed < 2; ++fixed) {
+    if (!test_europe_load(&eu, "COLONIZE", err, sizeof(err))) {
+      fprintf(stderr, "europe_load: %s\n", err);
+      return 1;
+    }
+    col1_save_init(&col1);
+    col1.head.difficulty = 4;
+    if (fixed) {
+      dos_buggy_behavior_set(false);
+      mods_campaign_set(1u << MOD_PRESSURE_SATURATES);
+    }
+    eu.bound_nation = 0;
+    eu.trade_nr[sil] = 32700;
+    col1.nation[1].trade.nr[sil] = 32700;
+    europe_apply_trade_volume(&eu, &col1, 0, 0, sil, 100, 0, 0);
+    sale[fixed] = eu.trade_nr[sil];
+    rec[fixed] = col1.nation[1].trade.nr[sil];
+    eu.trade_nr[tg] = 32767;
+    ColonizeWorld w = world_make(NULL, NULL, NULL, &col1, true, NULL, &eu);
+    europe_tick_market_prices_w(&w, 0, 2u);
+    tick[fixed] = eu.trade_nr[tg];
+    mods_campaign_set(0u);
+    dos_buggy_behavior_set(true);
+    europe_free(&eu);
+  }
+  if (sale[0] >= 0 || rec[0] >= 0 || tick[0] >= 0 || sale[1] != 32767 || rec[1] != 32767 ||
+      tick[1] <= 0) {
+    fprintf(stderr, "pressure DB-114: DOS sale %d record %d tick %d (want <0), "
+            "fixed %d %d (want 32767) tick %d (want >0)\n",
+            sale[0], rec[0], tick[0], sale[1], rec[1], tick[1]);
+    return 1;
+  }
+  return 0;
+}
+
 static int case_europe_tb4_tb48_fixed(void) {
   int rc = 1;
   dos_buggy_behavior_set(false);
@@ -4649,6 +4696,7 @@ static const TestCase k_cases[] = {
     {"case_europe_tb4_tb48_fixed", case_europe_tb4_tb48_fixed},
     {"case_europe_improved_ai_volume_mirror", case_europe_improved_ai_volume_mirror},
     {"case_europe_improved_ai_no_rise_cap", case_europe_improved_ai_no_rise_cap},
+    {"case_europe_pressure_wrap_db114", case_europe_pressure_wrap_db114},
     {"case_europe_transit_drag_db56", case_europe_transit_drag_db56},
     {"case_europe_workflow", case_europe_workflow},
     {"case_europe_blessed_criminal_boards_missionary", case_europe_blessed_criminal_boards_missionary},
