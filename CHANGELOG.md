@@ -846,3 +846,4 @@ line shows the profession field, which promotion does not rewrite [538].
 
 [473] bogus ship-damaged popup after a land combat; [474] diplomacy text filling
 the wrong name tokens; [521] [524] [528] [529] [530] rival-AI fidelity residue.
+All seven have since been fixed or refuted (docs/archive/bugs_closed.md).

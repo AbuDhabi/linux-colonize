@@ -7072,12 +7072,13 @@ static int sp_57(void) {
       ai_popup_clear(&pop_menu);
       st_menu[0] = '\0';
       ai_contact_apply_popup_result(&ctx, &res);
-      if (strstr(st_menu, "laugh at your puny") == NULL && strstr(st_menu, "tremble before you") == NULL &&
-          strstr(st_menu, "bow before the might") == NULL && strstr(st_menu, "very foolish") == NULL) {
+      const bool stuff = test_body_is_section(st_menu, "EXTORTSTUFF");
+      if (!stuff && !test_body_is_section(st_menu, "EXTORTPOOR") &&
+          !test_body_is_section(st_menu, "EXTORTLAUGH") && !test_body_is_section(st_menu, "EXTORTNO")) {
         fprintf(stderr, "unit_ai_contact: tribute status '%s'\n", st_menu);
         return fail("demand tribute: status should be one of the @EXTORT* bodies");
       }
-      if (strstr(st_menu, "bow before the might") != NULL && !col1.tribe[0].state.tribute_paid) {
+      if (stuff && !col1.tribe[0].state.tribute_paid) {
         return fail("demand tribute: @EXTORTSTUFF must latch tribe.state.tribute_paid (DOS +3 bit 0x10)");
       }
       units_despawn(&units, sol_id);

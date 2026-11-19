@@ -816,35 +816,17 @@ void turn_run_nation_ticks_tail(ColonizeTurnContext* ctx, ColonizeTurnResult* ou
       }
       int nb = 0;
       int nc = 0;
-      static int s_colony_bells[COLONIZE_COLONIES_MAX];
-      int ncol = 0;
-      turn_count_bells_and_crosses_for_nation_ex(
-        ctx->colonies, n, ctx->col1, &nb, &nc, s_colony_bells, &ncol
-      );
+      turn_count_bells_and_crosses_for_nation(ctx->colonies, n, ctx->col1, &nb, &nc);
       ColonizeCol1Nation* nat = &ctx->col1->nation[n];
       /*
-       * DOS-LITERAL FUN_4345_0a22 raw 73341-73342: `+0xc += bells;
-       * +0xe += bells;` — +0xc is the live FF bell pool (zeroed on elect,
-       * raw 73370) and +0xe is this turn's production (zeroed before the
-       * colony loop, FUN_3844_00f2 raw 58382). port_bugs.md #933.
-       *
-       * port_bugs.md #934: 0a22 runs once per COLONY (FUN_364b_0688 raw 57231),
-       * so the elect test is re-run after each colony's bells land — a big
-       * empire can cross the threshold twice in one turn. The human's test
-       * stays in TURN_PROC_FINISH (port_bugs.md #434), so only the AI nations
-       * elect here.
+       * FUN_4345_0a22 raw 73341-73342: `+0xc += bells; +0xe += bells;` —
+       * +0xc is the live FF bell pool (zeroed on elect, raw 73370) and +0xe
+       * this turn's production (zeroed before the colony loop, FUN_3844_00f2
+       * raw 58382). port_bugs.md #933. 0a22 runs once per COLONY
+       * (FUN_364b_0688 raw 57231, port_bugs.md #934), so the human's +0xc add
+       * is in the colony bell compose above; only +0xe is set here.
        */
       nat->liberty_bells_last_turn = (uint16_t)(nb > 65535 ? 65535 : nb);
-      for (int ci = 0; !human_bells_per_colony && ci < ncol && ci < COLONIZE_COLONIES_MAX; ++ci) {
-        if (s_colony_bells[ci] <= 0) {
-          continue;
-        }
-        unsigned pool = (unsigned)nat->liberty_bells_pool + (unsigned)s_colony_bells[ci];
-        if (pool > 65535u) {
-          pool = 65535u;
-        }
-        nat->liberty_bells_pool = (uint16_t)pool;
-      }
       {
         unsigned cur = (unsigned)nat->current_crosses + (unsigned)nc;
         if (cur > 65535u) {
