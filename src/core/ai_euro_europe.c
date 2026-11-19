@@ -436,6 +436,54 @@ static bool ai_euro_5d04_artillery_capped(const ColonizeTurnContext* ctx, int na
   return arty >= colonies_count_for_nation(ctx->colonies, nation_id);
 }
 
+/* MOD_AI_IMPROVEMENTS #1893 (not DOS): an improved nation is short of
+ * cargo hulls while it holds fewer than AI_EURO_FLEET_HOLDS_PER_COLONY holds
+ * (Caravel, Merchantman, Galleon) per colony and some colony without a
+ * Custom House has a sale good at its warehouse limit. DOS buys hulls from
+ * gold it is given or saves; the improved nation spends it on recruits and
+ * tools, and the all-AI replays at t301 had 2 holds per colony (old AI 3.9),
+ * 13% of colonies 50+ turns without a ship and 26k tons of furs idle. */
+bool ai_euro_improved_fleet_short(const ColonizeTurnContext* ctx, int nation_id) {
+  if (!ai_euro_improved(ctx, nation_id) || !ctx->units || !ctx->colonies ||
+      (ctx->col1 && ctx->col1->head.game_options.woi)) {
+    return false;
+  }
+  int holds = 0;
+  for (int i = 0; i < units_slot_end(ctx->units); ++i) {
+    const ColonizeUnit* u = &ctx->units->units[i];
+    if (!u->active || u->nation_id != nation_id) {
+      continue;
+    }
+    const ColonizeUnitType* ut = units_type(ctx->units, u->type_index);
+    const int kind = units_type_kind(ut);
+    if (ut && (kind == UNITS_KIND_CARAVEL || kind == UNITS_KIND_MERCHANTMAN || kind == UNITS_KIND_GALLEON)) {
+      holds += ut->cargo;
+    }
+  }
+  static const int sale[] = {
+    COLONIZE_CARGO_SUGAR, COLONIZE_CARGO_TOBACCO, COLONIZE_CARGO_COTTON,
+    COLONIZE_CARGO_FURS, COLONIZE_CARGO_SILVER, COLONIZE_CARGO_RUM,
+    COLONIZE_CARGO_CIGARS, COLONIZE_CARGO_CLOTH, COLONIZE_CARGO_COATS,
+  };
+  const int ch_row = colonies_building_row(ctx->colonies, COLONY_BUILDING_CUSTOM_HOUSE);
+  int cols = 0;
+  bool backlog = false;
+  for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+    const ColonizeColony* c = &ctx->colonies->colonies[i];
+    if (!c->active || c->nation_id != nation_id) {
+      continue;
+    }
+    cols++;
+    if (backlog || (ch_row >= 0 && ch_row < COLONIZE_BUILDING_TYPES_MAX && c->has_building[ch_row])) {
+      continue;
+    }
+    for (size_t k = 0; k < sizeof sale / sizeof sale[0] && !backlog; ++k) {
+      backlog = c->stock[sale[k]] >= colonies_warehouse_capacity(ctx->colonies, c, sale[k]);
+    }
+  }
+  return backlog && holds < AI_EURO_FLEET_HOLDS_PER_COLONY * cols;
+}
+
 static int ai_euro_5d04_propose_ship_buy(
   ColonizeTurnContext* ctx, int nation_id, int type_id
 ) {
@@ -1232,6 +1280,7 @@ typedef struct Ai5d04HireTail {
   int hired_this_pass; /* DOS bVar9 */
   int tools_trained_this_pass; /* DOS bVar10 */
   int colony_demand_total; /* DOS local_24 */
+  long fleet_reserve; /* #1893: gold kept back from recruits and cargo for a hull */
 } Ai5d04HireTail;
 
 /* MOD_AI_IMPROVEMENTS #1885 (not DOS): an improved nation with a Soldier or
@@ -1529,7 +1578,7 @@ static void ai_euro_5d04_hire_tail_colony_demand(Ai5d04HireTail* t) {
       if (turn > 99) {
         recruit_price += (uint32_t)ai_euro_5d04_late_discount(difficulty, recruit_price);
       }
-      if (nat->gold >= recruit_price) {
+      if ((long)nat->gold >= (long)recruit_price + t->fleet_reserve) {
         const int slot = dos_rng_range(ctx->rng, 0, 2);
         const int cand = ai_euro_5d04_cb_dock_pop_candidate(nat->recruit[slot]);
         if (cand < 0) {
@@ -1766,7 +1815,10 @@ static void ai_euro_5d04_hire_tail_departing_ships(Ai5d04HireTail* t) {
                * DOS bug, reproduced in DOS mode only (docs/tolerated_dos_bugs_ai.md TB-25);
                * fixed under !dos_buggy_behavior() as price * 100. */
               const int gate_qty = dos_buggy_behavior() ? units_last_hold_amount : 100;
-              if (nat->gold >= (uint32_t)(ai_euro_5d04_cb_price(p) * gate_qty)) {
+              /* #1893: only tools a colony's build waits on dip into the
+               * gold kept back for a cargo hull. */
+              const long keep = tools_short ? 0 : t->fleet_reserve;
+              if ((long)nat->gold >= (long)ai_euro_5d04_cb_price(p) * gate_qty + keep) {
                 ai_euro_5d04_cb_apply_bump(idx2, p, 100);
                 cargo_demand[p]--; /* raw 93050 */
                 held[p] += 100;
@@ -1911,6 +1963,11 @@ static void ai_euro_5d04_hire_ladder_tail(
    * NEEDS_COLONISTS. Real since 2026-09-07e (was `inv->found_flags`). */
   const int colonies_want_colonists = ai_euro_5d04_cb_colonies_wanting_colonists(nation_id);
   const int expand_signal = has_any_colony && (unit_flag_bit5 || every_third_turn);
+  /* MOD_AI_IMPROVEMENTS #1893 (not DOS): a nation short of cargo hulls keeps
+   * a Merchantman's price back from recruits until the planning pass buys one. */
+  const EuropePurchaseOption* merchantman = europe_purchase_option_at(2);
+  const long fleet_reserve =
+    (merchantman && ai_euro_improved_fleet_short(ctx, nation_id)) ? (long)merchantman->gold : 0;
 
   /* raw 92592-92625: gold-spend recruit-slot swap (Europe recruit price
    * falls with accumulated crosses: base + base*crosses/(-1-needed)). */
@@ -1938,7 +1995,7 @@ static void ai_euro_5d04_hire_ladder_tail(
     /* asm 521d:6320-6332: local_38 and local_38 + reserve are 16-bit words,
      * CWD-extended and compared signed (JG/JL on the high word) to gold. */
     const int16_t recruit_swap_price = (int16_t)(scaled + base); /* DOS local_38 */
-    if ((int32_t)nat->gold >= (int32_t)(int16_t)(recruit_swap_price + reserve)) {
+    if ((int32_t)nat->gold >= (int32_t)(int16_t)(recruit_swap_price + reserve) + fleet_reserve) {
       europe_nation_gold_add(ctx->europe, ctx->col1, nation_id, -recruit_swap_price);
       const int slot = dos_rng_range(ctx->rng, 0, 2); /* nat->recruit[3] */
       const int candidate = ai_euro_5d04_cb_dock_pop_candidate(nat->recruit[slot]);
@@ -1973,7 +2030,8 @@ static void ai_euro_5d04_hire_ladder_tail(
     .tools_hire_mask = tools_hire_mask,
     .hired_this_pass = hired_this_pass,
     .tools_trained_this_pass = tools_trained_this_pass,
-    .colony_demand_total = 0
+    .colony_demand_total = 0,
+    .fleet_reserve = fleet_reserve
   };
   ai_euro_5d04_hire_tail_candidates(&tail);
   ai_euro_5d04_hire_tail_colony_demand(&tail);
@@ -2009,9 +2067,14 @@ static int ai_euro_5d04_nation_planning_structural(ColonizeTurnContext* ctx, int
     ai_euro_5d04_apply_naval_gold_floors(ctx, nation_id, &f);
   }
   int abort_early = 0;
-  const int candidate = ai_euro_5d04_ship_buy_ladder(ctx, nation_id, &f, &abort_early);
+  int candidate = ai_euro_5d04_ship_buy_ladder(ctx, nation_id, &f, &abort_early);
   if (abort_early) {
     return 1;
+  }
+  /* #1893: a Galleon, or a Merchantman when that is all the purse holds. */
+  if (candidate == 0 && ai_euro_improved_fleet_short(ctx, nation_id)) {
+    candidate = ai_euro_5d04_propose_ship_buy(ctx, nation_id, 3) ||
+                ai_euro_5d04_propose_ship_buy(ctx, nation_id, 2);
   }
   /* Raw 92568 `if (local_3e != 0 || !bVar21)`: a shipless nation that
    * bought nothing skips the whole hire tail. DOS zeroes local_3e only inside

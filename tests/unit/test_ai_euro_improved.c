@@ -387,6 +387,63 @@ static int case_scout_target(void) {
   return rc;
 }
 
+/* #1893: a sale-good backlog with under AI_EURO_FLEET_HOLDS_PER_COLONY
+ * cargo holds per colony makes an improved nation short of hulls. */
+static int case_fleet_short(void) {
+  ColonizeMsgCatalog names;
+  assets_msg_init(&names);
+  ColonizeUnitPool pool;
+  memset(&pool, 0, sizeof(pool));
+  if (!assets_msg_load_file(&names, "COLONIZE/NAMES.TXT") || !units_load_types(&pool, &names)) {
+    fprintf(stderr, "fleet_short: setup failed\n");
+    assets_msg_free(&names);
+    return 1;
+  }
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+  for (int i = 0; i < 2; ++i) {
+    ColonizeColony* c = &colonies.colonies[i];
+    c->active = true;
+    c->nation_id = 1;
+    c->x = 3 + 6 * i;
+    c->y = 3;
+    c->population = 4;
+  }
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.units = &pool;
+  ctx.colonies = &colonies;
+  ctx.human_nation = 0;
+  ColonizeUnit* caravel = units_get(&pool, units_spawn(&pool, units_find_type(&pool, "Caravel"), 5, 5));
+  caravel->nation_id = 1;
+  int rc = 0;
+  mods_campaign_set(1u << MOD_AI_IMPROVEMENTS);
+  if (ai_euro_improved_fleet_short(&ctx, 1)) {
+    fprintf(stderr, "fleet_short: no backlog, no hull wanted\n");
+    rc = 1;
+  }
+  colonies.colonies[1].stock[COLONIZE_CARGO_FURS] =
+    colonies_warehouse_capacity(&colonies, &colonies.colonies[1], COLONIZE_CARGO_FURS);
+  if (rc == 0 && !ai_euro_improved_fleet_short(&ctx, 1)) {
+    fprintf(stderr, "fleet_short: furs at the limit, 2 holds for 2 colonies: want a hull\n");
+    rc = 1;
+  }
+  ColonizeUnit* galleon = units_get(&pool, units_spawn(&pool, units_find_type(&pool, "Galleon"), 6, 6));
+  galleon->nation_id = 1;
+  if (rc == 0 && ai_euro_improved_fleet_short(&ctx, 1)) {
+    fprintf(stderr, "fleet_short: 8 holds for 2 colonies is enough\n");
+    rc = 1;
+  }
+  galleon->active = false;
+  mods_campaign_set(0);
+  if (rc == 0 && ai_euro_improved_fleet_short(&ctx, 1)) {
+    fprintf(stderr, "fleet_short: DOS mode never\n");
+    rc = 1;
+  }
+  assets_msg_free(&names);
+  return rc;
+}
+
 static const TestCase k_cases[] = {
   {"colony_focus_small_cash", case_colony_focus_small_cash},
   {"pjob_resume", case_pjob_resume},
@@ -395,5 +452,6 @@ static const TestCase k_cases[] = {
   {"sea_has_own_colony", case_sea_has_own_colony},
   {"colonist_ferry_wanted", case_colonist_ferry_wanted},
   {"scout_target", case_scout_target},
+  {"fleet_short", case_fleet_short},
 };
 TEST_MAIN_WRAPPED(k_cases, diag_init(0, NULL), diag_shutdown())

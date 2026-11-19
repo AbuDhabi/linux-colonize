@@ -729,6 +729,10 @@ bool ai_euro_land_mass_below(const ColonizeWorldMap* map, int x, int y, int n);
 /* MOD_AI_IMPROVEMENTS: an own colony borders the sea around (x, y) (layer3
  * tags every sea region 1, so it cannot tell two seas apart). */
 bool ai_euro_sea_has_own_colony(const ColonizeTurnContext* ctx, int x, int y, int nation);
+/* #1893: cargo holds an improved nation wants per colony before a sale-good
+ * backlog makes it buy a hull. */
+#define AI_EURO_FLEET_HOLDS_PER_COLONY 3
+bool ai_euro_improved_fleet_short(const ColonizeTurnContext* ctx, int nation_id);
 /* #1889: own coastal colonies short of tools for their build (0 = mod off). */
 int ai_euro_tools_short_colonies(ColonizeTurnContext* ctx, int nation);
 /* #1887: own colony the hull reaches on a land mass short of Pioneers for its

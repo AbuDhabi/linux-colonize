@@ -289,6 +289,12 @@ graphs:
         fn: ai_euro_europe.c:ai_euro_5d04_ship_buy_ladder
         status: dos
         note: "armed<8 && RNG(0,1)!=0 && no_clear_navy → Frigate; RNG(0,3)!=0 → Galleon; RNG(0,1)==0 && cargo<12 → Merchantman; cargo<3 → Caravel; armed<4 && RNG(0,3)==0 && no_clear_navy && !cargo_short → Privateer. First affordable wins."
+      - id: fleet_buy
+        kind: decision
+        label: "MOD_AI_IMPROVEMENTS #1893: no buy yet, < 3 cargo holds per colony and a sale good at the warehouse limit? → Galleon, else Merchantman"
+        fn: ai_euro_europe.c:ai_euro_improved_fleet_short
+        status: port
+        note: "While short, the hire tail keeps a Merchantman's price back from recruit buys, the recruit-slot swap and departing-hull cargo buys other than tools a build waits on."
       - id: abort
         kind: end
         label: Abort planning (threat buy failed) — hire tail skipped
@@ -346,13 +352,16 @@ graphs:
       - [treasury, flags]
       - [flags, floors]
       - [floors, ladder_gate]
-      - [ladder_gate, hire_gate, "yes: no candidate"]
+      - [ladder_gate, hire_gate, "yes: no candidate (DOS)"]
       - [ladder_gate, frig, "no"]
       - [frig, priv, "not threatened / bought"]
       - [frig, abort, "threatened, buy failed"]
       - [priv, rng_ladder, "not threatened / bought"]
       - [priv, abort, "threatened, buy failed"]
-      - [rng_ladder, hire_gate]
+      - [rng_ladder, fleet_buy]
+      - [ladder_gate, fleet_buy, "improved, gate shut"]
+      - [fleet_buy, hire_gate, "bought / not short"]
+      - [fleet_buy, hire_gate, "short, too poor: hire tail keeps the reserve"]
       - [hire_gate, hire, "yes"]
       - [hire_gate, end, "no: shipless and bought nothing"]
       - [hire, needs]

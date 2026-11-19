@@ -1027,6 +1027,8 @@ void game_colony_open_governor(ColonizeGameState* game, const ColonizeColony* co
                  &game->ai_popups, AI_POPUP_TAG_COLONY_GOVERNOR, 0, 0, colony->id, NULL, body,
                  labels, ids, n
                )) {
+    /* A click off the box closes it cancelled: the governor stays. */
+    ai_popup_set_last_outside_leaves(&game->ai_popups);
     (void)ai_popup_present_now(&game->ai_popups, AI_POPUP_TAG_COLONY_GOVERNOR);
   }
 }
