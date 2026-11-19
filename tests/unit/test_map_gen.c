@@ -245,7 +245,7 @@ static int test_tb46_latitude_single_draw(void) {
  * replays per seed, keeps the west / east rim (and the column inside it)
  * water and the top / bottom row arctic, never stores a river on a hill /
  * mountain or desert, keeps every land river tile 4-connected to more river or the
- * sea, leaves valid land classes only, and still finds the Euro landfalls. */
+ * sea, leaves no 1-tile island, leaves valid land classes only, and still finds the Euro landfalls. */
 static int test_alternate_generator_invariants(void) {
   int rc = 0;
   int rivers_seen = 0;
@@ -297,6 +297,16 @@ static int test_alternate_generator_invariants(void) {
           break;
         }
         mountains_seen += (t & 0xa0) == 0xa0;
+        bool lone = y > 0 && y < h - 1;
+        for (int d = 0; d < 8 && lone; ++d) {
+          const uint8_t n = (uint8_t)(a.terrain[(y + MAP_DIR8_DY[d]) * w + x + MAP_DIR8_DX[d]] & 0x1f);
+          lone = n == T_OCEAN || n == T_HIGH_SEAS;
+        }
+        if (lone) { /* join_lone_islands: no 1-tile islands */
+          fprintf(stderr, "case %d: 1-tile island at (%d,%d)\n", k, x, y);
+          rc = 1;
+          break;
+        }
         if (!(t & F_RIVER)) {
           continue;
         }

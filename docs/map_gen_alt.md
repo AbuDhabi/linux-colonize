@@ -53,6 +53,10 @@ doubled to +32 / -32); tiles below 0 are water.
    inland of them. Per row and side, smooth noise widens the always-sea part by
    0..`SIDE_REACH_MAX` (4) columns, so the worn coast is not a straight line. Land tapers off instead of ending in a cut-off cliff, and the
    column next to each sea lane is always ordinary sea.
+   Last, `join_lone_islands`: a land tile with no land 8-neighbour (the top /
+   bottom arctic rows count as land) gets its highest active 8-neighbour raised
+   to elevation 0, never the sea column next to a lane. 1-tile islands leave the
+   REF nowhere to land and strand any village placed there.
 4. **Winds.** Three-cell circulation by latitude (equator at mid-height, rims at
    +-90 degrees): trade winds (easterly, toward the equator) below 30, westerlies
    (poleward) 30..60, polar easterlies above. Air is drawn onshore along the
@@ -110,7 +114,7 @@ Specials and Lost City Rumours need nothing extra: like DOS they hash from
 
 - `unit_map_gen` `test_alternate_generator_invariants`: 81 axis combinations:
   routing, replay, land share bounds, water rim plus the sea column inside the
-  west / east rim, arctic top / bottom rows, valid classes, no river on a
+  west / east rim, arctic top / bottom rows, no 1-tile island, valid classes, no river on a
   hill, every river tile linked to river or sea, landfalls present.
 - `unit_new_game` `alternate_map_village_counts`: a full `ai_init_new_game` on an
   alternate map places every tribe's capital.

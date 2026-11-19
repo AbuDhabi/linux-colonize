@@ -459,6 +459,44 @@ static void erosion(AltGen* g) {
   }
 }
 
+/* Land as the terrain will read it: active with elev >= 0, or the top / bottom
+ * row (finalize makes it arctic). */
+static bool is_land_at(const AltGen* g, int x, int y) {
+  if (y == 0 || y == H - 1) {
+    return true;
+  }
+  return in_active(x, y) && g->elev[y * W + x] >= 0;
+}
+
+/* Step 4, end: a land tile with no land 8-neighbour (no REF landing, a village
+ * there is out of reach) gets its highest active 8-neighbour raised to sea
+ * level, never the always-sea column next to a sea lane. */
+static void join_lone_islands(AltGen* g) {
+  for (int k = 0; k < g->active_count; ++k) {
+    const int i = g->active[k];
+    const int x = i % W;
+    const int y = i / W;
+    if (g->elev[i] < 0) {
+      continue;
+    }
+    int best = -1;
+    bool lone = true;
+    for (int d = 0; d < 8 && lone; ++d) {
+      const int nx = x + MAP_DIR8_DX[d];
+      const int ny = y + MAP_DIR8_DY[d];
+      if (is_land_at(g, nx, ny)) {
+        lone = false;
+      } else if (in_active(nx, ny) && nx != EDGE_X && nx != W - 1 - EDGE_X &&
+                 (best < 0 || g->elev[ny * W + nx] > g->elev[best])) {
+        best = ny * W + nx;
+      }
+    }
+    if (lone && best >= 0) {
+      g->elev[best] = 0;
+    }
+  }
+}
+
 /* ===== Winds, rainfall, temperature (steps 5-7) ===== */
 
 /* Latitude in -1 (south rim) .. +1 (north rim); equator at mid-height. */
@@ -1139,6 +1177,7 @@ bool map_generate_alternate(
   tectonics(g);
   warp_crust(g);
   erosion(g);
+  join_lone_islands(g);
   winds(g);
   rainfall(g, p.climate);
   temperature(g, p.temperature);
