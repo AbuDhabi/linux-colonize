@@ -1597,6 +1597,23 @@ bool ai_euro_colonist_ferry_wanted(ColonizeTurnContext* ctx, int nation, int cid
   return elsewhere;
 }
 
+/* #1892 (MOD_AI_IMPROVEMENTS): does the goto pathfinder have a step from
+ * the unit toward (tx, ty)? Probed without the rng (the anti-backtrack
+ * reroll would draw); a director miss spends the unit's moves, so the unit
+ * is restored after (explore_auto_step does the same). */
+static bool ai_euro_scout_path_probe(ColonizeTurnContext* ctx, ColonizeUnit* u, int tx, int ty) {
+  ColonizeWorld w = world_from_turn_ctx(ctx);
+  w.rng = NULL;
+  const ColonizeUnit saved = *u;
+  u->goto_x = tx;
+  u->goto_y = ty;
+  int nx = 0;
+  int ny = 0;
+  const bool ok = units_next_goto_step_w(&w, u->id, &nx, &ny);
+  *u = saved;
+  return ok;
+}
+
 /*
  * FUN_521d_20e6 colonist labor loop (raw ~1617-1679): a type-0 Colonist that
  * is not exploring walks to (or joins) the min-score same-continent own
@@ -1621,11 +1638,17 @@ static int ai_euro_20e6_labor_arm(ColonizeTurnContext* ctx, ColonizeUnit* u, Ai2
    * wander or found one of its own (discard t254: 23 French Dragoons idle
    * or founding while 15 colonies held 1-4 colonists). Garrisons standing
    * in a colony stay; plan '3' is a joiner already walking in. */
-  const bool mil_joiner = !s->is_ship &&
-                          (s->dos_type == UNITS_KIND_SOLDIER || s->dos_type == UNITS_KIND_DRAGOON) &&
-                          (s->home_dist != 0 || u->col1_ai_plan == 0x33 ||
-                           ai_euro_20e6_origin_get(u) != s->home_colony) &&
-                          ai_euro_improved(ctx, u->nation_id);
+  /* MOD_AI_IMPROVEMENTS #1892 (not DOS): a Scout whose land holds no village
+   * left to visit, no rumour and nothing unseen joins a colony too, or
+   * founds one, instead of standing idle for the rest of the game (set by
+   * the Scout arm in the 20e6 dispatch). */
+  const bool spare_scout = s->scout_spare != 0;
+  const bool mil_joiner = spare_scout ||
+                          (!s->is_ship &&
+                           (s->dos_type == UNITS_KIND_SOLDIER || s->dos_type == UNITS_KIND_DRAGOON) &&
+                           (s->home_dist != 0 || u->col1_ai_plan == 0x33 ||
+                            ai_euro_20e6_origin_get(u) != s->home_colony) &&
+                           ai_euro_improved(ctx, u->nation_id));
   if (!mil_joiner && (s->dos_type != UNITS_KIND_COLONIST || s->explorer)) {
     return 0;
   }
@@ -1716,6 +1739,9 @@ static int ai_euro_20e6_labor_arm(ColonizeTurnContext* ctx, ColonizeUnit* u, Ai2
     return 1;
   }
   if (mil_joiner) {
+    if (spare_scout && !s->woi) {
+      s->explorer = 1; /* #1892: the ring scan may found with it */
+    }
     return 0; /* no colony wants it: explore and found as DOS does */
   }
   /* MOD_AI_IMPROVEMENTS (not DOS): the 20 tools come out of the colony's
@@ -4305,6 +4331,49 @@ int ai_euro_move_scoring_gate(ColonizeTurnContext* ctx, ColonizeUnit* u, int nat
       if (vr) {
         return 1;
       }
+    }
+    /* MOD_AI_IMPROVEMENTS #1891 (not DOS): a Scout walks to the nearest
+     * village it has not spoken to, or rumour; DOS only takes the village
+     * the explorer ring happens to pass next to; its last target stays while
+     * it still is one. With nothing seen left, it walks to the nearest land
+     * it has not seen (#1892). A target the pathfinder has no step for is
+     * passed over (its 0f74 flood fails on some land the walk reaches: si7
+     * campaign7, three Scouts 50 turns at (41,57) and (50,53)); with
+     * nothing it can reach, the labor arm takes it. */
+    if (!force_wander && s.dos_type == UNITS_KIND_SCOUT && ai_euro_improved(ctx, nation_id)) {
+      int skip[4];
+      int skip_n = 0;
+      /* A Scout walking in to join (its goto an own colony) takes no unseen
+       * land again: the pathfinder that failed it can succeed from a tile
+       * nearer the colony, and it would walk back and forth. */
+      const ColonizeColony* gc = colonies_get(ctx->colonies, colonies_id_at(ctx->colonies, u->goto_x, u->goto_y));
+      const bool joining = gc && gc->nation_id == nation_id && (u->x != gc->x || u->y != gc->y);
+      for (;;) {
+        int tx = 0;
+        int ty = 0;
+        int fx = -1;
+        int fy = -1;
+        const bool hit =
+          ai_euro_scout_target(ctx, nation_id, u->x, u->y, u->goto_x, u->goto_y, skip, skip_n, &tx, &ty,
+                               joining ? NULL : &fx, &fy);
+        if (!hit && fx < 0) {
+          break;
+        }
+        if (!hit) {
+          tx = fx; /* #1892: nothing seen left to visit: the nearest unseen land */
+          ty = fy;
+        }
+        if (ai_euro_scout_path_probe(ctx, u, tx, ty)) {
+          u->col1_ai_plan = 0x4c;
+          ai_euro_set_goto(u, AI_EURO_ACT_GOAL, tx, ty);
+          return 0;
+        }
+        if (skip_n == 4) {
+          break;
+        }
+        skip[skip_n++] = ty * ctx->map->width + tx;
+      }
+      s.scout_spare = 1;
     }
     {
       const int lr = force_wander ? 0 : ai_euro_20e6_labor_arm(ctx, u, &s);

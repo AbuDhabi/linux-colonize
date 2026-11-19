@@ -4,6 +4,7 @@
  */
 #include "core/ai_euro_internal.h"
 #include "core/assets.h"
+#include "core/col1_save.h"
 #include "core/colony.h"
 #include "core/colony_governor.h"
 #include "core/map.h"
@@ -13,6 +14,7 @@
 #include "platform/diagnostics.h"
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "../common/test_runner.h"
@@ -294,6 +296,97 @@ static int case_sea_has_own_colony(void) {
   return rc;
 }
 
+/* ai_improvements mod (#1891): a Scout's target is the nearest seen village
+ * no Scout has visited that a land walk reaches; a village across the water
+ * on a land mass with the same continent nibble is not. */
+static int case_scout_target(void) {
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  char err[128];
+  if (!map_alloc(&map, 16, 16, err, sizeof(err))) {
+    return 1;
+  }
+  for (int i = 0; i < 16 * 16; ++i) {
+    const int x = i % 16;
+    map.terrain[i] = (x >= 1 && x <= 5) || (x >= 9 && x <= 14) ? 2 : T_OCEAN; /* two islands */
+    map.layer3[i] = 0xf1; /* one continent nibble for both */
+    map.layer2[i] = MAP_LAYER2_LCR_CONSUMED; /* no rumours */
+    map.seen[i] = 0x10 << 1;               /* seen by nation 1 */
+  }
+  ColonizeCol1Save col1;
+  col1_save_init(&col1);
+  col1.head.tribe_count = 3;
+  col1.tribe = calloc(3, sizeof(ColonizeCol1Tribe));
+  if (!col1.tribe) {
+    map_free(&map);
+    return 1;
+  }
+  col1.owned = true;
+  const int vx[3] = {10, 4, 3};
+  const int vy[3] = {2, 12, 4};
+  for (int i = 0; i < 3; ++i) {
+    col1.tribe[i].x = (uint8_t)vx[i];
+    col1.tribe[i].y = (uint8_t)vy[i];
+    col1.tribe[i].nation_id = 5;
+    col1.tribe[i].mission = 0xff;
+  }
+  col1.tribe[2].state.scouted = true;
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.map = &map;
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+  int rc = 0;
+  int tx = -1;
+  int ty = -1;
+  /* Scout at (3,2): the village at (10,2) is nearer but across the water,
+   * (3,4) is scouted, so (4,12). */
+  if (!ai_euro_scout_target(&ctx, 1, 3, 2, -1, -1, NULL, 0, &tx, &ty, NULL, NULL) || tx != 4 || ty != 12) {
+    fprintf(stderr, "scout_target: want (4,12), got (%d,%d)\n", tx, ty);
+    rc = 1;
+  }
+  /* With (3,4) unscouted it is the nearest, but the last target, (4,12),
+   * stays while it still is one (the AI goto lasts a turn). */
+  col1.tribe[2].state.scouted = false;
+  if (rc == 0 && (!ai_euro_scout_target(&ctx, 1, 3, 2, -1, -1, NULL, 0, &tx, &ty, NULL, NULL) || tx != 3 || ty != 4)) {
+    fprintf(stderr, "scout_target: want (3,4), got (%d,%d)\n", tx, ty);
+    rc = 1;
+  }
+  if (rc == 0 && (!ai_euro_scout_target(&ctx, 1, 3, 2, 4, 12, NULL, 0, &tx, &ty, NULL, NULL) || tx != 4 || ty != 12)) {
+    fprintf(stderr, "scout_target: last target dropped, got (%d,%d)\n", tx, ty);
+    rc = 1;
+  }
+  /* The mover found no path to it: (3,4) after all. */
+  const int no_path[1] = {12 * 16 + 4};
+  if (rc == 0 && (!ai_euro_scout_target(&ctx, 1, 3, 2, 4, 12, no_path, 1, &tx, &ty, NULL, NULL) || tx != 3 || ty != 4)) {
+    fprintf(stderr, "scout_target: blocked target kept, got (%d,%d)\n", tx, ty);
+    rc = 1;
+  }
+  col1.tribe[2].state.scouted = true;
+  col1.tribe[1].state.scouted = true;
+  int fx = 0;
+  int fy = 0;
+  if (rc == 0 && (ai_euro_scout_target(&ctx, 1, 3, 2, -1, -1, NULL, 0, &tx, &ty, &fx, &fy) || fx >= 0)) {
+    fprintf(stderr, "scout_target: nothing left on the island, got (%d,%d) fog (%d,%d)\n", tx, ty, fx, fy);
+    rc = 1;
+  }
+  /* #1892: an unseen tile on its own island keeps the Scout exploring; one
+   * across the water does not. */
+  map.seen[2 * 16 + 12] = 0;
+  if (rc == 0 && (ai_euro_scout_target(&ctx, 1, 3, 2, -1, -1, NULL, 0, &tx, &ty, &fx, &fy) || fx >= 0)) {
+    fprintf(stderr, "scout_target: fog across the water counted\n");
+    rc = 1;
+  }
+  map.seen[14 * 16 + 2] = 0;
+  if (rc == 0 && (ai_euro_scout_target(&ctx, 1, 3, 2, -1, -1, NULL, 0, &tx, &ty, &fx, &fy) || fx != 2 || fy != 14)) {
+    fprintf(stderr, "scout_target: unseen land on its own island missed, got (%d,%d)\n", fx, fy);
+    rc = 1;
+  }
+  col1_save_free(&col1);
+  map_free(&map);
+  return rc;
+}
+
 static const TestCase k_cases[] = {
   {"colony_focus_small_cash", case_colony_focus_small_cash},
   {"pjob_resume", case_pjob_resume},
@@ -301,5 +394,6 @@ static const TestCase k_cases[] = {
   {"land_mass_islet", case_land_mass_islet},
   {"sea_has_own_colony", case_sea_has_own_colony},
   {"colonist_ferry_wanted", case_colonist_ferry_wanted},
+  {"scout_target", case_scout_target},
 };
 TEST_MAIN_WRAPPED(k_cases, diag_init(0, NULL), diag_shutdown())

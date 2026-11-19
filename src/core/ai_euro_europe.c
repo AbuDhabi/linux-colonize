@@ -1785,6 +1785,57 @@ static void ai_euro_5d04_hire_tail_departing_ships(Ai5d04HireTail* t) {
   t->hired_this_pass = hired_this_pass;
 }
 
+/* MOD_AI_IMPROVEMENTS #1891 (not DOS): an improved nation with no Scout
+ * mounts a non-expert colonist waiting on its Europe dock (a Seasoned Scout
+ * first) once a village no Scout has visited, or a rumour, lies seen on a
+ * land mass it has a colony on. DOS makes Scouts only from colonies past
+ * 101 horses and the wanted size, and the all-AI replays had scouted 0-5 of
+ * some 75 villages by turn 51. */
+static void ai_euro_improved_scout_buy(ColonizeTurnContext* ctx, int nation_id) {
+  if (!ai_euro_improved(ctx, nation_id) || !ctx->units || !ctx->colonies || !ctx->map) {
+    return;
+  }
+  const int scout_ti = units_kind_type_index(ctx->units, UNITS_KIND_SCOUT);
+  ColonizeUnit* pick = NULL;
+  for (int i = 0; i < units_slot_end(ctx->units); ++i) {
+    ColonizeUnit* u = &ctx->units->units[i];
+    if (!u->active || u->nation_id != nation_id) {
+      continue;
+    }
+    if (u->type_index == scout_ti) {
+      return;
+    }
+    const int prof = u->profession;
+    if (ai_euro_in_europe(u->x, u->y) && u->aboard_ship_id < 0 &&
+        units_type_kind(units_type(ctx->units, u->type_index)) == UNITS_KIND_COLONIST &&
+        (prof == UNITS_JOB_COLONIST || prof == UNITS_JOB_SCOUT || prof == UNITS_JOB_SERVANT ||
+         prof == UNITS_JOB_CRIMINAL || prof == UNITS_JOB_NONE) &&
+        (!pick || prof == UNITS_JOB_SCOUT)) {
+      pick = u;
+    }
+  }
+  const int cost = ai_euro_5d04_cb_price(COLONIZE_CARGO_HORSES) * UNITS_EQUIP_HORSES;
+  if (!pick || scout_ti < 0 || europe_nation_gold(ctx->europe, ctx->col1, nation_id) < (uint32_t)cost) {
+    return;
+  }
+  bool wanted = false;
+  for (int i = 0; i < COLONIZE_COLONIES_MAX && !wanted; ++i) {
+    const ColonizeColony* c = &ctx->colonies->colonies[i];
+    int tx = 0;
+    int ty = 0;
+    wanted = c->active && c->nation_id == nation_id &&
+             ai_euro_scout_target(ctx, nation_id, c->x, c->y, -1, -1, NULL, 0, &tx, &ty, NULL, NULL);
+  }
+  if (!wanted) {
+    return;
+  }
+  europe_nation_gold_add(ctx->europe, ctx->col1, nation_id, -(long)cost);
+  ai_euro_5d04_cb_sync_gold();
+  ai_euro_5d04_cb_market_volume(COLONIZE_CARGO_HORSES, UNITS_EQUIP_HORSES, 1);
+  units_set_type_keep_spent(ctx->units, pick, scout_ti);
+  pick->horses = UNITS_EQUIP_HORSES;
+}
+
 /*
  * Raw 86065-86561 — Europe hire ladder + profession/reward tail. DOS is one
  * function body whose locals thread across all three phases in one scope;
@@ -1926,6 +1977,7 @@ static void ai_euro_5d04_hire_ladder_tail(
   };
   ai_euro_5d04_hire_tail_candidates(&tail);
   ai_euro_5d04_hire_tail_colony_demand(&tail);
+  ai_euro_improved_scout_buy(ctx, nation_id);
   ai_euro_5d04_hire_tail_departing_ships(&tail);
 }
 

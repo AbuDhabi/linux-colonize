@@ -318,6 +318,7 @@ typedef struct Ai20e6Unit {
   int turn;
   int year;
   int woi;
+  int scout_spare; /* #1892 (MOD_AI_IMPROVEMENTS): Scout with nothing it can reach */
 } Ai20e6Unit;
 int ai_euro_20e6_park_arms_4d2e(ColonizeTurnContext* ctx, ColonizeUnit* u, const Ai20e6Unit* s);
 void ai_euro_20e6_prologue(ColonizeTurnContext* ctx, const ColonizeUnit* u, int nation, Ai20e6Unit* s);
@@ -712,6 +713,12 @@ int ai_euro_scouts_on(const ColonizeTurnContext* ctx, int nation, int cid);
 int ai_euro_missionaries_on(const ColonizeTurnContext* ctx, int nation, int cid);
 bool ai_euro_mission_site_near(const ColonizeTurnContext* ctx, int nation, int x, int y, int r);
 bool ai_euro_mission_claimed(const ColonizeUnitPool* pool, int nation, int x, int y);
+/* #1891: nearest seen unscouted village or rumour a land walk from (x, y)
+ * reaches, (keep_x, keep_y) first while it still is one, none of the
+ * skip_n tile indices (y * width + x) in skip; *fog_x/y (nullable) = the nearest
+ * unseen land on that walk, -1 if none (#1892). */
+bool ai_euro_scout_target(const ColonizeTurnContext* ctx, int nation, int x, int y, int keep_x, int keep_y,
+                          const int* skip, int skip_n, int* tx, int* ty, int* fog_x, int* fog_y);
 /* #1880: spare Colonists on continent cid should be shipped elsewhere. */
 bool ai_euro_colonist_ferry_wanted(ColonizeTurnContext* ctx, int nation, int cid);
 int ai_euro_20e6_site_probe(ColonizeTurnContext* ctx, ColonizeUnit* u, int nation_id);

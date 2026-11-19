@@ -1846,6 +1846,16 @@ static void ai_euro_5952_equip_arm(
         ai_euro_scouts_on(ctx, nation_id, map_continent_id_at(ctx->map, c->x, c->y)) > 0) {
       skip_scout = 1;
     }
+    /* #1892: nor one with nothing left to scout (it would only rejoin). */
+    if (!skip_scout && ai_euro_improved(ctx, nation_id)) {
+      int tx = 0;
+      int ty = 0;
+      int fx = 0;
+      int fy = 0;
+      if (!ai_euro_scout_target(ctx, nation_id, c->x, c->y, -1, -1, NULL, 0, &tx, &ty, &fx, &fy) && fx < 0) {
+        skip_scout = 1;
+      }
+    }
     if (!skip_scout && (c->ai_flags & COLONIZE_COLONY_AI_NEEDS_COLONISTS) == 0) {
       equip_target_job = UNITS_JOB_SCOUT;
       have_equip_target = 1;

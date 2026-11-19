@@ -13,6 +13,8 @@
  *
  * Mod off: nothing here is reached and the AI is DOS.
  */
+#include <limits.h>
+
 #include "core/internal.h"
 #include "core/ai_euro.h"
 #include "core/ai_euro_internal.h"
@@ -191,6 +193,119 @@ bool ai_euro_mission_claimed(const ColonizeUnitPool* pool, int nation, int x, in
     }
   }
   return false;
+}
+
+/* #1891: the nearest place (land steps from (x, y)), seen by `nation`, where
+ * its Scout still gains something: a village no Scout has spoken to that
+ * would receive one (the 20e6 village arm's gates: attitude 0 and alarm
+ * under 0x19), or a Lost City Rumour; (keep_x, keep_y) wins while it still
+ * is one, since the AI goto lasts one turn and two equal targets would
+ * flip-flop (sh13 campaign8); the skip_n tile indices in `skip` (targets
+ * the mover found no path to) are left out. *fog_x/y (nullable): the nearest
+ * land on that walk the nation has not seen, -1 if none (#1892). The land walk, not the continent id:
+ * that is a 4-bit nibble two islands can share (sc7 campaign8: two French
+ * Scouts aimed 150 turns at villages across the water). */
+bool ai_euro_scout_target(const ColonizeTurnContext* ctx, int nation, int x, int y, int keep_x, int keep_y,
+                          const int* skip, int skip_n, int* tx, int* ty, int* fog_x, int* fog_y) {
+  int fog_best = INT_MAX;
+  if (fog_x) {
+    *fog_x = -1;
+    *fog_y = -1;
+  }
+  if (!ctx || !ctx->map || !ctx->col1_ok || !ctx->col1 || !ctx->col1->tribe ||
+      !map_tile_is_land(ctx->map, x, y)) {
+    return false;
+  }
+  static int16_t dist[256 * 256];
+  static int queue[256 * 256];
+  static uint8_t block[256 * 256];
+  const ColonizeWorldMap* map = ctx->map;
+  const int w = map->width;
+  const int h = map->height;
+  for (int i = 0; i < w * h; ++i) {
+    dist[i] = -1;
+    block[i] = 0;
+  }
+  /* A village, a foreign colony and a foreign unit end the walk: the mover
+   * cannot pass them (sh13 campaign8: two Scouts flipped 100 turns between
+   * two villages behind a brave-held neck, never moving). */
+  const ColonizeCol1Save* col1 = ctx->col1;
+  for (uint16_t i = 0; i < col1->head.tribe_count; ++i) {
+    if (col1->tribe[i].x < w && col1->tribe[i].y < h) {
+      block[col1->tribe[i].y * w + col1->tribe[i].x] = 1;
+    }
+  }
+  for (int i = 0; ctx->colonies && i < COLONIZE_COLONIES_MAX; ++i) {
+    const ColonizeColony* c = &ctx->colonies->colonies[i];
+    if (c->active && c->nation_id != nation && map_coords_inset(map, c->x, c->y)) {
+      block[c->y * w + c->x] = 1;
+    }
+  }
+  for (int i = 0; ctx->units && i < units_slot_end(ctx->units); ++i) {
+    const ColonizeUnit* o = &ctx->units->units[i];
+    if (o->active && o->nation_id != nation && units_is_on_map(o) && map_coords_inset(map, o->x, o->y)) {
+      block[o->y * w + o->x] = 1;
+    }
+  }
+  for (int i = 0; i < skip_n; ++i) {
+    if (skip[i] >= 0 && skip[i] < w * h) {
+      block[skip[i]] |= 2; /* never a target */
+    }
+  }
+  int head = 0;
+  int tail = 0;
+  dist[y * w + x] = 0;
+  queue[tail++] = y * w + x;
+  while (head < tail) {
+    const int at = queue[head++];
+    const int ax = at % w;
+    const int ay = at / w;
+    for (int dy = -1; dy <= 1; ++dy) {
+      for (int dx = -1; dx <= 1; ++dx) {
+        const int nx = ax + dx;
+        const int ny = ay + dy;
+        if (!map_coords_inset(map, nx, ny) || dist[ny * w + nx] >= 0 || !map_tile_is_land(map, nx, ny)) {
+          continue;
+        }
+        dist[ny * w + nx] = (int16_t)(dist[at] + 1);
+        if (!(block[ny * w + nx] & 1)) {
+          queue[tail++] = ny * w + nx;
+        }
+      }
+    }
+  }
+  int best = INT_MAX;
+  for (uint16_t i = 0; i < col1->head.tribe_count; ++i) {
+    const ColonizeCol1Tribe* t = &col1->tribe[i];
+    const int ind = (int)t->nation_id - 4;
+    if (ind < 0 || ind >= (int)COLONIZE_COL1_INDIAN_COUNT || t->state.scouted || t->x >= w || t->y >= h ||
+        dist[t->y * w + t->x] < 0 || (block[t->y * w + t->x] & 2) ||
+        (t->x == keep_x && t->y == keep_y ? 0 : dist[t->y * w + t->x]) >= best ||
+        col1_tribe_attitude(t, nation) != 0 ||
+        col1->indian[ind].alarm_by_player[nation] >= 0x19 || !map_tile_seen_by(map, t->x, t->y, nation)) {
+      continue;
+    }
+    best = t->x == keep_x && t->y == keep_y ? 0 : dist[t->y * w + t->x];
+    *tx = t->x;
+    *ty = t->y;
+  }
+  for (int i = 0; i < w * h; ++i) {
+    if (dist[i] <= 0 || block[i]) {
+      continue;
+    }
+    const int d = i == keep_y * w + keep_x ? 0 : dist[i];
+    if (fog_x && d < fog_best && !map_tile_seen_by(map, i % w, i / w, nation)) {
+      fog_best = d;
+      *fog_x = i % w;
+      *fog_y = i / w;
+    }
+    if (d < best && map_tile_has_rumour(map, i % w, i / w) && map_tile_seen_by(map, i % w, i / w, nation)) {
+      best = d;
+      *tx = i % w;
+      *ty = i / w;
+    }
+  }
+  return best != INT_MAX;
 }
 
 size_t ai_euro_pjob_export(uint8_t* out, size_t cap) {
