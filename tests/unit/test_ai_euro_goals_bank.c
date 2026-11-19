@@ -8,6 +8,7 @@
  * It is driven here through ai_euro_5952_absorb_equip (ai_euro_internal.h),
  * the frame that owns local_76 (`labor_running`) and calls the block.
  */
+#include "core/ai_diplo.h"
 #include "core/ai_euro.h"
 #include "core/ai_euro_internal.h"
 #include "core/assets.h"
@@ -15,6 +16,7 @@
 #include "core/colony.h"
 #include "core/dos_rng.h"
 #include "core/map.h"
+#include "core/mods.h"
 #include "core/turn.h"
 #include "core/units.h"
 
@@ -214,7 +216,59 @@ static int case_absorb_takes_docked_rider(void) {
   return rc;
 }
 
+/* #1896: an improved colony at peace stands its surplus Soldiers down into
+ * its warehouse, keeping the peacetime garrison (one for 2-11 people); at
+ * war with a European power that holds a colony it keeps them all. */
+static int stand_down_case(bool at_war, int want_left, int want_muskets) {
+  Fx f;
+  if (fx_build(&f) != 0) {
+    return 1;
+  }
+  mods_campaign_set(1u << MOD_AI_IMPROVEMENTS);
+  if (at_war) {
+    (void)fx_colony_add(&f.colonies, 2, 16, 16, 3);
+    ai_diplo_declare_war(&f.col1, NATION, 2);
+  }
+  const int soldier_t = units_kind_type_index(&f.units, UNITS_KIND_SOLDIER);
+  for (int i = 0; i < 3; ++i) {
+    ColonizeUnit* u = units_get(&f.units, units_spawn_allow_stack(&f.units, soldier_t, 8, 8));
+    if (!u) {
+      mods_campaign_set(0);
+      fx_done(&f);
+      return fail("spawn soldier");
+    }
+    u->nation_id = NATION;
+    u->muskets = UNITS_EQUIP_MUSKETS;
+  }
+  (void)run_tick(&f, 0);
+  int left = 0;
+  int slot = 0;
+  for (const ColonizeUnit* u; (u = units_next_on_tile(&f.units, 8, 8, &slot)) != NULL;) {
+    left += u->type_index == soldier_t ? 1 : 0;
+  }
+  int rc = 0;
+  if (left != want_left) {
+    rc = fail("wrong number of Soldiers left standing");
+  }
+  if (f.col->stock[COLONIZE_CARGO_MUSKETS] != want_muskets) {
+    rc = fail("stood-down muskets not banked in the colony");
+  }
+  mods_campaign_set(0);
+  fx_done(&f);
+  return rc;
+}
+
+static int case_improved_peace_stands_down(void) {
+  return stand_down_case(false, 1, 2 * UNITS_EQUIP_MUSKETS);
+}
+
+static int case_improved_war_keeps_army(void) {
+  return stand_down_case(true, 3, 0);
+}
+
 static const TestCase k_cases[] = {
+  {"case_improved_peace_stands_down", case_improved_peace_stands_down},
+  {"case_improved_war_keeps_army", case_improved_war_keeps_army},
   {"case_absorb_takes_docked_rider", case_absorb_takes_docked_rider},
   {"case_surplus_banks_one_lot", case_surplus_banks_one_lot},
   {"case_garrison_need_blocks_bank", case_garrison_need_blocks_bank},

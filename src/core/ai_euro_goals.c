@@ -1395,6 +1395,13 @@ static void ai_euro_5952_labor_demand(
   if (ring1 != 0 && n > 1 && want < 1) {
     want = 1;
   }
+  /* MOD_AI_IMPROVEMENTS #1896 (not DOS): DOS garrisons half the colony at
+   * peace (all-AI 2026-11-19: 2300 armed units to 4470 colonists at t300).
+   * An improved colony keeps its peacetime few and its muskets in store. */
+  if (ai_euro_improved(ctx, nation_id) && !ai_euro_improved_threatened(ctx, nation_id, c) &&
+      want > ai_euro_improved_peace_garrison(n)) {
+    want = ai_euro_improved_peace_garrison(n);
+  }
   c->labor_shortage = (uint8_t)(want < 0 ? 0 : (want > 255 ? 255 : want));
   const int want_pre = want;
   if (ctx->units) {
@@ -1511,6 +1518,10 @@ static void ai_euro_5952_ai_flags(
   }
   if ((presence & 1) != 0 && ((presence & 6) != 0 && nation_id != 2) && wanted > 1) {
     wanted = 1;
+  }
+  /* #1896: no field force at peace; its units are recalled as surplus. */
+  if (ai_euro_improved(ctx, nation_id) && !ai_euro_improved_threatened(ctx, nation_id, c)) {
+    wanted = 0;
   }
 
   /*
@@ -1636,6 +1647,39 @@ static void ai_euro_5952_build_pref_0306(
   int labor_running, int tools_latch
 );
 
+/* #1896: armed units on the colony tile past the peacetime garrison of a
+ * colony at peace (Artillery count as defenders but cannot stand down). */
+static int ai_euro_improved_disarm_count(ColonizeTurnContext* ctx, int nation_id, const ColonizeColony* c) {
+  if (!ai_euro_improved(ctx, nation_id) || ai_euro_improved_threatened(ctx, nation_id, c)) {
+    return 0;
+  }
+  int armed = 0;
+  int people = 0;
+  int slot = 0;
+  for (const ColonizeUnit* u; (u = units_next_on_tile(ctx->units, c->x, c->y, &slot)) != NULL;) {
+    const int dtype = ai_euro_20e6_dos_type(ctx->units, u);
+    if (u->nation_id != nation_id || (dtype >= 0x0d && dtype <= 0x12)) {
+      continue;
+    }
+    people += units_type_has_profession_slot(dtype) ? 1 : 0;
+    armed += ai_euro_20e6_type_combat(dtype) > 1 ? 1 : 0;
+  }
+  const int surplus = armed - ai_euro_improved_peace_garrison((int)c->population + people);
+  return surplus > 0 ? surplus : 0;
+}
+
+/* #1896: a Soldier or Dragoon among `ids` that is not a Veteran Soldier. */
+static bool ai_euro_improved_nonvet_armed(ColonizeTurnContext* ctx, const int* ids, int n) {
+  for (int k = 0; k < n; ++k) {
+    const ColonizeUnit* u = units_get(ctx->units, ids[k]);
+    const int job = u ? units_type_default_job(ai_euro_20e6_dos_type(ctx->units, u)) : 0;
+    if ((job == 0x15 || job == 0x17) && u->profession != UNITS_JOB_SOLDIER) {
+      return true;
+    }
+  }
+  return false;
+}
+
 COLONIZE_INTERNAL void ai_euro_5952_absorb_equip(
   ColonizeTurnContext* ctx, int nation_id, ColonizeColony* c, int* labor_running
 ) {
@@ -1650,7 +1694,9 @@ COLONIZE_INTERNAL void ai_euro_5952_absorb_equip(
 
   /* ---- absorption arm, raw 94231-94272 -------------------------------- */
   int ids[COLONIZE_UNITS_MAX];
-  if ((c->ai_flags & COLONIZE_COLONY_AI_NEEDS_COLONISTS) != 0 &&
+  int disarm = ai_euro_improved_disarm_count(ctx, nation_id, c); /* #1896, not DOS */
+  const bool wants_colonists = (c->ai_flags & COLONIZE_COLONY_AI_NEEDS_COLONISTS) != 0;
+  if ((wants_colonists || disarm > 0) &&
       ai_euro_5952_tile_stack(ctx, c, ids, COLONIZE_UNITS_MAX) != 0) {
     int restart = 1;
     int guard = 0;
@@ -1662,9 +1708,11 @@ COLONIZE_INTERNAL void ai_euro_5952_absorb_equip(
           break; /* raw 94235-94236, re-read every loop test */
         }
         /* #1878: an improved colony re-checks its food before each admission. */
+        bool fed = true;
         if (ai_euro_improved(ctx, nation_id)) {
           const ColonizeWorld fw = world_from_turn_ctx(ctx);
-          if (!colony_governor_feeds_one_more(&fw, c)) {
+          fed = colony_governor_feeds_one_more(&fw, c);
+          if (!fed && disarm == 0) {
             break;
           }
         }
@@ -1684,6 +1732,7 @@ COLONIZE_INTERNAL void ai_euro_5952_absorb_equip(
           units_type_default_job(ai_euro_20e6_dos_type(ctx->units, u)); /* local_ee */
         const int prof = u->profession; /* local_1a, FUN_281f_0c54 */
         int take = 0;
+        int stand_down = 0;
         int is_mil = 0;
         int is_pioneer = 0;
         /* The four DOS cases are disjoint on local_ee, so the raw's chain of
@@ -1704,7 +1753,13 @@ COLONIZE_INTERNAL void ai_euro_5952_absorb_equip(
             (census13 != 0 || census15 != 0);
           const int surplus_arm =
             (c->ai_flags & COLONIZE_COLONY_AI_MILITARY_SURPLUS) != 0;
-          take = dead_shortage_arm || specialist_arm || surplus_arm;
+          take = wants_colonists && (dead_shortage_arm || specialist_arm || surplus_arm);
+          /* #1896: stand down the peacetime surplus, Veteran Soldiers last. */
+          if (disarm > 0 &&
+              (prof != UNITS_JOB_SOLDIER || !ai_euro_improved_nonvet_armed(ctx, ids, n))) {
+            take = 1;
+            stand_down = 1;
+          }
         } else if (dtype == 0x14) { /* Pioneer, raw 94257-94263 */
           is_pioneer = 1;
           take = ((c->ai_flags & COLONIZE_COLONY_AI_WANTS_PIONEER_WORK) != 0 &&
@@ -1721,20 +1776,28 @@ COLONIZE_INTERNAL void ai_euro_5952_absorb_equip(
         } else if (dtype == 0x13) { /* Free Colonist, raw 94271-94274 */
           take = 1;
         }
-        if (!take) {
+        if (!take || (!is_mil && !wants_colonists) || (!fed && !stand_down)) {
           continue;
         }
         /* FUN_1000_8e26(slot, 0x12) = FUN_281f_0c36 = FUN_15eb_1068 with the
          * idle-sentinel job: the refund loop (raw 11234-11248) banks the
          * unit's gear into stock and the colonist keeps its profession. */
         ColonizeWorld w = world_from_turn_ctx(ctx);
-        if (colonies_admit_unit_idle_w(&w, c->id, u->id) < 0) {
+        const int slot_in = colonies_admit_unit_idle_w(&w, c->id, u->id);
+        if (slot_in < 0) {
           continue;
+        }
+        /* #1896: a colony that cannot feed him keeps only his gear. */
+        if (!fed) {
+          (void)colonies_eject_colonist(ctx->colonies, c->id, slot_in, ctx->units, COLONIZE_EJECT_COLONIST);
         }
         restart = 1; /* iStack_32 */
         if (is_mil) {
-          /* raw 94247-94255 */
-          (*labor_running)++;
+          if (stand_down) {
+            disarm--;
+          } else {
+            (*labor_running)++; /* raw 94247-94255 */
+          }
           c->ai_flags =
             (uint8_t)(c->ai_flags & (uint8_t)~COLONIZE_COLONY_AI_MILITARY_SURPLUS);
           if (idx >= 0) {
@@ -1783,7 +1846,8 @@ COLONIZE_INTERNAL void ai_euro_5952_absorb_equip(
  * one a tick, leaving 50 to breed. Costs no colonist. */
 static void ai_euro_improved_mount_soldier(ColonizeTurnContext* ctx, int nation_id, ColonizeColony* c) {
   if (!ai_euro_improved(ctx, nation_id) || !ctx->units ||
-      c->stock[COLONIZE_CARGO_HORSES] < UNITS_EQUIP_HORSES + 50) {
+      c->stock[COLONIZE_CARGO_HORSES] < UNITS_EQUIP_HORSES + 50 ||
+      !ai_euro_improved_threatened(ctx, nation_id, c)) { /* #1896: at peace the horses stay banked */
     return;
   }
   int slot = 0;

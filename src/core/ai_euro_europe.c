@@ -423,7 +423,7 @@ static void ai_euro_5d04_apply_naval_gold_floors(
 /* MOD_AI_IMPROVEMENTS #1875 (not DOS): an improved nation stops buying
  * Artillery in Europe once it fields one per colony (pt7h: France bought
  * 77 at an escalating 500 + 100 each while its rivals starved of colonists). */
-static bool ai_euro_5d04_artillery_capped(const ColonizeTurnContext* ctx, int nation_id) {
+bool ai_euro_5d04_artillery_capped(const ColonizeTurnContext* ctx, int nation_id) {
   if (!ai_euro_improved(ctx, nation_id) || !ctx->units) {
     return false;
   }

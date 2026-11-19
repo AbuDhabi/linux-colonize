@@ -1460,7 +1460,10 @@ static int ai_euro_20e6_surplus_recall_arm(
   if ((hc->ai_flags & COLONIZE_COLONY_AI_MILITARY_SURPLUS) == 0) {
     return 0;
   }
-  if (hc->garrison_quota == 0 && ai_euro_20e6_dos_type(ctx->units, u) == 4) {
+  /* #1896: an improved colony at peace recalls its Dragoons too, to stand
+   * them down. */
+  if (hc->garrison_quota == 0 && ai_euro_20e6_dos_type(ctx->units, u) == 4 &&
+      (!ai_euro_improved(ctx, hc->nation_id) || ai_euro_improved_threatened(ctx, hc->nation_id, hc))) {
     return 0; /* a Dragoon is only recalled while there is quota to spend */
   }
   if (map_continent_id_at(ctx->map, hc->x, hc->y) != s->cid) {

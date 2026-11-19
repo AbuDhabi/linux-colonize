@@ -2904,6 +2904,18 @@ static AiEuro5952CascadeStatus ai_euro_5952_naval_band(AiEuro5952Cascade* s) {
   return AI_EURO_5952_CASCADE_NEXT;
 }
 
+/* Artillery a colony's military and upgrade bands field on its tile before
+ * they stop picking them: DOS's three, or for an improved colony at peace one,
+ * and none once its nation fields one per colony (#1896: a quarter of them
+ * stood in the field, so the tile count alone let colonies rebuild them). The
+ * idle fill's last-resort Artillery keeps DOS's three. */
+static int ai_euro_5952_arty_cap(const AiEuro5952Cascade* s) {
+  if (!ai_euro_improved(s->ctx, s->nation) || ai_euro_improved_threatened(s->ctx, s->nation, s->col)) {
+    return 3;
+  }
+  return ai_euro_5d04_artillery_capped(s->ctx, s->nation) ? 0 : 1;
+}
+
 /* asm 25a3-268c: the naval band, then the factory Armory / Artillery pick.
  * NEXT = DOS's jump to the chain-upgrade walk at 268e. */
 COLONIZE_INTERNAL AiEuro5952CascadeStatus ai_euro_5952_cascade_military(AiEuro5952Cascade* s) {
@@ -2917,7 +2929,8 @@ COLONIZE_INTERNAL AiEuro5952CascadeStatus ai_euro_5952_cascade_military(AiEuro59
    * reads the tick's running garrison shortfall local_76 (after the on-tile
    * military walk and the absorption ++), not the +0x8e byte stored before
    * them (raw 94045). */
-  if (factory == 0 || (s->arty_on_tile != 0 && s->labor_running != 0)) {
+  if (factory == 0 || (s->arty_on_tile != 0 && s->labor_running != 0) ||
+      (ai_euro_improved(s->ctx, s->nation) && s->arty_on_tile >= ai_euro_5952_arty_cap(s))) { /* #1896, not DOS */
     return AI_EURO_5952_CASCADE_NEXT; /* chain_upgrades */
   }
   if (col->stock[COLONIZE_CARGO_TOOLS] != 0) { /* 2670 */
@@ -2967,7 +2980,7 @@ COLONIZE_INTERNAL AiEuro5952CascadeStatus ai_euro_5952_cascade_chain_upgrades(
   if (pop < 0x0a) { /* 270d — the SMALL_AI writer */
     col->colony_flags = (uint8_t)(col->colony_flags | COLONIZE_COLONY_FLAG_SMALL_AI);
   }
-  if (arty_on_tile >= 3) { /* 273e */
+  if (arty_on_tile >= ai_euro_5952_arty_cap(s)) { /* 273e */
     col->building_in_production = -1;
     return AI_EURO_5952_CASCADE_WANTS;
   }
@@ -3022,7 +3035,9 @@ static AiEuro5952CascadeStatus ai_euro_5952_cascade_idle_fill(AiEuro5952Cascade*
     st = ai_euro_5952_cascade_chain_upgrades(s);
   }
   /* A band's pick out of tool reach (a Frigate's 200) falls back to the
-   * Artillery, under the same three-on-tile cap. */
+   * Artillery, under the same three-on-tile cap. With nothing else worth
+   * building this is the hammer sink, at peace too (#1896's cap holds the
+   * bands above, not this). */
   if (col->building_in_production < 0 && s->arty_on_tile < 3) {
     ai_euro_5952_set_unit_project(s, 0x0b);
   }
