@@ -194,7 +194,7 @@ static int case_674_crosses_drain_profession_gate(void) {
   eu.dock[0].dos_type = (int)UNITS_KIND_CONT_ARMY;
 
   ColonizeCol1Save col1;
-  memset(&col1, 0, sizeof(col1));
+  col1_save_init(&col1);
   memset(col1.head.founding_father, 0xff, sizeof(col1.head.founding_father));
   col1.head.difficulty = 2;
   /* Nation 1 (not 0): europe_compute_immigration_score_w has an unconditional

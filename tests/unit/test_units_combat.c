@@ -107,7 +107,7 @@ static int unit_fort_fire_dissolve_and_europe(void) {
   colonies.colony_count = 1;
 
   ColonizeCol1Save c1;
-  memset(&c1, 0, sizeof(c1));
+  col1_save_init(&c1);
   for (int i = 0; i < (int)COLONIZE_COL1_FF_COUNT; ++i) {
     c1.head.founding_father[i] = -1;
   }
@@ -291,7 +291,7 @@ static int unit_fort_fire_aims_chain_head(void) {
     colonies.colony_count = 1;
 
     ColonizeCol1Save c1;
-    memset(&c1, 0, sizeof(c1));
+    col1_save_init(&c1);
     for (int i = 0; i < (int)COLONIZE_COL1_FF_COUNT; ++i) {
       c1.head.founding_father[i] = -1;
     }
@@ -381,7 +381,7 @@ static int unit_fort_fire_fights_best_defender(void) {
   colonies.colony_count = 1;
 
   ColonizeCol1Save c1;
-  memset(&c1, 0, sizeof(c1));
+  col1_save_init(&c1);
   for (int i = 0; i < (int)COLONIZE_COL1_FF_COUNT; ++i) {
     c1.head.founding_father[i] = -1;
   }
@@ -488,7 +488,7 @@ static int unit_fort_fire_fortfire_gate(void) {
     colonies.colony_count = 1;
 
     ColonizeCol1Save c1;
-    memset(&c1, 0, sizeof(c1));
+    col1_save_init(&c1);
     for (int i = 0; i < (int)COLONIZE_COL1_FF_COUNT; ++i) {
       c1.head.founding_father[i] = -1;
     }
@@ -627,7 +627,7 @@ static int unit_combat_sfx_visibility(void) {
   pool.types[1].movement = 1;
 
   ColonizeCol1Save col1;
-  memset(&col1, 0, sizeof(col1));
+  col1_save_init(&col1);
   col1.player[0].control = 0; /* human */
   col1.player[1].control = 1; /* AI */
   col1.player[2].control = 1; /* AI */
@@ -911,7 +911,7 @@ static int unit_native_tile_attack_alarm(void) {
   pool.types[1].domain = COLONIZE_UNIT_DOMAIN_LAND;
 
   ColonizeCol1Save col1;
-  memset(&col1, 0, sizeof(col1));
+  col1_save_init(&col1);
   /* Zeroed founding_father[] reads as "nation 0 holds every FF" — mark all
    * unclaimed so Pocahontas doesn't halve the 00f2 alarm bump under test. */
   memset(col1.head.founding_father, 0xff, sizeof(col1.head.founding_father));
@@ -1087,7 +1087,7 @@ static int unit_capture_ring_and_alarm_vent(void) {
    *     and the raider's tension row is discharged. */
   if (rc == 0) {
     ColonizeCol1Save col1;
-    memset(&col1, 0, sizeof(col1));
+    col1_save_init(&col1);
     memset(col1.head.founding_father, 0xff, sizeof(col1.head.founding_father));
     col1.head.difficulty = 3;
     col1.head.tribe_count = 0;
@@ -1223,7 +1223,7 @@ static int unit_village_win_convert_on_attacker_tile(void) {
   tribe.population = 5;
   tribe.mission = (uint8_t)(2u | COL1_TRIBE_MISSION_JESUIT_BIT); /* threshold 12 */
   ColonizeCol1Save col1;
-  memset(&col1, 0, sizeof(col1));
+  col1_save_init(&col1);
   memset(col1.head.founding_father, 0xff, sizeof(col1.head.founding_father));
   col1.head.tribe_count = 1;
   col1.tribe = &tribe;
@@ -1300,7 +1300,7 @@ static int unit_village_raze_tail(void) {
   units_set_occupancy_map(&map);
 
   ColonizeCol1Save col1;
-  memset(&col1, 0, sizeof(col1));
+  col1_save_init(&col1);
   memset(col1.head.founding_father, 0xff, sizeof(col1.head.founding_father));
   col1.stuff.tribe_village_counts[0] = 3;
   col1.head.tribe_count = 3;
@@ -1478,7 +1478,7 @@ static int unit_artillery_loss_water_gate(void) {
   units_set_combat_colonies(NULL);
 
   ColonizeCol1Save col1;
-  memset(&col1, 0, sizeof(col1));
+  col1_save_init(&col1);
   memset(col1.head.founding_father, 0xff, sizeof(col1.head.founding_father));
   col1.head.difficulty = 2;
   col1.player[0].control = 1;
@@ -1595,7 +1595,7 @@ static int unit_brave_vs_human_artillery_autoloss(void) {
   units_set_occupancy_map(&map);
 
   ColonizeCol1Save col1;
-  memset(&col1, 0, sizeof(col1));
+  col1_save_init(&col1);
   memset(col1.head.founding_father, 0xff, sizeof(col1.head.founding_father));
   col1.head.difficulty = 2;
   col1.player[0].control = 0; /* human */
@@ -1790,7 +1790,7 @@ static int unit_1b0e_resolve_handicaps(void) {
    * "human European" and quietly satisfy blocks A/B/C at once.
    */
   ColonizeCol1Save c1;
-  memset(&c1, 0, sizeof(c1));
+  col1_save_init(&c1);
   memset(c1.head.founding_father, 0xff, sizeof(c1.head.founding_father));
   c1.player[0].control = 0; /* human */
   c1.player[1].control = 1; /* AI */
@@ -2063,7 +2063,7 @@ static int unit_1b0e_defender_bonus_live(void) {
 
   /* Zeroed control bytes read as human on all four Euro slots — spell them. */
   ColonizeCol1Save c1;
-  memset(&c1, 0, sizeof(c1));
+  col1_save_init(&c1);
   memset(c1.head.founding_father, 0xff, sizeof(c1.head.founding_father));
   c1.player[0].control = 0; /* human — the defender's nation */
   c1.player[1].control = 1; /* AI attacker */
@@ -2189,7 +2189,7 @@ static int unit_royal_loss_tax_cut(void) {
     u.nation_id = 1;
     u.col1_flags15 = 0x40;
     ColonizeCol1Save c1;
-    memset(&c1, 0, sizeof(c1));
+    col1_save_init(&c1);
     c1.nation[1].tax_rate = (uint8_t)k[i].tax;
     units_reset_hooks();
     units_set_tax_change_hook(unit_tax_hook, NULL);
@@ -2234,7 +2234,7 @@ static int unit_royal_loss_tax_cut(void) {
       u.nation_id = 1;
       u.col1_flags15 = 0x40;
       ColonizeCol1Save c1;
-      memset(&c1, 0, sizeof(c1));
+      col1_save_init(&c1);
       c1.nation[1].tax_rate = 30;
       for (int n = 0; n < (int)COLONIZE_COL1_NATION_COUNT; ++n) {
         c1.player[n].control = (uint8_t)(human && n == 1 ? 0 : 1);
@@ -2304,7 +2304,7 @@ static int unit_indian_massacre_names_victim(void) {
   c->colonists[1].profession = 2; /* the last colonist falls (no militia pick) */
   colonies.colony_count = 1;
   ColonizeCol1Save col1;
-  memset(&col1, 0, sizeof(col1));
+  col1_save_init(&col1);
   col1.player[0].control = 0; /* human victim */
   units_set_ff_col1(&col1);
   units_set_combat_human_nation(0);
@@ -2363,7 +2363,7 @@ static int unit_combat_outcome_popup_gates(void) {
   colonies.colonies[0].y = 5;
   colonies.colony_count = 1;
   ColonizeCol1Save col1;
-  memset(&col1, 0, sizeof(col1));
+  col1_save_init(&col1);
   col1.player[0].control = 0; /* human */
   col1.player[1].control = 1; /* AI */
   ai_popup_init(&pop);
@@ -2531,7 +2531,7 @@ static int unit_combat_cheat_footer_roll_before_dialog(void) {
   pool.types[1].defense = 2;
   pool.types[1].movement = 1;
   ColonizeCol1Save col1;
-  memset(&col1, 0, sizeof(col1));
+  col1_save_init(&col1);
   col1.player[0].control = 0;
   col1.player[1].control = 1;
   col1.head.game_options.combat_analysis = 1;
@@ -2607,7 +2607,7 @@ static int unit_naval_stack_sweep(void) {
   units_set_combat_colonies(NULL);
 
   ColonizeCol1Save c1;
-  memset(&c1, 0, sizeof(c1));
+  col1_save_init(&c1);
   memset(c1.head.founding_father, 0xff, sizeof(c1.head.founding_father));
   c1.player[0].control = 0;
   c1.player[1].control = 1;
@@ -2704,7 +2704,7 @@ static int unit_naval_win_on_lane_exhausts(void) {
   units_set_combat_colonies(NULL);
 
   ColonizeCol1Save c1;
-  memset(&c1, 0, sizeof(c1));
+  col1_save_init(&c1);
   memset(c1.head.founding_father, 0xff, sizeof(c1.head.founding_father));
   c1.player[0].control = 0;
   c1.player[1].control = 1;
@@ -2749,7 +2749,7 @@ static int unit_naval_win_on_lane_exhausts(void) {
  * 0 of 0..2 pays nothing under DOS and pays under the fix. */
 static int unit_tb33_spanish_tech1_bound(void) {
   static ColonizeCol1Save c1;
-  memset(&c1, 0, sizeof(c1));
+  col1_save_init(&c1);
   memset(c1.head.founding_father, 0xff, sizeof(c1.head.founding_father));
   c1.indian[2].tech = 1; /* tribe nation 6 */
   uint32_t seed = 0;
@@ -2806,7 +2806,7 @@ static int unit_tb34_sink_decrements_ship_count(void) {
   units_set_occupancy_map(&map);
   units_set_combat_colonies(NULL);
   static ColonizeCol1Save c1;
-  memset(&c1, 0, sizeof(c1));
+  col1_save_init(&c1);
   memset(c1.head.founding_father, 0xff, sizeof(c1.head.founding_father));
   c1.player[0].control = 1;
   c1.player[1].control = 1;
@@ -2861,7 +2861,7 @@ static int unit_lcr_burial3_treasure_fizzles_in(void) {
   pool.type_count = 1;
   pool.types[0].kind_plus1 = (int)UNITS_KIND_TREASURE + 1;
   ColonizeCol1Save c1;
-  memset(&c1, 0, sizeof(c1));
+  col1_save_init(&c1);
   ColonizeDosRng rng;
   dos_rng_seed(&rng, 1);
   const ColonizeWorld w = {.units = &pool, .col1 = &c1, .col1_ok = true, .rng = &rng};
@@ -2916,7 +2916,7 @@ static int unit_gunless_winner_never_sinks(void) {
   pool.types[2].movement = 1;
   pool.types[2].domain = COLONIZE_UNIT_DOMAIN_LAND;
   ColonizeCol1Save col1;
-  memset(&col1, 0, sizeof(col1));
+  col1_save_init(&col1);
   col1.stuff.armed_ship_counts[1] = 9;
   units_set_combat_colonies(NULL);
   units_set_combat_human_nation(-1);
@@ -2986,7 +2986,7 @@ static int unit_native_burn_sweeps_square(void) {
   units_set_occupancy_map(&map);
   colonies_set_occupancy_map(&map);
   ColonizeCol1Save col1;
-  memset(&col1, 0, sizeof(col1));
+  col1_save_init(&col1);
   memset(col1.head.founding_father, 0xff, sizeof(col1.head.founding_father));
   for (int n = 0; n < 4; ++n) {
     col1.player[n].control = 1; /* all AI: no woodcut, no colony zoom */
@@ -3064,7 +3064,7 @@ static int unit_fort_fire_difficulty_handicaps(void) {
     units_set_combat_colonies(&colonies);
     units_set_combat_europe(&eu);
     ColonizeCol1Save c1;
-    memset(&c1, 0, sizeof(c1));
+    col1_save_init(&c1);
     for (int i = 0; i < (int)COLONIZE_COL1_FF_COUNT; ++i) {
       c1.head.founding_father[i] = -1;
     }
@@ -3112,7 +3112,7 @@ static int unit_fort_fire_sweep_census(void) {
   units_set_combat_colonies(NULL);
   units_set_combat_human_nation(-1);
   ColonizeCol1Save c1;
-  memset(&c1, 0, sizeof(c1));
+  col1_save_init(&c1);
   for (int i = 0; i < (int)COLONIZE_COL1_FF_COUNT; ++i) {
     c1.head.founding_father[i] = -1;
   }
@@ -3173,7 +3173,7 @@ static int unit_fort_fire_sweep_rng_order(void) {
       units_set_combat_colonies(NULL);
       units_set_combat_human_nation(-1);
       ColonizeCol1Save c1;
-      memset(&c1, 0, sizeof(c1));
+      col1_save_init(&c1);
       for (int i = 0; i < (int)COLONIZE_COL1_FF_COUNT; ++i) {
         c1.head.founding_father[i] = -1;
       }
@@ -3311,7 +3311,7 @@ static int unit_village_loot_spawn_failure_silent(void) {
     tribe.nation_id = 4;
     tribe.population = 1;
     ColonizeCol1Save col1;
-    memset(&col1, 0, sizeof(col1));
+    col1_save_init(&col1);
     memset(col1.head.founding_father, 0xff, sizeof(col1.head.founding_father));
     col1.head.tribe_count = 1;
     col1.tribe = &tribe;

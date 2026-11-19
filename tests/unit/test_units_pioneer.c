@@ -384,7 +384,7 @@ static int unit_pioneer_case8_tail(void) {
   memset(&map, 0, sizeof(map));
   char err[128];
   ColonizeCol1Save col1;
-  memset(&col1, 0, sizeof(col1));
+  col1_save_init(&col1);
   if (!map_alloc(&map, 16, 16, err, sizeof(err))) {
     fprintf(stderr, "case8: map_alloc failed: %s\n", err);
     assets_msg_free(&names);

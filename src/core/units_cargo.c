@@ -892,7 +892,10 @@ int units_ship_departure_pickup(
     }
   }
   /* Own riders the walk left behind wait for the next hull on the tile
-   * (its own 10be takes them) if it has room for them, or stand on the tile. */
+   * (its own 10be takes them) if it has room for them, or stand on the tile.
+   * Standing happens only on a land tile (the walk took tile sentries): at
+   * sea the hulls it took riders from have room for every leftover
+   * (unit_departure_at_sea_leaves_no_rider). */
   for (int c = ship->cargo_count - 1; c >= 0; --c) {
     const int pid = ship->cargo_ids[c];
     bool kept = false;

@@ -7420,7 +7420,7 @@ static int case_welcome_accept_come_reads_alarm(void) {
     return TR_SKIP;
   }
   static ColonizeCol1Save s;
-  memset(&s, 0, sizeof(s));
+  col1_save_init(&s);
   ColonizeCol1Tribe* tribes = calloc(80, sizeof(ColonizeCol1Tribe));
   if (!tribes) {
     return fail("come word: alloc");

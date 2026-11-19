@@ -147,7 +147,7 @@ static int case_work_consume_zero_load_gate(void) {
 static int case_colony_balance_uses_frozen_census(void) {
   ColonizeCol1Save save;
   ColonizeColonyPool colonies;
-  memset(&save, 0, sizeof(save));
+  col1_save_init(&save);
   memset(&colonies, 0, sizeof(colonies));
   save.post_map.continent_tally_b[7] = 24; /* target = 2 */
   save.stuff.colony_counts_by_continent[0] = 1; /* census plane is present */

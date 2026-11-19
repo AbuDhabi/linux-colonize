@@ -241,7 +241,7 @@ static int case_43f7_0082_spawn_types(void) {
     map.layer3[i] = 1;
   }
   ColonizeCol1Save col1;
-  memset(&col1, 0, sizeof(col1));
+  col1_save_init(&col1);
   col1.player[0].control = 0;
   col1.player[1].control = 1;
   ColonizeTurnContext ctx;
@@ -345,7 +345,7 @@ static int case_878e_sail_home_one_at_a_time(void) {
   map.terrain[2 * W + (W - 2)] = 26;
 
   ColonizeCol1Save col1;
-  memset(&col1, 0, sizeof(col1));
+  col1_save_init(&col1);
   col1.player[0].control = 0;
   col1.player[1].control = 1;
   memset(col1.head.expeditionary_force, 0, sizeof(col1.head.expeditionary_force));
@@ -755,7 +755,7 @@ static int hard_king_waves(int difficulty, int* ys) {
   tb_inv_add_colony(&f, 1, 5, 2);
   tb_inv_add_colony(&f, 1, 15, 2);
   tb_inv_add_colony(&f, 1, 25, 2);
-  memset(&col1, 0, sizeof(col1));
+  col1_save_init(&col1);
   col1.head.difficulty = (uint8_t)difficulty;
   col1.head.expeditionary_force[0] = 12;
   col1.head.expeditionary_force[2] = 3;
