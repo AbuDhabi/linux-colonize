@@ -2,6 +2,7 @@
  * wagon and ship haul errands, food delivery, cargo/specialty haul preference. */
 #include "test_ai_euro_expand_common.h"
 #include "core/ai_euro_internal.h"
+#include "core/mods.h"
 
 /*
  * LABOR bind: idle Free Colonist adjacent to own colony with food_short
@@ -666,6 +667,68 @@ static int unit_cargo_idle_turns_haul_prefer(void) {
  * Idle Wagon with hold capacity → goto (20c6 orders 0x0b) toward tools-short colony.
  * Cite: euro_unit_act §2d wagon haul / tools delivery.
  */
+/* #1906: an improved wagon at an inland colony loads its export lots and
+ * heads for the nearest own coastal colony, where it unloads them. */
+static int unit_improved_wagon_hauls_inland_exports(void) {
+  const int nation = 1;
+  ColonizeWorldMap map;
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
+    return fail("inland-haul alloc map");
+  }
+  ColonizeUnitPool units;
+  fx_units_init(&units);
+  units.type_count = 1;
+  snprintf(units.types[0].name, sizeof(units.types[0].name), "Wagon Train");
+  units.types[0].kind_plus1 = UNITS_KIND_WAGON + 1;
+  units.types[0].movement = 2;
+  units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  units.types[0].cargo = 2;
+  ColonizeColonyPool colonies;
+  fx_colonies_init(&colonies);
+  ColonizeColony* inland = fx_colony_add(&colonies, nation, 4, 4, 3);
+  ColonizeColony* coast = fx_colony_add(&colonies, nation, 10, 10, 3);
+  inland->colony_flags = (uint8_t)(inland->colony_flags & (uint8_t)~COLONIZE_COLONY_FLAG_COASTAL);
+  coast->colony_flags = (uint8_t)(coast->colony_flags | COLONIZE_COLONY_FLAG_COASTAL);
+  inland->stock[COLONIZE_CARGO_COATS] = 250;
+  const int wid = units_spawn(&units, 0, 4, 4);
+  ColonizeUnit* wagon = units_get(&units, wid);
+  if (!wagon) {
+    fx_map_free(&map);
+    return fail("inland-haul spawn");
+  }
+  wagon->nation_id = nation;
+  ColonizeCol1Save col1;
+  col1_save_init(&col1);
+  col1.player[nation].control = 1;
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.units = &units;
+  ctx.colonies = &colonies;
+  ctx.map = &map;
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+  mods_campaign_set(1u << MOD_AI_IMPROVEMENTS);
+  int rc = 0;
+  (void)ai_euro_try_wagon_haul(&ctx, nation, wagon);
+  if (inland->stock[COLONIZE_CARGO_COATS] != 50 || wagon->orders != AI_EURO_ACT_GOAL || wagon->goto_x != 10 ||
+      wagon->goto_y != 10) {
+    fprintf(stderr, "inland haul: coats left %d orders %d goto (%d,%d)\n", inland->stock[COLONIZE_CARGO_COATS],
+            wagon->orders, wagon->goto_x, wagon->goto_y);
+    rc = fail("wagon did not load 200 coats for the coast");
+  }
+  if (rc == 0) {
+    wagon->x = 10; /* direct, as the other fixtures stack units */
+    wagon->y = 10;
+    (void)ai_euro_try_wagon_haul(&ctx, nation, wagon);
+    if (coast->stock[COLONIZE_CARGO_COATS] != 200 || units_first_goods_hold(&units, wid) >= 0) {
+      rc = fail("wagon did not unload at the coastal colony");
+    }
+  }
+  mods_campaign_set(0);
+  fx_map_free(&map);
+  return rc;
+}
+
 static int unit_wagon_haul_tools_short(void) {
   const int nation = 1;
 
@@ -2045,6 +2108,7 @@ static int unit_4393_haul_pick_manowar_gate(void) {
 
 static const TestCase k_cases[] = {
     {"unit_specialty_flag_a_haul_match", unit_specialty_flag_a_haul_match},
+    {"unit_improved_wagon_hauls_inland_exports", unit_improved_wagon_hauls_inland_exports},
     {"unit_wagon_haul_tools_short", unit_wagon_haul_tools_short},
     {"unit_wagon_haul_muskets_short", unit_wagon_haul_muskets_short},
     {"unit_wagon_haul_lumber_short", unit_wagon_haul_lumber_short},

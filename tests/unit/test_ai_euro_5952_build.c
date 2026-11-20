@@ -11,6 +11,7 @@
  */
 #include "core/ai_euro.h"
 #include "core/ai_euro_internal.h"
+#include "core/founding_fathers.h"
 #include "core/assets.h"
 #include "core/col1_save.h"
 #include "core/colony.h"
@@ -1507,6 +1508,85 @@ static int case_seam_cascade_head_stage(void) {
   return 0;
 }
 
+/* #1906: an improved inland colony picks its Custom House before the pop-4
+ * stop; a coastal one, or DOS mode, does not. */
+static AiEuro5952CascadeStatus head_with(Fx* f, bool improved, bool coastal, int* got) {
+  f->col1.nation[NATION].founding_fathers[FF_PETER_STUYVESANT / 8] |= (uint8_t)(1u << (FF_PETER_STUYVESANT % 8));
+  f->col->has_building[bld(f, "Stockade")] = true;
+  f->col->stock[COLONIZE_CARGO_TOOLS] = 100; /* #1863: tools in hand */
+  f->col->colony_flags = (uint8_t)(coastal ? f->col->colony_flags | COLONIZE_COLONY_FLAG_COASTAL
+                                           : f->col->colony_flags & (uint8_t)~COLONIZE_COLONY_FLAG_COASTAL);
+  f->col->building_in_production = -1;
+  mods_campaign_set(improved ? 1u << MOD_AI_IMPROVEMENTS : 0u);
+  AiEuro5952Cascade s;
+  memset(&s, 0, sizeof s);
+  s.ctx = &f->ctx;
+  s.pool = &f->colonies;
+  s.col = f->col;
+  s.col1 = &f->col1;
+  s.nation = NATION;
+  s.improvement_owner = NATION;
+  ai_euro_5952_cascade_setup(&s);
+  ai_euro_5952_cascade_census(&s);
+  ai_euro_5952_cascade_pressure(&s);
+  const AiEuro5952CascadeStatus st = ai_euro_5952_cascade_head(&s);
+  mods_campaign_set(0);
+  *got = f->col->building_in_production;
+  return st;
+}
+
+static int case_improved_inland_custom_house(void) {
+  /* {improved, coastal, picks Custom House} */
+  static const int rows[][3] = {{1, 0, 1}, {1, 1, 0}, {0, 0, 0}};
+  for (size_t i = 0; i < sizeof rows / sizeof rows[0]; ++i) {
+    Fx f;
+    if (fx_build(&f, 2) != 0) {
+      return 1;
+    }
+    int got = -1;
+    const AiEuro5952CascadeStatus st = head_with(&f, rows[i][0], rows[i][1], &got);
+    const int ch = bld(&f, "Custom House");
+    fx_done(&f);
+    if ((got == ch) != (rows[i][2] != 0) || (rows[i][2] && st != AI_EURO_5952_CASCADE_RETURN)) {
+      fprintf(stderr, "inland custom house row %zu: got %d status %d\n", i, got, (int)st);
+      return fail("inland Custom House arm");
+    }
+  }
+  return 0;
+}
+
+/* #1906: one Wagon Train per two inland colonies on the continent. */
+static int case_improved_inland_wagon_wanted(void) {
+  Fx f;
+  if (fx_build(&f, 4) != 0) {
+    return 1;
+  }
+  const int cont = map_continent_id_at(&f.map, f.col->x, f.col->y);
+  f.col->colony_flags = (uint8_t)(f.col->colony_flags | COLONIZE_COLONY_FLAG_COASTAL);
+  int rc = 0;
+  if (ai_euro_5952_inland_wagon_wanted(&f.ctx, NATION, cont)) {
+    rc = fail("no inland colony, yet a wagon is wanted");
+  }
+  f.col->colony_flags = (uint8_t)(f.col->colony_flags & (uint8_t)~COLONIZE_COLONY_FLAG_COASTAL);
+  if (rc == 0 && !ai_euro_5952_inland_wagon_wanted(&f.ctx, NATION, cont)) {
+    rc = fail("inland colony and no wagon, yet none wanted");
+  }
+  const int wagon = units_find_type(&f.units, "Wagon Train");
+  const int id = wagon >= 0 ? units_spawn(&f.units, wagon, f.col->x, f.col->y) : -1;
+  ColonizeUnit* u = units_get(&f.units, id);
+  if (rc == 0 && !u) {
+    rc = fail("wagon spawn");
+  }
+  if (rc == 0) {
+    u->nation_id = NATION;
+    if (ai_euro_5952_inland_wagon_wanted(&f.ctx, NATION, cont)) {
+      rc = fail("one inland colony with a wagon still wants another");
+    }
+  }
+  fx_done(&f);
+  return rc;
+}
+
 /*
  * port_bugs.md #1107 stage seam: the colony tick's unseat-all stage (raw
  * 94551-94564) snapshots every job, idles every colonist (building workers
@@ -2058,6 +2138,8 @@ static const TestCase k_cases[] = {
   {"case_census_skips_wagon_on_tile", case_census_skips_wagon_on_tile},
   {"case_census_reads_unseat_profession_cache", case_census_reads_unseat_profession_cache},
   {"case_seam_cascade_head_stage", case_seam_cascade_head_stage},
+  {"case_improved_inland_custom_house", case_improved_inland_custom_house},
+  {"case_improved_inland_wagon_wanted", case_improved_inland_wagon_wanted},
   {"case_seam_colony_tick_unseat_all", case_seam_colony_tick_unseat_all},
   {"case_blacksmith_gate_reads_local_1b0", case_blacksmith_gate_reads_local_1b0},
   {"case_starter_horses_purchase", case_starter_horses_purchase},

@@ -2604,8 +2604,9 @@ int ai_euro_20e6_unload_mask_snapshot(
     if (!(ay > 1 && ay <= ctx->map->height - 3)) {
       continue;
     }
-    if (ai_euro_improved(ctx, nation) && ai_euro_land_mass_below(ctx->map, ax, ay, AI_EURO_MIN_SITE_LAND)) {
-      continue; /* MOD_AI_IMPROVEMENTS: never land on an islet (pt7b Dutch) */
+    if (ai_euro_improved(ctx, nation) &&
+        ai_euro_land_islet_blocked(ctx->map, ax, ay, ai_euro_land_wide_sites(ctx, nation))) {
+      continue; /* MOD_AI_IMPROVEMENTS: never land on an islet (pt7b Dutch; #1905: unless wide, with lumber) */
     }
     if (goto_cid >= 0 && goto_cid == cid) {
       mask = 0xffff; /* act_state 0x0b goto lands here: unload everything */

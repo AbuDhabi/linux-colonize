@@ -2681,6 +2681,29 @@ COLONIZE_INTERNAL void ai_euro_5952_cascade_pressure(AiEuro5952Cascade* s) {
 /* --- the cascade proper ------------------------------------------------ */
 
 /* asm 22da-2314: Docks, Stockade, Stable; pop < 4 ends at 2747. */
+/* MOD_AI_IMPROVEMENTS #1906 (not DOS): an improved nation keeps building
+ * Wagon Trains past 1600 while it has fewer than one per two inland colonies
+ * on the continent (DOS stops all AI wagons at 1600, before inland founding
+ * opens, #1905). */
+COLONIZE_INTERNAL bool ai_euro_5952_inland_wagon_wanted(const ColonizeTurnContext* ctx, int nation, int cont) {
+  if (!ctx || !ctx->colonies || !ctx->units || !ctx->map || cont < 0) {
+    return false;
+  }
+  int inland = 0;
+  for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+    const ColonizeColony* c = &ctx->colonies->colonies[i];
+    inland += c->active && c->nation_id == nation && (c->colony_flags & COLONIZE_COLONY_FLAG_COASTAL) == 0 &&
+              map_continent_id_at(ctx->map, c->x, c->y) == cont;
+  }
+  int wagons = 0;
+  for (int ui = 0; ui < units_slot_end(ctx->units); ++ui) {
+    const ColonizeUnit* u = &ctx->units->units[ui];
+    wagons += u->active && u->nation_id == nation && ai_euro_unit_kind(ctx->units, u) == UNITS_KIND_WAGON &&
+              map_continent_id_at(ctx->map, u->x, u->y) == cont;
+  }
+  return inland > 0 && wagons < (inland + 1) / 2;
+}
+
 COLONIZE_INTERNAL AiEuro5952CascadeStatus ai_euro_5952_cascade_head(AiEuro5952Cascade* s) {
   ColonizeColony* col = s->col;
   const int pop = s->pop;
@@ -2702,6 +2725,12 @@ COLONIZE_INTERNAL AiEuro5952CascadeStatus ai_euro_5952_cascade_head(AiEuro5952Ca
     if (ai_euro_5952_try_build(s, 0x11) == 0) { /* 22f9: Stable */
       return AI_EURO_5952_CASCADE_RETURN;
     }
+  }
+  /* MOD_AI_IMPROVEMENTS #1906 (not DOS): an inland colony has no hull to sell
+   * through, so it wants its Custom House before the pop-4 stop below. */
+  if ((col->colony_flags & COLONIZE_COLONY_FLAG_COASTAL) == 0 && ai_euro_improved(s->ctx, s->nation) &&
+      ai_euro_5952_try_build(s, 0x12) == 0) {
+    return AI_EURO_5952_CASCADE_RETURN;
   }
   if (pop < 4) {
     return AI_EURO_5952_CASCADE_WANTS;
@@ -2747,8 +2776,11 @@ COLONIZE_INTERNAL AiEuro5952CascadeStatus ai_euro_5952_cascade_town(AiEuro5952Ca
   }
 
   /* 2385 — the Wagon Train unit project. */
-  if (!(col->colony_flags & COLONIZE_COLONY_FLAG_WAGON_TRAIN) && s->year < 0x640) {
-    const int cont = map_continent_id_at(ctx->map, col->x, col->y);
+  const int wagon_cont = map_continent_id_at(ctx->map, col->x, col->y);
+  const bool wagon_open = s->year < 0x640 || (ai_euro_improved(ctx, s->nation) &&
+                                              ai_euro_5952_inland_wagon_wanted(ctx, s->nation, wagon_cont));
+  if (!(col->colony_flags & COLONIZE_COLONY_FLAG_WAGON_TRAIN) && wagon_open) {
+    const int cont = wagon_cont;
     const int presence =
       cont >= 0 ? ai_euro_20e6_presence_95f2(ctx, s->nation, cont) : 0;
     if (getenv("AI_5952_BUILD_TRACE")) fprintf(stderr, "[5952 wagon] colony %d cont %d presence %d ring1 %d\n", col->id, cont, presence, s->ring1);

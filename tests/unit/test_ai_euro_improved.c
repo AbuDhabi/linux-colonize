@@ -191,6 +191,59 @@ static int case_land_mass_islet(void) {
   return rc;
 }
 
+/* #1905: an islet is a site only for a wide nation (3+ colonies, 20+
+ * colonists) and only with a forest in its ring. */
+static int case_wide_islet_sites(void) {
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  char err[128];
+  if (!map_alloc(&map, 16, 16, err, sizeof(err))) {
+    return 1;
+  }
+  for (int i = 0; i < 16 * 16; ++i) {
+    map.terrain[i] = T_OCEAN;
+  }
+  map.terrain[3 * 16 + 3] = 2;                  /* bare islet */
+  map.terrain[9 * 16 + 9] = 2;                  /* islet ... */
+  map.terrain[9 * 16 + 10] = 2 + T_FOREST_BIT;  /* ... with a forest */
+  int rc = 0;
+  if (!ai_euro_land_islet_blocked(&map, 3, 3, true) || !ai_euro_land_islet_blocked(&map, 9, 9, false) ||
+      ai_euro_land_islet_blocked(&map, 9, 9, true)) {
+    fprintf(stderr, "wide_islet_sites: islet gate wrong\n");
+    rc = 1;
+  }
+  map_free(&map);
+
+  static ColonizeCol1Save col1;
+  memset(&col1, 0, sizeof(col1));
+  col1.player[1].control = 1;
+  static ColonizeColonyPool colonies;
+  memset(&colonies, 0, sizeof(colonies));
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+  ctx.human_nation = 0;
+  ctx.colonies = &colonies;
+  /* {colonies, population each, mod, want} */
+  static const int rows[][4] = {{3, 7, 1, 1}, {2, 10, 1, 0}, {3, 6, 1, 0}, {3, 7, 0, 0}};
+  for (size_t i = 0; i < sizeof rows / sizeof rows[0]; ++i) {
+    memset(&colonies, 0, sizeof(colonies));
+    for (int c = 0; c < rows[i][0]; ++c) {
+      colonies.colonies[c].active = true;
+      colonies.colonies[c].nation_id = 1;
+      colonies.colonies[c].population = rows[i][1];
+    }
+    mods_campaign_set(rows[i][2] ? 1u << MOD_AI_IMPROVEMENTS : 0u);
+    if (ai_euro_land_wide_sites(&ctx, 1) != (rows[i][3] != 0)) {
+      fprintf(stderr, "wide_islet_sites: wide row %zu wrong\n", i);
+      rc = 1;
+    }
+  }
+  mods_campaign_set(0);
+  return rc;
+}
+
 /* ai_improvements mod (#1880): a Colonist waits for a ship only when no own
  * colony on its continent would admit it and one elsewhere wants colonists. */
 static int case_colonist_ferry_wanted(void) {
@@ -564,5 +617,6 @@ static const TestCase k_cases[] = {
   {"father_pick", case_father_pick},
   {"sale_tax", case_sale_tax},
   {"commons_mirror", case_commons_mirror},
+  {"wide_islet_sites", case_wide_islet_sites},
 };
 TEST_MAIN_WRAPPED(k_cases, diag_init(0, NULL), diag_shutdown())

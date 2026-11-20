@@ -442,6 +442,109 @@ void ai_euro_wagon_errand_clear_all(void) {
  * `col1_origin` byte now (save-round-tripped, colony-tick refreshed).
  * Cite: move_scoring_20e6_full.md 2026-09-06d/f + 2026-09-07.
  */
+/* ===== Improved inland haul (#1906) ===== */
+
+/* New World goods an inland colony sends to the coast (crops, furs, silver
+ * and the four manufactures). */
+static const int k_inland_export[] = {
+  COLONIZE_CARGO_SUGAR, COLONIZE_CARGO_TOBACCO, COLONIZE_CARGO_COTTON, COLONIZE_CARGO_FURS,
+  COLONIZE_CARGO_SILVER, COLONIZE_CARGO_RUM, COLONIZE_CARGO_CIGARS, COLONIZE_CARGO_CLOTH,
+  COLONIZE_CARGO_COATS,
+};
+
+static int ai_euro_inland_export_lots(const ColonizeColony* c) {
+  int lots = 0;
+  for (size_t i = 0; i < sizeof k_inland_export / sizeof k_inland_export[0]; ++i) {
+    lots += c->stock[k_inland_export[i]] / 100;
+  }
+  return lots;
+}
+
+static bool ai_euro_colony_inland(const ColonizeColony* c) {
+  return (c->colony_flags & COLONIZE_COLONY_FLAG_COASTAL) == 0;
+}
+
+/* Nearest own colony on continent `cont` that is coastal (want_coastal) or an
+ * inland one with an export lot no other own wagon is already headed for. */
+static const ColonizeColony* ai_euro_inland_haul_target(
+  const ColonizeTurnContext* ctx, int nation, int cont, const ColonizeUnit* wagon, bool want_coastal
+) {
+  const ColonizeColony* best = NULL;
+  int best_d = INT_MAX;
+  for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+    const ColonizeColony* c = &ctx->colonies->colonies[i];
+    if (!c->active || c->nation_id != nation || map_continent_id_at(ctx->map, c->x, c->y) != cont ||
+        ai_euro_colony_inland(c) == want_coastal) {
+      continue;
+    }
+    if (!want_coastal) {
+      if (ai_euro_inland_export_lots(c) == 0) {
+        continue;
+      }
+      bool taken = false;
+      for (int ui = 0; ui < units_slot_end(ctx->units) && !taken; ++ui) {
+        const ColonizeUnit* o = &ctx->units->units[ui];
+        taken = o->active && o != wagon && o->nation_id == nation && o->orders == AI_EURO_ACT_GOAL &&
+                o->goto_x == c->x && o->goto_y == c->y && ai_euro_is_wagon_kind(ai_euro_unit_kind(ctx->units, o));
+      }
+      if (taken) {
+        continue;
+      }
+    }
+    const int d = map_dos_dist(c->x - wagon->x, c->y - wagon->y);
+    if (d < best_d) {
+      best_d = d;
+      best = c;
+    }
+  }
+  return best;
+}
+
+/* MOD_AI_IMPROVEMENTS #1906 (not DOS): DOS wagons only sell one hold to a
+ * village or park at home, so inland colonies kept their exports. An improved
+ * wagon carries inland export lots to the nearest own coastal colony (where
+ * the hulls' pickup queue and Custom House take them) and goes back for more.
+ * Returns -1 when it has no haul, and the DOS band runs. */
+static int ai_euro_improved_wagon_haul(ColonizeTurnContext* ctx, int nation_id, ColonizeUnit* wagon) {
+  const int cont = map_continent_id_at(ctx->map, wagon->x, wagon->y);
+  if (cont < 0) {
+    return -1;
+  }
+  const int cid = colonies_id_at(ctx->colonies, wagon->x, wagon->y);
+  const ColonizeColony* here = cid >= 0 ? colonies_get(ctx->colonies, cid) : NULL;
+  if (here && (!here->active || here->nation_id != nation_id)) {
+    here = NULL;
+  }
+  bool loaded = units_first_goods_hold(ctx->units, wagon->id) >= 0;
+  if (loaded && here && !ai_euro_colony_inland(here)) {
+    while (units_first_goods_hold(ctx->units, wagon->id) >= 0 &&
+           colonies_transfer_from_unit(ctx->colonies, cid, ctx->units, wagon->id,
+                                       units_first_goods_hold(ctx->units, wagon->id), NULL) > 0) {
+    }
+    loaded = units_first_goods_hold(ctx->units, wagon->id) >= 0;
+  }
+  if (!loaded && here && ai_euro_colony_inland(here)) {
+    const int cap = units_goods_hold_count(ctx->units, wagon->id); /* ship_capacity is 0 off the sea */
+    for (size_t i = 0; i < sizeof k_inland_export / sizeof k_inland_export[0]; ++i) {
+      const int g = k_inland_export[i];
+      while (here->stock[g] >= 100 && units_holds_used(ctx->units, wagon->id) < cap &&
+             colonies_transfer_to_unit(ctx->colonies, cid, ctx->units, wagon->id, g, 100) > 0) {
+      }
+    }
+    loaded = units_first_goods_hold(ctx->units, wagon->id) >= 0;
+  }
+  const ColonizeColony* t = ai_euro_inland_haul_target(ctx, nation_id, cont, wagon, loaded);
+  if (getenv("AI_WAGON_HAUL_TRACE")) {
+    fprintf(stderr, "[haul] wagon %d n%d (%d,%d) loaded %d here %d -> %d,%d\n", wagon->id, nation_id, wagon->x,
+            wagon->y, loaded, cid, t ? t->x : -1, t ? t->y : -1);
+  }
+  if (!t) {
+    return -1;
+  }
+  ai_euro_set_goto(wagon, AI_EURO_ACT_GOAL, t->x, t->y);
+  return 0;
+}
+
 int ai_euro_try_wagon_haul(
   ColonizeTurnContext* ctx,
   int nation_id,
@@ -452,6 +555,12 @@ int ai_euro_try_wagon_haul(
   }
   if (!ai_euro_is_wagon_kind(ai_euro_unit_kind(ctx->units, wagon))) {
     return 0;
+  }
+  if (ai_euro_improved(ctx, nation_id) && ctx->map) {
+    const int r = ai_euro_improved_wagon_haul(ctx, nation_id, wagon);
+    if (r >= 0) {
+      return r;
+    }
   }
   /* No cargo-flag entry gate any more: the DOS band runs for every wagon —
    * the arrival dump takes every cargo type and the 457e walk is
@@ -506,7 +615,13 @@ int ai_euro_try_wagon_haul(
          * Lead (NOT fixed here): bVar20 does gate the SHIP load loop —
          * Man-O-War 0x12 never loads, Frigate/Privateer are conditional.
          */
-        const int g = ai_euro_20e6_load_pick(ctx, c, nation_id, 0);
+        int g = ai_euro_20e6_load_pick(ctx, c, nation_id, 0);
+        /* MOD_AI_IMPROVEMENTS #1906 (not DOS): an improved wagon takes no food
+         * or horses to a village; with more wagons the errands took the food
+         * colonies grow on (Viceroy population 95 to 81 over 50 replays). */
+        if ((g == COLONIZE_CARGO_FOOD || g == COLONIZE_CARGO_HORSES) && ai_euro_improved(ctx, nation_id)) {
+          g = -1;
+        }
         if (g >= 0) {
           int qty = (int)c->stock[g];
           if (qty > 100) {

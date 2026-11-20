@@ -52,6 +52,9 @@
 #include <stdlib.h>
 #include <string.h>
 
+static int ai_euro_land_own_coastal_on(const ColonizeTurnContext* ctx, int nation, int cid);
+static bool ai_euro_land_inland_site_ok(const ColonizeTurnContext* ctx, int nation, int cid, int x, int y);
+
 /*
  * port_bugs.md #655: DS:0x5236 (@UNIT column 4, ATTACK) and DS:0x523d (@UNIT
  * column 12, the capability bit-string) are now catalog fields
@@ -1934,6 +1937,9 @@ static int ai_euro_land_explore_scan_target(
   /* Spain keeps the DOS terms (ai_euro_improvement_spec.md 4.9). */
   const bool improved_any = ai_euro_improved(ctx, nation_id);
   const bool improved_sites = nation_id != 2 && improved_any;
+  /* #1905: islets with lumber and, beside 2+ own coastal colonies, inland. */
+  const bool wide_sites = ai_euro_land_wide_sites(ctx, nation_id);
+  const bool inland_open = wide_sites && ai_euro_land_own_coastal_on(ctx, nation_id, s.cid) >= 2;
   int best = -999;
   int best_nib = 0;
   int bx = u->x;
@@ -1964,8 +1970,8 @@ static int ai_euro_land_explore_scan_target(
       if (map_dos_terr_class_at(ctx->map, tx, ty) == 0x1b) {
         continue; /* class 0x1b, @TOOMOUNTAIN */
       }
-      if (improved_any && ai_euro_land_mass_below(ctx->map, tx, ty, AI_EURO_MIN_SITE_LAND)) {
-        continue; /* MOD_AI_IMPROVEMENTS: no colony on an islet */
+      if (improved_any && ai_euro_land_islet_blocked(ctx->map, tx, ty, wide_sites)) {
+        continue; /* MOD_AI_IMPROVEMENTS: no colony on an islet (#1905: unless wide, with lumber) */
       }
       /* raw 89134: `0d12(x,y) && 06b4(DS:0x8dba, DS:0x8dbc) == 1` — a water
        * neighbour whose lowest region id is the open sea; a tile touching only
@@ -1973,7 +1979,10 @@ static int ai_euro_land_explore_scan_target(
        * (38,51) beside the one-tile lake (36,51) wanders in DOS, the port
        * sent it to (37,52) as plan '2'). */
       const int coastal = map_tile_is_open_sea_adjacent(ctx->map, tx, ty) ? 1 : 0;
-      if (!coastal) {
+      /* MOD_AI_IMPROVEMENTS #1905 (not DOS): an inland tile is scored like a
+       * coastal one once inland_open and an own colony is within 5 steps. */
+      const bool inland_site = !coastal && inland_open && ai_euro_land_inland_site_ok(ctx, nation_id, s.cid, tx, ty);
+      if (!coastal && !inland_site) {
         /* raw 89134-89138: local_4c = 0 (and a dead `local_50 == 8` score
          * zero); the best-site compare (raw 89257) sits inside the coastal
          * `else`, so an inland tile is never a candidate (port_bugs.md #971). */
@@ -2161,6 +2170,75 @@ static int ai_euro_land_explore_scan_target(
  * a Pioneer on the job list. 1 = a site in the ring, 2 = standing on the best
  * one, 0 = none. The scan's fatigue bump is undone, so the probe leaves no
  * trace; 20e6 runs the real scan if the Pioneer is released. */
+/* MOD_AI_IMPROVEMENTS #1905 (not DOS): an improved nation holding 3+ colonies
+ * and 20+ colonists may also found on a small island (with a forest in the
+ * ring for lumber) and inland (ai_euro_land_inland_site_ok). */
+bool ai_euro_land_wide_sites(const ColonizeTurnContext* ctx, int nation) {
+  if (!ctx || !ctx->colonies || !ai_euro_improved(ctx, nation)) {
+    return false;
+  }
+  int cols = 0;
+  int pop = 0;
+  for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+    const ColonizeColony* c = &ctx->colonies->colonies[i];
+    if (c->active && c->nation_id == nation) {
+      ++cols;
+      pop += c->population;
+    }
+  }
+  return cols >= 3 && pop >= 20;
+}
+
+/* #1905: a forest (lumber) tile among the eight around (x, y). */
+static bool ai_euro_land_ring_has_lumber(const ColonizeWorldMap* map, int x, int y) {
+  for (int k = 0; k < 8; ++k) {
+    const int ax = x + MAP_DIR8_DX[k];
+    const int ay = y + MAP_DIR8_DY[k];
+    if (map_coords_inset(map, ax, ay) && map_tile_is_land(map, ax, ay) &&
+        colony_yield_for_tile(map, ax, ay, COLONIZE_JOB_LUMBERJACK) > 0) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/* #1905: false when (x, y) is on an islet the nation may not found on: below
+ * AI_EURO_MIN_SITE_LAND tiles, unless `wide` and the ring has lumber. */
+bool ai_euro_land_islet_blocked(const ColonizeWorldMap* map, int x, int y, bool wide) {
+  if (!ai_euro_land_mass_below(map, x, y, AI_EURO_MIN_SITE_LAND)) {
+    return false;
+  }
+  return !(wide && ai_euro_land_ring_has_lumber(map, x, y));
+}
+
+/* #1905: own colonies on continent `cid` that touch open sea. */
+static int ai_euro_land_own_coastal_on(const ColonizeTurnContext* ctx, int nation, int cid) {
+  int n = 0;
+  for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+    const ColonizeColony* c = &ctx->colonies->colonies[i];
+    n += c->active && c->nation_id == nation && map_continent_id_at(ctx->map, c->x, c->y) == cid &&
+         map_tile_is_open_sea_adjacent(ctx->map, c->x, c->y);
+  }
+  return n;
+}
+
+/* #1905: an inland tile is a site only within 5 steps of an own colony
+ * (coastal or not) on the same continent. */
+static bool ai_euro_land_inland_site_ok(const ColonizeTurnContext* ctx, int nation, int cid, int x, int y) {
+  for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+    const ColonizeColony* c = &ctx->colonies->colonies[i];
+    if (!c->active || c->nation_id != nation || map_continent_id_at(ctx->map, c->x, c->y) != cid) {
+      continue;
+    }
+    const int dx = abs(c->x - x);
+    const int dy = abs(c->y - y);
+    if ((dx > dy ? dx : dy) <= 5) {
+      return true;
+    }
+  }
+  return false;
+}
+
 /* Bounded flood fill: true when the land mass at (x, y) has fewer than `n`
  * tiles (n <= 16). Continent ids are clamped to a nibble, so two land masses
  * can share one id and the id tallies cannot tell an islet from its coast. */

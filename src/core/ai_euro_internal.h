@@ -133,6 +133,7 @@ int ai_euro_unload_pax_at(
   int goto_y
 );
 ColonizeUnitKind ai_euro_unit_kind(const ColonizeUnitPool* pool, const ColonizeUnit* u);
+COLONIZE_INTERNAL bool ai_euro_5952_inland_wagon_wanted(const ColonizeTurnContext* ctx, int nation, int cont);
 int ai_euro_name_is_pioneer(ColonizeUnitKind kind);
 typedef struct AiEuroShipPressure {
   uint8_t frigate_colonies; /* DS:0xa89b */
@@ -731,6 +732,8 @@ int ai_euro_20e6_site_probe(ColonizeTurnContext* ctx, ColonizeUnit* u, int natio
  * land founders on (pt7b: the Dutch founded on a one-tile islet and starved). */
 #define AI_EURO_MIN_SITE_LAND 5
 bool ai_euro_land_mass_below(const ColonizeWorldMap* map, int x, int y, int n);
+bool ai_euro_land_wide_sites(const ColonizeTurnContext* ctx, int nation);
+bool ai_euro_land_islet_blocked(const ColonizeWorldMap* map, int x, int y, bool wide);
 /* MOD_AI_IMPROVEMENTS: an own colony borders the sea around (x, y) (layer3
  * tags every sea region 1, so it cannot tell two seas apart). */
 bool ai_euro_sea_has_own_colony(const ColonizeTurnContext* ctx, int x, int y, int nation);
