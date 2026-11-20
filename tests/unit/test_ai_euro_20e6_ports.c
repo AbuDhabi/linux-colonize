@@ -36,6 +36,7 @@
 #include "core/dos_buggy.h"
 #include "core/europe.h"
 #include "core/map.h"
+#include "core/mods.h"
 #include "core/turn.h"
 #include "core/units.h"
 
@@ -645,7 +646,7 @@ static int wagon_off_landmass_is_destroyed(void) {
  * The colony is INLAND so the delivery matrix's coastal gate (raw 2054)
  * rejects it and the tail is the only consumer of the hold.
  */
-static int sell_tail_untaxed_credit_and_double_book(void) {
+static int sell_tail_case(bool improved) {
   const int nation = 1;
   Fixture f;
   if (fixture_init(&f, nation) != 0) {
@@ -671,7 +672,7 @@ static int sell_tail_untaxed_credit_and_double_book(void) {
 
   for (int y = 0; y < 16; ++y) {
     for (int x = 12; x < 16; ++x) {
-      f.map.terrain[y * 16 + x] = 25; /* MAP_OCEAN_INDEX */
+      f.map.terrain[y * 16 + x] = x == 13 ? 26 : 25; /* High Seas strip, MAP_OCEAN_INDEX */
     }
   }
   ColonizeColony* c = &f.colonies.colonies[0];
@@ -708,11 +709,27 @@ static int sell_tail_untaxed_credit_and_double_book(void) {
   }
   const uint32_t gold_before = f.col1.nation[nation].gold;
 
+  if (improved) {
+    f.col1.player[nation].control = 1; /* computer-run, as ai_euro_improved needs */
+    mods_campaign_set(1u << MOD_AI_IMPROVEMENTS);
+  }
   /* 5d04 may recruit before the ship acts; this case measures only the sale. */
   (void)ai_euro_try_ship_trade_haul(&f.ctx, nation, ship);
+  mods_campaign_set(0);
 
   const ColonizeCol1NationTrade* t = &f.col1.nation[nation].trade;
   const uint32_t gold = f.col1.nation[nation].gold;
+  if (improved) {
+    /* #1901: no sale where the hull stands; it keeps the tools and sails home. */
+    const int rc = gold == gold_before && t->tons2[COLONIZE_CARGO_TOOLS] == 0 &&
+                       units_hold_amount(&f.units, ship_id, 0) == 100 &&
+                       ship->col1_ai_plan == AI_EURO_PLAN_EUROPE_BOUND
+                     ? 0
+                     : fail("improved hull sold in place or did not sail home");
+    free(eu);
+    fixture_free(&f);
+    return rc;
+  }
   if (gold != gold_before + 100u || t->gold[COLONIZE_CARGO_TOOLS] != 150 ||
       t->tons[COLONIZE_CARGO_TOOLS] != 200 || t->tons2[COLONIZE_CARGO_TOOLS] != 100) {
     fprintf(stderr,
@@ -727,6 +744,14 @@ static int sell_tail_untaxed_credit_and_double_book(void) {
   free(eu);
   fixture_free(&f);
   return 0;
+}
+
+static int sell_tail_untaxed_credit_and_double_book(void) {
+  return sell_tail_case(false);
+}
+
+static int sell_tail_improved_sails_home(void) {
+  return sell_tail_case(true);
 }
 
 /*
@@ -1080,6 +1105,7 @@ static const TestCase k_cases[] = {
     {"wagon_walks_home_to_bound_colony", wagon_walks_home_to_bound_colony},
     {"wagon_off_landmass_is_destroyed", wagon_off_landmass_is_destroyed},
     {"sell_tail_untaxed_credit_and_double_book", sell_tail_untaxed_credit_and_double_book},
+    {"sell_tail_improved_sails_home", sell_tail_improved_sails_home},
     {"sell_tail_falls_through_to_work_queue", sell_tail_falls_through_to_work_queue},
     {"ship_berthing_in_colony_meets_tribe", ship_berthing_in_colony_meets_tribe},
 };

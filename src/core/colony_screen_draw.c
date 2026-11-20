@@ -839,7 +839,7 @@ void colony_screen_draw_area_overlays(
     ColonizeTownCommonsYield tc;
     colony_yield_town_commons(
       map, colony->x, colony->y, colony->colony_flags,
-      col1 ? (int)col1->head.difficulty : 4, &tc
+      colony_yield_commons_difficulty(col1, colony->nation_id), &tc
     );
     /* Food at the tile origin, the secondary cargo 13 rows below it, both min_w
      * 0x10 (asm 2f2b:019c-01e2 of the 0ba8 block; the secondary row sits at +0xd

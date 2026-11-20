@@ -368,3 +368,18 @@ with no free High Seas tile, so practically unreachable. Test: `unit_ai_euro_20e
 `unit_europe_lane_arrival_no_tile_destroys_nothing`.
 **Status:** done (user 2026-11-12). Reverses the port_bugs.md #1669 resolution, which had
 ported the destroy.
+
+### DB-114 — The AI tools and muskets rise cap runs the wrong way
+**DOS:** `FUN_38fd_0058` phase 4 (raw 58932-58941) stops an AI or Crown track's
+bid for cargos 14/15 from rising past `high + (difficulty - 4)*2 + (turn - 600)/100`
+and pushes a bid above it back down. For tools (high 9, low 2) that cap is −5 on
+Discoverer at turn 0 and still −2 at turn 300, below the floor, so an easy-level
+AI's tools price can never rise and Viceroy gets the loosest cap. The hard ceiling
+`((4 - difficulty)*3)/2 + 3` on cargos 8/14/15 (raw 58994-58999) already scales the
+other way (9 on Discoverer, 3 on Viceroy).
+
+**Port:** under MOD_AI_IMPROVEMENTS an improved AI nation's track skips the rise
+cap and keeps the hard ceiling (`europe_market_phase4`, `src/core/europe_harbor.c`).
+Mod off, the Crown, and DOS-AI nations keep the literal cap, so goldens hold. Test:
+`unit_europe` `case_europe_improved_ai_no_rise_cap`.
+**Status:** done (user 2026-11-19, port_bugs.md #1902).

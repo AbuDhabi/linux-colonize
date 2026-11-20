@@ -344,7 +344,7 @@ graphs:
         label: Departing-ship loop — sell/bank hold, top up with the cargo colonies most want
         dos: raw 92983-93070
         status: dos
-        note: Buys 100 of a cargo when its demand cell (DS:0xa0cc) exceeds Europe land units + turn parity; resets +0x314a=0xff on the ship. FUN_291f_0ec2 departs the hull through 48d3_0346 here, including its 0002 voyage reseed/draw before 0a60 and the unit waves. Damaged hulls stay at the dock. (The Missionary latch unit_type_counts[n][3]++ lives in the `two_pass` arm.)
+        note: Buys 100 of a cargo when its demand cell (DS:0xa0cc) exceeds Europe land units + turn parity; resets +0x314a=0xff on the ship. FUN_291f_0ec2 departs the hull through 48d3_0346 here, including its 0002 voyage reseed/draw before 0a60 and the unit waves. Damaged hulls stay at the dock. (The Missionary latch unit_type_counts[n][3]++ lives in the `two_pass` arm.) MOD_AI_IMPROVEMENTS #1903: an improved hull buys only horses, trade goods, tools and muskets.
       - id: end
         kind: end
         label: return
@@ -655,6 +655,7 @@ graphs:
         fn: ai_euro_ship.c:ai_euro_20e6_delivery_sell_tail
         dos: md:2140-2163 (15eb_317c, 38fd_1dfa)
         status: dos
+        note: "MOD_AI_IMPROVEMENTS (#1901): an improved hull skips the sale and sails home (ai_euro_20e6_3fa6_sail_home), selling at the dock; its dock and tail sales pay tax (#1900, ai_euro_improved_sale_net)."
       - id: laden
         kind: decision
         label: Holds occupied and untasked → sail for High Seas / Europe?

@@ -455,7 +455,9 @@ static int ai_euro_20e6_delivery_sell_tail(
       ledger_booked = g < ctx->europe->cargo_count; /* 1dfa's own guard */
     }
     const int32_t v = (int32_t)ai_euro_ship_price_84bc(ctx, nation, g) * (int32_t)qty;
-    europe_nation_gold_add(ctx->europe, ctx->col1, nation, v); /* port_bugs.md #1096 */
+    europe_nation_gold_add(
+      ctx->europe, ctx->col1, nation, ai_euro_improved_sale_net(ctx, nation, (int)v)
+    ); /* port_bugs.md #1096 */
     /* TB-3: DOS books the ledger a second time; fixed under
      * !dos_buggy_behavior() (only when 1dfa above has booked it). */
     if (dos_buggy_behavior() || !ledger_booked) {
@@ -1647,6 +1649,13 @@ int ai_euro_try_ship_trade_haul_snapshot(
   if (max_type >= 0) {
     have_dest =
       ai_euro_20e6_delivery_colony_pick(ctx, ship, nation_id, tally, max_type, &cx, &cy);
+    if (!have_dest && ai_euro_improved(ctx, nation_id)) {
+      /* MOD_AI_IMPROVEMENTS #1901 (not DOS): no sale where the hull stands.
+       * With no colony for its supplies it sails home and sells at the dock
+       * (2+ holds go home below anyway; this also takes a lone hold). */
+      (void)ai_euro_20e6_3fa6_sail_home(ctx, ship, nation_id);
+      return 2;
+    }
     if (!have_dest) {
       /*
        * Raw 2140-2163 sell tail: no colony will take the delivery cargo, so

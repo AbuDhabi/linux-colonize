@@ -42,6 +42,7 @@
 #include "core/colony.h"
 #include "core/dos_buggy.h"
 #include "core/dos_rng.h"
+#include "core/mods.h"
 #include "core/map.h"
 #include "core/turn.h"
 #include "core/units_cargo.h"
@@ -306,11 +307,15 @@ static int europe_land_unit_count(const Fixture* f, int nation) {
  * `local_22` = land units waiting = 0), and the recruit-slot swap is closed
  * by `colony_counts>>1 (0) <= a0b8(0) − free_colonists(1)` being false.
  */
-static int departing_ship_buys_wanted_cargo(void) {
+static int departing_ship_cargo_case(bool improved) {
   const int nation = 1;
   Fixture f;
   if (fixture_init(&f, nation, 5, 100) != 0) {
     return 1;
+  }
+  if (improved) {
+    f.col1.player[nation].control = 1;
+    mods_campaign_set(1u << MOD_AI_IMPROVEMENTS);
   }
   fixture_water_ring(&f, fixture_ore_colony(&f, nation, 3));
   f.col1.nation[nation].trade.euro_price[COLONIZE_CARGO_ORE] = 2; /* price 2 (burden 0 headless) */
@@ -329,15 +334,26 @@ static int departing_ship_buys_wanted_cargo(void) {
     return fail("europe ship vanished");
   }
   const int ore = ship_cargo_of(ship, COLONIZE_CARGO_ORE);
-  if (ore != 100 || ship_cargo_total(ship) != 100 ||
-      f.col1.nation[nation].gold != gold_before - 200u) {
+  /* #1903: an improved hull buys Europe imports only, so no Ore. */
+  const int want = improved ? 0 : 100;
+  mods_campaign_set(0);
+  if (ore != want || ship_cargo_total(ship) != want ||
+      f.col1.nation[nation].gold != gold_before - 2u * (unsigned)want) {
     fprintf(stderr, "ore=%d total=%d gold %u->%u\n", ore, ship_cargo_total(ship),
             (unsigned)gold_before, (unsigned)f.col1.nation[nation].gold);
     fixture_free(&f);
-    return fail("departing ship did not buy the demanded cargo at the DOS price");
+    return fail("departing ship cargo buy wrong");
   }
   fixture_free(&f);
   return 0;
+}
+
+static int departing_ship_buys_wanted_cargo(void) {
+  return departing_ship_cargo_case(false);
+}
+
+static int departing_improved_ship_skips_new_world_cargo(void) {
+  return departing_ship_cargo_case(true);
 }
 
 /*
@@ -1384,6 +1400,7 @@ static int wanting_count_restarts_each_ai_turn(void) {
 static const TestCase k_cases[] = {
     {"wanting_count_restarts_each_ai_turn", wanting_count_restarts_each_ai_turn},
     {"departing_ship_buys_wanted_cargo", departing_ship_buys_wanted_cargo},
+    {"departing_improved_ship_skips_new_world_cargo", departing_improved_ship_skips_new_world_cargo},
     {"afloat_cargo_cancels_colony_demand", afloat_cargo_cancels_colony_demand},
     {"sold_amount_seeds_departure_gold_gate", sold_amount_seeds_departure_gold_gate},
     {"stale_scratch_carries_across_hulls", stale_scratch_carries_across_hulls},

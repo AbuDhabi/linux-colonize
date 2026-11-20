@@ -1017,7 +1017,9 @@ static int ai_euro_5d04_cb_sell_hold0(int idx) {
     );
   }
   /* 1f0c's return → 0aba: the UNTAXED gross, price = euro_price−1. */
-  const int gained = ai_euro_5d04_cb_sell_price(cargo) * amount;
+  const int gained = ai_euro_improved_sale_net(
+    ctx, ai_euro_s_5d04_nation, ai_euro_5d04_cb_sell_price(cargo) * amount
+  );
   if (gained > 0) {
     europe_nation_gold_add(ctx->europe, ctx->col1, ai_euro_s_5d04_nation, gained);
     ai_euro_5d04_cb_sync_gold();
@@ -1802,6 +1804,12 @@ static void ai_euro_5d04_hire_tail_departing_ships(Ai5d04HireTail* t) {
               break;
             }
             if (f->cargo_short && p != COLONIZE_CARGO_TOOLS) {
+              continue;
+            }
+            /* MOD_AI_IMPROVEMENTS #1903 (not DOS): an improved hull buys only
+             * Europe imports (horses, trade goods, tools, muskets), never New
+             * World goods its colonies grow or make for less. */
+            if (improved && p != COLONIZE_CARGO_HORSES && p < COLONIZE_CARGO_TRADE_GOODS) {
               continue;
             }
             const bool tools_short = p == COLONIZE_CARGO_TOOLS && tools_short_n > 0;

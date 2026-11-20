@@ -651,6 +651,8 @@ FUN_38fd_1dfa (sell) / FUN_38fd_1d80 (buy) volume ledger, exact:
   term = (amount << volatility) + 1d44(amount)
   1d44 = (difficulty − 2)·16·amount/100 when the seller is human,
          −32·amount/100 for an AI seller (C truncation toward zero);
+         MOD_AI_IMPROVEMENTS (#1899): an improved AI seller takes the human
+         arm at the mirrored level 4 − difficulty, (2 − difficulty)·16·amount/100;
   every nation's nr[cargo] += term (buy: −=), and on the SELL side only the
   Dutch record (slot 3) gets (term·2)/3 — 1d80 (buy) has no such case;
   seller's tons/tons2 += amount (buy: −=), and gold[cargo]
@@ -681,7 +683,8 @@ denominator Σledger[9..12]) and 1..4 (no *100, denominator
 ledger[4]/2 + ledger[1..3] — the loop's own cargos, port_bugs.md #1022); phase 4
 adds attrition and steps the bid ±1 at the rise/fall thresholds, then applies
 the two AI-only caps (cargo 14/15 rise cap `high + (diff-4)*2 + (turn-600)/100`,
-cargo 8/14/15 ceiling `((4-diff)*3)/2 + 3`).
+cargo 8/14/15 ceiling `((4-diff)*3)/2 + 3`). An improved AI skips the rise cap
+(MOD_AI_IMPROVEMENTS, #1902, DB-114); the ceiling still holds.
 
 **DOS keeps four independent price tracks** — bid at record +0x4c, pressure at
 +0x5c — and runs this per NATION as the first act of each nation's own 5e52.

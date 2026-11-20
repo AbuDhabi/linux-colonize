@@ -1141,6 +1141,11 @@ static int soldier_join_run(bool improved, int* pop_after, bool* soldier_left) {
   col1.player[nation].control = 1; /* AI */
   col1.nation[nation].gold = 200;
   col1.stuff.ship_counts[nation] = 1;
+  if (improved) {
+    /* #1904: an improved AI's colony tile takes 4 - difficulty; Viceroy keeps
+     * the +2 food this case was written against. */
+    col1.head.difficulty = 4;
+  }
   uint32_t turn = 52;
   ColonizeTurnContext ctx;
   memset(&ctx, 0, sizeof(ctx));

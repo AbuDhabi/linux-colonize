@@ -14,6 +14,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "core/ai_euro.h"
 #include "core/ai_popup.h"
 #include "core/assets.h"
 #include "core/col1_save.h"
@@ -893,13 +894,19 @@ void europe_apply_trade_volume(
    * so a hot-seat human trades on it even when the callers' human_nation is
    * head.human_player (DS:0x5398, the fixed power). */
   const int seller_is_human = col1_nation_is_human(col1, seller_nation, human_nation);
+  /* MOD_AI_IMPROVEMENTS #1899 (not DOS): an improved AI takes the human arm at
+   * the mirrored level 4 - difficulty, so a Viceroy AI moves prices like a
+   * Discoverer human and a Discoverer AI like a Viceroy one. */
+  const bool mirrored = col1 && !seller_is_human &&
+                        ai_euro_improved_nation(col1, human_nation, seller_nation);
   /* 1d80/1dfa: `SHL DX,CL` by the volatility byte (CL & 0x1f on a 286+; a
    * count of 16+ leaves 0) then `ADD` — all 16-bit, wrapping. The record
    * writes below are plain `SUB`/`ADD word ptr [BX+0x8864]` (asm 97731 /
    * 97789) and the Dutch damping `SHL AX,1; CWD; IDIV 3` doubles in 16 bits
    * too, so nothing saturates (port_bugs.md #1587). */
   const int raw_term = (int16_t)((uint32_t)amount << ((unsigned)q->volatility & 0x1fu)) +
-                       europe_1d44_term(amount, seller_is_human, difficulty);
+                       europe_1d44_term(amount, seller_is_human || mirrored,
+                                        mirrored ? 4 - difficulty : difficulty);
   const int16_t term16 = (int16_t)raw_term;
   const int16_t dutch16 = (int16_t)((int16_t)(term16 * 2) / 3);
   /* DOS walks all four records (port_bugs.md #1047): the screen's own track lives
@@ -1165,7 +1172,12 @@ static void europe_market_phase4(const EuropeMarketTick* t, int* out_rise, int* 
      * above it is pushed back down through the pressure word.
      */
     int cap = q->high;
-    if (c > 13 && t->ai_bound) {
+    /* MOD_AI_IMPROVEMENTS #1902 (DB-114, not DOS): the rise cap runs the wrong
+     * way (below the floor on easy levels until late game) and is dropped for
+     * an improved AI; the hard ceiling below still holds. The control byte
+     * already rules out the human, so no human slot is passed. */
+    const bool rise_cap = t->ai_bound && !ai_euro_improved_nation(t->col1, -1, t->nation);
+    if (c > 13 && rise_cap) {
       cap = q->high + (t->difficulty - 4) * 2 + ((int)t->turn - 600) / 100;
       if (t->only_cargo < 0 && cap < t->bid[c]) {
         europe_market_nr_add(t, c, q->fall * 100);

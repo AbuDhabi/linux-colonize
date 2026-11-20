@@ -17,6 +17,8 @@
 /* COLONIZE_PROF_CONVERT only — a #define, not a call, so this doesn't pull
  * colony_production.c into this file's link set (unit_colony_yield links
  * colony_yield.c standalone). */
+#include "core/ai_euro.h"
+#include "core/col1_save.h"
 #include "core/colony_production.h"
 #include "core/dos_buggy.h"
 
@@ -827,6 +829,18 @@ static int colony_yield_town_commons_secondary_pick(int pedia, int res, int* out
   }
   *out_job = best_job;
   return best;
+}
+
+int colony_yield_commons_difficulty(const struct ColonizeCol1Save* col1, int nation) {
+  if (!col1) {
+    return 4;
+  }
+  const int difficulty = (int)col1->head.difficulty;
+  /* MOD_AI_IMPROVEMENTS #1904 (not DOS): an improved AI gets the handout at the
+   * mirrored level, so a Viceroy AI's colony tile yields like a Discoverer
+   * human's and a Discoverer AI's like a Viceroy one's. The control byte rules
+   * out the human, so no human slot is passed. */
+  return ai_euro_improved_nation(col1, -1, nation) ? 4 - difficulty : difficulty;
 }
 
 void colony_yield_town_commons(

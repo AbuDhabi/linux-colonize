@@ -1154,7 +1154,7 @@ void ai_euro_5952_ledgers(
     memset(&tc, 0, sizeof tc);
     colony_yield_town_commons(
       world->map, col->x, col->y, col->colony_flags,
-      col1 ? (int)col1->head.difficulty : 4, &tc
+      colony_yield_commons_difficulty(col1, col->nation_id), &tc
     );
     if (tc.food > 0) {
       gross[COLONIZE_CARGO_FOOD] += tc.food;
@@ -3721,7 +3721,7 @@ COLONIZE_INTERNAL void ai_euro_colony_tick_food_pass(AiEuroColonyTick* t) {
     ColonizeTownCommonsYield tc;
     colony_yield_town_commons(
       ctx->map, col->x, col->y, col->colony_flags,
-      ctx->col1_ok && ctx->col1 ? (int)ctx->col1->head.difficulty : 4, &tc
+      colony_yield_commons_difficulty(ctx->col1_ok ? ctx->col1 : NULL, col->nation_id), &tc
     );
     t->food_have = tc.food > 0 ? tc.food : 0;
   }

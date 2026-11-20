@@ -568,7 +568,7 @@ void turn_compose_colony_fields(
   ColonizeTownCommonsYield tc;
   colony_yield_town_commons(
     map, colony->x, colony->y, colony->colony_flags,
-    col1 ? (int)col1->head.difficulty : 4, &tc
+    colony_yield_commons_difficulty(col1, colony->nation_id), &tc
   );
   if (tc.food > 0) {
     out->commons_food = tc.food;

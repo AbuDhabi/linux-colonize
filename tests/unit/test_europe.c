@@ -3877,6 +3877,80 @@ static int case_europe_price_path_16bit(void) {
   return rc;
 }
 
+/* port_bugs.md #1899: an improved AI seller takes 1d44's human arm at the
+ * mirrored level 4 - difficulty; mod off, every AI seller keeps k = -2. */
+static int case_europe_improved_ai_volume_mirror(void) {
+  EuropeScreen* eu = (EuropeScreen*)calloc(1, sizeof(*eu));
+  ColonizeCol1Save* col1 = (ColonizeCol1Save*)calloc(1, sizeof(*col1));
+  if (!eu || !col1) {
+    free(eu);
+    free(col1);
+    return 1;
+  }
+  int rc = 0;
+  const int c = COLONIZE_CARGO_FURS;
+  eu->cargo_count = COLONIZE_CARGO_COUNT;
+  col1->player[1].control = 1;
+  /* {mod, difficulty, seller, want}: sell 100 at volatility 0. */
+  static const int rows[][4] = {
+    {0, 0, 1, 68}, {0, 4, 1, 68}, {1, 0, 1, 132}, {1, 2, 1, 100}, {1, 4, 1, 68}, {1, 0, 0, 68},
+  };
+  for (size_t i = 0; i < sizeof rows / sizeof rows[0]; ++i) {
+    mods_campaign_set(rows[i][0] ? 1u << MOD_AI_IMPROVEMENTS : 0u);
+    col1->head.difficulty = (uint8_t)rows[i][1];
+    eu->trade_nr[c] = 0;
+    europe_apply_trade_volume(eu, col1, rows[i][2], 0, c, 100, 0, 0);
+    if (eu->trade_nr[c] != rows[i][3]) {
+      fprintf(stderr, "mirror row %zu: nr %d want %d\n", i, eu->trade_nr[c], rows[i][3]);
+      rc = 1;
+    }
+  }
+  mods_campaign_set(0);
+  free(col1);
+  free(eu);
+  return rc;
+}
+
+/* #1902 (DB-114): an improved AI's tools track skips the DOS rise cap
+ * (high + (d - 4)*2 + (turn - 600)/100, -4 on Discoverer at turn 100) but keeps
+ * the hard ceiling ((4 - d)*3)/2 + 3 (3 on Viceroy). */
+static int case_europe_improved_ai_no_rise_cap(void) {
+  EuropeScreen* eu = (EuropeScreen*)calloc(1, sizeof(*eu));
+  ColonizeCol1Save* col1 = (ColonizeCol1Save*)calloc(1, sizeof(*col1));
+  if (!eu || !col1) {
+    free(eu);
+    free(col1);
+    return 1;
+  }
+  int rc = 0;
+  const int c = COLONIZE_CARGO_TOOLS;
+  eu->cargo_count = COLONIZE_CARGO_COUNT;
+  eu->cargo[c].low = 2;
+  eu->cargo[c].high = 9;
+  eu->cargo[c].rise = 2;
+  eu->cargo[c].fall = 2;
+  col1->player[1].control = 1;
+  const ColonizeWorld w = {.col1 = col1, .col1_ok = true, .europe = eu};
+  /* {mod, difficulty, start bid, want bid}: pressure past one rise step. */
+  static const int rows[][4] = {{0, 0, 2, 2}, {1, 0, 2, 3}, {1, 4, 3, 3}};
+  for (size_t i = 0; i < sizeof rows / sizeof rows[0]; ++i) {
+    mods_campaign_set(rows[i][0] ? 1u << MOD_AI_IMPROVEMENTS : 0u);
+    col1->head.difficulty = (uint8_t)rows[i][1];
+    col1->nation[1].trade.euro_price[c] = (uint8_t)rows[i][2];
+    col1->nation[1].trade.nr[c] = -300;
+    europe_nation_tick_market_prices_w(&w, 1, 100);
+    if (col1->nation[1].trade.euro_price[c] != rows[i][3]) {
+      fprintf(stderr, "rise cap row %zu: bid %d want %d\n", i,
+              (int)col1->nation[1].trade.euro_price[c], rows[i][3]);
+      rc = 1;
+    }
+  }
+  mods_campaign_set(0);
+  free(col1);
+  free(eu);
+  return rc;
+}
+
 /* port_bugs.md #1588 / #1589: DOS holds are a dense list. A sale pulls the
  * hold with FUN_15eb_317c (later holds shift down) and a partial sale re-adds
  * the rest via FUN_15eb_30b8, which appends at holds_occupied; 30b8's top-up
@@ -4440,6 +4514,8 @@ static const TestCase k_cases[] = {
     {"case_europe_brewster_mirror_one_roll", case_europe_brewster_mirror_one_roll},
     {"case_europe_reverse_transit_keeps_turns", case_europe_reverse_transit_keeps_turns},
     {"case_europe_tb4_tb48_fixed", case_europe_tb4_tb48_fixed},
+    {"case_europe_improved_ai_volume_mirror", case_europe_improved_ai_volume_mirror},
+    {"case_europe_improved_ai_no_rise_cap", case_europe_improved_ai_no_rise_cap},
     {"case_europe_transit_drag_db56", case_europe_transit_drag_db56},
     {"case_europe_workflow", case_europe_workflow},
     {"case_europe_blessed_criminal_boards_missionary", case_europe_blessed_criminal_boards_missionary},

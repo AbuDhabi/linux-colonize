@@ -54,7 +54,7 @@ Save field: `ColonizeCol1Head.difficulty` (`uint8_t`, clamp 0..4). Runtime:
 | Tory / inefficient gov | Thresh `10-diff`; full mod `−⌊tories/thresh⌋` + sol latches | **Wired** — see [sons_of_liberty.md](sons_of_liberty.md) |
 | AI colony food | `+= difficulty>>1` | **Wired** |
 | Town commons food | `+2` Discoverer / `+1` Explorer (all nations; `FUN_15eb_1f72` ~12519) | **Wired** 2026-08-28 (`colony_yield_town_commons`) |
-| Town commons secondary | `+1` Discoverer only (`FUN_15eb_1f72` ~12568) | **Wired** 2026-08-28 |
+| Town commons secondary | `+1` Discoverer only (`FUN_15eb_1f72` ~12568) | **Wired** 2026-08-28; an improved AI takes both handouts at the mirrored level 4 − difficulty (MOD_AI_IMPROVEMENTS #1904, `colony_yield_commons_difficulty`) |
 | Ore/silver depletion | per unit `rng(0,diff+1)!=0` bumps `+0x97` (`FUN_364b_0688` ~57932); Discoverer 1/2 rate … Viceroy 5/6 | **Wired** 2026-08-28 (`turn_produce_one_colony` epilogue) |
 | Rival SoL pressure | Threshold `(8-diff)*10` | **Wired** (`turn_year_end_rival_rebels`, year-end §D) |
 | End-game Colonization Rating | `FUN_41f2_0b70` difficulty multiplier {4,5,6,8,10} | **Done** 2026-08-29 (`reports_score_rating`) |

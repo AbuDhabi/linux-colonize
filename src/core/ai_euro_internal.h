@@ -694,6 +694,11 @@ void ai_euro_colony_tick_specialist_restore(AiEuroColonyTick* t);
  * not the crown slot during the War of Independence (ground rule 3). */
 bool ai_euro_improved(const ColonizeTurnContext* ctx, int nation_id);
 
+/* MOD_AI_IMPROVEMENTS #1900 (ai_euro_improved.c): what an AI hold sale of
+ * `gross` pays into the treasury. DOS pays the AI the untaxed gross; an
+ * improved nation pays its tax rate, booked to royal_money like the player's. */
+int ai_euro_improved_sale_net(ColonizeTurnContext* ctx, int nation, int gross);
+
 /* MOD_AI_IMPROVEMENTS 4.2 Pioneer jobs (ai_euro_improved.c): per-nation
  * (tile, PIONEER_PLAN_* kind) list the colony tick posts and AI Pioneers do. */
 #define AI_EURO_PJOB_MAX 128

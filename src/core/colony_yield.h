@@ -208,4 +208,10 @@ void colony_yield_town_commons(
   ColonizeTownCommonsYield* out
 );
 
+struct ColonizeCol1Save;
+/* Difficulty colony_yield_town_commons takes for a colony of `nation`:
+ * head.difficulty (4 with no save); an improved AI takes 4 - difficulty
+ * (MOD_AI_IMPROVEMENTS #1904). */
+int colony_yield_commons_difficulty(const struct ColonizeCol1Save* col1, int nation);
+
 #endif

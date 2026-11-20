@@ -12,7 +12,7 @@
  * and Europe-freeze investigations kept rewriting (port_bugs.md #953).
  *
  * Usage:
- *   ai_replay <save.SAV> [turns] [--units] [--seed N] [--mods MASK] [--game] [--all-ai] [--save-every N DIR]
+ *   ai_replay <save.SAV> [turns] [--units] [--seed N] [--mods MASK] [--game] [--all-ai] [--unlimited] [--save-every N DIR]
  *
  *   turns    number of turn_end calls (default 20)
  *   --units  also dump every AI unit (id / nation / type / xy / orders / MP /
@@ -24,6 +24,8 @@
  *            e.g. 0x800000 for ai_improvements
  *   --game   tolerated DOS bugs off, as opencol and play_driver run; the
  *            default is the test binaries' DOS-buggy mode (goldens)
+ *   --unlimited  lift the DOS unit and colony limits, as the settings
+ *            divergences.unlimited_units / unlimited_colonies do
  *   --save-every N DIR  write DIR/replay_turn_NNN.sav every N turns and after
  *            the last (sav_json reads them)
  *
@@ -153,6 +155,10 @@ int main(int argc, char** argv) {
       mods_mask = (long)strtoul(argv[++a], NULL, 0);
     } else if (strcmp(argv[a], "--all-ai") == 0) {
       all_ai = 1;
+    } else if (strcmp(argv[a], "--unlimited") == 0) {
+      /* settings divergences.unlimited_units / unlimited_colonies */
+      units_set_unlimited(true);
+      colonies_set_unlimited(true);
     } else if (strcmp(argv[a], "--save-every") == 0 && a + 2 < argc) {
       save_every = atoi(argv[++a]);
       save_dir = argv[++a];
@@ -165,7 +171,7 @@ int main(int argc, char** argv) {
     }
   }
   if (!path) {
-    fprintf(stderr, "usage: ai_replay <save.SAV> [turns] [--units] [--seed N] [--mods MASK] [--game] [--all-ai] [--save-every N DIR]\n");
+    fprintf(stderr, "usage: ai_replay <save.SAV> [turns] [--units] [--seed N] [--mods MASK] [--game] [--all-ai] [--unlimited] [--save-every N DIR]\n");
     return 2;
   }
   if (turns < 0) {

@@ -796,6 +796,22 @@ muskets pair through `FUN_15eb_0b96(0xe, gross[muskets] @DS:0x8de6)` instead of
 10171) and the `(U*3)/2` unmet rescale (raw 10175-10180): an Arsenal makes 9
 muskets from 9 tools, not 6 (port_bugs.md #910 recorded the literal reading).
 
+**Intent (2026-11-20): oversight, not design.** Everything 0bd4 needs is there
+for the muskets pair: the job->chain table `DS:0x2f4` maps job 15 (Gunsmith) to
+chain start row 3 (Armory), and `039e` would count Armory/Magazine/Arsenal like
+any other chain, so `0bd4(0xe, 0xf)` would have worked unchanged. The Arsenal is
+in the same Adam Smith gate as the five factories (row 5 next to
+0x17/0x1a/0x1d/0x22/0x29, raw 13707-13711). The manual's Arsenal paragraph says
+it "requires only half the number of tools" of a Magazine or Armory, and the
+Adam Smith Pedia entry says factories make 1 1/2 goods per unit of raw material.
+The muskets line has the same shape as the hammers line two calls above it,
+`0b96(5, gross)` (a two-tier chain with no factory), which looks like a
+copy-paste from that line. Only the Pedia's Arsenal entry argues the other way:
+it says the arsenal "doubles the output of muskets", the Magazine entry word
+for word, so it reads as copied text, not a 1:1 design. No other DOS path
+(colony screen, AI) applies a muskets discount, so nothing in the code points
+to a deliberate exception.
+
 **Port:** the tools -> muskets pair goes through the same 0bd4 math as the
 other factory chains (`colony_prod_chain_input_for_total_output`,
 `colony_prod_manufacturing_input_row` in `src/core/colony_production.c`; the

@@ -7,6 +7,7 @@
 #include "core/col1_save.h"
 #include "core/colony.h"
 #include "core/colony_governor.h"
+#include "core/colony_yield.h"
 #include "core/founding_fathers.h"
 #include "core/map.h"
 #include "core/mods.h"
@@ -445,6 +446,55 @@ static int case_fleet_short(void) {
   return rc;
 }
 
+/* #1900: an improved AI's hold sale pays its tax rate into royal_money;
+ * mod off, DOS pays the AI the untaxed gross. */
+static int case_sale_tax(void) {
+  static ColonizeCol1Save col1;
+  memset(&col1, 0, sizeof(col1));
+  col1.player[1].control = 1;
+  col1.nation[1].tax_rate = 30;
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+  ctx.human_nation = 0;
+  int rc = 0;
+  if (ai_euro_improved_sale_net(&ctx, 1, 1000) != 1000 || col1.nation[1].royal_money != 0) {
+    fprintf(stderr, "sale_tax: DOS mode pays the gross\n");
+    rc = 1;
+  }
+  mods_campaign_set(1u << MOD_AI_IMPROVEMENTS);
+  if (rc == 0 && (ai_euro_improved_sale_net(&ctx, 1, 1000) != 700 || col1.nation[1].royal_money != 300)) {
+    fprintf(stderr, "sale_tax: 1000 at 30%% nets 700, 300 to the Crown\n");
+    rc = 1;
+  }
+  mods_campaign_set(0);
+  return rc;
+}
+
+/* #1904: an improved AI's colony tile takes the handout at 4 - difficulty. */
+static int case_commons_mirror(void) {
+  static ColonizeCol1Save col1;
+  memset(&col1, 0, sizeof(col1));
+  col1.player[1].control = 1;
+  /* {mod, difficulty, nation, want}: nation 0 is the human (control 0). */
+  static const int rows[][4] = {
+    {0, 0, 1, 0}, {1, 0, 1, 4}, {1, 1, 1, 3}, {1, 4, 1, 0}, {1, 0, 0, 0},
+  };
+  int rc = 0;
+  for (size_t i = 0; i < sizeof rows / sizeof rows[0]; ++i) {
+    mods_campaign_set(rows[i][0] ? 1u << MOD_AI_IMPROVEMENTS : 0u);
+    col1.head.difficulty = (uint8_t)rows[i][1];
+    const int got = colony_yield_commons_difficulty(&col1, rows[i][2]);
+    if (got != rows[i][3]) {
+      fprintf(stderr, "commons_mirror row %zu: %d want %d\n", i, got, rows[i][3]);
+      rc = 1;
+    }
+  }
+  mods_campaign_set(0);
+  return rc;
+}
+
 /* #1894: an improved nation takes the slate row worth most to it. */
 static int case_father_pick(void) {
   ColonizeCol1Save col1;
@@ -512,5 +562,7 @@ static const TestCase k_cases[] = {
   {"scout_target", case_scout_target},
   {"fleet_short", case_fleet_short},
   {"father_pick", case_father_pick},
+  {"sale_tax", case_sale_tax},
+  {"commons_mirror", case_commons_mirror},
 };
 TEST_MAIN_WRAPPED(k_cases, diag_init(0, NULL), diag_shutdown())

@@ -10,6 +10,7 @@
  *     does it with the player's Clear/Plow/Road bodies. Saved in RTST record 19.
  *   - Forest reserve (4.2, Q1): a colony never clears below the workable
  *     forests it needs for lumberjacks, nor a forest with a resource.
+ *   - Sale tax (#1900): Europe hold sales pay the Crown's cut like the player's.
  *
  * Mod off: nothing here is reached and the AI is DOS.
  */
@@ -24,6 +25,7 @@
 #include "core/colony.h"
 #include "core/colony_governor.h"
 #include "core/colony_production.h"
+#include "core/europe.h"
 #include "core/map.h"
 #include "core/mods.h"
 #include "core/pioneer_plan.h"
@@ -506,6 +508,17 @@ int ai_euro_europe_train_expert(ColonizeTurnContext* ctx, int nation, int profes
   u->orders = UNITS_ORDER_SENTRY; /* parked in the harbour like a 5d04 recruit */
   u->profession = (uint8_t)profession;
   return 1;
+}
+
+/* ===== Sale tax ===== */
+
+int ai_euro_improved_sale_net(ColonizeTurnContext* ctx, int nation, int gross) {
+  if (gross <= 0 || !ctx || !ctx->col1 || !ai_euro_improved(ctx, nation)) {
+    return gross;
+  }
+  const int net = europe_net_after_tax(gross, (int)ctx->col1->nation[nation].tax_rate);
+  europe_credit_sale_tax(ctx->col1, nation, gross, net);
+  return net;
 }
 
 /* ===== Peacetime garrison ===== */
