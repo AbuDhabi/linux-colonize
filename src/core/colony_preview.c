@@ -15,6 +15,15 @@ void colony_preview_compute_w(
   const ColonizeColony* colony,
   ColonizeColonyPreview* out
 ) {
+  colony_preview_compute_fixed_w(w, colony, NULL, out);
+}
+
+void colony_preview_compute_fixed_w(
+  const ColonizeWorld* w,
+  const ColonizeColony* colony,
+  ColonizePreviewFixed* fixed,
+  ColonizeColonyPreview* out
+) {
   const ColonizeColonyPool* pool = w->colonies;
   const ColonizeWorldMap* map = w->map;
   const ColonizeCol1Save* col1 = w->col1;
@@ -28,7 +37,15 @@ void colony_preview_compute_w(
   }
 
   const int pop = colonies_headcount(colony);
-  const int sol_b = colony_prod_sol_bonus(col1, colony);
+  ColonizePreviewFixed local_fixed = {0};
+  if (!fixed) {
+    fixed = &local_fixed;
+  }
+  const bool fresh = !fixed->valid;
+  if (fresh) {
+    fixed->sol_b = colony_prod_sol_bonus(col1, colony);
+  }
+  const int sol_b = fixed->sol_b;
   /* MOD_BUILDING_UPKEEP: preview next turn's halved building output while the
    * human treasury cannot cover the upkeep (live; restored on the way out). */
   const unsigned upkeep_prev = colonies_upkeep_set_halved(
@@ -41,15 +58,20 @@ void colony_preview_compute_w(
    * food) — see its header comment in colony_preview.h. New Amsterdam's
    * Cotton is entirely a town-commons secondary yield, yet the Production
    * tab must still pair it with the Weaver's shortfall. */
-  {
+  if (fresh) {
     TurnColonyFieldYield fy;
     turn_compose_colony_fields(pool, map, col1, colony, &fy);
-    out->goods[COLONIZE_CARGO_FOOD] += fy.commons_food;
+    fixed->commons_food = fy.commons_food;
+    memcpy(fixed->field_gross, fy.gross, sizeof fixed->field_gross);
+    fixed->fish = fy.fish;
+  }
+  {
+    out->goods[COLONIZE_CARGO_FOOD] += fixed->commons_food;
     for (int i = 0; i < COLONIZE_CARGO_COUNT; ++i) {
-      out->goods[i] += fy.gross[i];
-      out->field_gross[i] += fy.gross[i];
+      out->goods[i] += fixed->field_gross[i];
+      out->field_gross[i] += fixed->field_gross[i];
     }
-    out->food_fish = fy.fish;
+    out->food_fish = fixed->fish;
   }
 
   /* FUN_364b_0688 Phase B: AI Euro food += difficulty>>1 — same subsidy
@@ -134,7 +156,13 @@ void colony_preview_compute_w(
    * entry point turn.c's EOT tick uses (audit CO-4) — a private copy here
    * silently undercounted the Production tab whenever one of those Founding
    * Fathers was active on only one side. */
-  turn_compose_colony_bells_crosses(pool, colony, col1, sol_b, &out->bells, &out->crosses);
+  if (fresh) {
+    turn_compose_colony_bells_crosses(pool, colony, col1, sol_b, &fixed->bells, &fixed->crosses);
+    fixed->hammers_add = colony_prod_colony_hammers(pool, colony, sol_b, NULL);
+    fixed->valid = true;
+  }
+  out->bells = fixed->bells;
+  out->crosses = fixed->crosses;
 
   {
     /* Hammers bank even with no project queued (turn.c "TURN5→6" comment) —
@@ -144,7 +172,7 @@ void colony_preview_compute_w(
      * colony_prod_colony_hammers (matches FUN_15eb_1d4c's Carpenter body).
      * Capped by stored lumber plus this turn's field harvest, as in the
      * tick and FUN_15eb_0b52's gross-lumber shortfall calculation. */
-    int hammers_add = colony_prod_colony_hammers(pool, colony, sol_b, NULL);
+    const int hammers_add = fixed->hammers_add;
     if (hammers_add > 0) {
       out->hammers_capacity = hammers_add;
       {

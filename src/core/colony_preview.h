@@ -74,4 +74,26 @@ void colony_preview_compute_w(
   const ColonizeColony* colony,
   ColonizeColonyPreview* out
 );
+
+/* The stock-free half of a preview (fields, SoL bonus, bells/crosses,
+ * carpenter capacity): a caller that previews the same seating several turns
+ * ahead, changing only colony->stock between calls, zeroes one of these and
+ * passes it to every call. */
+typedef struct ColonizePreviewFixed {
+  bool valid;
+  int commons_food;
+  int field_gross[COLONIZE_CARGO_COUNT];
+  int fish;
+  int sol_b;
+  int bells;
+  int crosses;
+  int hammers_add;
+} ColonizePreviewFixed;
+
+void colony_preview_compute_fixed_w(
+  const ColonizeWorld* w,
+  const ColonizeColony* colony,
+  ColonizePreviewFixed* fixed,
+  ColonizeColonyPreview* out
+);
 #endif

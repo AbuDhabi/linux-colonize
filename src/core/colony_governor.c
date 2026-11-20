@@ -280,9 +280,10 @@ static double gov_score(const GovCtx* g, const ColonizeColony* plan) {
       s += GOV_EXPERT_TIEBREAK;
     }
   }
+  ColonizePreviewFixed fixed = {0}; /* only c.stock changes across the horizon */
   for (int turn = 0; turn < GOV_HORIZON; ++turn) {
     ColonizeColonyPreview pv;
-    colony_preview_compute_w(g->w, &c, &pv);
+    colony_preview_compute_fixed_w(g->w, &c, &fixed, &pv);
     int food = c.stock[COLONIZE_CARGO_FOOD] + pv.food_net;
     s += pv.food_net * wt->goods[COLONIZE_CARGO_FOOD];
     if (food < 0) {
