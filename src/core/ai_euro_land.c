@@ -2039,6 +2039,10 @@ static int ai_euro_land_explore_scan_target(
       if (improved_any && ai_euro_land_islet_blocked(ctx->map, tx, ty, wide_sites)) {
         continue; /* MOD_AI_IMPROVEMENTS: no colony on an islet (#1905: unless wide, with lumber) */
       }
+      /* MOD_AI_IMPROVEMENTS #1910 (not DOS): a site needs its own lumber. */
+      if (improved_any && ai_euro_land_poor_site(ctx->map, tx, ty)) {
+        continue;
+      }
       /* raw 89134: `0d12(x,y) && 06b4(DS:0x8dba, DS:0x8dbc) == 1` — a water
        * neighbour whose lowest region id is the open sea; a tile touching only
        * a lake is not a site (DOSBox america 110->111: English Pioneer at
@@ -2255,17 +2259,21 @@ bool ai_euro_land_wide_sites(const ColonizeTurnContext* ctx, int nation) {
   return cols >= 3 && pop >= 20;
 }
 
-/* #1905: a forest (lumber) tile among the eight around (x, y). */
-static bool ai_euro_land_ring_has_lumber(const ColonizeWorldMap* map, int x, int y) {
+/* #1905/#1910: lumber tiles among the eight around (x, y). */
+static int ai_euro_land_ring_lumber(const ColonizeWorldMap* map, int x, int y) {
+  int n = 0;
   for (int k = 0; k < 8; ++k) {
     const int ax = x + MAP_DIR8_DX[k];
     const int ay = y + MAP_DIR8_DY[k];
-    if (map_coords_inset(map, ax, ay) && map_tile_is_land(map, ax, ay) &&
-        colony_yield_for_tile(map, ax, ay, COLONIZE_JOB_LUMBERJACK) > 0) {
-      return true;
-    }
+    n += map_coords_inset(map, ax, ay) && map_tile_is_land(map, ax, ay) &&
+         colony_yield_for_tile(map, ax, ay, COLONIZE_JOB_LUMBERJACK) > 0;
   }
-  return false;
+  return n;
+}
+
+/* #1910: (x, y) with under AI_EURO_SITE_MIN_LUMBER lumber plots around it. */
+bool ai_euro_land_poor_site(const ColonizeWorldMap* map, int x, int y) {
+  return ai_euro_land_ring_lumber(map, x, y) < AI_EURO_SITE_MIN_LUMBER;
 }
 
 /* #1905: false when (x, y) is on an islet the nation may not found on: below
@@ -2274,7 +2282,7 @@ bool ai_euro_land_islet_blocked(const ColonizeWorldMap* map, int x, int y, bool 
   if (!ai_euro_land_mass_below(map, x, y, AI_EURO_MIN_SITE_LAND)) {
     return false;
   }
-  return !(wide && ai_euro_land_ring_has_lumber(map, x, y));
+  return !(wide && ai_euro_land_ring_lumber(map, x, y) > 0);
 }
 
 /* #1905: own colonies on continent `cid` that touch open sea. */
@@ -4141,6 +4149,43 @@ int ai_euro_20e6_europe_dock_demand(
  * by the gate's land arms and the 457e-band Missionary strip, which falls
  * through to it inside the same 20e6 call. Always returns 0.
  */
+/* MOD_AI_IMPROVEMENTS #1911 (not DOS): an improved nation's Artillery never
+ * wanders (an ambush or a field attack costs it dearly). It holds its own
+ * colony, waits beside a rival's colony only with war declared or intended on
+ * that rival (DOS's 0x46 border park), and otherwise walks to the nearest own
+ * colony on its continent. 1 = handled. */
+static int ai_euro_20e6_artillery_home(
+  ColonizeTurnContext* ctx, ColonizeUnit* u, const Ai20e6Unit* s, int saw_foe
+) {
+  if (s->dos_type != UNITS_KIND_ARTILLERY || !ai_euro_improved(ctx, s->nation)) {
+    return 0;
+  }
+  if (ai_euro_20e6_colony_owner_at(ctx, u->x, u->y) == s->nation) {
+    u->col1_ai_plan = 0x47;
+    ai_euro_20e6_stay_tail_589e(u);
+    return 1;
+  }
+  for (int d = 0; d < 8 && ctx->col1_ok && ctx->col1; ++d) {
+    const int owner = ai_euro_20e6_colony_owner_at(ctx, u->x + MAP_DIR8_DX[d], u->y + MAP_DIR8_DY[d]);
+    if (owner >= 0 && owner != s->nation &&
+        (ai_diplo_read(ctx->col1, s->nation, owner) & (AI_DIPLO_WAR | AI_DIPLO_WAR_INTENT)) != 0 &&
+        ai_euro_20e6_border_park_arm(ctx, u, s, saw_foe)) {
+      u->col1_ai_plan = 0x46;
+      ai_euro_20e6_stay_tail_589e(u);
+      return 1;
+    }
+  }
+  int dist = 0;
+  const int home = ai_euro_20e6_nearest_colony(ctx, u->x, u->y, s->nation, s->cid, &dist);
+  const ColonizeColony* hc = home >= 0 ? colonies_get(ctx->colonies, home) : NULL;
+  if (!hc) {
+    return 0;
+  }
+  u->col1_ai_plan = 0x39;
+  ai_euro_set_goto(u, UNITS_ORDER_AI_MOVE, hc->x, hc->y);
+  return 1;
+}
+
 static int ai_euro_20e6_4d2e_tail(
   ColonizeTurnContext* ctx, ColonizeUnit* u, Ai20e6Unit* s, int force_wander
 ) {
@@ -4184,6 +4229,9 @@ static int ai_euro_20e6_4d2e_tail(
     }
     u->col1_ai_plan = 0x47; /* +0x314b */
     ai_euro_20e6_stay_tail_589e(u); /* LAB_5899 local_76 = 8 -> LAB_589e */
+    return 0;
+  }
+  if (!wander_attack && !force_wander && ai_euro_20e6_artillery_home(ctx, u, s, wander_saw_foe)) {
     return 0;
   }
   if (!wander_attack && !force_wander && ai_euro_20e6_park_arms_4d2e(ctx, u, s)) {

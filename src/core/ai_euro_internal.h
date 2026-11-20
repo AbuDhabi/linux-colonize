@@ -731,9 +731,13 @@ int ai_euro_20e6_site_probe(ColonizeTurnContext* ctx, ColonizeUnit* u, int natio
 /* MOD_AI_IMPROVEMENTS: smallest land mass a colony may stand on or a ship may
  * land founders on (pt7b: the Dutch founded on a one-tile islet and starved). */
 #define AI_EURO_MIN_SITE_LAND 5
+/* MOD_AI_IMPROVEMENTS #1910: lumber plots a site's ring must hold (the forest
+ * reserve, ai_euro_forest_reserve, keeps them uncleared). */
+#define AI_EURO_SITE_MIN_LUMBER 1
 bool ai_euro_land_mass_below(const ColonizeWorldMap* map, int x, int y, int n);
 bool ai_euro_land_wide_sites(const ColonizeTurnContext* ctx, int nation);
 bool ai_euro_land_islet_blocked(const ColonizeWorldMap* map, int x, int y, bool wide);
+bool ai_euro_land_poor_site(const ColonizeWorldMap* map, int x, int y);
 /* #1907: (ax,ay) reaches (bx,by) over road/settlement tiles within twice their distance. */
 bool ai_euro_road_linked(const ColonizeWorldMap* map, int ax, int ay, int bx, int by);
 /* MOD_AI_IMPROVEMENTS: an own colony borders the sea around (x, y) (layer3

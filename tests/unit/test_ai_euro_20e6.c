@@ -3978,6 +3978,64 @@ static int unit_border_hold_uses_treaty_gate(void) {
   return 0;
 }
 
+/* Planner pressure on (x, y)'s continent for `nation`, so a combat unit skips
+ * the stance-0 patrol arm (277a) and reaches the LAB_4d2e wander tail. */
+static void press_continent(Fixture* f, int nation, int x, int y, int stance) {
+  uint8_t t[AI_EURO_STANCE_TABLES_SIZE];
+  ai_euro_stance_tables_export(t);
+  t[nation * 16 + map_continent_id_at(&f->map, x, y)] = (uint8_t)stance;
+  ai_euro_stance_tables_import(t);
+}
+
+/* #1911: an improved nation's Artillery never wanders: beside a rival colony
+ * it stays only with war declared or intended on that rival, else it walks to
+ * its own colony; on its own colony it stays. */
+static int unit_improved_artillery_goes_home(void) {
+  const uint8_t relations[] = {AI_DIPLO_PEACE | AI_DIPLO_MET, AI_DIPLO_MET | AI_DIPLO_WAR_INTENT};
+  for (unsigned i = 0; i < sizeof(relations) / sizeof(relations[0]); ++i) {
+    Fixture f;
+    if (fixture_init(&f, 1) != 0) return 1;
+    const int id = park_setup(&f, 1, 2, 0);
+    treasure_add_colony(&f, 1, 1, 12, 8);
+    ColonizeUnit* u = units_get(&f.units, id);
+    if (!u) { fixture_free(&f); return fail("improved artillery spawn"); }
+    ai_diplo_write(&f.col1, 1, 2, relations[i]);
+    f.col1.player[1].control = 1;
+    press_continent(&f, 1, 8, 8, 2);
+    mods_campaign_set(1u << MOD_AI_IMPROVEMENTS);
+    ai_euro_move_scoring_gate(&f.ctx, u, 1);
+    mods_campaign_set(0);
+    press_continent(&f, 1, 8, 8, 0);
+    const int parked = u->col1_ai_plan == 0x46;
+    const int home = units_orders_follow_goto(u->orders) && u->goto_x == 12 && u->goto_y == 8;
+    fixture_free(&f);
+    if (i == 0 && (parked || !home)) return fail("improved artillery at peace must walk home, not park");
+    /* With war intended DOS's own scoring keeps it at the rival (an attack on
+     * the empty colony here, or the 0x46 park). */
+    if (i == 1 && home) return fail("improved artillery must stay at a rival it intends war on");
+  }
+  Fixture f;
+  if (fixture_init(&f, 1) != 0) return 1;
+  const int ai = park_add_artillery_type(&f);
+  treasure_add_colony(&f, 0, 1, 8, 8);
+  const int id = units_spawn(&f.units, ai, 8, 8);
+  ColonizeUnit* u = units_get(&f.units, id);
+  if (!u) { fixture_free(&f); return fail("garrison artillery spawn"); }
+  u->nation_id = 1;
+  u->moves = UNITS_MP_PER_TILE;
+  u->orders = 0;
+  f.col1.player[1].control = 1;
+  press_continent(&f, 1, 8, 8, 2);
+  mods_campaign_set(1u << MOD_AI_IMPROVEMENTS);
+  ai_euro_move_scoring_gate(&f.ctx, u, 1);
+  mods_campaign_set(0);
+  press_continent(&f, 1, 8, 8, 0);
+  const int stayed = u->x == 8 && u->y == 8 && u->col1_ai_plan == 0x47 &&
+                     (u->orders != UNITS_ORDER_AI_MOVE || (u->goto_x == 8 && u->goto_y == 8));
+  fixture_free(&f);
+  return stayed ? 0 : fail("improved artillery on its own colony must stay");
+}
+
 /* A partly unloaded hull keeps 3558's counts for colony-sail and 4393. */
 static int unit_ship_band_keeps_counts_after_unload(void) {
   Fixture f;
@@ -4910,6 +4968,7 @@ static const TestCase k_cases[] = {
     {"unit_ship_band_keeps_counts_after_unload", unit_ship_band_keeps_counts_after_unload},
     {"unit_ship_work_queue_uses_entry_stack", unit_ship_work_queue_uses_entry_stack},
     {"unit_border_hold_uses_treaty_gate", unit_border_hold_uses_treaty_gate},
+    {"unit_improved_artillery_goes_home", unit_improved_artillery_goes_home},
     {"unit_foreign_colony_military_goal_gates", unit_foreign_colony_military_goal_gates},
     {"unit_spy_mod_off", unit_spy_mod_off},
     {"unit_spy_fog", unit_spy_fog},

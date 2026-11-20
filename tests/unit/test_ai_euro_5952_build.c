@@ -22,7 +22,7 @@
 #include "core/colony_yield.h"
 #include "core/map.h"
 #include "core/mods.h"
-#include "core/reports_names.h"
+#include "core/reports.h"
 #include "core/turn.h"
 #include "core/units.h"
 

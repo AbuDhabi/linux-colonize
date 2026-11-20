@@ -191,6 +191,32 @@ static int case_land_mass_islet(void) {
   return rc;
 }
 
+/* #1910: a site needs a lumber plot in its ring (the French desert
+ * fill-ins had none). */
+static int case_poor_site(void) {
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  char err[128];
+  if (!map_alloc(&map, 16, 16, err, sizeof(err))) {
+    return 1;
+  }
+  for (int i = 0; i < 16 * 16; ++i) {
+    map.terrain[i] = 1; /* desert */
+  }
+  int rc = 0;
+  if (!ai_euro_land_poor_site(&map, 5, 5)) {
+    fprintf(stderr, "poor_site: bare desert accepted\n");
+    rc = 1;
+  }
+  map.terrain[5 * 16 + 4] = 1 + T_FOREST_BIT; /* scrub forest */
+  if (ai_euro_land_poor_site(&map, 5, 5)) {
+    fprintf(stderr, "poor_site: a lumber plot rejected\n");
+    rc = 1;
+  }
+  map_free(&map);
+  return rc;
+}
+
 /* #1905: an islet is a site only for a wide nation (3+ colonies, 20+
  * colonists) and only with a forest in its ring. */
 static int case_wide_islet_sites(void) {
@@ -618,5 +644,6 @@ static const TestCase k_cases[] = {
   {"sale_tax", case_sale_tax},
   {"commons_mirror", case_commons_mirror},
   {"wide_islet_sites", case_wide_islet_sites},
+  {"poor_site", case_poor_site},
 };
 TEST_MAIN_WRAPPED(k_cases, diag_init(0, NULL), diag_shutdown())
