@@ -4524,6 +4524,35 @@ static int unit_labor_arm_binds_colony_goal(void) {
   return ok ? 0 : fail("labor walk must bind the colony as a '3' 0x0b goal");
 }
 
+/* port_bugs.md #1909: the labor pick is a colony id, not the pool slot. Own
+ * colony in slot 1 carries id 7; a foreign colony in slot 0 carries id 1.
+ * Reading the slot as an id walked the colonist to the foreign one. */
+static int unit_labor_arm_picks_colony_by_id(void) {
+  Fixture f;
+  if (fixture_init(&f, 1)) return 1;
+  treasure_add_colony(&f, 0, 2, 3, 3);
+  treasure_add_colony(&f, 1, 1, 9, 8);
+  f.colonies.colonies[0].id = 1;
+  f.colonies.colonies[1].id = 7;
+  f.colonies.colonies[1].population = 1;
+  f.colonies.colonies[1].colonist_count = 1;
+  const int uid = units_spawn(&f.units, 0, 5, 8);
+  ColonizeUnit* u = units_get(&f.units, uid);
+  if (!u) { fixture_free(&f); return fail("labor id spawn"); }
+  u->nation_id = 1;
+  u->profession = UNITS_JOB_CONVERT;
+  u->moves = UNITS_MP_PER_TILE;
+  u->orders = 0;
+  (void)ai_euro_move_scoring_gate(&f.ctx, u, 1);
+  const int ok = u->orders == AI_EURO_ACT_GOAL && u->goto_x == 9 && u->goto_y == 8;
+  if (!ok) {
+    fprintf(stderr, "unit_ai_euro_20e6: labor id orders %d goto %d,%d\n", u->orders, u->goto_x,
+            u->goto_y);
+  }
+  fixture_free(&f);
+  return ok ? 0 : fail("labor walk must aim at the own colony, not the one whose id is the slot");
+}
+
 /* FUN_521d_20e6 raw 90088: a Missionary with no village pick becomes a
  * Colonist (+0x3146 = 0). DOS keeps the spent-MP byte, so the unit is left
  * with the Colonist allotment (1), not the Missionary's 2; the same call then
@@ -4861,6 +4890,7 @@ static const TestCase k_cases[] = {
     {"unit_step_tile_still_runs_ring_scan", unit_step_tile_still_runs_ring_scan},
     {"unit_missionary_strip_keeps_spent_mp", unit_missionary_strip_keeps_spent_mp},
     {"unit_labor_arm_binds_colony_goal", unit_labor_arm_binds_colony_goal},
+    {"unit_labor_arm_picks_colony_by_id", unit_labor_arm_picks_colony_by_id},
     {"unit_stance_counts_native_village_population",
      unit_stance_counts_native_village_population},
     {"unit_stance_ignores_remote_war_and_sticky", unit_stance_ignores_remote_war_and_sticky},

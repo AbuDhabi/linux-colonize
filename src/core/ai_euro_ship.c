@@ -835,15 +835,9 @@ static void ai_euro_20e6_clear_stale_board_marks(
         lu->id >= COLONIZE_UNITS_MAX) {
       continue;
     }
-    int on_stack = (lu->x == ship->x && lu->y == ship->y);
-    if (!on_stack && ctx->colonies) {
-      const int cid = colonies_id_at(ctx->colonies, lu->x, lu->y);
-      const ColonizeColony* lc = cid >= 0 ? colonies_get(ctx->colonies, cid) : NULL;
-      if (lc && lc->active && lc->nation_id == nation_id &&
-          (ship->x == lc->x && ship->y == lc->y)) {
-        on_stack = 1;
-      }
-    }
+    /* A unit in the own colony the ship berths at stands on the ship's tile
+     * too (ships berth ON the colony tile), so the tile test is the whole arm. */
+    const int on_stack = (lu->x == ship->x && lu->y == ship->y);
     if (on_stack && lu->orders == UNITS_ORDER_SENTRY) {
       lu->orders = UNITS_ORDER_NONE; /* +0x314c = 0 */
     }
@@ -903,16 +897,9 @@ static int ai_euro_20e6_transport_assemble(
     if (lu->aboard_ship_id >= 0 || units_is_sea(ctx->units, lu->id)) {
       continue; /* already in a transport chain / not a stack land member */
     }
-    /* Same tile as the ship, or the adjacent own colony it is berthed at. */
-    int on_stack = (lu->x == ship->x && lu->y == ship->y);
-    if (!on_stack && ctx->colonies) {
-      const int cid = colonies_id_at(ctx->colonies, lu->x, lu->y);
-      const ColonizeColony* lc = cid >= 0 ? colonies_get(ctx->colonies, cid) : NULL;
-      if (lc && lc->active && lc->nation_id == nation_id &&
-          (ship->x == lc->x && ship->y == lc->y)) {
-        on_stack = 1;
-      }
-    }
+    /* A unit in the own colony the ship berths at stands on the ship's tile
+     * too (ships berth ON the colony tile), so the tile test is the whole arm. */
+    const int on_stack = (lu->x == ship->x && lu->y == ship->y);
     if (!on_stack) {
       continue;
     }

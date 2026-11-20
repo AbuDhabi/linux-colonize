@@ -358,6 +358,54 @@ static double gov_score(const GovCtx* g, const ColonizeColony* plan) {
   return s;
 }
 
+/*
+ * Score memo for one gov_plan: a plan differs from its colony only in
+ * tiles[] and each colonist's field_job / building_type, and gov_score is a
+ * pure function of the plan, so a repeat seating (every pass re-tries the
+ * moves the last one rejected) reuses the value. Exact key compare; a full
+ * table just stops memoising.
+ */
+#define GOV_MEMO_SLOTS 4096
+#define GOV_MEMO_KEY (COLONIZE_COLONY_FIELD_TILES_MAX + 2 * COLONIZE_COLONY_POP_MAX)
+typedef struct GovMemoEntry {
+  uint32_t gen;
+  uint8_t key[GOV_MEMO_KEY];
+  double score;
+} GovMemoEntry;
+static GovMemoEntry s_gov_memo[GOV_MEMO_SLOTS];
+static uint32_t s_gov_memo_gen;
+
+static void gov_memo_key(const ColonizeColony* c, uint8_t key[GOV_MEMO_KEY]) {
+  memset(key, 0, GOV_MEMO_KEY);
+  memcpy(key, c->tiles, COLONIZE_COLONY_FIELD_TILES_MAX);
+  for (int i = 0; i < c->colonist_count && i < COLONIZE_COLONY_POP_MAX; ++i) {
+    key[COLONIZE_COLONY_FIELD_TILES_MAX + 2 * i] = (uint8_t)(c->colonists[i].field_job + 1);
+    key[COLONIZE_COLONY_FIELD_TILES_MAX + 2 * i + 1] = (uint8_t)(c->colonists[i].building_type + 1);
+  }
+}
+
+static double gov_score_memo(const GovCtx* g, const ColonizeColony* plan) {
+  uint8_t key[GOV_MEMO_KEY];
+  gov_memo_key(plan, key);
+  uint32_t h = 2166136261u;
+  for (int k = 0; k < GOV_MEMO_KEY; ++k) {
+    h = (h ^ key[k]) * 16777619u;
+  }
+  for (int probe = 0; probe < 16; ++probe) {
+    GovMemoEntry* e = &s_gov_memo[(h + (uint32_t)probe) % GOV_MEMO_SLOTS];
+    if (e->gen != s_gov_memo_gen) {
+      e->gen = s_gov_memo_gen;
+      memcpy(e->key, key, GOV_MEMO_KEY);
+      e->score = gov_score(g, plan);
+      return e->score;
+    }
+    if (memcmp(e->key, key, GOV_MEMO_KEY) == 0) {
+      return e->score;
+    }
+  }
+  return gov_score(g, plan);
+}
+
 /* Try colonist i on seat s; keep it when the score beats *best. */
 static bool gov_try(const GovCtx* g, ColonizeColony* c, int i, GovSeat s, double* best) {
   const GovSeat old = gov_seat_of(c, i);
@@ -365,7 +413,7 @@ static bool gov_try(const GovCtx* g, ColonizeColony* c, int i, GovSeat s, double
     return false;
   }
   gov_seat_put(c, i, s);
-  const double v = gov_score(g, c);
+  const double v = gov_score_memo(g, c);
   if (v > *best + 1e-9) {
     *best = v;
     return true;
@@ -428,7 +476,7 @@ static bool gov_swap_pass(const GovCtx* g, ColonizeColony* c, double* best) {
       gov_seat_put(c, i, (GovSeat){-1, -1, -1});
       gov_seat_put(c, j, si);
       gov_seat_put(c, i, sj);
-      const double v = gov_score(g, c);
+      const double v = gov_score_memo(g, c);
       if (v > *best + 1e-9) {
         *best = v;
         moved = true;
@@ -488,7 +536,7 @@ static bool gov_chain_pass(const GovCtx* g, ColonizeColony* c, double* best) {
         if (plot >= 0 && colonies_occupation_worker_count(pool, c, job, j) < COLONIZE_BUILDING_MAX_WORKERS) {
           gov_seat_put(c, i, (GovSeat){plot, raw, -1});
           gov_seat_put(c, j, (GovSeat){-1, -1, b});
-          const double v = gov_score(g, c);
+          const double v = gov_score_memo(g, c);
           kept = v > *best + 1e-9;
           if (kept) {
             *best = v;
@@ -786,7 +834,11 @@ static double gov_plan(const ColonizeWorld* w, const ColonizeColony* col, const 
   }
 
   ColonizeColony plan = *col;
-  double best = gov_score(&g, &plan);
+  if (++s_gov_memo_gen == 0) { /* wrapped: clear stale generations */
+    memset(s_gov_memo, 0, sizeof s_gov_memo);
+    s_gov_memo_gen = 1;
+  }
+  double best = gov_score_memo(&g, &plan);
   for (int pass = 0; pass < GOV_PASSES; ++pass) {
     const bool moved = gov_move_pass(&g, &plan, &best);
     const bool swapped = gov_swap_pass(&g, &plan, &best);

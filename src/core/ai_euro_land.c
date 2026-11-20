@@ -1728,7 +1728,7 @@ static int ai_euro_20e6_labor_arm(ColonizeTurnContext* ctx, ColonizeUnit* u, Ai2
     return 0;
   }
   const bool improved = ai_euro_improved(ctx, u->nation_id);
-  int best = -1;
+  int best_id = -1; /* colony id, not the pool slot (#1909) */
   int best_score = 9999;
   for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
     const ColonizeColony* c = &ctx->colonies->colonies[i];
@@ -1778,11 +1778,11 @@ static int ai_euro_20e6_labor_arm(ColonizeTurnContext* ctx, ColonizeUnit* u, Ai2
     }
     if (stack + (int)c->population < wanted + 2 && score < best_score) {
       best_score = score;
-      best = i;
+      best_id = c->id;
     }
   }
-  if (best >= 0) {
-    const ColonizeColony* c = colonies_get(ctx->colonies, best);
+  if (best_id >= 0) {
+    const ColonizeColony* c = colonies_get(ctx->colonies, best_id);
     if (!c) {
       return 0;
     }
@@ -1796,9 +1796,9 @@ static int ai_euro_20e6_labor_arm(ColonizeTurnContext* ctx, ColonizeUnit* u, Ai2
        */
       const ColonizeWorld w = world_from_turn_ctx(ctx);
       colonies_26e4_claim_stamp(&w, c);
-      colonies_recompute_plots_w(&w, best);
-      const int idx = colonies_admit_unit_idle_w(&w, best, u->id);
-      ColonizeColony* jc = colonies_get_mut(ctx->colonies, best);
+      colonies_recompute_plots_w(&w, best_id);
+      const int idx = colonies_admit_unit_idle_w(&w, best_id, u->id);
+      ColonizeColony* jc = colonies_get_mut(ctx->colonies, best_id);
       if (idx >= 0 && jc) {
         jc->colonists[idx].field_job = 0;
       }

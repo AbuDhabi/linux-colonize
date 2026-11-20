@@ -127,11 +127,24 @@ static void colony_craft_pair_totals(
 typedef struct ColonyCraftPairIter {
   size_t next;
   bool done_pair[COLONIZE_CARGO_COUNT][COLONIZE_CARGO_COUNT];
+  uint32_t staffed; /* bit per building chain with someone working in it */
 } ColonyCraftPairIter;
 
-static void colony_craft_pairs_begin(ColonyCraftPairIter* it) {
+static void colony_craft_pairs_begin(
+  ColonyCraftPairIter* it, const ColonizeColonyPool* pool, const ColonizeColony* colony
+) {
   it->next = 0;
   memset(it->done_pair, 0, sizeof(it->done_pair));
+  it->staffed = 0;
+  for (int i = 0; i < colony->colonist_count; ++i) {
+    const ColonizeColonist* c = &colony->colonists[i];
+    if (c->active && c->building_type >= 0 && c->building_type < pool->building_type_count) {
+      const int chain = colonies_building_row_chain(colonies_building_type_row(pool, c->building_type));
+      if (chain >= 0 && chain < 32) {
+        it->staffed |= 1u << chain;
+      }
+    }
+  }
 }
 
 static bool colony_craft_pairs_next(
@@ -156,8 +169,9 @@ static bool colony_craft_pairs_next(
     int total_out = 0;
     for (size_t r2 = 0; r2 < n; ++r2) {
       const ColonizeCraftRecipe* rec2 = &k_recipes[r2];
-      if (rec2->in_cargo != rec->in_cargo || rec2->out_cargo != rec->out_cargo) {
-        continue;
+      if (rec2->in_cargo != rec->in_cargo || rec2->out_cargo != rec->out_cargo ||
+          (rec2->chain >= 0 && rec2->chain < 32 && !(it->staffed & (1u << rec2->chain)))) {
+        continue; /* an unstaffed chain adds 0 */
       }
       int pair_out = 0;
       colony_craft_pair_totals(pool, colony, rec2, sol_bonus, &pair_out);
@@ -167,8 +181,9 @@ static bool colony_craft_pairs_next(
      * (FUN_15eb_0bd4 raw 10168-10172): `(total << 1) / 3` when the colony
      * owns all three buildings of the chain (039e > 2), else 1:1.
      * port_bugs.md #851. The Arsenal gets it too (docs/dos_bugs.md DB-113). */
-    const int total_in =
-      colony_prod_chain_input_for_total_output(pool, colony, rec->chain, total_out);
+    const int total_in = total_out > 0 /* the run skips a pair with no output */
+      ? colony_prod_chain_input_for_total_output(pool, colony, rec->chain, total_out)
+      : 0;
     it->done_pair[rec->in_cargo][rec->out_cargo] = true;
     *out_rec = rec;
     *out_total_out = total_out;
@@ -220,7 +235,7 @@ static void colony_craft_run(
   }
 
   ColonyCraftPairIter it;
-  colony_craft_pairs_begin(&it);
+  colony_craft_pairs_begin(&it, pool, colony);
   const ColonizeCraftRecipe* rec = NULL;
   int total_out = 0;
   int total_in = 0;

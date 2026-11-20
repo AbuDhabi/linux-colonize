@@ -1198,17 +1198,20 @@ const int* colonies_building_chain_rows(int chain) {
 
 /* Chain a @BUILDING row belongs to, or -1. */
 int colonies_building_row_chain(int row) {
-  if (row < 0) {
-    return -1;
-  }
-  for (int c = 0; c < COLONIES_BUILDING_CHAIN_COUNT; ++c) {
-    for (int t = 0; t < 4 && k_chain_rows[c][t] >= 0; ++t) {
-      if (k_chain_rows[c][t] == row) {
-        return c;
+  /* Row -> chain, built once from k_chain_rows (the first chain listing a
+   * row wins). Hot: every governor preview asks it per worker. */
+  static signed char s_row_chain[COLONY_BUILDING_IRON_WORKS + 1];
+  static bool s_built = false;
+  if (!s_built) {
+    memset(s_row_chain, -1, sizeof s_row_chain);
+    for (int c = COLONIES_BUILDING_CHAIN_COUNT - 1; c >= 0; --c) {
+      for (int t = 0; t < 4 && k_chain_rows[c][t] >= 0; ++t) {
+        s_row_chain[k_chain_rows[c][t]] = (signed char)c;
       }
     }
+    s_built = true;
   }
-  return -1;
+  return (row >= 0 && row <= COLONY_BUILDING_IRON_WORKS) ? s_row_chain[row] : -1;
 }
 
 /* The catalog's own spelling of @BUILDING `row` ("" when none is known). */
