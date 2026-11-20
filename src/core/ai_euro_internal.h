@@ -734,6 +734,8 @@ int ai_euro_20e6_site_probe(ColonizeTurnContext* ctx, ColonizeUnit* u, int natio
 bool ai_euro_land_mass_below(const ColonizeWorldMap* map, int x, int y, int n);
 bool ai_euro_land_wide_sites(const ColonizeTurnContext* ctx, int nation);
 bool ai_euro_land_islet_blocked(const ColonizeWorldMap* map, int x, int y, bool wide);
+/* #1907: (ax,ay) reaches (bx,by) over road/settlement tiles within twice their distance. */
+bool ai_euro_road_linked(const ColonizeWorldMap* map, int ax, int ay, int bx, int by);
 /* MOD_AI_IMPROVEMENTS: an own colony borders the sea around (x, y) (layer3
  * tags every sea region 1, so it cannot tell two seas apart). */
 bool ai_euro_sea_has_own_colony(const ColonizeTurnContext* ctx, int x, int y, int nation);

@@ -202,6 +202,47 @@ static int ai_euro_5952_plot_job(const ColonizeColony* col, int plot) {
   return -1;
 }
 
+/* MOD_AI_IMPROVEMENTS (#1907, not DOS): a road pays only on forest, Hills or
+ * Mountains, or under a Fur Trapper / Lumberjack / Ore or Silver Miner. */
+static bool ai_euro_improved_road_pays(int cls, int job) {
+  return (cls >= 8 && cls <= 0x17) || cls == 27 || cls == 28 ||
+    (job >= COLONIZE_JOB_FUR_TRAPPER && job <= COLONIZE_JOB_SILVER_MINER);
+}
+
+/* MOD_AI_IMPROVEMENTS 4.2: the Pioneer job the improve arm posts on ring plot
+ * `ti` at (tx,ty) — the phantom's plow/road choice, the forest reserve, no
+ * dead plow on Hills/Mountains, and no road that pays nothing (#1907) — or 0. */
+static uint8_t ai_euro_improved_plot_action(
+  const ColonizeTurnContext* ctx, const ColonizeColony* col, int ti, int tx, int ty
+) {
+  const int cls_p = map_dos_terr_class_at(ctx->map, tx, ty);
+  const int forest_p = cls_p >= 8 && cls_p <= 0x17;
+  const int no_road = ai_euro_5952_tile_road_or_settlement(ctx->map, tx, ty) == 0;
+  const int unplowed = !map_tile_is_plowed(ctx->map, tx, ty);
+  const int job = ai_euro_5952_plot_job(col, ti);
+  int plow = 0;
+  if (forest_p && (col->ai_flags & COLONIZE_COLONY_AI_WANTS_PIONEER_CLEAR) != 0) {
+    plow = 1;
+  } else if (job >= 0 && job < 4 && unplowed) {
+    plow = 1;
+  } else if (!(job > 3 && no_road) && !(cls_p < 2 || cls_p > 7)) {
+    plow = unplowed;
+  }
+  if (plow && forest_p && ai_euro_forest_keep(ctx, col, tx, ty)) {
+    plow = 0; /* the reserve: a road, never a clear */
+  }
+  /* pt2 P4: Hills and Mountains take no plow; a posted one is dropped as
+   * dead at the next act and re-posted every turn, idling the Pioneers. */
+  bool clearing = false;
+  if (plow && !units_pioneer_tile_can_clear_or_plow(ctx->map, tx, ty, &clearing)) {
+    plow = 0;
+  }
+  if (plow) {
+    return clearing ? PIONEER_PLAN_CLEAR : PIONEER_PLAN_PLOW;
+  }
+  return (no_road && ai_euro_improved_road_pays(cls_p, job)) ? PIONEER_PLAN_ROAD : 0;
+}
+
 /*
  * The colony DS:0x8542 holds after a phantom Pioneer's road (TB-14): FUN_479b_0526
  * rebinds it to the colony nearest the road of ANY nation (FUN_281f_0614 filter
@@ -320,13 +361,12 @@ void ai_euro_5952_improve_best_plot(
                             : (int)k_20e6_terr_site_byte[cls & 31];
     const int forest = (cls >= 8 && cls <= 0x17);
     if (improved) {
-      /* MOD_AI_IMPROVEMENTS 4.2: a posted plot waits for its Pioneer; a kept
-       * forest can only take a road. */
-      const bool roaded = ai_euro_5952_tile_road_or_settlement(ctx->map, tx, ty) != 0;
+      /* MOD_AI_IMPROVEMENTS 4.2: a posted plot waits for its Pioneer; a plot
+       * with nothing worth doing (a kept roaded forest, roaded Hills, a road
+       * that pays nothing, #1907) never wins the scan. */
       if (ai_euro_pjob_listed(nation, tx, ty) ||
-          (forest && roaded && ai_euro_forest_keep(ctx, col, tx, ty)) ||
-          (roaded && !units_pioneer_tile_can_clear_or_plow(ctx->map, tx, ty, NULL))) {
-        continue; /* pt2 P4: nothing a Pioneer can do here (Hills with a road) */
+          ai_euro_improved_plot_action(ctx, col, ti, tx, ty) == 0) {
+        continue;
       }
     }
     if (!wants_clear || !forest) {
@@ -423,32 +463,9 @@ void ai_euro_5952_improve_best_plot(
     /* MOD_AI_IMPROVEMENTS 4.2 (not DOS): post the job for a Pioneer unit
      * instead of the phantom, with the same plow/road choice; no tools
      * charged, no work-turns threshold (the Pioneer works the real turns). */
-    const int cls_p = map_dos_terr_class_at(ctx->map, tx, ty);
-    const int forest_p = cls_p >= 8 && cls_p <= 0x17;
-    const int no_road = ai_euro_5952_tile_road_or_settlement(ctx->map, tx, ty) == 0;
-    const int unplowed = !map_tile_is_plowed(ctx->map, tx, ty);
-    const int job = ai_euro_5952_plot_job(col, best_plot);
-    int plow = 0;
-    if (forest_p && wants_clear) {
-      plow = 1;
-    } else if (job >= 0 && job < 4 && unplowed) {
-      plow = 1;
-    } else if (!(job > 3 && no_road) && !(cls_p < 2 || cls_p > 7)) {
-      plow = unplowed;
-    }
-    if (plow && forest_p && ai_euro_forest_keep(ctx, col, tx, ty)) {
-      plow = 0; /* the reserve: a road, never a clear */
-    }
-    /* pt2 P4: Hills and Mountains take no plow; a posted one is dropped as
-     * dead at the next act and re-posted every turn, idling the Pioneers. */
-    bool clearing = false;
-    if (plow && !units_pioneer_tile_can_clear_or_plow(ctx->map, tx, ty, &clearing)) {
-      plow = 0;
-    }
-    if (plow) {
-      ai_euro_pjob_post(nation, tx, ty, clearing ? PIONEER_PLAN_CLEAR : PIONEER_PLAN_PLOW);
-    } else if (no_road) {
-      ai_euro_pjob_post(nation, tx, ty, PIONEER_PLAN_ROAD);
+    const uint8_t kind = ai_euro_improved_plot_action(ctx, col, best_plot, tx, ty);
+    if (kind != 0) {
+      ai_euro_pjob_post(nation, tx, ty, kind);
     }
     return;
   }
@@ -606,6 +623,50 @@ static int ai_euro_5952_improved_peer_owner_at(
  * arm does. The step loop carries a width+height cap DOS does not need (its
  * pathfinder always terminates).
  */
+/* MOD_AI_IMPROVEMENTS (#1907, not DOS): (ax,ay) reaches (bx,by) over road or
+ * settlement tiles in at most twice their Chebyshev distance (BFS, 8-way). */
+bool ai_euro_road_linked(const ColonizeWorldMap* map, int ax, int ay, int bx, int by) {
+  enum { R = 12, S = 2 * R + 1 };
+  const int max_len = 2 * (abs(bx - ax) > abs(by - ay) ? abs(bx - ax) : abs(by - ay));
+  if (max_len > R) {
+    return false;
+  }
+  int depth[S * S];
+  for (int i = 0; i < S * S; ++i) {
+    depth[i] = -1;
+  }
+  int queue[S * S];
+  int head = 0;
+  int tail = 0;
+  depth[R * S + R] = 0;
+  queue[tail++] = R * S + R;
+  while (head < tail) {
+    const int cur = queue[head++];
+    const int cx = ax + cur % S - R;
+    const int cy = ay + cur / S - R;
+    if (cx == bx && cy == by) {
+      return true;
+    }
+    if (depth[cur] >= max_len) {
+      continue;
+    }
+    for (int d = 0; d < 8; ++d) {
+      const int nx = cx + MAP_DIR8_DX[d];
+      const int ny = cy + MAP_DIR8_DY[d];
+      if (abs(nx - ax) > R || abs(ny - ay) > R || !map_in_bounds(map, nx, ny)) {
+        continue;
+      }
+      const int ni = (ny - ay + R) * S + (nx - ax + R);
+      if (depth[ni] >= 0 || ai_euro_5952_tile_road_or_settlement(map, nx, ny) == 0) {
+        continue;
+      }
+      depth[ni] = depth[cur] + 1;
+      queue[tail++] = ni;
+    }
+  }
+  return false;
+}
+
 static int ai_euro_5952_road_connect_0000(ColonizeTurnContext* ctx, ColonizeColony* col) {
   if (!ctx || !ctx->map || !ctx->colonies || !ctx->units || !col || !col->active) {
     return 0;
@@ -686,6 +747,11 @@ static int ai_euro_5952_road_connect_0000(ColonizeTurnContext* ctx, ColonizeColo
       continue;
     }
     if (ai_euro_improved(ctx, nation)) {
+      /* #1907: a road chain that already links the pair within twice their
+       * distance makes the gap a redundant parallel road. */
+      if (ai_euro_road_linked(ctx->map, col->x, col->y, ox, oy)) {
+        continue;
+      }
       /* MOD_AI_IMPROVEMENTS 4.2: the gap is a Pioneer job, no phantom. */
       ai_euro_pjob_post(nation, cx, cy, PIONEER_PLAN_ROAD);
       return 0;

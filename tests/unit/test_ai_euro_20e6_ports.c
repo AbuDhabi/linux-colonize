@@ -1061,6 +1061,65 @@ static int improve_gate_reads_tools_latch(void) {
   return 0;
 }
 
+/* #1907: an improved colony ringed by plowed plains posts no road there (it
+ * pays nothing); the one forest plot gets the road. The connect check sees a
+ * road chain and refuses a parallel one. */
+static int improved_road_only_where_it_pays(void) {
+  Fixture f;
+  if (fixture_init(&f, 1) != 0) {
+    return 1;
+  }
+  for (size_t i = 0; i < f.map.tile_count; ++i) {
+    f.map.terrain[i] = 3;
+    f.map.layer3[i] = 0xf1;
+    f.map.seen[i] = 0xff;
+  }
+  for (int y = 6; y <= 10; ++y) {
+    for (int x = 6; x <= 10; ++x) {
+      map_tile_set_plowed(&f.map, x, y, true);
+    }
+  }
+  ColonizeColony* col = fx_colony_add(&f.colonies, 1, 8, 8, 3);
+  col->ai_flags |= COLONIZE_COLONY_AI_WANTS_PIONEER_WORK;
+  f.col1.player[1].control = 1;
+  mods_campaign_set(1u << MOD_AI_IMPROVEMENTS);
+  ai_euro_pjob_reset();
+  int owner = -1;
+  int plot = -1;
+  ai_euro_5952_improve_best_plot(&f.ctx, col, &owner, &plot);
+  int rc = 0;
+  for (int y = 7; y <= 9 && rc == 0; ++y) {
+    for (int x = 7; x <= 9; ++x) {
+      if (ai_euro_pjob_listed(1, x, y)) {
+        rc = fail("road posted on a plowed plain");
+        break;
+      }
+    }
+  }
+  map_tile_set_plowed(&f.map, 8, 7, false);
+  f.map.terrain[7 * f.map.width + 8] = 11; /* forest class */
+  ai_euro_5952_improve_best_plot(&f.ctx, col, &owner, &plot);
+  if (rc == 0 && !ai_euro_pjob_listed(1, 8, 7)) {
+    rc = fail("forest plot got no road");
+  }
+  map_tile_set_road(&f.map, 9, 8, true);
+  map_tile_set_road(&f.map, 10, 9, true);
+  map_tile_set_road(&f.map, 11, 9, true);
+  map_tile_set_road(&f.map, 12, 8, true);
+  map_tile_set_road(&f.map, 13, 8, true);
+  if (rc == 0 && !ai_euro_road_linked(&f.map, 8, 8, 13, 8)) {
+    rc = fail("bent road chain not seen as a link");
+  }
+  map_tile_set_road(&f.map, 11, 9, false);
+  if (rc == 0 && ai_euro_road_linked(&f.map, 8, 8, 13, 8)) {
+    rc = fail("broken chain seen as a link");
+  }
+  ai_euro_pjob_reset();
+  mods_campaign_set(0);
+  fixture_free(&f);
+  return rc;
+}
+
 /* port_bugs.md #1654: FUN_4cc6_0356 keeps `<=`, so the last of two
  * equidistant villages wins, and the hit binds DS:0x8d52. */
 static int nearest_village_last_tie_wins(void) {
@@ -1096,6 +1155,7 @@ static const TestCase k_cases[] = {
     {"nearest_village_last_tie_wins", nearest_village_last_tie_wins},
     {"improve_pick_reads_tribe_alarm_fixed", improve_pick_reads_tribe_alarm_fixed},
     {"improve_gate_reads_tools_latch", improve_gate_reads_tools_latch},
+    {"improved_road_only_where_it_pays", improved_road_only_where_it_pays},
     {"road_connect_far_one_axis_fixed", road_connect_far_one_axis_fixed},
     {"assemble_boards_whole_reserved_hull", assemble_boards_whole_reserved_hull},
     {"assemble_ignores_empty_hold_sentinel", assemble_ignores_empty_hold_sentinel},
