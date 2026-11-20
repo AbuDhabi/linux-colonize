@@ -766,6 +766,8 @@ int ai_euro_pioneer_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nation_id
  * nation's Europe dock, unless one already waits there. 1 = trained (the
  * caller charges the price). */
 int ai_euro_europe_train_expert(ColonizeTurnContext* ctx, int nation, int profession);
+/* #1908: improved purse above 10k trains needed experts, else founders. */
+int ai_euro_improved_surplus_train(ColonizeTurnContext* ctx, int nation);
 
 /* MOD_AI_IMPROVEMENTS 4.8: the governor focus (ColonyGovernor) an AI
  * colony is seated with this tick. */

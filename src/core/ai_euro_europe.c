@@ -2046,6 +2046,7 @@ static void ai_euro_5d04_hire_ladder_tail(
   ai_euro_5d04_hire_tail_candidates(&tail);
   ai_euro_5d04_hire_tail_colony_demand(&tail);
   ai_euro_improved_scout_buy(ctx, nation_id);
+  (void)ai_euro_improved_surplus_train(ctx, nation_id); /* #1908 */
   ai_euro_5d04_hire_tail_departing_ships(&tail);
 }
 

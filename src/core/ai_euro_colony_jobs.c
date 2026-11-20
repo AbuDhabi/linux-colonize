@@ -3522,6 +3522,89 @@ COLONIZE_INTERNAL void ai_euro_5952_specialist_arms(
   ai_king_tax_delta_ai(ctx, nation, 1);
 }
 
+/* ===== Improved surplus training (#1908) ===== */
+
+/* MOD_AI_IMPROVEMENTS (not DOS): purse an improved nation keeps for in-turn buys. */
+#define AI_EURO_SURPLUS_KEEP 10000L
+/* Spare colonists (outside colonies, any location) past which no founder is bought. */
+#define AI_EURO_SURPLUS_FOUNDERS 4
+
+/*
+ * #1908: gold above AI_EURO_SURPLUS_KEEP, after the 5d04 ladder's own buys,
+ * trains Europe experts: first the @JOB with the most colonists doing it
+ * without the skill, less experts of it already outside a colony; with no
+ * such need, a founder (Farmer, Fisherman, Lumberjack, Carpenter, fewest
+ * first) while under AI_EURO_SURPLUS_FOUNDERS spare colonists. Only @JOB
+ * rows with a dock price train. Returns how many were trained.
+ */
+int ai_euro_improved_surplus_train(ColonizeTurnContext* ctx, int nation) {
+  if (!ctx || !ctx->units || !ctx->colonies || !ctx->col1_ok || !ctx->col1 ||
+      ctx->col1->head.game_options.woi != 0 || !ai_euro_improved(ctx, nation)) {
+    return 0;
+  }
+  int need[COLONIZE_PROF_TEACHER + 1] = {0};
+  for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+    const ColonizeColony* col = &ctx->colonies->colonies[i];
+    if (!col->active || col->nation_id != nation) {
+      continue;
+    }
+    for (int s = 0; s < col->colonist_count && s < COLONIZE_COLONY_POP_MAX; ++s) {
+      const int job = col->colonists[s].active ? ai_euro_5952_occupation(ctx->colonies, col, s) : -1;
+      if (job >= 0 && job <= COLONIZE_PROF_TEACHER && col->colonists[s].profession != job) {
+        need[job]++;
+      }
+    }
+  }
+  int have[COLONIZE_PROF_TEACHER + 1] = {0};
+  int spare = 0;
+  for (int i = 0; i < units_slot_end(ctx->units); ++i) {
+    const ColonizeUnit* u = &ctx->units->units[i];
+    if (!u->active || u->nation_id != nation ||
+        units_type_kind(units_type(ctx->units, u->type_index)) != UNITS_KIND_COLONIST) {
+      continue;
+    }
+    spare++;
+    if (u->profession <= COLONIZE_PROF_TEACHER) {
+      have[u->profession]++;
+    }
+  }
+  static const int k_founders[] = {
+    COLONIZE_PROF_FARMER, COLONIZE_PROF_FISHERMAN, COLONIZE_PROF_LUMBERJACK, COLONIZE_PROF_CARPENTER
+  };
+  int trained = 0;
+  for (int guard = 0; guard < 4; ++guard) {
+    int pick = -1;
+    int best = 0;
+    for (int job = 0; job <= COLONIZE_PROF_TEACHER; ++job) {
+      if (need[job] - have[job] > best && ai_euro_5952_job_price(job) > 0) {
+        best = need[job] - have[job];
+        pick = job;
+      }
+    }
+    if (pick < 0 && spare < AI_EURO_SURPLUS_FOUNDERS) {
+      for (size_t k = 0; k < 4; ++k) {
+        const int job = k_founders[k];
+        if (ai_euro_5952_job_price(job) > 0 && (pick < 0 || have[job] < have[pick])) {
+          pick = job;
+        }
+      }
+    }
+    if (pick < 0) {
+      break;
+    }
+    const long price = ai_euro_5952_job_price(pick);
+    if ((long)(int32_t)europe_nation_gold(ctx->europe, ctx->col1, nation) - price < AI_EURO_SURPLUS_KEEP ||
+        !ai_euro_europe_train_expert(ctx, nation, pick)) {
+      break;
+    }
+    europe_nation_gold_add(ctx->europe, ctx->col1, nation, -price);
+    have[pick]++;
+    spare++;
+    trained++;
+  }
+  return trained;
+}
+
 /* DOS-LITERAL FUN_5952_035e raw 95959-95972, asm 2a03-2a63. */
 COLONIZE_INTERNAL void ai_euro_5952_seed_horses(
   ColonizeTurnContext* ctx, ColonizeColony* col

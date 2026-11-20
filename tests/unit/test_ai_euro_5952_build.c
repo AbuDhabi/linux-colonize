@@ -22,6 +22,7 @@
 #include "core/colony_yield.h"
 #include "core/map.h"
 #include "core/mods.h"
+#include "core/reports_names.h"
 #include "core/turn.h"
 #include "core/units.h"
 
@@ -1587,6 +1588,56 @@ static int case_improved_inland_wagon_wanted(void) {
   return rc;
 }
 
+static int surplus_units_with(Fx* f, int prof) {
+  int n = 0;
+  for (int i = 0; i < units_slot_end(&f->units); ++i) {
+    const ColonizeUnit* u = &f->units.units[i];
+    n += u->active && u->nation_id == NATION && u->profession == prof;
+  }
+  return n;
+}
+
+/* #1908: an improved purse over 10k trains the expert a colonist works
+ * without the skill (not an untrainable Sugar Planter), keeps 10k, and with
+ * no such need trains a founder. */
+static int case_improved_surplus_trains_experts(void) {
+  Fx f;
+  if (fx_build(&f, 3) != 0) {
+    return 1;
+  }
+  reports_names_load_catalogs("COLONIZE");
+  mods_campaign_set(1u << MOD_AI_IMPROVEMENTS);
+  for (int s = 0; s < 3; ++s) {
+    f.col->colonists[s].building_type = -1;
+    f.col->colonists[s].field_job = COLONIZE_PROF_SUGAR_PLANTER;
+    f.col->colonists[s].profession = COLONIZE_PROF_FREE_COLONIST;
+  }
+  f.col->colonists[0].field_job = COLONIZE_PROF_FARMER;
+  f.col1.nation[NATION].gold = 10500;
+  int rc = 0;
+  if (ai_euro_improved_surplus_train(&f.ctx, NATION) != 0) {
+    rc = fail("trained below the 10k keep");
+  }
+  f.col1.nation[NATION].gold = 13000;
+  if (rc == 0 && (ai_euro_improved_surplus_train(&f.ctx, NATION) < 1 ||
+                  surplus_units_with(&f, COLONIZE_PROF_FARMER) != 1 ||
+                  surplus_units_with(&f, COLONIZE_PROF_SUGAR_PLANTER) != 0 ||
+                  f.col1.nation[NATION].gold < 10000)) {
+    rc = fail("no Expert Farmer for the farming colonist, or a Sugar Planter, or under 10k");
+  }
+  f.col->colonists[0].profession = COLONIZE_PROF_FARMER;
+  f.col1.nation[NATION].gold = 13000;
+  if (rc == 0 && (ai_euro_improved_surplus_train(&f.ctx, NATION) < 1 ||
+                  surplus_units_with(&f, COLONIZE_PROF_FISHERMAN) +
+                      surplus_units_with(&f, COLONIZE_PROF_LUMBERJACK) +
+                      surplus_units_with(&f, COLONIZE_PROF_CARPENTER) < 1)) {
+    rc = fail("no founder trained with nothing to replace");
+  }
+  mods_campaign_set(0);
+  fx_done(&f);
+  return rc;
+}
+
 /*
  * port_bugs.md #1107 stage seam: the colony tick's unseat-all stage (raw
  * 94551-94564) snapshots every job, idles every colonist (building workers
@@ -2140,6 +2191,7 @@ static const TestCase k_cases[] = {
   {"case_seam_cascade_head_stage", case_seam_cascade_head_stage},
   {"case_improved_inland_custom_house", case_improved_inland_custom_house},
   {"case_improved_inland_wagon_wanted", case_improved_inland_wagon_wanted},
+  {"case_improved_surplus_trains_experts", case_improved_surplus_trains_experts},
   {"case_seam_colony_tick_unseat_all", case_seam_colony_tick_unseat_all},
   {"case_blacksmith_gate_reads_local_1b0", case_blacksmith_gate_reads_local_1b0},
   {"case_starter_horses_purchase", case_starter_horses_purchase},
