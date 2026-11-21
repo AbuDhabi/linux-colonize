@@ -1387,6 +1387,9 @@ bool ai_init_new_game(const AiNewGameParams* params, char* err, size_t err_size)
     }
     const uint32_t pulse_seed = ai_new_game_seed(params);
     ai_s_init_pulse_seed = pulse_seed;
+    /* The pulse's sentry-wake scan reads the fallout col1 global: point it at
+     * this game's save (it was NULL, or a previous game's, before turn 1). */
+    units_set_native_fallout_context(params->col1, params->map);
     for (int n = 4; n <= 11; ++n) {
       dos_rng_seed(rng, pulse_seed);
       ai_native_nation_pulse(params->units, params->map, params->col1, rng, n, true);

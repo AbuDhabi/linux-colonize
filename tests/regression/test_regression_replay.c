@@ -705,9 +705,12 @@ static int run_test(const char* name) {
     return 1;
   }
   const uint32_t duration_ms = rp.count ? rp.recs[rp.count - 1].t_ms - rp.recs[0].t_ms : 0;
+  /* REGRESSION_TIME_SCALE=N stretches the wall-clock budget (valgrind runs). */
+  const char* scale_env = getenv("REGRESSION_TIME_SCALE");
+  const uint64_t time_scale = scale_env && atoi(scale_env) > 0 ? (uint64_t)atoi(scale_env) : 1u;
   const uint64_t limit_ms =
-    (2u * (uint64_t)duration_ms > MIN_TIME_LIMIT_MS ? 2u * (uint64_t)duration_ms : MIN_TIME_LIMIT_MS) +
-    (uint64_t)turns * TURN_TIME_MS;
+    ((2u * (uint64_t)duration_ms > MIN_TIME_LIMIT_MS ? 2u * (uint64_t)duration_ms : MIN_TIME_LIMIT_MS) +
+     (uint64_t)turns * TURN_TIME_MS) * time_scale;
   make_dirs(out_dir);
   /* The options dialogs flush settings.json: keep it in the test's out dir (fresh
    * defaults every run), not ./settings.json at the repo root. */
