@@ -211,9 +211,11 @@ These have each cost a session. Check them before blaming the code.
   (CMakePresets `binaryDir`). `ctest --test-dir build` on the bare `build/` dir
   gives phantom pass/fail. Always `--test-dir build/debug`.
 - **Worktree isolation.** Fresh worktrees lack the gitignored `COLONIZE/`,
-  `test-assets/`, `test-saves-*` — 20–40 tests fail on missing `NAMES.TXT` until
-  symlinked. Agent worktree isolation has failed under rate-limit restarts;
-  verify where edits actually landed.
+  `test-assets/`, `test-saves-*`; symlink or copy them in. Without `COLONIZE/`
+  the `game_data` test fails once and the tests that need the data show as Not
+  Run (the `game_data` list in CMakeLists.txt; a new data test goes on it).
+  Agent worktree isolation has failed under rate-limit restarts; verify where
+  edits actually landed.
 - **`git apply` is atomic.** Per-file "applied cleanly" lines mean nothing if
   `rc != 0`.
 - **`sav_json` writes next to its input.** `sav_json in.SAV` with no output

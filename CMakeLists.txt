@@ -1377,3 +1377,35 @@ colonize_add_test(NAME smoke_play
   SOURCES tests/smoke/test_play_smoke.c tests/common/platform_cursor_stubs.c
   LIBS colonize_core
 )
+
+# Tests that read the gitignored COLONIZE/ game data. Without it game_data
+# fails once ("COLONIZE/NAMES.TXT: No such file or directory") and ctest
+# reports these as Not Run instead of as failures. A new test that needs the
+# data and does not skip on its own (exit 77) goes on this list.
+add_test(NAME game_data COMMAND ${CMAKE_COMMAND} -E sha256sum COLONIZE/NAMES.TXT
+         WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+set_tests_properties(game_data PROPERTIES FIXTURES_SETUP game_data)
+if(TEST lint_no_catalog_text)
+  set_property(TEST lint_no_catalog_text APPEND PROPERTY FIXTURES_REQUIRED game_data)
+endif()
+foreach(_t
+    unit_new_game smoke_popup_dialogs smoke_pick_music unit_map
+    unit_map_gen golden_mapgen_seed100 unit_pedia unit_europe unit_colony_screen
+    unit_map_panel unit_units_core unit_units_types unit_units_pioneer unit_units_combat
+    unit_colonies unit_reports unit_reports_dos_pixels unit_map_menu unit_turn_core
+    unit_turn_school unit_turn_colony unit_colony_governor unit_font_file unit_woodcut
+    unit_declaration unit_closing unit_opening smoke_ss unit_popup_msg smoke_pik
+    unit_ai_contact_meet unit_regress_units unit_ai_indian_census unit_ai_king_core
+    unit_ai_king_war unit_ai_king_revolution unit_stage_seams unit_ai_euro_5952_build
+    unit_ai_euro_goals_bank unit_ai_euro_improved unit_ai_euro_20e6 unit_ai_euro_20e6_ports
+    unit_founding_fathers golden_ai_turns golden_idle_continuous golden_idle_independence
+    golden_idle_america golden_idle_america2 golden_idle_reload
+    golden_idle_independence_reload golden_idle_america_reload golden_idle_america2_reload
+    smoke_ai_mid01 smoke_ai_late01 golden_colony_prod01 smoke_colony_preview01
+    golden_market_prices01 smoke_woi_ref01 golden_colony_prod02 golden_colony_prod03
+    smoke_sound)
+  if(NOT TEST ${_t})
+    message(FATAL_ERROR "game_data list: no test named ${_t}")
+  endif()
+  set_property(TEST ${_t} APPEND PROPERTY FIXTURES_REQUIRED game_data)
+endforeach()
