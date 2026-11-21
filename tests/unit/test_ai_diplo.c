@@ -2107,6 +2107,151 @@ static int case_153e_talk_tokens_474(void) {
   return 0;
 }
 
+/* Answers every 153e CHOICE with 1, except @PIRACY ("most displeased"),
+ * which takes 2 (recall the Privateers). Returns 1 once @PIRACY was answered. */
+static int piracy_drain(ColonizeTurnContext* ctx, AiPopupState* pop) {
+  int saw = 0;
+  for (int guard = 0; guard < 16 && pop->queue_count > 0; ++guard) {
+    AiPopupRequest front = pop->queue[0];
+    memmove(&pop->queue[0], &pop->queue[1], sizeof(pop->queue[0]) * (size_t)(pop->queue_count - 1));
+    pop->queue_count--;
+    if (front.kind != AI_POPUP_KIND_CHOICE) {
+      continue;
+    }
+    char flat[AI_POPUP_BODY_LEN];
+    talk474_flat(flat, sizeof(flat), front.body);
+    const int piracy = strstr(flat, "most displeased") != NULL;
+    saw |= piracy;
+    pop->has_result = true;
+    pop->result_cancelled = false;
+    pop->result_tag = AI_POPUP_TAG_DIPLO_TALK;
+    pop->result_choice_id = piracy ? 2 : 1;
+    pop->result_nation_a = 0;
+    pop->result_nation_b = 1;
+    pop->result_payload = front.payload;
+    ai_diplo_apply_popup_result(ctx, pop);
+    pop->has_result = false;
+  }
+  return saw;
+}
+
+/*
+ * FUN_5bfb_153e @PIRACY answered 2 (raw 97793-97802): every Privateer of the
+ * human goes to Europe through FUN_281f_0920, which moves the record whole,
+ * so a hull carrying the Crown's gift bit +0x3148 0x40 keeps it on its
+ * harbor slot (DOS never clears it: raw 7728 creation zero only).
+ */
+static int piracy_gift_run(int gift) {
+  ai_diplo_talk_reset();
+  ColonizeWorldMap emap;
+  memset(&emap, 0, sizeof(emap));
+  emap.width = 16;
+  emap.height = 16;
+  emap.tile_count = 256;
+  static uint8_t terr[256], l2[256], l3[256];
+  memset(terr, 1, sizeof(terr));
+  memset(l2, 0, sizeof(l2));
+  memset(l3, 1, sizeof(l3));
+  emap.terrain = terr;
+  emap.layer2 = l2;
+  emap.layer3 = l3;
+  static ColonizeUnitPool eunits;
+  units_reset(&eunits);
+  units_set_occupancy_map(NULL);
+  eunits.type_count = 2;
+  snprintf(eunits.types[0].name, sizeof(eunits.types[0].name), "Scouts");
+  eunits.types[0].movement = 4;
+  eunits.types[0].attack = 1;
+  eunits.types[0].defense = 1;
+  eunits.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  snprintf(eunits.types[1].name, sizeof(eunits.types[1].name), "Privateer");
+  eunits.types[1].kind_plus1 = (int)UNITS_KIND_PRIVATEER + 1;
+  eunits.types[1].movement = 8;
+  eunits.types[1].attack = 8;
+  eunits.types[1].defense = 8;
+  eunits.types[1].cargo = 2;
+  eunits.types[1].domain = COLONIZE_UNIT_DOMAIN_SEA;
+  const int ha = units_spawn(&eunits, 0, 5, 5);
+  const int hb = units_spawn(&eunits, 0, 6, 5);
+  ColonizeUnit* pa = units_get(&eunits, ha);
+  ColonizeUnit* pb = units_get(&eunits, hb);
+  if (!pa || !pb) {
+    return fail("piracy gift: spawn");
+  }
+  pa->nation_id = 0;
+  pb->nation_id = 1;
+  static ColonizeColonyPool ecol;
+  colonies_init(&ecol);
+  colonies_set_occupancy_map(NULL);
+  static ColonizeCol1Save e;
+  col1_save_init(&e);
+  memset(e.nation, 0, sizeof(e.nation));
+  memset(e.head.nation_relation, 0, sizeof(e.head.nation_relation));
+  e.head.turn = 30;
+  e.head.difficulty = 2;
+  e.head.human_player = 0;
+  e.nation[0].gold = 1000;
+  e.nation[1].gold = 1000;
+  snprintf(e.player[0].country_name, sizeof(e.player[0].country_name), "England");
+  snprintf(e.player[1].country_name, sizeof(e.player[1].country_name), "France");
+  snprintf(e.player[0].name, sizeof(e.player[0].name), "Tsterson");
+  static AiPopupState epop;
+  ai_popup_init(&epop);
+  static EuropeScreen eu;
+  memset(&eu, 0, sizeof(eu));
+  eu.bound_nation = 0;
+  ColonizeDosRng erng;
+  dos_rng_seed(&erng, 5);
+  ColonizeTurnContext ectx;
+  memset(&ectx, 0, sizeof(ectx));
+  ectx.messages = test_game_txt();
+  ectx.col1 = &e;
+  ectx.col1_ok = true;
+  ectx.map = &emap;
+  ectx.units = &eunits;
+  ectx.colonies = &ecol;
+  ectx.europe = &eu;
+  ectx.human_nation = 0;
+  ectx.ai_popups = &epop;
+  ectx.rng = &erng;
+  /* The first audience signs the treaty; the forced second one reaches @PIRACY. */
+  (void)ai_diplo_153e_encounter(&ectx, 0, 1, pa->id, -1);
+  (void)piracy_drain(&ectx, &epop);
+  ai_popup_init(&epop);
+  const int sid = units_spawn(&eunits, 1, 9, 9);
+  ColonizeUnit* ship = units_get(&eunits, sid);
+  if (!ship) {
+    return fail("piracy gift: privateer spawn");
+  }
+  ship->nation_id = 0;
+  ship->col1_flags15 = (uint8_t)(gift ? 0x40u : 0u);
+  ai_diplo_write(&e, 1, 0, (uint8_t)(ai_diplo_read(&e, 1, 0) | AI_DIPLO_PRIVATEER_SIGHTED));
+  e.stuff.unit_type_counts[0][16] = 1;
+  (void)ai_diplo_153e_encounter_forced(&ectx, 0, 1, pa->id, -1);
+  const int saw = piracy_drain(&ectx, &epop);
+  const ColonizeUnit* after = units_get_const(&eunits, sid);
+  ai_diplo_talk_reset();
+  if (!saw || (after && after->active) || eu.harbor_ships != 1 ||
+      eu.harbor[0].royal_gift != (gift != 0)) {
+    fprintf(stderr, "  gift %d: piracy %d on map %d harbor %d royal_gift %d\n", gift, saw,
+            after && after->active, eu.harbor_ships, eu.harbor_ships ? eu.harbor[0].royal_gift : -1);
+    return fail("@PIRACY recall: the hull's +0x3148 0x40 must ride onto its harbor slot");
+  }
+  return 0;
+}
+
+static int case_153e_piracy_recall_keeps_royal_gift(void) {
+  if (!test_game_txt()) {
+    return TR_SKIP;
+  }
+  for (int gift = 0; gift < 2; ++gift) {
+    if (piracy_gift_run(gift) != 0) {
+      return 1;
+    }
+  }
+  return 0;
+}
+
 /* raw :97431/:97720: a target that won its own independence (nation_flags 0x04)
  * greets with @HELLOUSA, not @HELLOFIRST's "in the name of our Queen" (playtest C10). */
 static int case_153e_usa_greeting(void) {
@@ -2963,6 +3108,7 @@ static const TestCase k_cases[] = {
     {"case_153e_sieges_takes_passengers", case_153e_sieges_takes_passengers},
     {"case_relation_writes_preserve_player_bytes", case_relation_writes_preserve_player_bytes},
     {"case_153e_talk_tokens_474", case_153e_talk_tokens_474},
+    {"case_153e_piracy_recall_keeps_royal_gift", case_153e_piracy_recall_keeps_royal_gift},
     {"case_declare_peace_narrative", case_declare_peace_narrative},
     {"case_r11_no_indian_war_hit", case_r11_no_indian_war_hit},
     {"case_trade_deepen", case_trade_deepen},
