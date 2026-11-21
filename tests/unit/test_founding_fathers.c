@@ -2725,7 +2725,7 @@ int main(void) {
       return fail("turn Penn crosses accrued");
     }
     /* FUN_4345_0a22 raw 73341 adds the pool as a word: 65530 + 12 wraps to 6
-     * (DB-114 note). A withdrawn slot skips the elect test, so only the add runs. */
+     * (DB-115 note). A withdrawn slot skips the elect test, so only the add runs. */
     pnat->liberty_bells_pool = 65530;
     pcol1.player[0].control = 2;
     turn_run_human_colony_eot(&pctx, NULL);

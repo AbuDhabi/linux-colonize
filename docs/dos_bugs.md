@@ -845,7 +845,7 @@ Magazine stay 1:1 (039e < 3). Ungated: golden_ai_joint unmoved; replay
 `arsenal_factory_discount`.
 **Status:** done (user call, 2026-11-18).
 
-### DB-114 — A long glut wraps the market pressure word
+### DB-115 — A long glut wraps the market pressure word
 **DOS:** the Europe market pressure word (nation `trade.nr`, the bound screen's
 copy) is added in 16 bits everywhere: the sale/buy volume term (FUN_38fd_1d80 /
 1dfa, `ADD`/`SUB word ptr [BX+0x8864]`, port_bugs.md #1587) and the end-of-turn
@@ -863,5 +863,5 @@ toggle: the Founding Father bell pool now wraps as DOS (`ADD word`, FUN_4345_0a2
 raw 73341; it grows unreset after intervention, and the score reads it signed,
 #1808); crosses still stop at 65535, which nothing reads once the War of
 Independence stops immigration. Test: `unit_europe`
-`case_europe_pressure_wrap_db114`.
+`case_europe_pressure_wrap_db115`.
 **Status:** done.

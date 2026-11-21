@@ -3351,11 +3351,11 @@ static int case_europe_tax_byte_signed(void) {
 }
 
 /*
- * DB-114: the pressure word adds in 16 bits on the sale path (1dfa) and in the
+ * DB-115: the pressure word adds in 16 bits on the sale path (1dfa) and in the
  * end-of-turn tick (0058), so a glut wraps to a shortage; the fix toggle
  * saturates at 32767.
  */
-static int case_europe_pressure_wrap_db114(void) {
+static int case_europe_pressure_wrap_db115(void) {
   static EuropeScreen eu;
   static ColonizeCol1Save col1;
   char err[256];
@@ -3389,7 +3389,7 @@ static int case_europe_pressure_wrap_db114(void) {
   }
   if (sale[0] >= 0 || rec[0] >= 0 || tick[0] >= 0 || sale[1] != 32767 || rec[1] != 32767 ||
       tick[1] <= 0) {
-    fprintf(stderr, "pressure DB-114: DOS sale %d record %d tick %d (want <0), "
+    fprintf(stderr, "pressure DB-115: DOS sale %d record %d tick %d (want <0), "
             "fixed %d %d (want 32767) tick %d (want >0)\n",
             sale[0], rec[0], tick[0], sale[1], rec[1], tick[1]);
     return 1;
@@ -4696,7 +4696,7 @@ static const TestCase k_cases[] = {
     {"case_europe_tb4_tb48_fixed", case_europe_tb4_tb48_fixed},
     {"case_europe_improved_ai_volume_mirror", case_europe_improved_ai_volume_mirror},
     {"case_europe_improved_ai_no_rise_cap", case_europe_improved_ai_no_rise_cap},
-    {"case_europe_pressure_wrap_db114", case_europe_pressure_wrap_db114},
+    {"case_europe_pressure_wrap_db115", case_europe_pressure_wrap_db115},
     {"case_europe_transit_drag_db56", case_europe_transit_drag_db56},
     {"case_europe_workflow", case_europe_workflow},
     {"case_europe_blessed_criminal_boards_missionary", case_europe_blessed_criminal_boards_missionary},

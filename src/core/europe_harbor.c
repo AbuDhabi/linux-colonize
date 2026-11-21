@@ -879,7 +879,7 @@ static void europe_market_tick_single_cargo(
   EuropeScreen* eu, struct ColonizeCol1Save* col1, int nation, int cargo
 );
 /* Pressure word add. DOS adds in 16 bits (1d80/1dfa and 0058), so a long glut
- * wraps to a shortage and the price climbs back (DB-114); the fix toggle
+ * wraps to a shortage and the price climbs back (DB-115); the fix toggle
  * saturates at the int16 edges instead. */
 static int16_t europe_nr_add(int16_t nr, int delta) {
   const int v = (int)nr + delta;
@@ -925,7 +925,7 @@ void europe_apply_trade_volume(
    * count of 16+ leaves 0) then `ADD` — all 16-bit, wrapping. The record
    * writes below are plain `SUB`/`ADD word ptr [BX+0x8864]` (asm 97731 /
    * 97789) and the Dutch damping `SHL AX,1; CWD; IDIV 3` doubles in 16 bits
-   * too, so nothing saturates (port_bugs.md #1587) unless the DB-114 fix is
+   * too, so nothing saturates (port_bugs.md #1587) unless the DB-115 fix is
    * on (europe_nr_add). */
   const int raw_term = (int16_t)((uint32_t)amount << ((unsigned)q->volatility & 0x1fu)) +
                        europe_1d44_term(amount, seller_is_human || mirrored,
@@ -1040,7 +1040,7 @@ typedef struct EuropeMarketTick {
 } EuropeMarketTick;
 
 static void europe_market_nr_add(const EuropeMarketTick* t, int cargo, int delta) {
-  t->nr[cargo] = europe_nr_add(t->nr[cargo], delta); /* 0058: `ADD word` (DB-114) */
+  t->nr[cargo] = europe_nr_add(t->nr[cargo], delta); /* 0058: `ADD word` (DB-115) */
 }
 
 /*
