@@ -1292,6 +1292,104 @@ static int unit_departure_at_sea_leaves_no_rider(void) {
   return rc;
 }
 
+/* FUN_48d3_064e (dos_bugs.md DB-109): two human hulls landing from Europe on
+ * one turn share the 224+n lane chain. Galleon G heads it with 2 Colonists,
+ * Caravel C follows with 2 Soldiers: G's 10be boards all four, C lands
+ * empty. With MOD_RIDERS_KEEP_SHIP on each keeps its own. Both hulls end on
+ * the tiles they were placed on, riders with them, nobody on the lane. */
+static int unit_lane_arrivals_share_riders(void) {
+  ColonizeMsgCatalog names;
+  assets_msg_init(&names);
+  if (!assets_msg_load_file(&names, "COLONIZE/NAMES.TXT")) {
+    return TR_SKIP;
+  }
+  static ColonizeUnitPool pool;
+  const uint32_t saved_mask = mods_campaign_mask();
+  int rc = 0;
+  for (int mod_on = 0; mod_on < 2 && rc == 0; ++mod_on) {
+    memset(&pool, 0, sizeof(pool));
+    if (!units_load_types(&pool, &names)) {
+      rc = 1;
+      break;
+    }
+    const int g = units_spawn_allow_stack(&pool, units_find_type(&pool, "Galleon"), 5, 5);
+    const int c = units_spawn_allow_stack(&pool, units_find_type(&pool, "Caravel"), 7, 7);
+    const int pax_type[2] = {units_find_type(&pool, "Colonists"), units_find_type(&pool, "Soldiers")};
+    for (int h = 0; h < 2; ++h) {
+      ColonizeUnit* host = units_get(&pool, h == 0 ? g : c);
+      for (int r = 0; r < 2; ++r) {
+        ColonizeUnit* pu =
+          units_get(&pool, units_spawn_allow_stack(&pool, pax_type[h], host->x, host->y));
+        pu->aboard_ship_id = host->id;
+        pu->orders = UNITS_ORDER_SENTRY;
+        host->cargo_ids[host->cargo_count++] = pu->id;
+      }
+    }
+    mods_campaign_set(mod_on ? 1u << MOD_RIDERS_KEEP_SHIP : 0u);
+    dos_buggy_behavior_set(!mod_on);
+    const int ships[2] = {g, c};
+    units_lane_arrivals_pickup(&pool, NULL, ships, 2, 224, 224);
+    dos_buggy_behavior_set(true);
+    const ColonizeUnit* sg = units_get(&pool, g);
+    const ColonizeUnit* sc = units_get(&pool, c);
+    const int want_g = mod_on ? 2 : 4;
+    const int want_c = mod_on ? 2 : 0;
+    bool ok = sg->cargo_count == want_g && sc->cargo_count == want_c && sg->x == 5 &&
+              sg->y == 5 && sc->x == 7 && sc->y == 7;
+    for (int i = 0; ok && i < units_slot_end(&pool); ++i) {
+      const ColonizeUnit* u = &pool.units[i];
+      if (u->active && !units_is_sea(&pool, u->id)) {
+        const ColonizeUnit* host = units_get_const(&pool, u->aboard_ship_id);
+        ok = host && u->x == host->x && u->y == host->y;
+      }
+    }
+    if (!ok) {
+      fprintf(stderr, "mod %d: G cargo %d at (%d,%d), C cargo %d at (%d,%d); want %d/%d\n",
+              mod_on, sg->cargo_count, sg->x, sg->y, sc->cargo_count, sc->x, sc->y, want_g,
+              want_c);
+      rc = 1;
+    }
+  }
+  mods_campaign_set(saved_mask);
+  assets_msg_free(&names);
+  return rc;
+}
+
+/* FUN_1427_10be raw 8630-8644 off the map: FUN_137f_03e4 is -1 for any
+ * off-map xy, so a Trade Route hull on the 224+n landing lane runs the 101c
+ * arm like at sea (Caravel K takes M's rider first, M lands empty); only the
+ * Europe slot 236+n gives budget 0 without it. */
+static int unit_trade_route_lane_departure_pickup(void) {
+  ColonizeMsgCatalog names;
+  assets_msg_init(&names);
+  if (!assets_msg_load_file(&names, "COLONIZE/NAMES.TXT")) {
+    return TR_SKIP;
+  }
+  static ColonizeUnitPool pool;
+  memset(&pool, 0, sizeof(pool));
+  int rc = 1;
+  if (units_load_types(&pool, &names)) {
+    const int m = units_spawn_allow_stack(&pool, units_find_type(&pool, "Merchantman"), 224, 224);
+    const int k = units_spawn_allow_stack(&pool, units_find_type(&pool, "Caravel"), 224, 224);
+    ColonizeUnit* sm = units_get(&pool, m);
+    ColonizeUnit* pu =
+      units_get(&pool, units_spawn_allow_stack(&pool, units_find_type(&pool, "Colonists"), 224, 224));
+    pu->aboard_ship_id = m;
+    pu->orders = UNITS_ORDER_SENTRY;
+    sm->cargo_ids[sm->cargo_count++] = pu->id;
+    sm->orders = UNITS_ORDER_TRADE_ROUTE;
+    (void)units_ship_departure_pickup(&pool, NULL, m, 224, 224);
+    const int nm = sm->cargo_count;
+    const int nk = units_get(&pool, k)->cargo_count;
+    rc = (nm == 0 && nk == 1) ? 0 : 1;
+    if (rc) {
+      fprintf(stderr, "lane route arm: M cargo %d, K cargo %d; want 0/1\n", nm, nk);
+    }
+  }
+  assets_msg_free(&names);
+  return rc;
+}
+
 /* port_bugs.md #1330: FUN_5fef_0352 raw 99590 tests the Drydock bit only — a
  * colony holding a Shipyard without its Drydock bit is no repair port. */
 static int unit_repair_port_needs_drydock_bit(void) {
@@ -1552,6 +1650,8 @@ static const TestCase k_cases[] = {
   {"unit_trade_route_sea_departure_pickup", unit_trade_route_sea_departure_pickup},
   {"unit_departure_leftovers_respect_capacity", unit_departure_leftovers_respect_capacity},
   {"unit_departure_at_sea_leaves_no_rider", unit_departure_at_sea_leaves_no_rider},
+  {"unit_lane_arrivals_share_riders", unit_lane_arrivals_share_riders},
+  {"unit_trade_route_lane_departure_pickup", unit_trade_route_lane_departure_pickup},
   {"unit_repair_port_needs_drydock_bit", unit_repair_port_needs_drydock_bit},
   {"unit_attacker_loss_stays_in_own_drydock", unit_attacker_loss_stays_in_own_drydock},
   {"unit_europe_sail_keeps_census", unit_europe_sail_keeps_census},

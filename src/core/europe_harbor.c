@@ -277,11 +277,37 @@ void europe_board_sentry_dockers(
   }
 }
 
+/* Every way onto the 232+n lane links the hull at the chain head: the sail
+ * (FUN_48d3_0346 -> 040c -> FUN_1427_0362 -> 02ca), the box drag back
+ * (38fd:3228 -> FUN_281f_0948 -> 040c) and a new hull (FUN_281f_095c ->
+ * FUN_1427_06b4 -> 02ca). bound[] runs as the bound box draws it
+ * (FUN_38fd_127c): the 228+n chain head first, then the 232+n chain head
+ * first, and the 03d0 hops keep that order. A hull is on 228+n when it lands
+ * on the next tick (the col1_bridge lane rule). The caller has checked for
+ * room. */
+int europe_bound_far_head(const EuropeScreen* eu) {
+  int at = 0;
+  while (at < eu->bound_ships && !eu->bound[at].departed_this_turn &&
+         eu->bound[at].turns_left <= 1) {
+    ++at;
+  }
+  return at;
+}
+
+static EuropeHarborShip* europe_bound_link_head(EuropeScreen* eu) {
+  const int at = europe_bound_far_head(eu);
+  memmove(
+    &eu->bound[at + 1], &eu->bound[at], (size_t)(eu->bound_ships - at) * sizeof(eu->bound[0])
+  );
+  eu->bound_ships++;
+  return &eu->bound[at];
+}
+
 bool europe_bound_push(EuropeScreen* eu, int type_index, const char* name, int voyage_turns) {
   if (!eu || eu->bound_ships >= EUROPE_HARBOR_MAX) {
     return false;
   }
-  EuropeHarborShip* ship = &eu->bound[eu->bound_ships++];
+  EuropeHarborShip* ship = europe_bound_link_head(eu);
   europe_clear_ship(ship);
   ship->type_index = type_index;
   snprintf(ship->name, sizeof(ship->name), "%s", name ? name : "");
@@ -372,7 +398,7 @@ bool europe_set_sail_from_harbor_ex(
     eu->selected_harbor--;
   }
   europe_refresh_harbor_selection(eu);
-  eu->bound[eu->bound_ships++] = ship;
+  *europe_bound_link_head(eu) = ship;
   eu->status[0] = '\0';
   diag_info(
     "EUROPE %s departs for the colonies: %d turns, exit (%d,%d) %s",
@@ -424,7 +450,11 @@ bool europe_reverse_transit(EuropeScreen* eu, bool from_expected, int index) {
   if (!dos_buggy_behavior() && ship.voyage_turns >= ship.turns_left) {
     ship.turns_left = ship.voyage_turns - ship.turns_left;
   }
-  dst_list[(*dst_count)++] = ship;
+  if (from_expected) {
+    *europe_bound_link_head(eu) = ship;
+  } else {
+    dst_list[(*dst_count)++] = ship; /* expected[] runs tail (oldest) first */
+  }
   return true;
 }
 

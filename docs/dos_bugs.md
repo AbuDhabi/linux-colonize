@@ -771,6 +771,19 @@ FUN_4720_015c's FUN_281f_0916 = FUN_1427_12f6 -> 10be, raw 75967), so with two
 own hulls at sea one hull's Make Landfall can put another hull's rider ashore
 (port_bugs.md #1782).
 
+Off the map, `FUN_137f_03e4` is -1 (`FUN_137f_000a` bounds), so the arm runs on
+every Europe lane but the 236+n slot. Ships from Europe land through
+`FUN_48d3_064e` (raw 77905-77939): from the 224+n lane chain head it takes
+each hull in turn, runs 10be there (`FUN_281f_0920`) and places it
+(`FUN_48d3_048e`). Hulls landing on one turn therefore share their riders:
+the first one placed boards from all of them. The lane entry (`FUN_48d3_0346`
+-> 040c -> `FUN_1427_02ca`) links a sailing hull at the chain head and each
+`FUN_48d3_03d0` hop appends in walk order (`FUN_1427_03a0`), so of hulls that
+sailed on one turn the last one lands first. The head is the `+0x315c` end
+(`FUN_1427_0002`): lategame `COLONY06.SAV` Dutch lane 231 runs Privateer ->
+Artillery -> Artillery -> Frigate, so the Frigate, carrying both Artillery,
+lands first and keeps them, and the Privateer lands empty.
+
 **Effect:** with two or more own ships on one tile (colony or open sea), units
 loaded on one ship can sail off on another, and a ship can depart without some
 of the units the player loaded on it. Affects human players and the AI alike.
@@ -787,13 +800,22 @@ hull's own riders, tile sentries and other own hulls' riders in the 04d6 order,
 and the at-sea arm runs the other hulls' pickups first (each takes its pick
 off the tile until the route hull's budget is known). Not reproduced: the
 nested pickups do not re-stamp Sentry on what they board (DOS +0x314c = 1,
-raw 8676); at sea the water rule makes every rider eligible anyway. The
-port runs the arm only on map tiles: on the off-map park (x or y >= 200, the
-Europe dock and lanes) a route hull keeps its full budget, where DOS gives 0 in
-its Europe slot and applies the 03e4 test elsewhere (not traced off-map). Tests:
+raw 8676); at sea the water rule makes every rider eligible anyway. Off the
+map the arm runs as in DOS (budget 0 only in the 236+n slot). The AI landing
+(`ai_euro_ship.c`) runs the pickup per hull on the 224+n lane; the human's
+ships are Europe-screen slots until they land, so
+`game_europe_deliver_bound_ships` places them as before and then, DOS mode
+only, `units_lane_arrivals_pickup` puts the hulls that landed together back on
+the lane in bound-list order and runs 064e's pickup per hull. The bound list
+keeps the lane chains as the bound box draws them (`FUN_38fd_127c`: 228+n
+from its head, then 232+n): a sailing, turned-back or new hull goes to the
+232+n head (`europe_bound_far_head`), and a save loads each lane by walking
+its chain. Tests:
 `unit_units_core` `ship_switch_quirk` (DOS), `unit_units_ships`
-`unit_tb2_departure_own_riders_only` (fix) and
-`unit_trade_route_sea_departure_pickup` (both, the trade-route arm).
+`unit_tb2_departure_own_riders_only` (fix),
+`unit_trade_route_sea_departure_pickup` and
+`unit_trade_route_lane_departure_pickup` (the trade-route arm, at sea and on
+the lane) and `unit_lane_arrivals_share_riders` (064e, both modes).
 The same toggle also gates DB-104 (a Trade Route hull boarding no one at a colony
 or in Europe), so toggle off is DOS for every departure.
 **Status:** done (user-approved toggle, default on; 2026-11-12). Golden fixtures and

@@ -729,6 +729,9 @@ bool europe_set_sail_from_harbor_ex(
  * 0xe). Exit tile from last_exit_* like a ship bought in Europe.
  */
 bool europe_bound_push(EuropeScreen* eu, int type_index, const char* name, int voyage_turns);
+/* Index of the 232+n chain head in bound[] (after every 228+n hull), where
+ * a sailing, turned-back or new hull is linked; bound_ships if none. */
+int europe_bound_far_head(const EuropeScreen* eu);
 
 /* Expected↔Bound reverse: DOS 38fd:3228 relinks the lane, keeps the turn counter, clears the hull's orders (trade route). */
 bool europe_reverse_transit(EuropeScreen* eu, bool from_expected, int index);

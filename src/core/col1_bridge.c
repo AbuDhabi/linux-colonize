@@ -1469,6 +1469,8 @@ COLONIZE_INTERNAL void col1_bridge_apply_europe_lanes(Col1ApplyCtx* ctx) {
     const uint8_t xy_expected = (uint8_t)(244 + n);
     const int e0 = europe->expected_ships;
     int* exp_src = malloc(((size_t)save->head.unit_count + 1) * sizeof(int));
+    const int b0 = europe->bound_ships;
+    int* bnd_src = malloc(((size_t)save->head.unit_count + 1) * sizeof(int));
     for (int i = 0; i < (int)save->head.unit_count; ++i) {
       const ColonizeCol1Unit* src = &save->unit[i];
       if (src->nation_id != n || src->type < 13 || src->type > 18 ||
@@ -1592,6 +1594,9 @@ COLONIZE_INTERNAL void col1_bridge_apply_europe_lanes(Col1ApplyCtx* ctx) {
         }
       } else if (bound) {
         if (europe->bound_ships < EUROPE_HARBOR_MAX) {
+          if (bnd_src) {
+            bnd_src[europe->bound_ships - b0] = i;
+          }
           slot = &europe->bound[europe->bound_ships++];
         }
       } else if (europe_enqueue_expected(
@@ -1679,6 +1684,35 @@ COLONIZE_INTERNAL void col1_bridge_apply_europe_lanes(Col1ApplyCtx* ctx) {
     free(perm);
     free(tmp);
     free(exp_src);
+    /*
+     * bound[] in the bound box's order (FUN_38fd_127c walks the 228+n chain
+     * from its head, then 232+n), which europe_bound_far_head keeps and
+     * FUN_48d3_064e lands in: each lane head first, not by record index.
+     */
+    const int nb = europe->bound_ships - b0;
+    int* brank = nb > 1 ? malloc((size_t)nu * sizeof(int)) : NULL;
+    int* brank_far = nb > 1 ? malloc((size_t)nu * sizeof(int)) : NULL;
+    int* bperm = nb > 1 ? malloc((size_t)nb * sizeof(int)) : NULL;
+    EuropeHarborShip* btmp = nb > 1 ? malloc((size_t)nb * sizeof(*btmp)) : NULL;
+    if (bnd_src && brank && brank_far && bperm && btmp) {
+      col1_lane_chain_rank(save, xy_bound, brank);
+      col1_lane_chain_rank(save, xy_bound_far, brank_far);
+      for (int r = 0; r < nu; ++r) {
+        if (brank[r] < 0 && brank_far[r] >= 0) {
+          brank[r] = nu + brank_far[r];
+        }
+      }
+      col1_lane_rank_perm(brank, bnd_src, nb, bperm);
+      memcpy(btmp, europe->bound + b0, (size_t)nb * sizeof(*btmp));
+      for (int k = 0; k < nb; ++k) {
+        europe->bound[b0 + k] = btmp[bperm[k]];
+      }
+    }
+    free(brank);
+    free(brank_far);
+    free(bperm);
+    free(btmp);
+    free(bnd_src);
   }
 }
 

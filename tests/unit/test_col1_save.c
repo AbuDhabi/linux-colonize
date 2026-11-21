@@ -3180,7 +3180,8 @@ int main(void) {
             fprintf(stderr, "COLONY06 dock Pioneer sail failed\n");
             return 1;
           }
-          const EuropeHarborShip* out = &europe3.bound[europe3.bound_ships - 1];
+          /* The sail links at the 232+n head. */
+          const EuropeHarborShip* out = &europe3.bound[europe_bound_far_head(&europe3)];
           if (out->cargo_count != 1 || out->cargo_tools[0] != 40) {
             fprintf(stderr, "COLONY06 boarded Pioneer: %d aboard, tools %d, want 1 / 40\n",
                     out->cargo_count, out->cargo_tools[0]);

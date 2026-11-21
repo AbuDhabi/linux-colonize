@@ -3473,6 +3473,52 @@ done:
   return rc;
 }
 
+/* Every way onto the 232+n lane links the hull at its chain head, and the
+ * bound box (FUN_38fd_127c) and the landing (FUN_48d3_064e) run 228+n head
+ * first, then 232+n: Near (228+n, lands next tick) stays first, and A, B
+ * sailed in that order, a new hull G and a turned-back E each go in front of
+ * the 232+n hulls already there. */
+static int case_europe_bound_links_at_lane_head(void) {
+  EuropeScreen eu;
+  char err[256];
+  if (!test_europe_load(&eu, "COLONIZE", err, sizeof(err))) {
+    fprintf(stderr, "lane head: europe_load failed: %s\n", err);
+    return 1;
+  }
+  memset(eu.harbor, 0, sizeof(eu.harbor));
+  memset(eu.bound, 0, sizeof(eu.bound));
+  memset(eu.expected, 0, sizeof(eu.expected));
+  eu.dock_count = 0;
+  eu.harbor_ships = 2;
+  snprintf(eu.harbor[0].name, sizeof(eu.harbor[0].name), "A");
+  snprintf(eu.harbor[1].name, sizeof(eu.harbor[1].name), "B");
+  eu.bound_ships = 2;
+  snprintf(eu.bound[0].name, sizeof(eu.bound[0].name), "Near");
+  eu.bound[0].turns_left = 1;
+  snprintf(eu.bound[1].name, sizeof(eu.bound[1].name), "Far");
+  eu.bound[1].turns_left = 3;
+  eu.expected_ships = 1;
+  snprintf(eu.expected[0].name, sizeof(eu.expected[0].name), "E");
+  eu.expected[0].turns_left = 2;
+  const bool ok_ops = europe_set_sail_from_harbor(&eu, 0, 3, NULL, 0) &&
+                      europe_set_sail_from_harbor(&eu, 0, 3, NULL, 0) &&
+                      europe_bound_push(&eu, 0, "G", 3) && europe_reverse_transit(&eu, true, 0);
+  static const char* const want[6] = {"Near", "E", "G", "B", "A", "Far"};
+  bool ok = ok_ops && eu.bound_ships == 6;
+  for (int i = 0; ok && i < 6; ++i) {
+    ok = strcmp(eu.bound[i].name, want[i]) == 0;
+  }
+  if (!ok) {
+    fprintf(stderr, "lane head: ops %d, %d bound:", ok_ops, eu.bound_ships);
+    for (int i = 0; i < eu.bound_ships; ++i) {
+      fprintf(stderr, " %s", eu.bound[i].name);
+    }
+    fprintf(stderr, "; want Near E G B A Far\n");
+  }
+  europe_free(&eu);
+  return ok ? 0 : 1;
+}
+
 static int case_europe_reverse_transit_keeps_turns(void) {
   EuropeScreen eu;
   char err[256];
@@ -4691,6 +4737,7 @@ static const TestCase k_cases[] = {
     {"case_europe_refit_record_order", case_europe_refit_record_order},
     {"case_europe_dock_mirror_follows_row", case_europe_dock_mirror_follows_row},
     {"case_europe_brewster_mirror_one_roll", case_europe_brewster_mirror_one_roll},
+    {"case_europe_bound_links_at_lane_head", case_europe_bound_links_at_lane_head},
     {"case_europe_reverse_transit_keeps_turns", case_europe_reverse_transit_keeps_turns},
     {"case_europe_tax_byte_signed", case_europe_tax_byte_signed},
     {"case_europe_tb4_tb48_fixed", case_europe_tb4_tb48_fixed},
