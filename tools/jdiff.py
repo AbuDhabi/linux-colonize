@@ -11,7 +11,8 @@ def walk(a,b,p,out):
         out.append((p,[(i,ba[i],bb[i]) for i in range(min(len(ba),len(bb))) if ba[i]!=bb[i]][:12],''))
     elif a!=b: out.append((p,a,b))
 out=[]; walk(json.load(open(sys.argv[1])),json.load(open(sys.argv[2])),'',out)
-ign=set(sys.argv[4:]) if len(sys.argv)>4 else set()
+ign=tuple(sys.argv[4:])
+if ign: out=[d for d in out if not d[0].startswith(ign)]
 lim=int(sys.argv[3]) if len(sys.argv)>3 else 80
 print(len(out),'diffs (first, second)')
 for d in out[:lim]: print(*d)

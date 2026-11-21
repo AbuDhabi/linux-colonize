@@ -1215,9 +1215,9 @@ COLONIZE_INTERNAL UnitsMoveStatus units_move_colony_arrival(units_move_ctx* c) {
    * whatever its hold count says (port_bugs.md: "does not always happen").
    */
   if (units_is_sea(pool, unit_id) && unit->cargo_count > 0) {
-    /* Own colonies only: a De Witt trade dock at a *foreign* colony
-     * (COLONIZE_ENTER_DOCK via the foreign-colony-trade branch) must not
-     * put passengers ashore in someone else's town. */
+    /* Own colonies only. A ship never docks in a foreign colony (DOS
+     * FUN_465b_0000 raw 75483-75500 trades from outside via FUN_2a1f_016c and
+     * aborts the move); the owner test only keeps that true here. */
     const ColonizeColony* dock_col =
       colonies_get(colonies, colonies_id_at(colonies, dest_x, dest_y));
     if (dock_col && dock_col->active && dock_col->nation_id == unit->nation_id) {

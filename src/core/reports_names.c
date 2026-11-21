@@ -580,7 +580,8 @@ void reports_names_load_catalogs(const char* data_dir) {
     g_reports_labels_ok = true;
   } else {
     assets_msg_free(&g_reports_labels);
-  }}
+  }
+}
 
 void reports_names_free_catalogs(void) {
   g_reports_names_generation++;
