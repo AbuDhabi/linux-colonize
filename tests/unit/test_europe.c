@@ -4133,6 +4133,52 @@ static int case_europe_trade_route_return_tile(void) {
   return rc;
 }
 
+/* dos_bugs.md DB-107 on the Europe arm: the stop after Europe is a colony
+ * another nation captured, so the ship leaves for the stop after it instead
+ * of crossing to the captured colony's coast. */
+static int case_europe_trade_route_skips_captured_stop(void) {
+  ColonizeGameState* game = calloc(1, sizeof(*game));
+  if (!game) {
+    return 1;
+  }
+  game->europe_ok = true;
+  game->col1_ok = true;
+  game->units_ok = true;
+  game->world_map.width = 58;
+  game->human_nation = 0;
+  game->colonies.colonies[0].active = true;
+  game->colonies.colonies[0].id = 1;
+  game->colonies.colonies[0].nation_id = 1; /* captured */
+  game->colonies.colonies[0].x = 20;
+  game->colonies.colonies[0].y = 30;
+  game->colonies.colonies[1].active = true;
+  game->colonies.colonies[1].id = 2;
+  game->colonies.colonies[1].x = 40;
+  game->colonies.colonies[1].y = 12;
+  game->col1.trade_route[0].dest_count = 3;
+  game->col1.trade_route[0].stop[0].colony_index = 999;
+  game->col1.trade_route[0].stop[1].colony_index = 0;
+  game->col1.trade_route[0].stop[2].colony_index = 1;
+  EuropeScreen* eu = &game->europe;
+  (void)europe_harbor_push_ex(eu, 0, "A", NULL, NULL, 0, NULL, NULL);
+  eu->harbor[0].exit_x = 50;
+  eu->harbor[0].exit_y = 10;
+  eu->harbor[0].trade_route_plus1 = 1;
+  eu->harbor[0].trade_stop = 0;
+  game_europe_service_trade_harbor(game);
+  int rc = 0;
+  if (eu->bound_ships != 1 || eu->bound[0].exit_x != 40 || eu->bound[0].exit_y != 12 ||
+      eu->bound[0].trade_stop != 2) {
+    fprintf(
+      stderr, "route captured: bound %d exit (%d,%d) stop %d, want 1 (40,12) 2\n",
+      eu->bound_ships, eu->bound[0].exit_x, eu->bound[0].exit_y, eu->bound[0].trade_stop
+    );
+    rc = 1;
+  }
+  free(game);
+  return rc;
+}
+
 /* DB-104: a Trade Route leg leaving Europe boards sentried dockers with
  * mods.riders_keep_ship on (DOS FUN_1427_10be budget 0 leaves them behind with
  * it off, and always under dos_buggy_behavior()). */
@@ -4499,6 +4545,7 @@ static const TestCase k_cases[] = {
     {"case_europe_damaged_hull_heads_harbor", case_europe_damaged_hull_heads_harbor},
     {"case_europe_trade_route_leg_boards_dockers", case_europe_trade_route_leg_boards_dockers},
     {"case_europe_trade_route_return_tile", case_europe_trade_route_return_tile},
+    {"case_europe_trade_route_skips_captured_stop", case_europe_trade_route_skips_captured_stop},
     {"case_europe_arrival_woodcut_first_non_route", case_europe_arrival_woodcut_first_non_route},
     {"case_europe_immigration_counts_offpool_units", case_europe_immigration_counts_offpool_units},
     {"case_europe_buy_short_gold_refuses", case_europe_buy_short_gold_refuses},

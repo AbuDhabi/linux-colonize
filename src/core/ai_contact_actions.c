@@ -1327,7 +1327,9 @@ COLONIZE_INTERNAL void ai_contact_heresy_weights(
       } else {
         village_pull = sc;
       }
-      if (v->mission == COL1_TRIBE_MISSION_NONE) {
+      /* thunk_FUN_1000_a594: `if (-1 < *(char*)(village+5))`, any byte with
+       * bit 7 is no mission, not only 0xff. */
+      if ((int8_t)v->mission < 0) {
         continue;
       }
       village_pull += (int)v->population;
