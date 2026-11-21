@@ -542,7 +542,7 @@ static int case_expert_pass_tools_supply_nets_unmet_ore(void) {
  * doubles and she seats two Statesmen. */
 static int case_rank_byte_unchecked_index(void) {
   static ColonizeCol1Save col1;
-  memset(&col1, 0, sizeof col1);
+  col1_save_init(&col1);
   col1.stuff.land_combat_totals[1] = 40;
   col1.stuff.tribe_data_9184[2] = 120;
   const unsigned char rank[4] = {2, 0, 3, 1};
@@ -599,7 +599,7 @@ static int case_paine_bonus_reads_tax_unsigned(void) {
   c->has_building[colonies_building_row(&pool, COLONY_BUILDING_TOWN_HALL)] = true;
   pool.colony_count = 1;
   static ColonizeCol1Save c1;
-  memset(&c1, 0, sizeof(c1));
+  col1_save_init(&c1);
   c1.nation[1].founding_fathers[FF_THOMAS_PAINE / 8] = (uint8_t)(1u << (FF_THOMAS_PAINE % 8));
   const int base =
     ai_euro_jobs_menu_estimate(&pool, NULL, &c1, c, 0, COLONIZE_PROF_STATESMAN, NULL);

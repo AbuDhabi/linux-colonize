@@ -314,7 +314,7 @@ static int case_europe_workflow(void) {
    * the REF budget FUN_43f7_1d42 spends. Smell audit #51.
    */
   ColonizeCol1Save sell_col1;
-  memset(&sell_col1, 0, sizeof(sell_col1));
+  col1_save_init(&sell_col1);
   eu.selected_harbor = 0;
   eu.tax_percent = 0;
   const int sugar_bid = eu.cargo[COLONIZE_CARGO_SUGAR].bid;
@@ -628,7 +628,7 @@ static int case_europe_workflow(void) {
    */
   {
     ColonizeCol1Save col1;
-    memset(&col1, 0, sizeof(col1));
+    col1_save_init(&col1);
     col1.nation[0].boycott_bitmap = (uint16_t)(1u << COLONIZE_CARGO_FURS);
     col1.nation[0].royal_money = 1000;
     col1.nation[0].gold = 500;
@@ -1936,7 +1936,7 @@ static int case_europe_workflow(void) {
       return 1;
     }
     ColonizeCol1Save col1;
-    memset(&col1, 0, sizeof(col1));
+    col1_save_init(&col1);
     col1.head.difficulty = 4;
     col1.nation[3].tax_rate = 35;
     const int lumber = COLONIZE_CARGO_LUMBER;
@@ -2072,7 +2072,7 @@ static int case_europe_workflow(void) {
     pool.colony_count = 1;
 
     ColonizeCol1Save col1;
-    memset(&col1, 0, sizeof(col1));
+    col1_save_init(&col1);
     col1.head.market_demand_pool[COLONIZE_CARGO_FOOD] = 10;
     /* DOS 0058 phase 1 (2026-08-28, golden_market_prices01): ledger = pool +
      * Σ max(0, nation tons2); decay = ledger >> 7 in nation 0's pass. Colony
@@ -2102,7 +2102,7 @@ static int case_europe_workflow(void) {
    */
   {
     ColonizeCol1Save col1;
-    memset(&col1, 0, sizeof(col1));
+    col1_save_init(&col1);
     col1.head.year = 1492;
     /* Ledgers: rum-group all 10 → sum=40, ratio=(40*3)/10=12. */
     for (int c = 9; c <= 12; ++c) {
@@ -2285,7 +2285,7 @@ static int case_europe_workflow(void) {
     dseu.tax_percent = 75;
 
     ColonizeCol1Save dscol1;
-    memset(&dscol1, 0, sizeof(dscol1));
+    col1_save_init(&dscol1);
     dscol1.nation[1].tax_rate = 50; /* must be ignored entirely */
     dscol1.nation[1].gold = 1000u;
     dscol1.nation[1].royal_money = 7;
@@ -3292,7 +3292,7 @@ static int case_europe_tb4_tb48_fixed(void) {
       dseu.cargo[i].high = 20;
     }
     static ColonizeCol1Save dscol1;
-    memset(&dscol1, 0, sizeof(dscol1));
+    col1_save_init(&dscol1);
     dscol1.nation[1].tax_rate = 50;
     for (int i = 0; i < (int)COLONIZE_COL1_CARGO_TYPES; ++i) {
       dscol1.nation[1].trade.euro_price[i] = 12;

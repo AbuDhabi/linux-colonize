@@ -163,7 +163,7 @@ static int test_woi_sol_needs_a_colony_record(void) {
   colonies.colony_count = 1;
 
   static ColonizeCol1Save col1;
-  memset(&col1, 0, sizeof(col1));
+  col1_save_init(&col1);
   col1.head.game_options.woi = 1;
   col1.head.crown_nation_id = 1;
   col1.player[0].control = 0; /* human rebel */
@@ -327,7 +327,7 @@ static int test_woi_crown_ship_bombards_colony(void) {
   rec.rebel_divisor = 4; /* 25% SoL → 75% Tory share for the crown */
 
   static ColonizeCol1Save col1;
-  memset(&col1, 0, sizeof(col1));
+  col1_save_init(&col1);
   col1.head.crown_nation_id = 1;
   col1.player[0].control = 0; /* human rebel */
   col1.player[1].control = 1; /* crown is AI */
@@ -385,7 +385,7 @@ static int test_sol_zero_divisor_keeps_bolivar(void) {
   rec.x = 4;
   rec.y = 4; /* rebel_dividend = rebel_divisor = 0 */
   static ColonizeCol1Save col1;
-  memset(&col1, 0, sizeof(col1));
+  col1_save_init(&col1);
   col1.colony = &rec;
   col1.head.colony_count = 1;
   col1.player[0].control = 0; /* human */

@@ -353,7 +353,7 @@ static int case_tribe_and_nation_names(void) {
   /* FUN_15b3_01e0 / 0198: WoI swaps only the human (0x5398) and crown
    * (0x53d2) slots, and only once declared. */
   static ColonizeCol1Save woi;
-  memset(&woi, 0, sizeof(woi));
+  col1_save_init(&woi);
   for (int i = 0; i < 4; ++i) {
     woi.player[i].control = 1;
   }
@@ -565,7 +565,7 @@ static int case_colony01_score(void) {
  * (2 points). */
 static int case_score_reads_live_colonies(void) {
   ColonizeCol1Save c;
-  memset(&c, 0, sizeof(c));
+  col1_save_init(&c);
   memset(c.head.founding_father, 0xff, sizeof(c.head.founding_father));
   c.head.year = 1600;
   c.head.difficulty = 2;
@@ -624,7 +624,7 @@ static int case_score_reads_live_colonies(void) {
  * synthetic Col1Save is enough (no need for a real save's other fields). */
 static int case_village_penalty_formula(void) {
   ColonizeCol1Save c;
-  memset(&c, 0, sizeof(c));
+  col1_save_init(&c);
   ColonizeScoreBreakdown pen;
   {
     ColonizeWorld w_ = world_make(NULL, NULL, NULL, &c, true, NULL, NULL);
@@ -696,7 +696,7 @@ static int case_rating_tiers(void) {
  * bells since declaring, 2 villages burned at Conquistador. */
 static int case_synthetic_independence_score(void) {
   ColonizeCol1Save c;
-  memset(&c, 0, sizeof(c));
+  col1_save_init(&c);
   memset(c.head.founding_father, 0xff, sizeof(c.head.founding_father)); /* none elected */
   c.head.year = 1790;
   c.head.difficulty = 2;
@@ -762,7 +762,7 @@ static int case_synthetic_independence_score(void) {
  * crown-owned unit does not count either. */
 static int case_score_counts_crown_colonies_in_woi(void) {
   ColonizeCol1Save c;
-  memset(&c, 0, sizeof(c));
+  col1_save_init(&c);
   memset(c.head.founding_father, 0xff, sizeof(c.head.founding_father));
   c.head.year = 1790;
   c.head.difficulty = 2;
@@ -833,7 +833,7 @@ static int case_score_counts_crown_colonies_in_woi(void) {
  */
 static int case_congress_ff_bitmask(void) {
   ColonizeCol1Save c;
-  memset(&c, 0, sizeof(c));
+  col1_save_init(&c);
   c.head.year = 1600;
   c.head.difficulty = 2;
   /* Bitmask: FF 0, 9 and 17 elected = 3 fathers = 15 points. */
@@ -909,7 +909,7 @@ static int case_congress_page1_uses_ref_scale(void) {
   static uint8_t px[2][320 * 200];
   char line[256];
   for (int k = 0; k < 2; ++k) {
-    memset(&c, 0, sizeof(c));
+    col1_save_init(&c);
     memset(c.head.founding_father, 0xff, sizeof(c.head.founding_father));
     c.head.year = 1780;
     c.head.difficulty = (uint8_t)k;
@@ -948,7 +948,7 @@ static int case_indian_tribe_listed_gate(void) {
     return 1;
   }
   ColonizeCol1Save c;
-  memset(&c, 0, sizeof(c));
+  col1_save_init(&c);
   const int human = 0;
 
   /* tribe 0: met (0x20) → listed. */

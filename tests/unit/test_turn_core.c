@@ -495,7 +495,7 @@ static int case_processor_indicator_steps(void) {
 static int case_hotseat_slot_order(void) {
   fx_begin();
   ColonizeCol1Save col1;
-  memset(&col1, 0, sizeof(col1));
+  col1_save_init(&col1);
   for (int i = 0; i < (int)COLONIZE_COL1_FF_COUNT; ++i) {
     col1.head.founding_father[i] = -1;
   }
@@ -598,7 +598,7 @@ static int case_all_ai_no_rival_human(void) {
 static int case_all_ai_slot_order(void) {
   fx_begin();
   ColonizeCol1Save col1;
-  memset(&col1, 0, sizeof(col1));
+  col1_save_init(&col1);
   for (int i = 0; i < (int)COLONIZE_COL1_FF_COUNT; ++i) {
     col1.head.founding_father[i] = -1;
   }
@@ -1501,7 +1501,7 @@ static int case_hudson_fur_preview(void) {
   col->stock[COLONIZE_CARGO_FOOD] = 100;
 
   ColonizeCol1Save col1;
-  memset(&col1, 0, sizeof(col1));
+  col1_save_init(&col1);
   col1.player[0].control = 0;
   for (int i = 0; i < (int)COLONIZE_COL1_FF_COUNT; ++i) {
     col1.head.founding_father[i] = -1;
@@ -1740,7 +1740,7 @@ static int case_sol_latch_crossing_turn(void) {
   pool.colony_count = 1;
 
   ColonizeCol1Save col1;
-  memset(&col1, 0, sizeof(col1));
+  col1_save_init(&col1);
   ColonizeCol1Colony c1rec;
   memset(&c1rec, 0, sizeof(c1rec));
   c1rec.x = 5;
@@ -2123,7 +2123,7 @@ static int case_ai_field_sol_zeroed(void) {
   col.population = 15; /* tories=15, but an AI Tory count is zeroed */
 
   ColonizeCol1Save col1;
-  memset(&col1, 0, sizeof(col1));
+  col1_save_init(&col1);
   col1.player[1].control = 1; /* AI */
 
   const int building_mod = colony_prod_sol_bonus(&col1, &col);
@@ -2189,7 +2189,7 @@ static int case_custom_house_autosell(void) {
   eu.tax_percent = 20;
 
   ColonizeCol1Save col1;
-  memset(&col1, 0, sizeof(col1));
+  col1_save_init(&col1);
   col1.nation[0].boycott_bitmap = (uint16_t)(1u << COLONIZE_CARGO_TOBACCO);
   col1.nation[0].tax_rate = 20; /* 1dfa ledger reads the seller's nation tax */
 
@@ -2715,7 +2715,7 @@ static int case_phase_b_ai_food(void) {
   ai_pool.colony_count = 1;
 
   ColonizeCol1Save col1;
-  memset(&col1, 0, sizeof(col1));
+  col1_save_init(&col1);
   col1.player[0].control = 0;
   col1.player[1].control = 1; /* AI */
   col1.head.difficulty = 4; /* Viceroy → +2 */
@@ -2804,7 +2804,7 @@ static int case_phase_c_rebel_tick(void) {
   col1c.rebel_divisor = 100u << 6;
 
   ColonizeCol1Save col1;
-  memset(&col1, 0, sizeof(col1));
+  col1_save_init(&col1);
   col1.colony = &col1c;
   col1.head.colony_count = 1;
   col1.player[0].control = 0;
@@ -2936,7 +2936,7 @@ static int case_phase_d_rebel_majority(void) {
   col1c.rebel_divisor = 100u << 6;
 
   ColonizeCol1Save col1;
-  memset(&col1, 0, sizeof(col1));
+  col1_save_init(&col1);
   col1.colony = &col1c;
   col1.head.colony_count = 1;
   col1.player[0].control = 0;
@@ -3086,7 +3086,7 @@ static int case_phase_d_tory_pressure(void) {
   col1c.rebel_divisor = 100u << 6;
 
   ColonizeCol1Save col1;
-  memset(&col1, 0, sizeof(col1));
+  col1_save_init(&col1);
   col1.colony = &col1c;
   col1.head.colony_count = 1;
   col1.head.difficulty = 0; /* Discoverer thresh 10 */
@@ -3511,7 +3511,7 @@ static int case_starve_chrome_seasons(void) {
   pool.colony_count = 1;
 
   ColonizeCol1Save col1;
-  memset(&col1, 0, sizeof(col1));
+  col1_save_init(&col1);
   col1.head.autumn = 1;
   /* Difficulty>=2: skip the Discoverer/Explorer easy-mode no-kill mercy
    * (FUN_364b_0688) so this deterministically still starve-kills. */
@@ -3815,7 +3815,7 @@ static int case_food1_every_mercy_turn(void) {
   }
   pool.colony_count = 1;
   ColonizeCol1Save col1;
-  memset(&col1, 0, sizeof(col1));
+  col1_save_init(&col1);
   col1.head.year = 1500;
   EuropeScreen eu;
   memset(&eu, 0, sizeof(eu));
@@ -3864,7 +3864,7 @@ static int case_food2_latch_autumn(void) {
   pool.colony_count = 1;
 
   ColonizeCol1Save col1;
-  memset(&col1, 0, sizeof(col1));
+  col1_save_init(&col1);
   col1.head.autumn = 1;
 
   EuropeScreen eu;
@@ -3944,7 +3944,7 @@ static int case_phase_o_ai_dump_sell(void) {
   eu.tax_percent = 0;
 
   ColonizeCol1Save col1;
-  memset(&col1, 0, sizeof(col1));
+  col1_save_init(&col1);
   col1.nation[1].tax_rate = 20;
   for (int i = 0; i < (int)COLONIZE_COL1_CARGO_TYPES; ++i) {
     col1.nation[1].trade.euro_price[i] = 10;
@@ -4065,7 +4065,7 @@ static int case_nation_bells_tick(void) {
   pool.colony_count = 1;
 
   ColonizeCol1Save col1;
-  memset(&col1, 0, sizeof(col1));
+  col1_save_init(&col1);
   col1.player[0].control = 0;
   col1.player[1].control = 1;
   col1.player[2].control = 2;
@@ -4138,7 +4138,7 @@ static int case_nation_bells_per_colony_elect(void) {
   pool.colony_count = 2;
 
   ColonizeCol1Save col1;
-  memset(&col1, 0, sizeof(col1));
+  col1_save_init(&col1);
   col1.player[0].control = 0;
   col1.player[1].control = 1;
   for (int i = 0; i < (int)COLONIZE_COL1_FF_COUNT; ++i) {
@@ -4227,7 +4227,7 @@ static int case_tory_penalty_bells(void) {
   pool.colony_count = 1;
 
   ColonizeCol1Save col1;
-  memset(&col1, 0, sizeof(col1));
+  col1_save_init(&col1);
   col1.player[0].control = 0;
   col1.player[1].control = 0;
   for (int i = 0; i < (int)COLONIZE_COL1_FF_COUNT; ++i) {
@@ -4303,7 +4303,7 @@ static int case_ai_bells_subsidy_needs_bolivar(void) {
   pool.colony_count = 1;
 
   ColonizeCol1Save col1;
-  memset(&col1, 0, sizeof(col1));
+  col1_save_init(&col1);
   col1.player[0].control = 0;
   col1.player[1].control = 1;
   for (int i = 0; i < (int)COLONIZE_COL1_FF_COUNT; ++i) {
@@ -4358,7 +4358,7 @@ static int case_euro_power_rank(void) {
   pool.colony_count = 3;
 
   ColonizeCol1Save col1;
-  memset(&col1, 0, sizeof(col1));
+  col1_save_init(&col1);
   col1.nation[0].gold = 100; /* +1 */
   col1.nation[1].gold = 5000; /* +50 — should win despite fewer pops */
   col1.nation[2].gold = 0;
@@ -4755,7 +4755,7 @@ static int case_phase_h_skill_discovery(void) {
   pool.colony_count = 1;
 
   ColonizeCol1Save col1;
-  memset(&col1, 0, sizeof(col1));
+  col1_save_init(&col1);
   col1.head.year = 1492;
   ColonizeDosRng rng;
   dos_rng_seed(&rng, 1);
@@ -4815,7 +4815,7 @@ static int case_otj_learning_latch(void) {
   pool.colony_count = 2;
 
   ColonizeCol1Save col1;
-  memset(&col1, 0, sizeof(col1));
+  col1_save_init(&col1);
   col1.head.year = 1492;
   ColonizeDosRng rng;
   dos_rng_seed(&rng, 7u * 12345u);
@@ -4898,7 +4898,7 @@ static int case_otj_upper_bound_no_promote(void) {
   pool.colony_count = 1;
 
   ColonizeCol1Save col1;
-  memset(&col1, 0, sizeof(col1));
+  col1_save_init(&col1);
   col1.head.year = 1492;
   ColonizeDosRng rng;
   dos_rng_seed(&rng, 42u);
@@ -4947,7 +4947,7 @@ static int case_ai_euro_crosses(void) {
   units.type_count = 1;
 
   ColonizeCol1Save col1;
-  memset(&col1, 0, sizeof(col1));
+  col1_save_init(&col1);
   col1.player[0].control = 0;
   col1.player[1].control = 1;
   col1.nation[1].current_crosses = 8;
@@ -5019,7 +5019,7 @@ static int case_ai_euro_crosses_carryover(void) {
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Colonists");
   units.type_count = 1;
   ColonizeCol1Save col1;
-  memset(&col1, 0, sizeof(col1));
+  col1_save_init(&col1);
   col1.player[1].control = 1;
   col1.nation[1].current_crosses = 20;
   col1.nation[1].recruit[0] = UNITS_JOB_COLONIST;
@@ -5067,7 +5067,7 @@ static int case_europe_pass_after_tax_audience(void) {
   col->population = 1;
   pool.colony_count = 1;
   ColonizeCol1Save col1;
-  memset(&col1, 0, sizeof(col1));
+  col1_save_init(&col1);
   col1.player[0].control = 0;
   col1.player[1].control = 1;
   col1.player[2].control = 1;
@@ -5139,7 +5139,7 @@ static int case_human_crosses_order(void) {
   pool.colony_count = 1;
 
   ColonizeCol1Save col1;
-  memset(&col1, 0, sizeof(col1));
+  col1_save_init(&col1);
   col1.player[0].control = 0;
   col1.player[1].control = 1;
   col1.player[2].control = 1;
@@ -5316,7 +5316,7 @@ static int case_immigration_pressure(void) {
   /* 584a: AI nation ((8-diff)*score)>>3; English human also *2/3. */
   {
     ColonizeCol1Save icol;
-    memset(&icol, 0, sizeof(icol));
+    col1_save_init(&icol);
     icol.head.difficulty = 4; /* Viceroy → AI score half */
     icol.player[0].control = 0;
     icol.player[1].control = 1;
@@ -5345,7 +5345,7 @@ static int case_immigration_pressure(void) {
    * cancel leaves everything so next turn re-asks. */
   {
     ColonizeCol1Save bcol;
-    memset(&bcol, 0, sizeof(bcol));
+    col1_save_init(&bcol);
     for (int i = 0; i < (int)COLONIZE_COL1_FF_COUNT; ++i) {
       bcol.head.founding_father[i] = -1;
     }
@@ -5638,7 +5638,7 @@ static int case_year_end_victory_stops_turn(void) {
   uint32_t turn_number = 300;
   char status[64];
   ColonizeCol1Save col1;
-  memset(&col1, 0, sizeof(col1));
+  col1_save_init(&col1);
   col1.head.game_options.woi = 1;
   col1.head.game_options.autosave = 1; /* a day that ran on would request slot 9 */
   ColonizeTurnContext ctx;
@@ -5685,7 +5685,7 @@ static void game_end_day_run(bool woi, bool autoplay, ColonizeTurnResult* out) {
   autumn = 0;
   turn_number = 250;
   status[0] = '\0';
-  memset(&col1, 0, sizeof(col1));
+  col1_save_init(&col1);
   col1.head.human_player = 3;
   col1.head.game_options.woi = woi ? 1 : 0;
   col1.head.game_options.autosave = 1; /* a day that ran on would request slot 9 */
@@ -5765,7 +5765,7 @@ static int case_year_end_scoring_waits_for_chain(void) {
   uint32_t turn_number = 400;
   char status[96] = "";
   ColonizeCol1Save col1;
-  memset(&col1, 0, sizeof(col1));
+  col1_save_init(&col1);
   ColonizeTurnContext ctx;
   memset(&ctx, 0, sizeof(ctx));
   ctx.messages = test_game_txt();
@@ -5831,7 +5831,7 @@ static int case_year_end_defeat_victory(void) {
   }
   /* WoI skips defeat. */
   ColonizeCol1Save col1;
-  memset(&col1, 0, sizeof(col1));
+  col1_save_init(&col1);
   col1.head.game_options.woi = 1;
   ctx.col1 = &col1;
   ctx.col1_ok = true;
@@ -5894,7 +5894,7 @@ static int case_year_end_defeat_victory(void) {
   /* C1 REF pool fat blocks victory; independence_force bypasses. */
   {
     ColonizeCol1Save fat;
-    memset(&fat, 0, sizeof(fat));
+    col1_save_init(&fat);
     fat.head.game_options.woi = 1;
     fat.head.expeditionary_force[0] = 8; /* regulars → score ≥4 */
     fat.head.expeditionary_force[1] = 4;
@@ -6341,7 +6341,7 @@ static int case_ai_census_before_immigration(void) {
   colonies_init(&pool);
   colonies_set_occupancy_map(NULL);
   static ColonizeCol1Save col1;
-  memset(&col1, 0, sizeof(col1));
+  col1_save_init(&col1);
   col1.player[0].control = 0;
   col1.player[1].control = 1;
   col1.nation[1].current_crosses = 8;
@@ -6382,7 +6382,7 @@ static int case_ai_census_before_immigration(void) {
 static int case_census_live_peel(void) {
   fx_begin();
   ColonizeCol1Save col1;
-  memset(&col1, 0, sizeof(col1));
+  col1_save_init(&col1);
   col1.stuff.colony_counts[0] = 99; /* stale */
   col1.stuff.land_combat_strength[0] = 999; /* stale */
   ColonizeColonyPool pool;
@@ -6456,7 +6456,7 @@ static int case_census_live_peel(void) {
 static int case_census_counts_europe_side(void) {
   fx_begin();
   static ColonizeCol1Save col1;
-  memset(&col1, 0, sizeof(col1));
+  col1_save_init(&col1);
   col1.player[0].control = 0;
   ColonizeColonyPool pool;
   colonies_init(&pool);
@@ -6870,7 +6870,7 @@ static int case_phase_k_build_advisory(void) {
 
   /* 5384&0x20 set → suppress hammers K. */
   ColonizeCol1Save kcol;
-  memset(&kcol, 0, sizeof(kcol));
+  col1_save_init(&kcol);
   kcol.head.colony_report_options.report_raw_materials_shortages = 1;
   col->building_in_production = 0;
   col->stock[COLONIZE_CARGO_LUMBER] = 0;
@@ -6899,7 +6899,7 @@ static int case_phase_k_build_advisory(void) {
   AiPopupState pops;
   ai_popup_init(&pops);
   ColonizeCol1Save cloth_col;
-  memset(&cloth_col, 0, sizeof(cloth_col));
+  col1_save_init(&cloth_col);
   cloth_col.head.colony_report_options.report_food_shortages = 1;
   snprintf(pool.building_types[0].name, sizeof(pool.building_types[0].name), "Weaver's House");
   col->has_building[0] = true;
@@ -6938,7 +6938,7 @@ static int case_phase_k_build_advisory(void) {
 
   /* Phase K @LUMBER / @ORE / @TOOLS chrome. */
   ColonizeCol1Save food_gate;
-  memset(&food_gate, 0, sizeof(food_gate));
+  col1_save_init(&food_gate);
   food_gate.head.colony_report_options.report_food_shortages = 1;
 
   snprintf(col->name, sizeof(col->name), "Boston");
@@ -8314,7 +8314,7 @@ static int case_building_upkeep_eot(void) {
   const int total = colonies_upkeep_total(&pool, 0);
   const ColonizeColony base = *col;
   static ColonizeCol1Save col1;
-  memset(&col1, 0, sizeof(col1));
+  col1_save_init(&col1);
   for (int i = 0; i < (int)COLONIZE_COL1_FF_COUNT; ++i) {
     col1.head.founding_father[i] = -1;
   }
@@ -8412,7 +8412,7 @@ static int case_voyage_count_ai_census(void) {
   units_reset(&units);
   units_set_occupancy_map(NULL);
   ColonizeCol1Save col1;
-  memset(&col1, 0, sizeof(col1));
+  col1_save_init(&col1);
   col1.stuff.ship_counts[0] = 7;
   col1.stuff.ship_counts[1] = 3;
   EuropeScreen eu;

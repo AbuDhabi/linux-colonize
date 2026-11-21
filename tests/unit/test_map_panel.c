@@ -569,7 +569,7 @@ static int case_village_chrome(void) {
   ctribe.mission = 0x00;          /* English, plain (not Jesuit) */
   ctribe.alarm[0].friction = 96;  /* >> 5 = tier 3 */
   ColonizeCol1Save ccol1;
-  memset(&ccol1, 0, sizeof(ccol1));
+  col1_save_init(&ccol1);
   /*
    * 2026-09-06d: unclaimed Fathers are -1 (col1_save_init), not 0. Left at
    * 0 the head says nation 0 owns every Father, and the alarm-mark count
@@ -717,7 +717,7 @@ static int case_tribe_settlement_icon(void) {
   tribe.y = 4;
   tribe.nation_id = 4;
   ColonizeCol1Save col1;
-  memset(&col1, 0, sizeof(col1));
+  col1_save_init(&col1);
   col1.head.tribe_count = 1;
   col1.tribe = &tribe;
   /* nation 4 → indian[0]; tech 0 → tipis #10 */
@@ -867,7 +867,7 @@ static int case_village_trade_intel(void) {
   itribe.population = 5;
   itribe.mission = COL1_TRIBE_MISSION_NONE;
   ColonizeCol1Save icol1;
-  memset(&icol1, 0, sizeof(icol1));
+  col1_save_init(&icol1);
   for (size_t fi = 0; fi < sizeof(icol1.head.founding_father); ++fi) {
     icol1.head.founding_father[fi] = -1;
   }
@@ -1185,7 +1185,7 @@ static int case_sidebar_cheat_lines(void) {
   map.layer3[3 * 8 + 2] = 0x31; /* owner 3, region 1 */
   map.layer3[4 * 8 + 4] = 0x0c; /* region 12 */
   ColonizeCol1Save col1;
-  memset(&col1, 0, sizeof(col1));
+  col1_save_init(&col1);
   col1.head.fixed_nation_map_view = 0xffffu;
   char got[72];
   const struct {
@@ -1312,7 +1312,7 @@ static int case_sidebar_cheat_lines(void) {
 static int case_colony_goods_strip(void) {
   static ColonizeCol1Save col1;
   static ColonizeColony col;
-  memset(&col1, 0, sizeof(col1));
+  col1_save_init(&col1);
   memset(&col, 0, sizeof(col));
   col.nation_id = 0;
   col1.nation[0].trade.euro_price[1] = 5;   /* sugar 200 -> 100*64 = 6400 */
@@ -1341,7 +1341,7 @@ static int case_colony_goods_strip(void) {
  * sorted ascending and drawn from index 0. */
 static int case_ship_cargo_order(void) {
   static ColonizeCol1Save col1;
-  memset(&col1, 0, sizeof(col1));
+  col1_save_init(&col1);
   col1.nation[0].trade.euro_price[1] = 2; /* sugar 100 -> 1*16*100 = 1600 */
   col1.nation[0].trade.euro_price[2] = 3; /* tobacco 60 -> 2*16*60 = 1920 */
   col1.nation[0].trade.euro_price[8] = 9; /* horses -> 1*50 */
@@ -1410,7 +1410,7 @@ static int case_colony_row_ask_line(void) {
   colonies_set_occupancy_map(NULL);
   ColonizeColony* col = colonies_get_mut(&pool, colonies_found(&pool, &cmap, 5, 5, 0, 0, 0, 0, 0, 0));
   static ColonizeCol1Save col1;
-  memset(&col1, 0, sizeof(col1));
+  col1_save_init(&col1);
   static uint8_t pixels[320 * 200];
   ColonizeFramebuffer8 fb = {.width = 320, .height = 200, .pixels = pixels};
   const struct {
@@ -1495,7 +1495,7 @@ static int case_village_row_lines(void) {
   static ColonizeCol1Tribe tribe;
   static ColonizeCol1Save col1;
   memset(&tribe, 0, sizeof(tribe));
-  memset(&col1, 0, sizeof(col1));
+  col1_save_init(&col1);
   tribe.x = 3;
   tribe.y = 3;
   tribe.nation_id = 5;
@@ -1662,7 +1662,7 @@ static int case_seen_this_turn(void) {
 static int case_debug_tribe_list(void) {
   reports_names_load_catalogs("COLONIZE");
   static ColonizeCol1Save col1;
-  memset(&col1, 0, sizeof(col1));
+  col1_save_init(&col1);
   col1.indian[0].alarm_by_player[2] = 37;
   col1.indian[1].alarm_by_player[2] = (uint16_t)-5;
   col1.indian[3].extinct = 1;

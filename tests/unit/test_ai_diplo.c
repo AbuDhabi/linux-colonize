@@ -2486,7 +2486,7 @@ static int case_153e_sieges_takes_passengers(void) {
  */
 static int case_2b5a_1112_fortify_break_treaty(void) {
   static ColonizeCol1Save col1;
-  memset(&col1, 0, sizeof(col1));
+  col1_save_init(&col1);
   col1.head.nation_relation[0] = 5;
   col1.head.nation_relation[1] = 5;
   int rc = 0;
@@ -2514,7 +2514,7 @@ static int case_2b5a_1112_fortify_break_treaty(void) {
  * 100k gold (1000). */
 static int case_00f8_score_wraps_16bit(void) {
   static ColonizeCol1Save c;
-  memset(&c, 0, sizeof(c));
+  col1_save_init(&c);
   c.nation[2].gold = 6600000u;
   c.nation[3].gold = 100000u;
   if (ai_diplo_00f8_top_ranked_nation(&c) != 3) {

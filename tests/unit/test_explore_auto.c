@@ -78,7 +78,7 @@ static int case_scout(void) {
    * (FUN_5bfb_153e raw 98003): the nearest target comes back. */
   {
     static ColonizeCol1Save peace;
-    memset(&peace, 0, sizeof(peace));
+    col1_save_init(&peace);
     peace.nation[0].euro_relation[1] = 0x62; /* MET | PEACE | WAR */
     peace.nation[1].euro_relation[0] = 0x62;
     const ColonizeWorld wp = {.units = &s_pool, .colonies = &s_colonies, .map = &s_map, .col1 = &peace};
@@ -140,7 +140,7 @@ static int case_scout(void) {
   units_get(&s_pool, fid)->x = 11;
   units_get(&s_pool, fid)->y = 11;
   ColonizeCol1Save col1;
-  memset(&col1, 0, sizeof(col1));
+  col1_save_init(&col1);
   ColonizeCol1Tribe tribe = {0};
   tribe.nation_id = 4;
   tribe.x = 6;

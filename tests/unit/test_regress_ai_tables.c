@@ -490,7 +490,7 @@ static int case_530_native_step_wakes_landfall(void) {
       units.types[t].movement = 1;
       units.types[t].attack = units.types[t].defense = 2;
     }
-    memset(&col1, 0, sizeof(col1));
+    col1_save_init(&col1);
     col1.tribe = &tribe;
     col1.head.tribe_count = 1;
     col1.indian[0].euro_diplo[1] = 1;
@@ -562,7 +562,7 @@ static int case_465b_quiet_brave_step_vis_or(void) {
       units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
       units.types[0].movement = 1;
       units.types[0].attack = units.types[0].defense = 1;
-      memset(&col1, 0, sizeof(col1));
+      col1_save_init(&col1);
       col1.tribe = &tribe;
       col1.head.tribe_count = 1;
       /* French presence two tiles out: every neighbour of (5,5) is watched

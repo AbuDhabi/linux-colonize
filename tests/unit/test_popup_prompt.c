@@ -289,7 +289,7 @@ static int case_stat_screens_text_is_one_pass(void) {
   }
 
   static ColonizeCol1Save col1;
-  memset(&col1, 0, sizeof(col1));
+  col1_save_init(&col1);
   snprintf(col1.trade_route[0].name, sizeof(col1.trade_route[0].name), "Run");
   col1.trade_route[0].dest_count = 1;
   col1.trade_route[0].stop[0].colony_index = 999;
