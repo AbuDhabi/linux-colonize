@@ -1579,8 +1579,8 @@ int ai_contact_ai_incite_human(
       nation_id < 4 || nation_id > 11) {
     return 0;
   }
-  /* 417e Mode 2 targets DS:0x5398 (raw 83656), the fixed power. */
-  const int human = col1_fixed_human(ctx->col1, ctx->human_nation);
+  /* 417e Mode 2 targets DS:0x5398 (raw 83656), the fixed power (TB-66). */
+  const int human = col1_rival_human(ctx->col1, ctx->human_nation);
   if (human < 0 || human > 3 || human == e || ai_contact_euro_is_human(ctx, e)) {
     return 0;
   }

@@ -213,7 +213,7 @@ graphs:
         fn: ai_euro.c:ai_euro_3180_euro_side
         dos: FUN_5bfb_3180 on the moving unit's step; param_4 = AI unit arms @WANTSTUFF, param_5 = first direction at which that human nation neighbours (source colony tile, raw 97598-97601) (also on AI unloads, which land through FUN_465b_0000 via ai_euro_3180_euro_side, DOSBox 1591)
         status: structural
-        note: "Per-act granularity vs DOS per-step; human talks dedupe once per pair per turn. A queued human talk is pumped (units_pump_combat_popups) before the drain re-acts the unit: DOS 153e blocks inside the step (raw 98667), so its 0x40 treaty is live for the next 20e6 attack gate (campaign3 C3-B1). AI encounters call 13b0 then the shared 153e exit (raw 98414-98425), refreshing the other nation's treaty timer for the mover; Franklin of the mover halves it."
+        note: "Per-act granularity vs DOS per-step; human talks dedupe once per pair per turn. A queued human talk is pumped (units_pump_combat_popups) before the drain re-acts the unit: DOS 153e blocks inside the step (raw 98667), so its 0x40 treaty is live for the next 20e6 attack gate (campaign3 C3-B1). AI encounters call 13b0 then the shared 153e exit (raw 98414-98425), refreshing the other nation's treaty timer for the mover; Franklin of the mover halves it. MOD_AI_IMPROVEMENTS #1873/#1913: two improved nations at war sign peace in 13b0 once both sides' ai_diplo_war_momentum (worthiness, war length, net fights, net colonies) is at or below 0; a pair with no 13b0 test for 30 turns gets one from ai_diplo_treaty_timers (#1914)."
       - id: ship_contact
         kind: step
         label: Treasure / Artillery / Wagon out of MP → ESCORT goal (code 2) prio 2 / 3 / 1 at its tile

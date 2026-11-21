@@ -664,11 +664,16 @@ COLONIZE_INTERNAL UnitsMoveStatus units_move_combat_resolve(units_move_ctx* c) {
   ColonizeWorld cw = *c->w; /* rng == c->rng; col1 may be the ctx fallback */
   cw.col1 = col1;
   cw.col1_ok = col1 != NULL;
+  const ColonizeUnit* const foe_unit = units_get(pool, foe);
+  const int atk_nation = c->unit->nation_id;
+  const int foe_nation = foe_unit ? foe_unit->nation_id : -1;
   if (reason == COLONIZE_ENTER_COMBAT_NAVAL) {
     won = units_resolve_naval_combat_ff_w(&cw, unit_id, foe);
   } else {
     won = units_resolve_land_combat_ff_w(&cw, unit_id, foe);
   }
+  /* MOD_AI_IMPROVEMENTS #1913: the war ledger counts Euro fights. */
+  ai_diplo_war_note_fight(won ? atk_nation : foe_nation, won ? foe_nation : atk_nation);
   if (phantom_defender) {
     combat_set_auto_defender(false);
   }

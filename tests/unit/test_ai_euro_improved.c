@@ -3,6 +3,7 @@
  * and its act (ai_euro_improved.c).
  */
 #include "core/ai_euro_internal.h"
+#include "core/ai_diplo.h"
 #include "core/assets.h"
 #include "core/col1_save.h"
 #include "core/colony.h"
@@ -631,6 +632,63 @@ static int case_father_pick(void) {
   return rc;
 }
 
+/* #1913: the war ledger starts with WAR, counts fights and colonies, tires
+ * with time, clears with peace and round-trips through RTST. */
+static int case_war_momentum(void) {
+  mods_campaign_set(1u << MOD_AI_IMPROVEMENTS);
+  ai_diplo_war_ledger_reset();
+  static ColonizeCol1Save col1;
+  memset(&col1, 0, sizeof col1);
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof ctx);
+  ctx.col1 = &col1; /* no units/map: 10ec answers 0, so only the ledger counts */
+  col1.head.turn = 10;
+  int fail = 0;
+  fail |= ai_diplo_war_momentum(&ctx, 0, 1) != 0;
+  ai_diplo_or_both(&col1, 0, 1, AI_DIPLO_WAR);
+  fail |= ai_diplo_war_momentum(&ctx, 0, 1) != 3 || ai_diplo_war_momentum(&ctx, 1, 0) != 3;
+  for (int i = 0; i < 4; ++i) {
+    ai_diplo_war_note_fight(0, 1);
+  }
+  ai_diplo_war_note_capture(1, 0);
+  ai_diplo_war_note_fight(2, 3); /* not at war: ignored */
+  fail |= ai_diplo_war_momentum(&ctx, 0, 1) != 3 + 2 - 2 || ai_diplo_war_momentum(&ctx, 1, 0) != 3 - 2 + 2;
+  uint8_t blob[AI_DIPLO_WAR_LEDGER_SIZE];
+  fail |= !ai_diplo_war_ledger_export(blob);
+  ai_diplo_war_ledger_reset();
+  ai_diplo_war_ledger_import(blob);
+  col1.head.turn = 50; /* 40 turns on: fully tired */
+  fail |= ai_diplo_war_momentum(&ctx, 0, 1) != -4 + 2 - 2;
+  ai_diplo_war_note_capture(0, 1);
+  ai_diplo_war_note_capture(0, 1);
+  fail |= ai_diplo_war_momentum(&ctx, 0, 1) != -4 + 2 + 2;
+  /* #1914: no encounter for 30 turns, so the treaty tick runs the peace
+   * test itself; both sides are tired and sign. */
+  for (int n = 0; n < 4; ++n) {
+    col1.player[n].control = 1;
+  }
+  ai_diplo_war_note_capture(1, 0);
+  ai_diplo_war_note_capture(1, 0);
+  uint32_t turn = 50;
+  ctx.turn_number = &turn;
+  ctx.col1_ok = true;
+  ctx.human_nation = -1;
+  col1.head.turn = 39; /* 29 turns since the war began: not yet */
+  ai_diplo_treaty_timers(&ctx, 0);
+  fail |= (col1.nation[0].euro_relation[1] & AI_DIPLO_WAR) == 0;
+  col1.head.turn = 40;
+  ai_diplo_treaty_timers(&ctx, 0);
+  fail |= (col1.nation[0].euro_relation[1] & AI_DIPLO_WAR) != 0;
+  fail |= ai_diplo_war_momentum(&ctx, 0, 1) != 0 || ai_diplo_war_ledger_export(blob);
+  mods_campaign_set(0);
+  ai_diplo_or_both(&col1, 2, 3, AI_DIPLO_WAR); /* mod off: no ledger */
+  fail |= ai_diplo_war_ledger_export(blob);
+  if (fail) {
+    fprintf(stderr, "war momentum ledger mismatch\n");
+  }
+  return fail;
+}
+
 static const TestCase k_cases[] = {
   {"colony_focus_small_cash", case_colony_focus_small_cash},
   {"pjob_resume", case_pjob_resume},
@@ -645,5 +703,6 @@ static const TestCase k_cases[] = {
   {"commons_mirror", case_commons_mirror},
   {"wide_islet_sites", case_wide_islet_sites},
   {"poor_site", case_poor_site},
+  {"war_momentum", case_war_momentum},
 };
 TEST_MAIN_WRAPPED(k_cases, diag_init(0, NULL), diag_shutdown())

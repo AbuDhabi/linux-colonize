@@ -343,6 +343,7 @@ bool colonies_capture_show_ex(
       col->custom_house_bits = COLONIZE_CUSTOM_HOUSE_DEFAULT_MASK;
     }
     const int plunder = colonies_capture_col1_effects(g_colonies_col1, pool, col, old_nation, new_nation_id, show);
+    ai_diplo_war_note_capture(new_nation_id, old_nation); /* MOD_AI_IMPROVEMENTS #1913 */
     if (plunder_gold) {
       *plunder_gold = plunder;
     }

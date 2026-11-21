@@ -34,6 +34,7 @@
 #include <stdint.h>
 
 #include "core/col1_save_layout.h"
+#include "core/dos_buggy.h"
 
 /*
  * Header-validation failures, as the port's own error tokens. The caller
@@ -305,6 +306,17 @@ static inline int col1_fixed_human(const ColonizeCol1Save* s, int human_nation) 
     return col1_all_ai_fixed_nation(s);
   }
   return human_nation;
+}
+
+/* The human the AI plays against: col1_fixed_human, but -1 with no power at
+ * the controls. DOS lets DS:0x5398 stand in for the absent human there (the
+ * all-AI anchor gets the human's checks, King and War of Succession);
+ * reproduced in DOS mode only (docs/tolerated_dos_bugs.md TB-66). */
+static inline int col1_rival_human(const ColonizeCol1Save* s, int human_nation) {
+  if (!dos_buggy_behavior() && col1_all_ai_fixed_nation(s) >= 0) {
+    return -1;
+  }
+  return col1_fixed_human(s, human_nation);
 }
 
 /* player[nation].country_name as a C string (empty on a bad nation). The field

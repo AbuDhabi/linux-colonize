@@ -1716,6 +1716,7 @@ void ai_euro_reset(void) {
   s_sticky_count = 0;
   ai_euro_spy_reset(); /* mods.scout_spying intel belongs to one campaign */
   ai_euro_pjob_reset(); /* mods.ai_improvements Pioneer jobs, likewise */
+  ai_diplo_war_ledger_reset(); /* mods.ai_improvements war ledger (#1913) */
   memset(ai_euro_s_5952_ring1, 0, sizeof(ai_euro_s_5952_ring1));
   memset(ai_euro_s_5952_docks_started, 0, sizeof(ai_euro_s_5952_docks_started));
   memset(ai_euro_s_5952_arty_plot, 0, sizeof(ai_euro_s_5952_arty_plot)); /* port_bugs.md #1103 */

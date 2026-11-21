@@ -729,3 +729,29 @@ in `src/core/turn_production.c`. The fix rounds half-up there too, matching
 **Blocks removal:** not tried; the latch bit is saved, so goldens and idle
 campaigns that cross the boundary would need re-blessing.
 **Status:** tolerated (user, 2026-11-18). Fixed in opencol 2026-11-18, gated on `!dos_buggy_behavior()`; test binaries still reproduce DOS.
+
+### TB-66 — All-AI games treat one AI nation as the human
+**DOS:** with no power at the controls (CHEAT Set Human "None", the demo,
+FUN_75c2_2778 raw 121926-121929) DS:0x5398 keeps its value, and every check that
+asks for "the human" through it gets that AI nation. `FUN_5bfb_10ec` refuses all
+AI-AI wars while it is top-ranked, and refuses an AI war while the AI is unpeaced
+with it and weaker. Its slot runs the King arms of `FUN_43f7_2424`: royal purse and
+the War of the Spanish Succession (`FUN_43f7_0218`), which merges a weak AI into
+another. Losing its colonies ends the game (`FUN_3844_0442` Section B). Ship,
+Custom House, missionary, treasure and Indian-demand scoring aim at it as at the
+human.
+
+**Effect:** seed 211 all-AI run (2026-11-21): the Dutch merged into Spain at turn
+160, and the first England-Spain war ended on the anchor (England) gate.
+
+**Port (DOS arm, under `dos_buggy_behavior()`):** `col1_rival_human`
+(`src/core/col1_save.h`) returns -1 in an all-AI game, read by
+`ai_euro_10ec_war_worthy`, the 47b9 missionary and treasure arms
+(`ai_euro_land.c`), the four `ai_euro_ship.c` human-continent bonuses, the
+5952 ore rank and Custom House warship terms (`ai_euro_colony_jobs.c`), the 417e
+Indian demand (`ai_contact_demand.c`) and the year-end no-colony defeat
+(`turn_year_end.c`). `turn_step_all_ai_anchor` (`turn.c`) skips the King arms and
+keeps only the SoL cache. Test: `unit_turn_core` `all_ai_no_rival_human`.
+
+**Blocks removal:** the idle campaigns (`golden_idle_*`) are DOS all-AI traces.
+**Status:** tolerated (user, 2026-11-21). Fixed in opencol 2026-11-21, gated on `!dos_buggy_behavior()`; test binaries still reproduce DOS.

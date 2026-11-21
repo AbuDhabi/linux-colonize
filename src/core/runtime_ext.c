@@ -5,6 +5,7 @@
 
 #include "core/ai.h"
 #include "core/ai_contact.h"
+#include "core/ai_diplo.h"
 #include "core/ai_euro.h"
 #include "core/bytes.h"
 #include "core/ai_euro_internal.h"
@@ -39,6 +40,7 @@ enum {
   RT_MODS = 17,        /* v1: u32 campaign mod mask (mods.h); written only when non-zero */
   RT_GOVERNOR = 18,    /* v1: MOD_COLONY_GOVERNOR {u8 x, u8 y, u8 governor | 0x40 rethink | 0x80 autobuy} per governed colony; written only when non-empty */
   RT_AI_PIONEER_JOBS = 19, /* v1: MOD_AI_IMPROVEMENTS {u8 nation, x, y, kind} per Pioneer job; written only when non-empty */
+  RT_WAR_LEDGER = 20,  /* v1: MOD_AI_IMPROVEMENTS ai_diplo_war_ledger_export (16 x {u16 start, i16 fights, i16 colonies, u16 checked}); written only while a pair is at war */
 };
 
 #define RT_UNIT_TAIL_ENTRY 17
@@ -277,6 +279,12 @@ uint8_t* runtime_ext_serialize(
     const size_t n = ai_euro_pjob_export(p, sizeof p);
     if (n) rt_record(&b, RT_AI_PIONEER_JOBS, 1, p, n); /* absent = no jobs (mod-off saves unchanged) */
   }
+  {
+    uint8_t p[AI_DIPLO_WAR_LEDGER_SIZE];
+    if (ai_diplo_war_ledger_export(p)) { /* absent = no war (mod-off saves unchanged) */
+      rt_record(&b, RT_WAR_LEDGER, 1, p, sizeof p);
+    }
+  }
   if (mods_campaign_mask()) {
     /* Absent = every toggle off, which keeps mod-free saves byte-identical. */
     uint8_t p[4];
@@ -310,6 +318,7 @@ void runtime_ext_deserialize(
     colonies->colonies[i].governor_rethink = false;
   }
   ai_euro_pjob_reset();
+  ai_diplo_war_ledger_reset();
   if (!data) return;
   uint64_t xo[4] = {0, 0, 0, 0};
   size_t off = 0;
@@ -420,6 +429,9 @@ void runtime_ext_deserialize(
         break;
       case RT_AI_PIONEER_JOBS:
         if (len % 4 == 0) ai_euro_pjob_import(p, len);
+        break;
+      case RT_WAR_LEDGER:
+        if (len == AI_DIPLO_WAR_LEDGER_SIZE) ai_diplo_war_ledger_import(p);
         break;
       case RT_XOSHIRO:
         if (len == 32) {

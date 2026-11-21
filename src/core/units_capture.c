@@ -1197,7 +1197,11 @@ bool units_revere_defend_colony_tile(
   /* map / colonies NULL as before (the combat body falls back to
    * g_units_fallout_map for terrain). */
   const ColonizeWorld rw = world_make(pool, NULL, NULL, col1, true, rng, NULL);
+  const int militia_nation = col->nation_id;
   const bool won = units_resolve_land_combat_ff_w(&rw, attacker_id, def_id);
+  /* MOD_AI_IMPROVEMENTS #1913: the war ledger counts the militia fight. */
+  ai_diplo_war_note_fight(won ? atk_copy.nation_id : militia_nation,
+                          won ? militia_nation : atk_copy.nation_id);
   s_militia_colonist_pick = -1;
   combat_set_phantom_0x17(-1);
   combat_set_auto_defender(false);

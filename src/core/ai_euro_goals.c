@@ -1198,8 +1198,11 @@ static void ai_euro_0a60_settlement_goal_producers(
                              : ((ctx->turn_number && *ctx->turn_number) ? (int)*ctx->turn_number : 0);
   const int difficulty = have_col1 ? (int)ctx->col1->head.difficulty : 2;
   /* The two `owner == human` tests below are DOS control-byte reads (raw
-   * 87769 / 87947); outside hot-seat col1_nation_is_human reduces to this. */
-  const int human = have_col1 ? (int)ctx->col1->head.human_player : -1;
+   * 87769 / 87947); outside hot-seat col1_nation_is_human reduces to this.
+   * With no power at the controls every control byte is AI, so no owner is
+   * human (head.human_player still names the DS:0x5398 anchor). */
+  const int human = (have_col1 && col1_all_ai_fixed_nation(ctx->col1) < 0)
+                      ? (int)ctx->col1->head.human_player : -1;
 
   /* FUN_4962_0018-style per-nation/continent tables (colonies, land units,
    * skilled units — the −0x6b1a/−0x6b5a/−0x6ada trio). */

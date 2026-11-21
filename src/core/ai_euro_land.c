@@ -1148,13 +1148,13 @@ int ai_euro_10ec_war_worthy(const ColonizeTurnContext* ctx, int a, int b) {
     return 0;
   }
   const ColonizeCol1Save* col1 = ctx->col1;
-  const int focus = col1_fixed_human(col1, ctx->human_nation); /* DS:0x5398 */
+  const int focus = col1_rival_human(col1, ctx->human_nation); /* DS:0x5398, TB-66 */
   /* asm 5bfb:10f4: `CMP [0xa153],AL(=0x5398); JNZ LAB_5bfb_1100` — JNZ jumps
    * INTO the body; equal falls through to `SUB AX,AX; RETF`. So the AI never
    * weighs war/treaty-cancel while the human is the top-ranked nation
    * (FUN_5bfb_00f8 rank table). The 2026-08-27 wiring had the branch
    * inverted; DOSBox 1593: France and the Dutch went to war here. */
-  if (ai_diplo_00f8_top_ranked_nation(col1) == focus) {
+  if (focus >= 0 && ai_diplo_00f8_top_ranked_nation(col1) == focus) {
     return 0;
   }
   if ((int)*ctx->turn_number <= 0x27) {
@@ -3423,7 +3423,7 @@ int ai_euro_20e6_missionary_arm(ColonizeTurnContext* ctx, ColonizeUnit* u, int n
     return 0;
   }
   const ColonizeCol1Save* col1 = ctx->col1;
-  const int human = col1_fixed_human(col1, ctx->human_nation); /* DS:0x5398, raw 90062 */
+  const int human = col1_rival_human(col1, ctx->human_nation); /* DS:0x5398, raw 90062, TB-66 */
   const bool improved = ai_euro_improved(ctx, nation_id);
   int best = -999;
   int pick = -1;
@@ -3625,7 +3625,7 @@ int ai_euro_20e6_47b9_dead_end(ColonizeTurnContext* ctx, ColonizeUnit* u, int na
   {
     /* Raw 90036: `thunk_FUN_2a1f_047c(...) == DS:0x5398`. */
     const int human = (ctx->col1_ok && ctx->col1)
-                        ? col1_fixed_human(ctx->col1, col1_save_human_nation(ctx->col1)) : -1;
+                        ? col1_rival_human(ctx->col1, col1_save_human_nation(ctx->col1)) : -1; /* TB-66 */
     if (human >= 0 && ai_euro_20e6_probe_adjacent(ctx, u->x, u->y, nation_id, 0) == human) {
       if (destroy_trace) {
         fprintf(stderr, "[47b9] treasure %d n%d (%d,%d) stranded -> destroy\n",

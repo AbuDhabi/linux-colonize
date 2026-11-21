@@ -882,10 +882,16 @@ static void turn_request_autosave(ColonizeTurnProcessor* proc, const ColonizeTur
 static void turn_step_all_ai_anchor(ColonizeTurnProcessor* proc, ColonizeTurnContext* ctx, int n) {
   diag_info("TURN european nation %d (no power at the controls)", n);
   turn_euro_slot_eot(proc, ctx, n);
-  ctx->human_nation = n;
-  ai_king_human_2022_beat(ctx);
-  ai_king_nation_turn_2424(ctx);
-  ctx->human_nation = -1;
+  if (dos_buggy_behavior()) {
+    ctx->human_nation = n;
+    ai_king_human_2022_beat(ctx);
+    ai_king_nation_turn_2424(ctx);
+    ctx->human_nation = -1;
+  } else {
+    /* TB-66: no human, so no King arms (royal purse, War of Succession);
+     * only 2424's SoL cache, which every nation keeps. */
+    ai_king_cache_nation_sol(ctx, n);
+  }
   ai_euro_nation_turn(ctx, n);
   proc->show_indicator = false;
   turn_set_active_nation(ctx, n);

@@ -2,6 +2,7 @@
 #define COLONIZE_AI_DIPLO_H
 
 #include <stdint.h>
+#include <stdbool.h>
 
 #include "core/col1_save.h"
 #include "core/turn.h"
@@ -330,5 +331,17 @@ void ai_diplo_apply_popup_result(ColonizeTurnContext* ctx, const AiPopupState* p
 /* Drop any in-flight 153e talk (new game / load: its popups are gone with the
  * old queue, and a stuck talk blocks every later encounter). */
 void ai_diplo_talk_reset(void);
+
+/* MOD_AI_IMPROVEMENTS #1913 war ledger (ai_diplo.c): per Euro pair at war, its
+ * first turn, net fights, net colonies and last peace test; the improved 13b0
+ * peace test reads ai_diplo_war_momentum (> 0 = `a` wants to fight on), on an
+ * encounter or after 30 turns without one (#1914). Saved in RTST 20. */
+#define AI_DIPLO_WAR_LEDGER_SIZE (4 * 4 * 8)
+void ai_diplo_war_ledger_reset(void);
+void ai_diplo_war_note_fight(int winner, int loser);
+void ai_diplo_war_note_capture(int captor, int loser);
+int ai_diplo_war_momentum(const ColonizeTurnContext* ctx, int a, int b);
+bool ai_diplo_war_ledger_export(uint8_t out[AI_DIPLO_WAR_LEDGER_SIZE]); /* false = no war */
+void ai_diplo_war_ledger_import(const uint8_t in[AI_DIPLO_WAR_LEDGER_SIZE]);
 
 #endif

@@ -341,8 +341,11 @@ COLONIZE_INTERNAL void turn_year_end_defeat_check(
   if (year < 1600) {
     return;
   }
-  /* Section B: peacetime only. */
-  if (human_colonies != 0) {
+  /* Section B: peacetime only. TB-66: with no human (col1_rival_human -1)
+   * the all-AI anchor losing its colonies ends nothing. */
+  if (human_colonies != 0 ||
+      (ctx->col1_ok && ctx->col1 && col1_rival_human(ctx->col1, ctx->human_nation) < 0 &&
+       human >= 0)) {
     return;
   }
   out->year_end_defeat = true;

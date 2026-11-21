@@ -487,8 +487,9 @@ static int ai_euro_28c8_score_full(
             if (!env.human && cargo == COLONIZE_CARGO_ORE && col->population > 7 &&
                 env.turn > 0x4f) {
               cargo_demand_weight += 2;
-              if (ctx->euro_power_rank_ok &&
-                  ctx->euro_power_rank[col1_fixed_human(ctx->col1, ctx->human_nation)] <=
+              const int rival_human = col1_rival_human(ctx->col1, ctx->human_nation); /* TB-66 */
+              if (ctx->euro_power_rank_ok && rival_human >= 0 &&
+                  ctx->euro_power_rank[rival_human] <=
                     ctx->euro_power_rank[col->nation_id]) {
                 /* FUN_15eb_039e(0x28) / (3): owned tiers of the Blacksmith and
                  * Armory chains — not an RNG draw. */
@@ -2516,6 +2517,9 @@ COLONIZE_INTERNAL void ai_euro_5952_cascade_setup(AiEuro5952Cascade* s) {
   s->pop = col->population;
   const int fixed_human = col1_fixed_human(s->col1, ctx->human_nation); /* DS:0x5398 */
   s->human = (fixed_human >= 0 && fixed_human < 4) ? fixed_human : 0;
+  if (col1_rival_human(s->col1, ctx->human_nation) < 0 && fixed_human >= 0) {
+    s->human = -1; /* TB-66: no human to match warships with */
+  }
   s->turn = s->col1 ? (int)s->col1->head.turn : 0;
   s->year = s->col1 ? (int)s->col1->head.year : 0;
   s->difficulty = s->col1 ? (int)s->col1->head.difficulty : 4;
@@ -2763,7 +2767,7 @@ COLONIZE_INTERNAL AiEuro5952CascadeStatus ai_euro_5952_cascade_town(AiEuro5952Ca
   const bool improved_custom = ai_euro_improved(ctx, s->nation) && pop >= 4;
   if (pop >= 6 || improved_custom) {
     int want_custom = improved_custom || (col->ai_flags & 0x03u) != 0;
-    if (!want_custom && s->col1) {
+    if (!want_custom && s->col1 && s->human >= 0) {
       want_custom = ((int)s->col1->stuff.armed_ship_counts[s->human] - 2) >
                     s->armed_count_for_nation;
     }

@@ -32,6 +32,10 @@ DS:0x5398 alone (`game_set_all_ai`). In the port:
   as an AI slot (00f2 then 6d8e, raw 6400-6408), with the 2424 King arms, which
   test `param == 0x5398` and not the control byte (raw 75160). There is no merc
   offer and no Move Pieces.
+- Outside DOS mode the AI plays against no human (tolerated_dos_bugs.md TB-66):
+  `col1_rival_human` is -1, so the war test, the AI's human-aimed scoring and the
+  year-end no-colony defeat skip the anchor, and its slot skips the 2424 King
+  arms (royal purse, War of the Spanish Succession), keeping only the SoL cache.
 - The Europe mirror stays bound to DS:0x5398 for display, but holds no units.
   `game_set_all_ai` flushes it and reloads in place, and the bridge leaves every
   Europe unit in the pool for the AI (`col1_bridge_mirror_nation`). Capture keeps

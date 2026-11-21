@@ -13,6 +13,7 @@
  *  - Treaty timers, military scoring & 13b0 encounter (~line 2585)
  *  - Indian tension tier, alarm delta & relation accessors (~line 2879)
  *  - Talk reset, popup result application & privateer sighting (~line 3036)
+ *  - War ledger: improved peace momentum (~line 3215)
  */
 
 #include "core/ai_contact.h"
@@ -126,6 +127,10 @@
  * writes go through ai_diplo_or_both. docs/archive/smell_audit_2026-09-10.md #16. */
 
 /* ===================== Forward declarations & retired war-friction notes ===================== */
+static void ai_diplo_war_ledger_sync(const ColonizeCol1Save* col1, int a, int b);
+static bool ai_diplo_war_quiet_due(const ColonizeCol1Save* col1, int a, int b);
+static void ai_diplo_war_mark_checked(const ColonizeCol1Save* col1, int a, int b);
+static void ai_diplo_13b0_treaty_tick(ColonizeTurnContext* ctx, int a, int b, bool quiet);
 static uint8_t* ai_diplo_timer_byte(ColonizeCol1Save* col1, int nation, int peer);
 static void ai_diplo_popup_ok(
   ColonizeTurnContext* ctx,
@@ -344,6 +349,7 @@ void ai_diplo_write(ColonizeCol1Save* col1, int nation_a, int nation_b, uint8_t 
     return;
   }
   *f = value;
+  ai_diplo_war_ledger_sync(col1, nation_a, nation_b);
   /* DOS FUN_15b3_0032 raw 9069-9080 writes only this relation byte.
    * The former player.diplomacy OR-summary was an unsupported save writer. */
 }
@@ -2723,6 +2729,13 @@ void ai_diplo_treaty_timers(ColonizeTurnContext* ctx, int nation_id) {
    * (alarm_by_player is byte-stable across the seed-100 TURN3..7 saves; the
    * only ±1 moves come from the FUN_4d56_152e accumulator in ai.c). The no-op
    * stub that used to be called here was deleted 2026-09-14. */
+  /* MOD_AI_IMPROVEMENTS #1914 (not DOS): a war whose sides have not met for
+   * AI_WAR_QUIET_TURNS still gets the 13b0 peace test (once per pair). */
+  for (int other = nation_id + 1; other < 4; ++other) {
+    if (ai_diplo_war_quiet_due(ctx->col1, nation_id, other)) {
+      ai_diplo_13b0_treaty_tick(ctx, nation_id, other, true);
+    }
+  }
 }
 
 
@@ -2739,7 +2752,7 @@ void ai_diplo_treaty_timers(ColonizeTurnContext* ctx, int nation_id) {
  * ai_contact_link_stubs.c 2026-09-10 (see the note there: a weak definition
  * in this file shadowed the real ai_euro.c one out of colonize_core). */
 
-static void ai_diplo_13b0_treaty_tick(ColonizeTurnContext* ctx, int a, int b) {
+static void ai_diplo_13b0_treaty_tick(ColonizeTurnContext* ctx, int a, int b, bool quiet) {
   if (!ctx || !ctx->col1_ok || !ctx->col1 || !ctx->turn_number || a < 0 || a > 3 || b < 0 ||
       b > 3 || a == b) {
     return;
@@ -2752,14 +2765,18 @@ static void ai_diplo_13b0_treaty_tick(ColonizeTurnContext* ctx, int a, int b) {
    * caller, the FUN_5bfb_3180 encounter (ai_diplo_13b0_encounter). */
   uint8_t rel_ab = col1->nation[a].euro_relation[b];
   uint8_t rel_ba = col1->nation[b].euro_relation[a];
-  if ((a + (int)*ctx->turn_number + b) % 3 != 0 && (rel_ab & AI_DIPLO_MET)) {
+  if (!quiet && (a + (int)*ctx->turn_number + b) % 3 != 0 && (rel_ab & AI_DIPLO_MET)) {
     return;
   }
   if ((rel_ab & AI_DIPLO_WAR) || (rel_ba & AI_DIPLO_WAR)) {
     /* MOD_AI_IMPROVEMENTS #1873 (not DOS): DOS AI pairs never leave a war;
-     * two improved nations sign peace once neither finds the war worthy. */
-    if (ai_euro_improved(ctx, a) && ai_euro_improved(ctx, b) &&
-        !ai_euro_10ec_war_worthy(ctx, a, b) && !ai_euro_10ec_war_worthy(ctx, b, a)) {
+     * two improved nations sign peace once neither wants to fight on
+     * (#1913: worthiness plus the war's length, fights and colonies). */
+    const bool improved = ai_euro_improved(ctx, a) && ai_euro_improved(ctx, b);
+    if (improved) {
+      ai_diplo_war_mark_checked(col1, a, b);
+    }
+    if (improved && ai_diplo_war_momentum(ctx, a, b) <= 0 && ai_diplo_war_momentum(ctx, b, a) <= 0) {
       ai_diplo_clear_both(col1, a, b, AI_DIPLO_WAR | AI_DIPLO_WAR_INTENT);
       rel_ab = col1->nation[a].euro_relation[b];
       rel_ba = col1->nation[b].euro_relation[a];
@@ -2847,7 +2864,7 @@ void ai_diplo_13b0_encounter(ColonizeTurnContext* ctx, int mover, int other) {
   /* Raw 97406-97411: an AI self goes straight to 2a1f_065e = 13b0. The port's
    * "deep Indian hostility" skip that stood here has no DOS counterpart
    * (DOSBox 1557: Spain and France signed on first contact). */
-  ai_diplo_13b0_treaty_tick(ctx, mover, other);
+  ai_diplo_13b0_treaty_tick(ctx, mover, other, false);
   ai_diplo_153e_finish_timer(ctx, mover, other);
   /* 153e returns local_8e = 1 on the AI branch, so 3180 (raw 98676-98678)
    * ORs MET (0x20) into both relation bytes. */
@@ -3208,6 +3225,136 @@ void ai_euro_465b_privateer_sighting(
     if (follow == AI_DIPLO_WAR && !dos_buggy_behavior() &&
         !col1_nation_is_human(col1, tn, (int16_t)col1->head.human_player)) {
       ai_diplo_or_both(col1, tn, mn, AI_DIPLO_WAR); /* TB-54 */
+    }
+  }
+}
+
+/* ===================== War ledger: improved peace momentum (ai_diplo_war_ledger_reset .. ai_diplo_war_momentum) ===================== */
+
+/* MOD_AI_IMPROVEMENTS #1913 (not DOS; docs/ai_euro_improvement_spec.md "Wars
+ * stick"): per ordered Euro pair, the war's first turn (+1, 0 = not at war),
+ * the fights `a` won minus lost against `b` and the colonies `a` took from `b`
+ * minus lost to it, since the war began, and the turn (+1) of the last 13b0
+ * peace test (#1914). Kept only with the mod on, cleared when the pair's WAR
+ * bits are; saved in RTST record 20. */
+typedef struct {
+  uint16_t start;
+  int16_t fights;
+  int16_t colonies;
+  uint16_t checked;
+} AiDiploWar;
+
+static AiDiploWar s_war[4][4];
+
+/* A fresh war is worth AI_WAR_FRESH; that falls by one every AI_WAR_TIRE_TURNS
+ * turns, to -AI_WAR_TIRED. */
+enum {
+  AI_WAR_WORTHY_WEIGHT = 4,
+  AI_WAR_FRESH = 3,
+  AI_WAR_TIRE_TURNS = 4,
+  AI_WAR_TIRED = 4,
+  AI_WAR_FIGHTS_CAP = 4,   /* net fights / 2 */
+  AI_WAR_COLONIES_CAP = 6, /* net colonies * 2 */
+  AI_WAR_QUIET_TURNS = 30, /* #1914: peace test without an encounter */
+};
+
+void ai_diplo_war_ledger_reset(void) {
+  memset(s_war, 0, sizeof s_war);
+}
+
+static void ai_diplo_war_ledger_sync(const ColonizeCol1Save* col1, int a, int b) {
+  if (!mods_on(MOD_AI_IMPROVEMENTS) || a < 0 || a > 3 || b < 0 || b > 3 || a == b) {
+    return;
+  }
+  const bool war = ((col1->nation[a].euro_relation[b] | col1->nation[b].euro_relation[a]) &
+                    AI_DIPLO_WAR) != 0;
+  if (!war) {
+    memset(&s_war[a][b], 0, sizeof s_war[a][b]);
+    memset(&s_war[b][a], 0, sizeof s_war[b][a]);
+  } else if (!s_war[a][b].start) {
+    s_war[a][b].start = s_war[b][a].start = (uint16_t)(col1->head.turn + 1u);
+    s_war[a][b].checked = s_war[b][a].checked = s_war[a][b].start;
+  }
+}
+
+static void ai_diplo_war_mark_checked(const ColonizeCol1Save* col1, int a, int b) {
+  if (a >= 0 && a < 4 && b >= 0 && b < 4 && a != b && s_war[a][b].start) {
+    s_war[a][b].checked = s_war[b][a].checked = (uint16_t)(col1->head.turn + 1u);
+  }
+}
+
+static bool ai_diplo_war_quiet_due(const ColonizeCol1Save* col1, int a, int b) {
+  return a >= 0 && a < 4 && b >= 0 && b < 4 && a != b && s_war[a][b].start &&
+         (int)col1->head.turn + 1 - (int)s_war[a][b].checked >= AI_WAR_QUIET_TURNS;
+}
+
+static bool ai_diplo_war_pair(int a, int b) {
+  return a >= 0 && a < 4 && b >= 0 && b < 4 && a != b && s_war[a][b].start != 0;
+}
+
+void ai_diplo_war_note_fight(int winner, int loser) {
+  if (ai_diplo_war_pair(winner, loser)) {
+    s_war[winner][loser].fights++;
+    s_war[loser][winner].fights--;
+  }
+}
+
+void ai_diplo_war_note_capture(int captor, int loser) {
+  if (ai_diplo_war_pair(captor, loser)) {
+    s_war[captor][loser].colonies++;
+    s_war[loser][captor].colonies--;
+  }
+}
+
+static int ai_diplo_war_clamp(int v, int cap) {
+  return v < -cap ? -cap : v > cap ? cap : v;
+}
+
+int ai_diplo_war_momentum(const ColonizeTurnContext* ctx, int a, int b) {
+  int m = ai_euro_10ec_war_worthy(ctx, a, b) ? AI_WAR_WORTHY_WEIGHT : 0;
+  if (!ctx || !ctx->col1 || !ai_diplo_war_pair(a, b)) {
+    return m;
+  }
+  const AiDiploWar* w = &s_war[a][b];
+  const int turns = (int)ctx->col1->head.turn + 1 - (int)w->start;
+  int fresh = AI_WAR_FRESH - (turns > 0 ? turns : 0) / AI_WAR_TIRE_TURNS;
+  if (fresh < -AI_WAR_TIRED) {
+    fresh = -AI_WAR_TIRED;
+  }
+  return m + fresh + ai_diplo_war_clamp(w->fights / 2, AI_WAR_FIGHTS_CAP) +
+         ai_diplo_war_clamp(w->colonies * 2, AI_WAR_COLONIES_CAP);
+}
+
+bool ai_diplo_war_ledger_export(uint8_t out[AI_DIPLO_WAR_LEDGER_SIZE]) {
+  bool any = false;
+  for (int a = 0; a < 4; ++a) {
+    for (int b = 0; b < 4; ++b) {
+      const AiDiploWar* w = &s_war[a][b];
+      uint8_t* p = out + (a * 4 + b) * 8;
+      const uint16_t f = (uint16_t)w->fights;
+      const uint16_t c = (uint16_t)w->colonies;
+      p[0] = (uint8_t)w->start;
+      p[1] = (uint8_t)(w->start >> 8);
+      p[2] = (uint8_t)f;
+      p[3] = (uint8_t)(f >> 8);
+      p[4] = (uint8_t)c;
+      p[5] = (uint8_t)(c >> 8);
+      p[6] = (uint8_t)w->checked;
+      p[7] = (uint8_t)(w->checked >> 8);
+      any = any || w->start != 0;
+    }
+  }
+  return any;
+}
+
+void ai_diplo_war_ledger_import(const uint8_t in[AI_DIPLO_WAR_LEDGER_SIZE]) {
+  for (int a = 0; a < 4; ++a) {
+    for (int b = 0; b < 4; ++b) {
+      const uint8_t* p = in + (a * 4 + b) * 8;
+      s_war[a][b].start = (uint16_t)(p[0] | p[1] << 8);
+      s_war[a][b].fights = (int16_t)(uint16_t)(p[2] | p[3] << 8);
+      s_war[a][b].colonies = (int16_t)(uint16_t)(p[4] | p[5] << 8);
+      s_war[a][b].checked = (uint16_t)(p[6] | p[7] << 8);
     }
   }
 }

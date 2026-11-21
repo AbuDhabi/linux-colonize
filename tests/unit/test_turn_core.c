@@ -573,6 +573,28 @@ static int case_hotseat_slot_order(void) {
  * in the pipeline and runs as an AI slot from FINISH (FUN_130d_0290 raw
  * 6400-6408): Dutch, the day and the Indians, England, France, then Spain.
  */
+/* TB-66: with no power at the controls the AI plays against no human; DOS
+ * mode keeps the DS:0x5398 anchor in that role. */
+static int case_all_ai_no_rival_human(void) {
+  ColonizeCol1Save col1;
+  memset(&col1, 0, sizeof(col1));
+  for (int n = 0; n < 4; ++n) {
+    col1.player[n].control = 1;
+  }
+  col1.head.human_player = 2;
+  const int dos_mode = col1_rival_human(&col1, -1);
+  dos_buggy_behavior_set(false);
+  const int game_mode = col1_rival_human(&col1, -1);
+  col1.player[2].control = 0;
+  const int one_human = col1_rival_human(&col1, 2);
+  dos_buggy_behavior_set(true);
+  if (dos_mode != 2 || game_mode != -1 || one_human != 2) {
+    fprintf(stderr, "rival human: dos %d game %d one human %d\n", dos_mode, game_mode, one_human);
+    return 1;
+  }
+  return 0;
+}
+
 static int case_all_ai_slot_order(void) {
   fx_begin();
   ColonizeCol1Save col1;
@@ -8425,6 +8447,7 @@ static const TestCase k_cases[] = {
   {"calendar", case_calendar},
   {"hotseat_slot_order", case_hotseat_slot_order},
   {"all_ai_slot_order", case_all_ai_slot_order},
+  {"all_ai_no_rival_human", case_all_ai_no_rival_human},
   {"free_production", case_free_production},
   {"turn_end_calendar", case_turn_end_calendar},
   {"next_unit_selection", case_next_unit_selection},
