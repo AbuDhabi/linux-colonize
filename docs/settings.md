@@ -69,7 +69,8 @@ defaults no matter what file is sitting in the build directory.
     "pioneer_plan": false, "scout_autoexplore": false, "ship_autoexplore": false, "hard_king": false,
     "current_vision": false, "modern_prng": false,
     "beg_refusal_alarm": true, "riders_keep_ship": true, "no_education_lies": false,
-    "colony_governor": false, "ai_improvements": false, "alternate_map_generator": false
+    "colony_governor": false, "ai_improvements": false, "alternate_map_generator": false,
+    "tax_unsigned": true, "pressure_saturates": true
   },
   "data_dir": "./COLONIZE",
   "save_dir": "",
@@ -175,7 +176,7 @@ page title naming the group:
    `scout_autoexplore`, `ship_autoexplore`, `current_vision`,
    `modern_prng`, `no_education_lies`, `colony_governor`.
 3. `@MODOPTIONS3` "DOS Bug Fixes": `goto_native_wait`, `beg_refusal_alarm`,
-   `riders_keep_ship`.
+   `riders_keep_ship`, `tax_unsigned`, `pressure_saturates`.
 4. `@MODOPTIONS4` "Rivals and Maps": `ai_improvements`, `alternate_map_generator`.
 
 Next / Done (the button under the rows, `@MODOPTIONSDONE`, Done on the last page; or Enter) on a page saves
@@ -219,6 +220,8 @@ stock 12 Game Concept pages stay title-only, as in DOS.
 | `colony_governor` | off | Port-only colony governor (docs/colony_governor.md, `colony_governor.c`): the colony screen shows `Governor: <setting>` and a CHANGE button (LABELS `@MODGOVERNOR`, `@CTITLE` 3) on the wood above the area view; CHANGE opens GAME `@MODGOVERNOR` (none, Farming, Cash, Industry, Politics, Military). As the human ends the turn (`game_do_end_turn`) each governed colony of that nation is re-seated (a three-turn plan: nobody starves or earns a @FOODLOW popup, goods only up to warehouse room, hammers and tools toward the project and its queue, converts in the fields, teachers kept while there are students; Cash prices after tax and boycott, nothing for sale in the War of Independence without a Custom House) and, when it has "(No Production)" or a project that cannot be built, given one (Warehouse first when storage runs short) or left on "(No Production)". The Colony Advisor report shows `Governor: <setting>` under a governed colony's name. Human colonies only; a capture resets it to none. The setting rides RTST record 18. Off = nothing drawn, nothing run. |
 | `beg_refusal_alarm` | on | DOS bug fix (tolerated_dos_bugs_ai.md TB-12): a refused native food beg raises the begging tribe's alarm toward the refuser through the whole `FUN_4cc6_00f2` (`ai_contact_alarm_delta_00f2`: France and Pocahontas halve it, clamp 0..100, at 100 under peace the mission expel roll and `@INDIANBURN`). Off = DOS: the add lands in another tribe's record (`ai_diplo_indian_alarm_word_raw` with the Indian nation as index). |
 | `riders_keep_ship` | on | DOS bug fix (dos_bugs.md DB-109): a ship leaving a tile boards its own passengers and the tile's sentried land units, never another own ship's passengers (`units_ship_departure_pickup`, human and AI). Also covers DB-104: a Trade Route ship leaving a colony or Europe boards sentried units like any ship (`europe_set_sail_from_harbor_ex`). Off = DOS: the first ship to leave takes every own rider on the tile that fits, a Trade Route ship at sea lets the other ships there pick first, and one leaving a colony or Europe boards nobody. |
+| `tax_unsigned` | on | DOS bug fix (dos_bugs.md DB-78): the nation tax byte reads unsigned (`europe_tax_byte`), and the Europe `]`/`[` cheat keys, sales, the Custom House, de Witt trades and the King's tax changes keep it to 0..100. Off = DOS: every reader takes the byte as a signed char, the cheat keys wrap it (127 -> -128, 0 -> -1), and a negative tax pays more than the gross on every sale, adds up to 655 bells a turn with Paine, makes the Crown's treasure cut negative with Cortes and takes nothing on a Royal unit loss. |
+| `pressure_saturates` | on | DOS bug fix (dos_bugs.md DB-115): the Europe market pressure word (`trade.nr`, the screen's `trade_nr`) stops at -32768 / 32767 (`europe_nr_add`, sales and the end-of-turn tick). Off = DOS: it adds in 16 bits, so after enough selling of one cargo (300 silver a turn wraps in about 40 turns) it wraps from a glut to a shortage and the price climbs back to its ceiling. |
 | `ai_improvements` | off | Rival Europeans (not the human, not the crown in the WoI) play by the player's rules: no free gold, goods, food or bells, no in-colony experts or promotions, Pioneer units do the tile work (job list in RTST record 19), the colony governor seats their colonists, sites avoid native villages (Spain excepted), and on Governor/Viceroy they start with a Veteran Soldier. Full list and measurements: docs/ai_euro_improvement_spec.md section 7. Off = DOS. |
 | `alternate_map_generator` | off | NEW WORLD and CUSTOMIZE maps come from `map_generate_alternate` (`src/core/map_gen_alt.c`): plate tectonics, erosion, prevailing winds, rainfall and temperature instead of the DOS blob passes (docs/map_gen_alt.md). `map_generate` reads the campaign mask, which `game_commit_new_campaign` sets before generating. The Customize New World axes still apply; Original Americas and loaded `.MP` maps are unchanged. The generated map is saved like any other, so the bit matters only at new-game time. Off = DOS `map_generate`. |
 

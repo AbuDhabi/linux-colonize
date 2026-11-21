@@ -2571,6 +2571,20 @@ static int unit_foreign_colony_trade(void) {
   /* gross = 6*20 = 120; −10% tax = 108; −10% haggle = 108 + (10*108)/-100 = 98. */
   CHECK(deal.sold_cargo == COLONIZE_CARGO_SUGAR && deal.sold_qty == 20, "deal sells the hold");
   CHECK(deal.gold == 98, "gold = gross − tax − haggle");
+  /* DB-78 (raw 98969 signed char): tax 200 is -56, gross + 67 = 187, haggle
+   * 169. mods.tax_unsigned clamps it to 100%: the raw 98984 floor of 1. */
+  col1.nation[1].tax_rate = 200;
+  ColonizeForeignTradeDeal deal_tax;
+  CHECK(colonies_foreign_trade_prepare(&w, NULL, 0, uid, 0, &deal_tax) == 1 && deal_tax.gold == 169,
+        "DOS tax 200 reads -56");
+  const uint32_t mods_saved = mods_campaign_mask();
+  dos_buggy_behavior_set(false);
+  mods_campaign_set(1u << MOD_TAX_UNSIGNED);
+  const int fixed_ok = colonies_foreign_trade_prepare(&w, NULL, 0, uid, 0, &deal_tax);
+  mods_campaign_set(mods_saved);
+  dos_buggy_behavior_set(true);
+  CHECK(fixed_ok == 1 && deal_tax.gold == 1, "unsigned tax 200 clamps to 100%");
+  col1.nation[1].tax_rate = 10;
   /* Cigars at 4 each: 60 in stock is 240 > 120, walked down to 30 (= 120). */
   CHECK(
     deal.offer_cargo == COLONIZE_CARGO_CIGARS && deal.offer_qty == 30,

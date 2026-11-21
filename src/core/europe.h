@@ -837,6 +837,12 @@ int europe_cargo_burden(int cargo_type);
 /* gross − gross·tax/100 (FUN_364b_0688 Custom House arm; same rounding as
  * the harbor sale). Returns the net treasury credit. */
 int europe_net_after_tax(int gross, int tax_percent);
+/* The nation tax byte (Col1 nation +1) as DOS reads it: a signed char, so 128
+ * or more is negative (dos_bugs.md DB-78). With mods.tax_unsigned on (never
+ * under dos_buggy_behavior()) it reads unsigned and europe_tax_signed() is
+ * false; the port's 0..100 clamps apply only then. */
+bool europe_tax_signed(void);
+int europe_tax_byte(uint8_t tax_rate);
 int europe_sell_proceeds(const EuropeScreen* eu, int cargo_type, int amount);
 /*
  * Harbor sell of one hold. Net proceeds go to eu->gold; the withheld tax goes

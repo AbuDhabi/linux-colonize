@@ -589,7 +589,7 @@ int colonies_foreign_trade_prepare(
 
   /* raw 98963-98968: gross, then the owner's tax withheld. */
   const int gross = colonies_ftrade_price_byte(col1, owner, sold) * qty;
-  int gold = europe_net_after_tax(gross, (int)col1->nation[owner].tax_rate);
+  int gold = europe_net_after_tax(gross, europe_tax_byte(col1->nation[owner].tax_rate));
   /* raw 98969-98972: at war (rel & 2) outside the WoI — half. */
   if (!woi && (ai_diplo_read(col1, actor, owner) & AI_DIPLO_WAR) != 0) {
     gold >>= 1;

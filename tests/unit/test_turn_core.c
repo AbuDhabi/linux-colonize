@@ -2221,6 +2221,30 @@ static int case_custom_house_autosell(void) {
     return 1;
   }
 
+  /* dos_bugs.md DB-78: raw 57282 never clamps the signed tax, so -10% pays
+   * 630 + 63; mods.tax_unsigned clamps it to 0. */
+  int ch_gain[2];
+  for (int fixed = 0; fixed < 2; ++fixed) {
+    col->stock[COLONIZE_CARGO_TOBACCO] = 120;
+    eu.gold = 0;
+    col1.nation[0].gold = 0;
+    eu.tax_percent = -10;
+    col1.nation[0].tax_rate = (uint8_t)-10;
+    const uint32_t mods_saved = mods_campaign_mask();
+    dos_buggy_behavior_set(!fixed);
+    mods_campaign_set(fixed ? mods_saved | 1u << MOD_TAX_UNSIGNED : mods_saved);
+    ch_gain[fixed] = europe_custom_house_autosell_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .col1=(ColonizeCol1Save*)(&col1), .col1_ok=true, .europe=(EuropeScreen*)(&eu)}, col, 0);
+    mods_campaign_set(mods_saved);
+    dos_buggy_behavior_set(true);
+  }
+  eu.tax_percent = 20;
+  col1.nation[0].tax_rate = 20;
+  if (ch_gain[0] != 693 || ch_gain[1] != 630) {
+    fprintf(stderr, "custom house tax -10: DOS %d (want 693) fixed %d (want 630)\n", ch_gain[0],
+            ch_gain[1]);
+    return 1;
+  }
+
   /* Blockade: enemy armed ship next to the colony shuts the Custom House
    * (FUN_364b_0688 colony +0x1b & 3). */
   col->stock[COLONIZE_CARGO_TOBACCO] = 120;

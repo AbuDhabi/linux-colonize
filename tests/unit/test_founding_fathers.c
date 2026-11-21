@@ -2557,6 +2557,11 @@ int main(void) {
     if (bells_paine != 8) {
       return fail("Paine tax% bells");
     }
+    /* DB-78: a negative (signed DOS) tax goes through raw 12629's unsigned
+     * 16-bit product: 7 + (65526 * 7 & 0xffff) / 100 = 7 + 654. */
+    if (colony_prod_colony_bells_ff(&pool, col, 0, -10, false, 0) != 661) {
+      return fail("Paine at tax -10: DOS 16-bit product");
+    }
     /* Both: Jefferson then media(none) then Paine: 10 × 120/100 = 12. */
     const int bells_both = colony_prod_colony_bells_ff(&pool, col, 50, 20, false, 0);
     if (bells_both != 12) {
@@ -2718,6 +2723,16 @@ int main(void) {
     }
     if (peu.current_crosses != 13) {
       return fail("turn Penn crosses accrued");
+    }
+    /* FUN_4345_0a22 raw 73341 adds the pool as a word: 65530 + 12 wraps to 6
+     * (DB-115 note). A withdrawn slot skips the elect test, so only the add runs. */
+    pnat->liberty_bells_pool = 65530;
+    pcol1.player[0].control = 2;
+    turn_run_human_colony_eot(&pctx, NULL);
+    pcol1.player[0].control = 0;
+    if (pnat->liberty_bells_pool != 6) {
+      fprintf(stderr, "bell pool 65530 + 12: got %u\n", (unsigned)pnat->liberty_bells_pool);
+      return fail("bell pool does not wrap as DOS");
     }
   }
 

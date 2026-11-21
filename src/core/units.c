@@ -1143,7 +1143,7 @@ int units_king_galleon_share_pct(const ColonizeCol1Save* col1, int nation_id) {
     return 0;
   }
   /* FUN_5fef_1908: local_5a = nation.tax; if !Cortes: max((diff+10)*5, tax*2); cap 0x5a. */
-  int pct = (int)col1->nation[nation_id].tax_rate;
+  int pct = europe_tax_byte(col1->nation[nation_id].tax_rate);
   if (!founding_fathers_nation_has(col1, nation_id, FF_HERNAN_CORTES)) {
     const int by_diff = ((int)col1->head.difficulty + 10) * 5;
     const int by_tax = pct * 2;
@@ -1152,7 +1152,8 @@ int units_king_galleon_share_pct(const ColonizeCol1Save* col1, int nation_id) {
   if (pct > 90) {
     pct = 90;
   }
-  if (pct < 0) {
+  /* raw 100196 has no floor: with Cortes a negative tax (DB-78) is a negative cut. */
+  if (pct < 0 && !europe_tax_signed()) {
     pct = 0;
   }
   return pct;
@@ -1383,7 +1384,7 @@ int units_king_galleon_offer_for_unit_w(
     /* FUN_5fef_1908 raw 100166: FUN_291f_0ac8(2, 0, nation) = the country
      * phrase, form 0 ("home to England"), not the port city. */
     tok.string2 = reports_nation_country_phrase(nation_id, 0);
-    tok.number0 = (int)col1->nation[nation_id].tax_rate;
+    tok.number0 = europe_tax_byte(col1->nation[nation_id].tax_rate);
     tok.has_number0 = true;
     char body[AI_POPUP_BODY_LEN];
     const char* galleon_section = cortes ? "KINGGALLEON3" : "KINGGALLEON2";

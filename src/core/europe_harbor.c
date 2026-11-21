@@ -816,15 +816,26 @@ int europe_nation_buy_price(
   return p < 0 ? 0 : p;
 }
 
+bool europe_tax_signed(void) {
+  return dos_buggy_behavior() || !mods_on(MOD_TAX_UNSIGNED);
+}
+
+int europe_tax_byte(uint8_t tax_rate) {
+  return europe_tax_signed() ? (int)(int8_t)tax_rate : (int)tax_rate;
+}
+
 int europe_net_after_tax(int gross, int tax_percent) {
   if (gross <= 0) {
     return 0;
   }
-  if (tax_percent < 0) {
-    tax_percent = 0;
-  }
-  if (tax_percent > 100) {
-    tax_percent = 100;
+  /* DOS has no clamp: a negative tax pays more than the gross (DB-78). */
+  if (!europe_tax_signed()) {
+    if (tax_percent < 0) {
+      tax_percent = 0;
+    }
+    if (tax_percent > 100) {
+      tax_percent = 100;
+    }
   }
   /* FUN_364b_0688: tax = (tax·gross)/100 (32-bit), net = gross − tax. */
   const long taxed = ((long)tax_percent * (long)gross) / 100L;
@@ -867,6 +878,17 @@ static void europe_quote_settle(EuropeCargoQuote* q) {
 static void europe_market_tick_single_cargo(
   EuropeScreen* eu, struct ColonizeCol1Save* col1, int nation, int cargo
 );
+/* Pressure word add. DOS adds in 16 bits (1d80/1dfa and 0058), so a long glut
+ * wraps to a shortage and the price climbs back (DB-115); the fix toggle
+ * saturates at the int16 edges instead. */
+static int16_t europe_nr_add(int16_t nr, int delta) {
+  const int v = (int)nr + delta;
+  if (dos_buggy_behavior() || !mods_on(MOD_PRESSURE_SATURATES)) {
+    return (int16_t)v;
+  }
+  return (int16_t)(v < INT16_MIN ? INT16_MIN : v > INT16_MAX ? INT16_MAX : v);
+}
+
 /* Write the screen's track through to its nation's col1 row. */
 static void europe_screen_track_to_col1(const EuropeScreen* eu, struct ColonizeCol1Save* col1);
 
@@ -903,7 +925,8 @@ void europe_apply_trade_volume(
    * count of 16+ leaves 0) then `ADD` — all 16-bit, wrapping. The record
    * writes below are plain `SUB`/`ADD word ptr [BX+0x8864]` (asm 97731 /
    * 97789) and the Dutch damping `SHL AX,1; CWD; IDIV 3` doubles in 16 bits
-   * too, so nothing saturates (port_bugs.md #1587). */
+   * too, so nothing saturates (port_bugs.md #1587) unless the DB-115 fix is
+   * on (europe_nr_add). */
   const int raw_term = (int16_t)((uint32_t)amount << ((unsigned)q->volatility & 0x1fu)) +
                        europe_1d44_term(amount, seller_is_human || mirrored,
                                         mirrored ? 4 - difficulty : difficulty);
@@ -923,16 +946,11 @@ void europe_apply_trade_volume(
       }
       const int tn = (!is_buy && n == 3) ? dutch16 : term16;
       col1->nation[n].trade.nr[cargo_type] =
-        (int16_t)(col1->nation[n].trade.nr[cargo_type] + (is_buy ? -tn : tn));
+        europe_nr_add(col1->nation[n].trade.nr[cargo_type], is_buy ? -tn : tn);
     }
   }
   const int term = (!is_buy && track == 3) ? dutch16 : term16;
-  int nr = (int)eu->trade_nr[cargo_type];
-  if (is_buy) {
-    nr -= term;
-  } else {
-    nr += term;
-  }
+  const int16_t nr = europe_nr_add(eu->trade_nr[cargo_type], is_buy ? -term : term);
   if (col1 && seller_nation >= 0 && seller_nation < (int)COLONIZE_COL1_NATION_COUNT &&
       (unsigned)cargo_type < COLONIZE_COL1_CARGO_TYPES) {
     ColonizeCol1NationTrade* t = &col1->nation[seller_nation].trade;
@@ -948,7 +966,11 @@ void europe_apply_trade_volume(
       /* 1dfa: gold[cargo] += (sell_price·amount·(100−tax))/100 — note the
        * ledger rounds the other way from the treasury credit (54 lumber @1,
        * 35% → ledger +35, treasury +36). */
-      const int tax = (int)col1->nation[seller_nation].tax_rate;
+      int tax = europe_tax_byte(col1->nation[seller_nation].tax_rate);
+      /* Same 0..100 clamp as europe_net_after_tax under the fix toggle. */
+      if (!europe_tax_signed() && tax > 100) {
+        tax = 100;
+      }
       /* `IMUL word; MOV CX,AX ... MOV AX,CX; CWD`: 16-bit product (#1587). */
       const long gross =
         (long)(int16_t)(europe_nation_sell_price(eu, col1, seller_nation, cargo_type) * amount);
@@ -1018,14 +1040,7 @@ typedef struct EuropeMarketTick {
 } EuropeMarketTick;
 
 static void europe_market_nr_add(const EuropeMarketTick* t, int cargo, int delta) {
-  int nr = (int)t->nr[cargo] + delta;
-  if (nr < -32768) {
-    nr = -32768;
-  }
-  if (nr > 32767) {
-    nr = 32767;
-  }
-  t->nr[cargo] = (int16_t)nr;
+  t->nr[cargo] = europe_nr_add(t->nr[cargo], delta); /* 0058: `ADD word` (DB-115) */
 }
 
 /*
@@ -1223,14 +1238,9 @@ static void europe_market_phase4(const EuropeMarketTick* t, int* out_rise, int* 
       }
     }
     /* raw 58989-58992: a single-cargo call takes the attrition back out. */
+    /* The shedding above moves toward 0, so nr is still a 16-bit value here. */
     if (t->only_cargo >= 0) {
-      nr -= attrition;
-    }
-    if (nr < -32768) {
-      nr = -32768;
-    }
-    if (nr > 32767) {
-      nr = 32767;
+      nr = europe_nr_add((int16_t)nr, -attrition);
     }
     t->nr[c] = (int16_t)nr;
     /*

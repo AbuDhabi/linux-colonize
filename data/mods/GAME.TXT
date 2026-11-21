@@ -55,6 +55,8 @@ DOS Bug Fixes
 ~Go To Waits at Natives
 ~Refused Beg Alarms the Tribe
 ~Passengers Keep Their Ship
+~Tax Never Turns Negative
+~Markets Stay Glutted
 
 @MODOPTIONS4
 @width=220

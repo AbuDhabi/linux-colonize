@@ -12,6 +12,8 @@
 #include "core/colony.h"
 #include "core/founding_fathers.h"
 #include "core/colony_production.h"
+#include "core/dos_buggy.h"
+#include "core/mods.h"
 #include "core/world.h"
 
 #include <string.h>
@@ -572,9 +574,9 @@ static int case_rank_byte_unchecked_index(void) {
 }
 
 /* dos_bugs.md DB-78: FUN_2f2b_348c raw 50647 adds tax% of the statesman's bells
- * for Thomas Paine, reading the tax as a signed char. The port reads it
- * unsigned, so a tax of 200 triples the bells instead of cutting them. */
-static int case_paine_bonus_reads_tax_unsigned(void) {
+ * for Thomas Paine, reading the tax as a signed char, so a tax of 200 (-56)
+ * cuts them. mods.tax_unsigned reads it unsigned: 200 triples them. */
+static int case_paine_bonus_tax_byte(void) {
   ColonizeMsgCatalog names;
   assets_msg_init(&names);
   if (!assets_msg_load_file(&names, "COLONIZE/NAMES.TXT")) {
@@ -604,10 +606,16 @@ static int case_paine_bonus_reads_tax_unsigned(void) {
   const int base =
     ai_euro_jobs_menu_estimate(&pool, NULL, &c1, c, 0, COLONIZE_PROF_STATESMAN, NULL);
   c1.nation[1].tax_rate = 200;
+  const int dos =
+    ai_euro_jobs_menu_estimate(&pool, NULL, &c1, c, 0, COLONIZE_PROF_STATESMAN, NULL);
+  dos_buggy_behavior_set(false);
+  mods_campaign_set(1u << MOD_TAX_UNSIGNED);
   const int taxed =
     ai_euro_jobs_menu_estimate(&pool, NULL, &c1, c, 0, COLONIZE_PROF_STATESMAN, NULL);
-  if (base <= 0 || taxed != base + 200 * base / 100) {
-    fprintf(stderr, "paine: bells %d at tax 0, %d at tax 200\n", base, taxed);
+  mods_campaign_set(0u);
+  dos_buggy_behavior_set(true);
+  if (base <= 0 || dos != base + -56 * base / 100 || taxed != base + 200 * base / 100) {
+    fprintf(stderr, "paine: bells %d at tax 0, at tax 200 %d DOS %d fixed\n", base, dos, taxed);
     return fail("Paine bonus at tax 200");
   }
   return 0;
@@ -631,7 +639,7 @@ static const TestCase k_cases[] = {
   {"ledger_food_demand_counts_horse_births", case_ledger_food_demand_counts_horse_births},
   {"expert_pass_tools_supply_nets_unmet_ore", case_expert_pass_tools_supply_nets_unmet_ore},
   {"expert_demotion_updates_prof_cache", case_expert_demotion_updates_prof_cache},
-  {"paine_bonus_reads_tax_unsigned", case_paine_bonus_reads_tax_unsigned},
+  {"paine_bonus_tax_byte", case_paine_bonus_tax_byte},
 };
 
 TEST_MAIN(k_cases)
