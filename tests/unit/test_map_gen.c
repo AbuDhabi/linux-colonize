@@ -296,6 +296,23 @@ static int test_alternate_generator_invariants(void) {
           rc = 1;
           break;
         }
+        if (typ == (T_TUNDRA | T_FOREST_BIT)) { /* forests(): zero chance beside arctic */
+          bool near_arctic = false;
+          for (int d = 0; d < 8; ++d) {
+            const int nx = x + MAP_DIR8_DX[d];
+            const int ny = y + MAP_DIR8_DY[d];
+            if (nx >= 0 && nx < w && ny >= 0 && ny < h &&
+                (a.terrain[ny * w + nx] & 0x1f) == T_ARCTIC) {
+              near_arctic = true;
+              break;
+            }
+          }
+          if (near_arctic) {
+            fprintf(stderr, "case %d: forest tundra (%d,%d) touches arctic\n", k, x, y);
+            rc = 1;
+            break;
+          }
+        }
         mountains_seen += (t & 0xa0) == 0xa0;
         bool lone = y > 0 && y < h - 1;
         for (int d = 0; d < 8 && lone; ++d) {

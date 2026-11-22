@@ -1068,17 +1068,19 @@ static int desert_depth(const AltGen* g, int i) {
   return 4;
 }
 
-/* Forest on FOREST_PERCENT of flat land; never on hills, mountains, arctic
- * or rainless tundra (moisture()'s cold desert). Desert becomes scrub forest
+/* Forest on FOREST_PERCENT of flat land; never on hills, mountains, arctic,
+ * rainless tundra (moisture()'s cold desert) or tundra touching arctic (the
+ * ice edge stays bare). Desert becomes scrub forest
  * only near its edge (k_scrub_percent by depth), so desert interiors stay open. */
 static void forests(AltGen* g) {
   static const int k_scrub_percent[5] = {0, FOREST_PERCENT, 50, 10, 0};
   for (int i = 0; i < N; ++i) {
     const uint8_t t = g->terrain[i];
-    if ((t & 0x1f) > 7 || (t & F_HILL) || ((t & 0x1f) == T_TUNDRA && g->rain[i] == 0)) {
+    const uint8_t typ = (uint8_t)(t & 0x1f);
+    if (typ > 7 || (t & F_HILL) || (typ == T_TUNDRA && (g->rain[i] == 0 || touches_arctic(g, i)))) {
       continue;
     }
-    const int chance = (t & 0x1f) == T_DESERT ? k_scrub_percent[desert_depth(g, i)] : FOREST_PERCENT;
+    const int chance = typ == T_DESERT ? k_scrub_percent[desert_depth(g, i)] : FOREST_PERCENT;
     if (rnd(g, 0, 99) < chance) {
       g->terrain[i] = (uint8_t)(t + T_FOREST_BIT);
     }
