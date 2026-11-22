@@ -32,7 +32,10 @@ doubled to +32 / -32); tiles below 0 are water.
 
 1. **Plates.** `plate_count` seeds grow by random frontier picks until they tile
    the active area. Plates are picked as land, in random order, while that brings
-   the land area closer to the Land Mass target. Each plate gets a drift vector,
+   the land area closer to the Land Mass target; a plate only counts (and raises)
+   tiles at least `LAND_EDGE_MARGIN` (6) columns inside the west / east active
+   edge, so its bulk starts clear of the sea-lane shear zone and has the full
+   drift distance (up to 6 tiles) to move. Each plate gets a drift vector,
    -2..2 per axis.
 2. **Tectonics** (`TECTONIC_ITERS` = 6). Every plate shifts by its drift (speed 2
    every iteration, speed 1 half the time), carrying its elevation. Where two

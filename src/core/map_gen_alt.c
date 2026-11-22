@@ -45,6 +45,7 @@ enum {
   N = W * H,
   EDGE_X = 2,            /* west / east rim kept as water (sea lanes) */
   EDGE_Y = 1,            /* north / south rim: row 0 / H-1 become arctic */
+  LAND_EDGE_MARGIN = 6,  /* land plate tiles stay this far in from the west / east active edge */
   ELEV_UNIT = 16,        /* initial land +16, water -16 */
   MAX_PLATES = 128,
   TECTONIC_ITERS = 6,
@@ -133,6 +134,13 @@ static bool in_active(int x, int y) {
   return x >= EDGE_X && y >= EDGE_Y && x < W - EDGE_X && y < H - EDGE_Y;
 }
 
+/* Land plates keep their tiles LAND_EDGE_MARGIN columns inside the west /
+ * east active edge: the drift (up to TECTONIC_ITERS tiles) then stays clear of
+ * the sea-lane rim instead of shearing the plate's bulk against it. */
+static bool in_land_plate_band(int x) {
+  return x >= EDGE_X + LAND_EDGE_MARGIN && x < W - EDGE_X - LAND_EDGE_MARGIN;
+}
+
 static bool is_water_type(uint8_t t) {
   t = (uint8_t)(t & 0x1f);
   return t == T_OCEAN || t == T_HIGH_SEAS;
@@ -190,7 +198,9 @@ static float sample(const float* f, float x, float y) {
 
 /* Step 2: seed plate_count plates on random tiles and grow them by random
  * frontier picks until they tile the active area; pick land plates until the
- * land_mass share is closest, give each a random drift vector (-2..2 per axis). */
+ * land share is closest, give each a random drift vector (-2..2 per axis).
+ * A land plate only raises land inside in_land_plate_band, so the selection
+ * weighs each plate by that interior area, not its full (edge-reaching) area. */
 static void make_plates(AltGen* g, const MapGenParams* p) {
   int* frontier = g->scratch_a;
   int nf = 0;
@@ -229,11 +239,14 @@ static void make_plates(AltGen* g, const MapGenParams* p) {
     frontier[nf++] = j;
   }
 
-  int area[MAX_PLATES] = {0};
+  int interior[MAX_PLATES] = {0};
   int order[MAX_PLATES];
   bool land[MAX_PLATES] = {false};
   for (int k = 0; k < g->active_count; ++k) {
-    area[g->plate[g->active[k]]]++;
+    const int i = g->active[k];
+    if (in_land_plate_band(i % W)) {
+      interior[g->plate[i]]++;
+    }
   }
   for (int k = 0; k < g->plate_count; ++k) {
     order[k] = k;
@@ -248,9 +261,9 @@ static void make_plates(AltGen* g, const MapGenParams* p) {
   int land_area = 0;
   for (int k = 0; k < g->plate_count; ++k) {
     const int pk = order[k];
-    if (abs(land_area + area[pk] - target) < abs(land_area - target)) {
+    if (abs(land_area + interior[pk] - target) < abs(land_area - target)) {
       land[pk] = true;
-      land_area += area[pk];
+      land_area += interior[pk];
     }
   }
   for (int k = 0; k < g->plate_count; ++k) {
@@ -259,14 +272,15 @@ static void make_plates(AltGen* g, const MapGenParams* p) {
   }
 
   /* Step 1 + 2: flat plane, then -1 / +1 (scaled) by plate type; half the tiles
-   * (coin per tile) start at -2 / +2. */
+   * (coin per tile) start at -2 / +2. Land plates only lift tiles inside the
+   * land band; their edge-reaching margin stays water. */
   for (int i = 0; i < N; ++i) {
     g->elev[i] = -ELEV_UNIT;
   }
   for (int k = 0; k < g->active_count; ++k) {
     const int i = g->active[k];
     const int e = ELEV_UNIT * (1 + rnd(g, 0, 1));
-    g->elev[i] = land[g->plate[i]] ? e : -e;
+    g->elev[i] = land[g->plate[i]] && in_land_plate_band(i % W) ? e : -e;
   }
 }
 
