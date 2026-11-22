@@ -1118,6 +1118,16 @@ void units_combat_watch_notify(const ColonizeUnitPool* pool, int unit_id, int x,
 ColonizeUnitsDissolveFn g_units_dissolve = NULL;
 void* g_units_dissolve_user = NULL;
 
+/* Live DOSBox 2026-11-22: the colony combat defender's icon sits above the
+ * settlement sprite in the pre-outcome frame and is pixelated away when it
+ * loses. Idle garrisons stay hidden (port_bugs.md #350); only this id is
+ * revealed across the paired fizzle frames. */
+int g_units_combat_reveal_id = -1;
+
+void units_combat_reveal_set(int unit_id) {
+  g_units_combat_reveal_id = unit_id;
+}
+
 void units_set_combat_dissolve(ColonizeUnitsDissolveFn fn, void* user) {
   g_units_dissolve = fn;
   g_units_dissolve_user = user;
@@ -1133,6 +1143,11 @@ void units_set_colony_raid_repelled(ColonizeUnitsRaidRepelledFn fn) {
 void units_dissolve_notify(int phase) {
   if (g_units_dissolve) {
     g_units_dissolve(g_units_dissolve_user, phase);
+  }
+  /* The "after" frame has already been rendered by the hook; the reveal is
+   * combat-scoped, never a standing change to colony-garrison visibility. */
+  if (phase == 1) {
+    g_units_combat_reveal_id = -1;
   }
 }
 

@@ -113,6 +113,15 @@ void units_combat_maybe_present_analysis( const ColonizeCol1Save* col1, const Co
 void units_combat_pump_popups(void);
 ColonizeCombatStrengthCtx units_combat_strength_ctx(const ColonizeCol1Save* col1);
 bool units_defender_is_dos_scratch_row(void);
+/*
+ * DOS colony-combat reveal (live DOSBox 2026-11-22, ca_colony_realdef2.SAV):
+ * the picked defender's icon is drawn over the colony sprite for both fizzle
+ * frames, so a defender loss dissolves the icon. units_top_on_map_tile hides
+ * idle colony garrisons; this one id is the exception while the fizzle runs.
+ * Set by the land resolver before phase 0, cleared by units_dissolve_notify(1).
+ */
+extern int g_units_combat_reveal_id;
+void units_combat_reveal_set(int unit_id);
 void units_dissolve_notify(int phase);
 void units_log_ident( const ColonizeUnitPool* pool, int unit_id, char* out, size_t out_size );
 int units_tile_is_ocean_or_hs(const ColonizeCol1Save* col1, int x, int y);

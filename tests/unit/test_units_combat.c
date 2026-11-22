@@ -3495,6 +3495,108 @@ out:
   return rc;
 }
 
+/*
+ * Live DOSBox 2026-11-22 (ca_colony_realdef2.SAV): a real armed defender on
+ * the colony square is printed over the settlement sprite in both fizzle
+ * frames; when it loses, that sprite dissolves. The land resolver must pass
+ * the picked defender id into the dissolve pair so the port's map draw can
+ * lift the idle-garrison hiding rule for exactly that id.
+ */
+static int s_reveal_phases[4];
+static int s_reveal_ids[4];
+static int s_reveal_n;
+
+static void unit_test_reveal_hook(void* user, int phase) {
+  (void)user;
+  if (s_reveal_n < (int)(sizeof(s_reveal_phases) / sizeof(s_reveal_phases[0]))) {
+    s_reveal_phases[s_reveal_n] = phase;
+    s_reveal_ids[s_reveal_n] = g_units_combat_reveal_id;
+    ++s_reveal_n;
+  }
+}
+
+static int unit_colony_defender_reveal_wrapped(void) {
+  ColonizeUnitPool pool;
+  memset(&pool, 0, sizeof(pool));
+  pool.type_count = 2;
+  snprintf(pool.types[0].name, sizeof(pool.types[0].name), "Soldiers");
+  pool.types[0].attack = 99;
+  pool.types[0].defense = 99;
+  pool.types[0].movement = 1;
+  snprintf(pool.types[1].name, sizeof(pool.types[1].name), "Colonists");
+  pool.types[1].attack = 1;
+  pool.types[1].defense = 1;
+  pool.types[1].movement = 1;
+
+  ColonizeCol1Save col1;
+  col1_save_init(&col1);
+  ai_diplo_declare_war(&col1, 0, 1);
+
+  ColonizeColonyPool colonies;
+  memset(&colonies, 0, sizeof(colonies));
+  colonies.colonies[0].id = 1;
+  colonies.colonies[0].nation_id = 1;
+  colonies.colonies[0].x = 6;
+  colonies.colonies[0].y = 5;
+  colonies.colonies[0].population = 3;
+  snprintf(colonies.colonies[0].name, sizeof(colonies.colonies[0].name), "Quebec");
+  colonies.colony_count = 1;
+
+  ColonizeWorldMap map;
+  if (!fx_map_alloc(&map, 8, 8, 0, false)) {
+    return 1;
+  }
+  map_occupancy_set_layer2(&map, 6, 5, MAP_OCCUPANCY_HAS_CITY, true);
+
+  const int aid = units_spawn_allow_stack(&pool, 0, 5, 5);
+  const int did = units_spawn_allow_stack(&pool, 1, 6, 5);
+  if (aid < 0 || did < 0) {
+    fx_map_free(&map);
+    return 1;
+  }
+  units_get(&pool, aid)->nation_id = 0;
+  units_get(&pool, did)->nation_id = 1;
+
+  s_reveal_n = 0;
+  g_units_combat_reveal_id = -1;
+  units_set_combat_dissolve(unit_test_reveal_hook, NULL);
+  units_set_combat_colonies(&colonies);
+  units_set_combat_human_nation(0);
+
+  ColonizeDosRng rng;
+  dos_rng_seed(&rng, 11);
+  (void)units_resolve_land_combat_ff_w(
+    &(ColonizeWorld){.units = &pool, .map = &map, .colonies = &colonies, .col1 = &col1,
+                     .col1_ok = true, .rng = &rng},
+    aid, did
+  );
+
+  int rc = 0;
+  if (s_reveal_n < 2 || s_reveal_phases[0] != 0 || s_reveal_phases[1] != 1) {
+    fprintf(stderr, "colony reveal: want dissolve phases 0,1, got %d (%d,%d)\n", s_reveal_n,
+            s_reveal_n > 0 ? s_reveal_phases[0] : -1, s_reveal_n > 1 ? s_reveal_phases[1] : -1);
+    rc = 1;
+  }
+  if (rc == 0 && (s_reveal_ids[0] != did || s_reveal_ids[1] != did)) {
+    fprintf(stderr, "colony reveal: want defender %d in both frames, got %d,%d\n", did,
+            s_reveal_ids[0], s_reveal_ids[1]);
+    rc = 1;
+  }
+  if (g_units_combat_reveal_id != -1) {
+    fprintf(stderr, "colony reveal: id %d left revealed after combat\n", g_units_combat_reveal_id);
+    rc = 1;
+  }
+
+  units_set_combat_dissolve(NULL, NULL);
+  units_set_combat_colonies(NULL);
+  units_set_combat_human_nation(-1);
+  fx_map_free(&map);
+  if (rc == 0) {
+    fprintf(stderr, "unit_units: colony combat defender reveal ok\n");
+  }
+  return rc;
+}
+
 static const TestCase k_cases[] = {
   {"unit_village_loot_spawn_failure_silent", unit_village_loot_spawn_failure_silent},
   {"unit_royal_loss_tax_cut", unit_royal_loss_tax_cut},
@@ -3515,6 +3617,7 @@ static const TestCase k_cases[] = {
   {"unit_1b0e_defender_bonus_live", unit_1b0e_defender_bonus_live},
   {"unit_naval_stack_sweep", unit_naval_stack_sweep},
   {"unit_naval_win_on_lane_exhausts", unit_naval_win_on_lane_exhausts},
+  {"unit_colony_defender_reveal_wrapped", unit_colony_defender_reveal_wrapped},
   {"unit_gunless_winner_never_sinks", unit_gunless_winner_never_sinks},
   {"unit_native_burn_sweeps_square", unit_native_burn_sweeps_square},
   {"unit_naval_win_cue_ships_only", unit_naval_win_cue_ships_only},

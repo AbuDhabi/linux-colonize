@@ -1134,13 +1134,16 @@ void game_phantom_lunge(
  * 16-bit LFSR order (asm at file 0xF5E6: si=1; shr si; on carry si^=0xB400;
  * copy pixel si-1 while si≤0xFA00 — every one of the 64000 pixels exactly
  * once), paced over duration 8. Only pixels that CHANGED are visible, so a
- * destroyed unit on an open tile "pixelates" away while a fight inside a
- * colony (sprite unchanged) shows nothing — which is exactly the DOS look.
+ * destroyed unit on an open tile "pixelates" away. A colony defender is the
+ * one exception to the idle-garrison hiding rule (units_top_on_map_tile):
+ * live DOSBox (ca_colony_realdef2.SAV, 2026-11-22) prints the picked
+ * defender's icon above the settlement for both frames, so its loss
+ * dissolves that icon too.
  *
  * Phase 0 (before the outcome mutates the pool) renders and stores the
  * "before" frame; phase 1 renders the "after" frame and animates between the
- * two. Identical frames (fight out of sight / hidden by a colony) skip the
- * animation entirely, which also keeps unwatched AI-vs-AI fights instant.
+ * two. Identical frames (fight out of sight) skip the animation entirely,
+ * which also keeps unwatched AI-vs-AI fights instant.
  */
 void game_combat_dissolve(void* user, int phase) {
   ColonizeGameState* game = (ColonizeGameState*)user;

@@ -315,7 +315,12 @@ bool units_resolve_land_combat_ff_w(
   const int ambush = (er.atk_flags.flags & COMBAT_FLAG_AMBUSH) != 0;
 
   /* DOS 1b0e tail: outcome redraw is presented via the fizzle (FUN_281f_03ea
-   * duration 8) — snapshot the "before" frame while both pieces stand. */
+   * duration 8) — snapshot the "before" frame while both pieces stand.
+   * Live DOSBox 2026-11-22 (ca_colony_realdef2.SAV): when the defender stands
+   * on a colony tile, its icon is printed over the settlement sprite in that
+   * frame (and pixelated away on a loss), so reveal just this id for the
+   * paired frames instead of applying the idle-garrison hiding rule. */
+  units_combat_reveal_set(defender_id);
   units_dissolve_notify(0);
 
   if (eng.atk_wins) {

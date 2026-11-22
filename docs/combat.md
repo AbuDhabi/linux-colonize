@@ -295,7 +295,11 @@ the catalog mislabels `0016` "delay"). Fired with dur 8 in the `1b0e` tail,
 `@LOSTCITY2`, `@BURIAL3`: the Treasure fizzles in; `@LOSTCITY5` only repaints). Port: `units_set_combat_dissolve`
 two-phase hook (pre-snapshot / post-animate) around the land + naval outcome
 and the LCR Treasure spawn; `game_combat_dissolve` (game_loop.c) diff-gates identical
-frames, so out-of-sight or in-colony fights stay instant.
+frames, so out-of-sight fights stay instant. On a colony tile DOSBox
+(2026-11-22, `ca_colony_realdef2.SAV`) prints the picked defender's icon above
+the settlement for both fizzle frames: the land resolver passes that id
+through `units_combat_reveal_set`, the sole exception to the idle-garrison
+hide in `units_top_on_map_tile`, so a defender loss dissolves the icon.
 
 ### Land win (`units_resolve_land_combat_ff`)
 

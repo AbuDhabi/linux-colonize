@@ -7710,8 +7710,9 @@ static int case_combat_fort_fire_repair(void) {
 
   /* Colony-tile visibility: a colony square never shows a non-selected
    * (idle garrison) unit — only the active/selected unit, and only while
-   * it's actually visible (blink on, or mid-move). Player-reported bug on
-   * the overland map; see units_top_on_map_tile. */
+   * it's actually visible (blink on, or mid-move), plus the one combat
+   * defender revealed across the fizzle frames (live DOSBox
+   * ca_colony_realdef2.SAV). See units_top_on_map_tile. */
 static int case_colony_tile_visibility(void) {
   if (fx_open() != 0 || fx_stage2() != 0) {
     return 1;
@@ -7801,6 +7802,44 @@ static int case_colony_tile_visibility(void) {
       assets_msg_free(&names);
       return 1;
     }
+
+    /*
+     * DOSBox 2026-11-22: the picked colony defender is printed above the
+     * settlement for both fizzle frames. It is the only idle-garrison
+     * exception, and phase 1 clears it again.
+     */
+    units_set_combat_dissolve(NULL, NULL);
+    pool.selected_id = -1; /* the picked defender is not the player's active unit */
+    units_combat_reveal_set(garrison);
+    top = units_top_on_map_tile(&pool, tx, ty, false, &map);
+    if (top != garrison) {
+      fprintf(stderr, "combat-revealed colony defender should draw, got %d (want %d)\n", top, garrison);
+      pool.selected_id = active;
+      ss_free(&icons);
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    units_dissolve_notify(0);
+    if (g_units_combat_reveal_id != garrison ||
+        units_top_on_map_tile(&pool, tx, ty, false, &map) != garrison) {
+      fprintf(stderr, "dissolve phase 0 lost the colony defender reveal\n");
+      pool.selected_id = active;
+      ss_free(&icons);
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    units_dissolve_notify(1);
+    if (g_units_combat_reveal_id != -1 || units_top_on_map_tile(&pool, tx, ty, false, &map) != -1) {
+      fprintf(stderr, "dissolve phase 1 left the colony defender revealed\n");
+      pool.selected_id = active;
+      ss_free(&icons);
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    pool.selected_id = active;
 
     map_occupancy_set_layer2(&map, tx, ty, MAP_OCCUPANCY_HAS_CITY, false);
     units_despawn(&pool, garrison);

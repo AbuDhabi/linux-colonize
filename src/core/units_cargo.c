@@ -2073,7 +2073,11 @@ bool units_map_stack_chrome(const ColonizeUnitPool* pool, int unit_id) {
  * — except on a colony tile, where DOS never shows an idle garrison unit at
  * all, only the active/selected unit while it's actually visible (blinking
  * on, or mid-move). A non-selected unit sitting in a colony square is
- * otherwise invisible, same as it is inside the settlement view. */
+ * otherwise invisible, same as it is inside the settlement view. The one
+ * exception is the picked defender of a colony combat: DOSBox
+ * (ca_colony_realdef2.SAV, 2026-11-22) shows its icon over the settlement for
+ * both fizzle frames, so a lost defender visibly dissolves.
+ */
 int units_top_on_map_tile(
   const ColonizeUnitPool* pool,
   int x,
@@ -2116,7 +2120,7 @@ int units_top_on_map_tile(
   int top_scan_cursor = 0;
   for (const ColonizeUnit* u = units_next_on_tile_const(pool, x, y, &top_scan_cursor); u != NULL;
        u = units_next_on_tile_const(pool, x, y, &top_scan_cursor)) {
-    if (on_colony) {
+    if (on_colony && u->id != g_units_combat_reveal_id) {
       continue;
     }
     if (u->id > top_id) {

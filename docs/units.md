@@ -291,6 +291,10 @@ Which unit (if any) draws on the map at (x,y): prefers the selected unit
 (subject to selected_visible's blink-off hide), else highest id — except
 on a colony tile (map_tile_has_city), which never shows a non-selected
 garrison unit at all, only the active/selected one while it's actually
-visible. -1 = nothing drawn. Exposed (not just used internally by
+visible. The single exception is the defender of a colony combat: live
+DOSBox (2026-11-22, `ca_colony_realdef2.SAV`) prints its icon over the colony
+sprite across both fizzle frames, so a defeated defender visibly dissolves.
+`units_combat_reveal_set` arms that one-id exception; `units_dissolve_notify(1)`
+clears it. -1 = nothing drawn. Exposed (not just used internally by
 units_render_on_map) so this rule is directly testable without a
 framebuffer/sprite sheet.
