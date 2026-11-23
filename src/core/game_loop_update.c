@@ -67,6 +67,7 @@
 #include "core/savegame.h"
 #include "core/screen_geom.h"
 #include "core/settings.h"
+#include "core/runtime_ext.h"
 #include "core/sound.h"
 #include "core/ss.h"
 #include "core/strutil.h"
@@ -3552,6 +3553,7 @@ static void game_hall_of_fame_leave(ColonizeGameState* game) {
     game_enqueue_war_scored_choice(game);
   } else {
     mods_campaign_set(0); /* retired or title-menu visit: no campaign runs from here */
+    runtime_ext_colony_borders_set(false);
     game->in_menu = true;
     sound_set_bgm(SOUND_TITLE_BGM_POOL);
     set_status(game, "OpenCol", NULL);

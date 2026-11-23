@@ -31,6 +31,7 @@ static void test_missing_file_defaults(void) {
   check(s.autosave && s.combat_analysis && s.tutorial_hints, "default helpers on");
   check(!s.fast_piece_slide && !s.end_of_turn, "default slide/eot off");
   check(!s.tiny_colony_names, "default tiny colony names off");
+  check(!s.colony_borders, "default colony borders off");
   check(s.water_color_cycling, "default water cycling on");
   check(s.background_music && s.event_music && s.sound_effects, "default sound on");
   check(s.window_scale == 2 && s.windowed, "default display");
@@ -62,6 +63,7 @@ static void test_roundtrip(void) {
   out.fast_piece_slide = true;
   out.tutorial_hints = false;
   out.tiny_colony_names = true;
+  out.colony_borders = true;
   out.water_color_cycling = false;
   out.report_rebel_majorities = false;
   out.labels_on_buildings = false;

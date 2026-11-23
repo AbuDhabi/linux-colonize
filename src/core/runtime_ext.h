@@ -48,4 +48,14 @@ void runtime_ext_deserialize(
  * reseed it (game_apply_col1_save, golden_reload). */
 bool runtime_ext_rng_restored(void);
 
+/*
+ * Per-save colony_borders display flag (RTST record 21). A new game seeds it
+ * from settings.json (game_commit_new_campaign); the save carries it, and a
+ * save without the record — DOS originals and port saves predating the feature
+ * — loads with it off whatever settings.json holds. The Options dialog writes
+ * both the campaign flag and the preference when confirmed.
+ */
+bool runtime_ext_colony_borders(void);
+void runtime_ext_colony_borders_set(bool on);
+
 #endif

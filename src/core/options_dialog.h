@@ -66,7 +66,8 @@ bool options_dialog_open_game(
   OptionsDialog* dlg,
   const ColonizeMsgCatalog* game_txt,
   const ColonizeCol1GameOptions* opts,
-  bool tiny_colony_names /* port-only checkbox 8 (settings.json) */
+  bool tiny_colony_names, /* port-only checkbox 8 (settings.json) */
+  bool colony_borders     /* port-only checkbox 9 (settings.json) */
 );
 bool options_dialog_open_colony(
   OptionsDialog* dlg,

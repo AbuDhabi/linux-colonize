@@ -7,7 +7,9 @@
 #include "core/mods.h"
 #include "core/name_entry_dialog.h"
 #include "core/options_dialog.h"
+#include "core/fb.h"
 #include "core/popup_msg.h"
+#include "core/runtime_ext.h"
 #include "core/save_load_dialog.h"
 #include "core/settings.h"
 #include "core/units_internal.h"
@@ -66,7 +68,7 @@ static int case_options_release_toggles_barred_row(void) {
   OptionsDialog od;
   ColonizeCol1GameOptions opts;
   memset(&opts, 0, sizeof(opts));
-  if (!options_dialog_open_game(&od, NULL, &opts, false)) {
+  if (!options_dialog_open_game(&od, NULL, &opts, false, false)) {
     return fail("options_open_game");
   }
   od.dialog_x = 50;
@@ -136,7 +138,7 @@ static int case_options(void) {
   opts.autosave = 1;
   opts.combat_analysis = 1;
   opts.tutorial_hints = 1;
-  if (!options_dialog_open_game(&od, NULL, &opts, false)) {
+  if (!options_dialog_open_game(&od, NULL, &opts, false, false)) {
     return fail("options_open_game");
   }
   if (od.option_count < 8) {
@@ -160,10 +162,11 @@ static int case_options(void) {
       !applied.tutorial_hints) {
     return fail("options apply");
   }
-  if (!options_dialog_open_game(&od, NULL, &applied, true) ||
+  if (!options_dialog_open_game(&od, NULL, &applied, true, true) ||
       od.values[0] != 0 || od.values[1] != 1 || od.values[2] != 0 ||
       od.values[3] != 0 || od.values[4] != 1 || od.values[5] != 1 ||
-      od.values[6] != 1 || od.values[7] != 1 || od.values[8] != 1) {
+      od.values[6] != 1 || od.values[7] != 1 || od.values[8] != 1 ||
+      od.values[9] != 1) {
     return fail("options reopen round-trip");
   }
   /* port_bugs.md #1474: Esc keeps the toggles (FUN_6f74_2580 LAB_6f74_3018). */
@@ -206,7 +209,7 @@ static int case_checkbox_hotkeys(void) {
     return fail("FUN_6f74_0642 hotkey");
   }
   OptionsDialog od;
-  if (!options_dialog_open_game(&od, &cat, NULL, false) || od.option_count != 3) {
+  if (!options_dialog_open_game(&od, &cat, NULL, false, false) || od.option_count != 3) {
     return fail("options open from catalog");
   }
   ColonizeInputState in;
@@ -289,7 +292,7 @@ static int case_list_keys_wrap(void) {
   OptionsDialog od;
   ColonizeCol1GameOptions opts;
   memset(&opts, 0, sizeof(opts));
-  if (!options_dialog_open_game(&od, NULL, &opts, false) || od.option_count < 2) {
+  if (!options_dialog_open_game(&od, NULL, &opts, false, false) || od.option_count < 2) {
     return fail("options_open_game");
   }
   od.selection = 0;
@@ -393,7 +396,7 @@ static int case_right_click_is_left_click(void) {
   OptionsDialog od;
   ColonizeCol1GameOptions opts;
   memset(&opts, 0, sizeof(opts));
-  options_dialog_open_game(&od, NULL, &opts, false);
+  options_dialog_open_game(&od, NULL, &opts, false, false);
   options_dialog_render(&od, &font, NULL, NULL, 68, 149, 138, &fb);
   in.mouse_x = od.dialog_x + 20;
   in.mouse_y = od.list_y0 + 1;
@@ -2105,10 +2108,78 @@ static int case_current_vision_follows_mods(void) {
   return 0;
 }
 
+/* colony_borders traces the union of touching same-nation colony footprints:
+ * two colonies three tiles apart share one outline, with no internal seam.
+ * The flag is the save-carried one (RTST 21), not the settings.json default. */
+static int case_colony_borders_merge(void) {
+  ColonizeGameState* game = calloc(1, sizeof(*game));
+  if (!game) {
+    return fail("calloc game");
+  }
+  game->world_map_ok = true;
+  game->world_map.width = 20;
+  game->world_map.height = 20;
+  game->colonies_ok = true;
+  game->fog_view = -1; /* complete map (col1_ok false); seen plane absent */
+  game->colonies.colonies[0].active = true;
+  game->colonies.colonies[0].x = 5;
+  game->colonies.colonies[0].y = 5;
+  game->colonies.colonies[0].nation_id = 0;
+  game->colonies.colonies[1].active = true;
+  game->colonies.colonies[1].x = 8; /* 3 tiles away: the 3x3 footprints touch */
+  game->colonies.colonies[1].y = 5;
+  game->colonies.colonies[1].nation_id = 0;
+
+  uint8_t pixels[320 * 200];
+  ColonizeFramebuffer8 fb = {.width = 320, .height = 200, .pixels = pixels};
+  memset(pixels, 0, sizeof(pixels));
+
+  runtime_ext_colony_borders_set(false);
+  game_render_map_overlays(game, &fb, 0, 0, 15, 12, 16);
+  bool off_clean = true;
+  for (size_t i = 0; i < sizeof(pixels); ++i) {
+    off_clean = off_clean && pixels[i] == 0;
+  }
+
+  runtime_ext_colony_borders_set(true);
+  game_render_map_overlays(game, &fb, 0, 0, 15, 12, 16);
+
+  /* Union spans tile columns 4..9 (x 64..159), rows 4..6
+   * (y = MAP_MENU_BAR_H + 64 .. +111, i.e. 72..119). */
+  const bool left = pixels[88 * 320 + 64] != 0;
+  const bool right = pixels[88 * 320 + 159] != 0;
+  const bool top = pixels[72 * 320 + 80] != 0;
+  bool seam = false;
+  for (int y = 74; y <= 118; ++y) { /* inside the outline, not its top/bottom edges */
+    if (pixels[y * 320 + 111] || pixels[y * 320 + 112]) {
+      seam = true;
+    }
+  }
+
+  /* France's border ink is lifted to the bright light blue (#49) instead of
+   * its low-contrast DOS fill (#9); other nations keep their DOS colour. */
+  game->colonies.colonies[0].nation_id = 1;
+  game->colonies.colonies[1].nation_id = 1;
+  memset(pixels, 0, sizeof(pixels));
+  game_render_map_overlays(game, &fb, 0, 0, 15, 12, 16);
+  const bool france_bright = pixels[88 * 320 + 64] == 49;
+
+  runtime_ext_colony_borders_set(false);
+  free(game);
+  if (!off_clean || !left || !right || !top || seam || !france_bright) {
+    fprintf(stderr,
+            "colony_borders merge: off %d left %d right %d top %d seam %d france %d\n",
+            off_clean, left, right, top, seam, france_bright);
+    return 1;
+  }
+  return 0;
+}
+
 static const TestCase k_cases[] = {
     {"mods_dialog_pages", case_mods_dialog_pages},
     {"title_menu_mods_row", case_title_menu_mods_row},
     {"current_vision_follows_mods", case_current_vision_follows_mods},
+    {"colony_borders_merge", case_colony_borders_merge},
     {"token_apply", case_token_apply},
     {"save_load_is_fonttiny", case_save_load_is_fonttiny},
     {"howmuch", case_howmuch},

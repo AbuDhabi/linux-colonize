@@ -67,6 +67,7 @@
 #include "core/save_load_dialog.h"
 #include "core/savegame.h"
 #include "core/settings.h"
+#include "core/runtime_ext.h"
 #include "core/sound.h"
 #include "core/ss.h"
 #include "core/strutil.h"
@@ -2272,8 +2273,11 @@ void game_commit_new_campaign(ColonizeGameState* game) {
   NewGameWizard* ng = &game->new_game;
 
   /* The campaign keeps the mod toggles the defaults hold now; the save
-   * carries them, later edits of the defaults never reach this game. */
+   * carries them, later edits of the defaults never reach this game.
+   * colony_borders follows the same rule (RTST record 21): a new game seeds
+   * it from settings.json, a Load takes the save's own value. */
   mods_campaign_set(settings_mods_new_campaign_mask());
+  runtime_ext_colony_borders_set(settings_colony_borders_new_campaign());
   if (mods_on(MOD_MODERN_PRNG)) {
     /* Before map generation, which draws from it too. Campaign seed when one
      * is set, else wall clock mixed with a stack address (ASLR) so two new

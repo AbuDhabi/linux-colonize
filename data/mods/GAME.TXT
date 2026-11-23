@@ -66,11 +66,14 @@ Rivals and Maps
 Rivals Play by ~Player Rules
 ~Alternate Map Generator
 
-;       Game Options checkbox 8 (port-only, settings.json tiny_colony_names):
-;       map colony names in FONTTINY. 12 = stock line count (directives
-;       and prompt included).
+;       Game Options checkboxes 8/9 (port-only, settings.json):
+;       8 = tiny_colony_names, map colony names in FONTTINY;
+;       9 = colony_borders, 1px dotted outline of a colony's nine work tiles
+;       in its nation's colour. 12 = stock line count (directives and prompt
+;       included).
 @GAMEOPTIONS
 12=Tiny Colony ~Names
+13=Colony ~Borders
 
 ;       Button under every @MODOPTIONS page: saves the page, like Enter.
 ;       Row 0 on the pages before the last, row 1 on the last.

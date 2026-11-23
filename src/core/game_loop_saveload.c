@@ -97,6 +97,7 @@ static bool game_apply_col1_save(ColonizeGameState* game, ColonizeCol1Save* load
    * (if any) sets the new mask in the bridge below, so a failed apply leaves
    * every mod off rather than the old campaign's. */
   mods_campaign_set(0);
+  runtime_ext_colony_borders_set(false); /* the save's RTST record sets its own value below */
   /* The outgoing world's occupancy map must not see the spawns below: every
    * spawn claims its tile's owner nibble through it, which rewrote a reloaded
    * save's tribe-owned tiles (port_bugs.md #1172 reload; the first load of a
@@ -955,6 +956,7 @@ void game_end_to_title(ColonizeGameState* game) {
    * end of turn parked behind FUN_3844_0442's dialogs does not resume. */
   memset(&game->turn_proc, 0, sizeof(game->turn_proc));
   mods_campaign_set(0); /* the campaign is over; the next new game or load sets its own */
+  runtime_ext_colony_borders_set(false);
   game->in_menu = true;
   sound_set_bgm(SOUND_TITLE_BGM_POOL);
   set_status(game, "OpenCol", NULL);

@@ -67,6 +67,7 @@
 #include "core/save_load_dialog.h"
 #include "core/savegame.h"
 #include "core/settings.h"
+#include "core/runtime_ext.h"
 #include "core/sound.h"
 #include "core/ss.h"
 #include "core/strutil.h"
@@ -1772,7 +1773,7 @@ static GameMenuActionStatus game_menu_action_system(ColonizeGameState* game, Map
         set_status(game, "Options need a loaded game", NULL);
       } else if (!options_dialog_open_game(
                    &game->options_dlg, &game->messages, &game->col1.head.game_options,
-                   settings_get()->tiny_colony_names
+                   settings_get()->tiny_colony_names, runtime_ext_colony_borders()
                  )) {
         set_status(game, "Options unavailable", NULL);
       }

@@ -24,7 +24,7 @@ answer different questions:
 | Startup | Launch flags (`data_dir`, `save_dir`, `windowed` / `window_scale`, `no_sound`, `seed`, `debug.menu`) and sound options. Precedence, most to least: CLI (if that flag was given), `settings.json` (if that key is present and valid), hardcoded default. Sound mixer options are pushed after `sound_init`. `debug.mouse_coords`, `debug.building_rects`, and `debug.logs` are settings + DEBUG menu only (no CLI). |
 | New Game | `ai_init_new_game` seeds the DOS words, then `settings_apply_to_head` overrides them — but **only if `settings_is_loaded()`**. |
 | Load | **The save.** Options the player set during that game ride in its head and come back with it; `settings.json` is not applied. Only the audio mixer is re-pointed, since it lives outside the save. |
-| Options dialog confirmed | Written to the live save head *and* flushed to `settings.json`, so the next new game and the next process start from it. |
+| Options dialog confirmed | Written to the live save head *and* flushed to `settings.json`, so the next new game and the next process start from it. `colony_borders` also updates the in-progress campaign's RTST flag. |
 
 `settings_is_loaded()` is false unless `settings_init` ran, and only `main.c`
 calls it. Every test and golden harness therefore runs on untouched DOS
@@ -44,7 +44,8 @@ defaults no matter what file is sitting in the build directory.
     "combat_analysis": true,
     "water_color_cycling": true,
     "tutorial_hints": true,
-    "tiny_colony_names": false
+    "tiny_colony_names": false,
+    "colony_borders": false
   },
   "colony_report_options": { "labels_on_buildings": true, "...": true },
   "sound_options": {
@@ -348,6 +349,25 @@ Port-only Game Options checkbox 8, appended to stock `@GAMEOPTIONS` by
 FONTTINY instead of DOS's FONTINTR (`game_colony_name_font`). It has no head
 bit: it lives only in `settings.json`, applies live, and a Load does not
 change it. Default off.
+
+## Colony borders (`colony_borders`)
+
+Port-only Game Options checkbox 9, appended next to `tiny_colony_names` by
+`data/mods/GAME.TXT`. On, the map draws a 1px dotted outline in the owning
+nation's map colour around the nine work tiles of each visible colony — the
+3x3 square centred on its map tile — and touching same-nation colonies share
+one outline (`game_render_map_overlays` traces the union of their footprints,
+so no internal line is drawn). Each outline uses its nation's map colour,
+except France: its low-contrast DOS blue (`VICEROY.PAL` #9) is lifted to the
+bright light blue at #49 so the 1px dots stay visible over land. Hidden by the
+Hidden Terrain view and for colonies under fog, matching the settlement/name
+pass.
+
+Unlike `tiny_colony_names` this one is **per campaign**: `settings.json` is
+only the default for a New Game. The live value is carried in the save's RTST
+extension (record 21), confirmed in the Options dialog, and adopted on Load —
+so a save that predates the feature (or a DOS save) has no record and loads
+with borders off even when `settings.json` says `true`. Default off.
 
 ## Intro cinematic (`skip_intro`)
 

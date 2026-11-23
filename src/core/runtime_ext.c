@@ -41,6 +41,7 @@ enum {
   RT_GOVERNOR = 18,    /* v1: MOD_COLONY_GOVERNOR {u8 x, u8 y, u8 governor | 0x40 rethink | 0x80 autobuy} per governed colony; written only when non-empty */
   RT_AI_PIONEER_JOBS = 19, /* v1: MOD_AI_IMPROVEMENTS {u8 nation, x, y, kind} per Pioneer job; written only when non-empty */
   RT_WAR_LEDGER = 20,  /* v1: MOD_AI_IMPROVEMENTS ai_diplo_war_ledger_export (16 x {u16 start, i16 fights, i16 colonies, u16 checked}); written only while a pair is at war */
+  RT_COLONY_BORDERS = 21, /* v1: u8 1 = colony_borders on; written only when on, so a save without it (or a DOS save) loads with borders off */
 };
 
 #define RT_UNIT_TAIL_ENTRY 17
@@ -50,6 +51,7 @@ enum {
 static ColonizeDosRng* s_rng;
 static uint32_t* s_seed_word;
 static bool s_rng_restored;
+static bool s_colony_borders;
 
 void runtime_ext_set_rng(ColonizeDosRng* rng, uint32_t* seed_word) {
   s_rng = rng;
@@ -58,6 +60,14 @@ void runtime_ext_set_rng(ColonizeDosRng* rng, uint32_t* seed_word) {
 
 bool runtime_ext_rng_restored(void) {
   return s_rng_restored;
+}
+
+bool runtime_ext_colony_borders(void) {
+  return s_colony_borders;
+}
+
+void runtime_ext_colony_borders_set(bool on) {
+  s_colony_borders = on;
 }
 
 /* ---- little-endian record writer ---- */
@@ -291,6 +301,12 @@ uint8_t* runtime_ext_serialize(
     wr_u32(p, mods_campaign_mask());
     rt_record(&b, RT_MODS, 1, p, sizeof p);
   }
+  if (s_colony_borders) {
+    /* Absent = borders off, which keeps saves made before the feature (and
+     * DOS saves) loading with them off regardless of settings.json. */
+    const uint8_t on = 1;
+    rt_record(&b, RT_COLONY_BORDERS, 1, &on, 1);
+  }
   if (dos_rng_modern_state()) {
     const uint64_t* xo = dos_rng_modern_state();
     uint8_t p[32];
@@ -311,7 +327,10 @@ void runtime_ext_deserialize(
   const uint8_t* data, size_t size
 ) {
   s_rng_restored = false;
-  mods_campaign_set(0); /* a save without RT_MODS (DOS, older port saves) plays with every toggle off */
+  /* A save without these records (DOS original, port save predating the
+   * feature) loads with every toggle off, whatever settings.json holds. */
+  s_colony_borders = false;
+  mods_campaign_set(0);
   for (int i = 0; colonies && i < COLONIZE_COLONIES_MAX; ++i) {
     colonies->colonies[i].governor = 0;
     colonies->colonies[i].governor_autobuy = false;
@@ -415,6 +434,9 @@ void runtime_ext_deserialize(
         break;
       case RT_MODS:
         if (len == 4) mods_campaign_set(rd_u32_le(p));
+        break;
+      case RT_COLONY_BORDERS:
+        if (len == 1) s_colony_borders = p[0] != 0;
         break;
       case RT_GOVERNOR:
         for (size_t k = 0; colonies && len % 3 == 0 && k + 3 <= len; k += 3) {

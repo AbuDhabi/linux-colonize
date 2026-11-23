@@ -61,9 +61,13 @@ typedef struct ColonizeSettings {
   bool combat_analysis;
   bool water_color_cycling;
   bool tutorial_hints;
-  /* Port-only row 8 (data/mods GAME.TXT): map colony names in FONTTINY, not
-   * DOS's FONTINTR. settings.json only; no save bit. */
+  /* Port-only rows 8/9 (data/mods GAME.TXT): map colony names in FONTTINY,
+   * not DOS's FONTINTR, and outline each colony's nine work tiles. No DOS head
+   * bit. tiny_colony_names stays settings.json-only; colony_borders is carried
+   * per campaign in the save (RTST record 21), seeded from this preference on
+   * a New Game. */
   bool tiny_colony_names;
+  bool colony_borders;
 
   /* @COLONYOPTIONS — true = report shown (DOS stores the suppress bit). */
   bool labels_on_buildings;
@@ -169,6 +173,11 @@ void settings_mods_set_mask(ColonizeSettings* s, uint32_t mask);
  * 0 under dos_buggy_behavior() (every test binary) so tests and goldens see
  * every toggle off unless they set the campaign mask themselves. */
 uint32_t settings_mods_new_campaign_mask(void);
+
+/* The colony_borders value a new campaign starts with: the live settings'
+ * preference, or false under dos_buggy_behavior() so tests and goldens keep
+ * the DOS-faithful no-preferences behaviour. */
+bool settings_colony_borders_new_campaign(void);
 
 /* Bridge to the audio mixer options. */
 ColonizeSoundOptions settings_sound_options(const ColonizeSettings* s);

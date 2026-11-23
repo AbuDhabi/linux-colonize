@@ -3,6 +3,7 @@
 #include "core/colony_governor.h"
 #include "core/reports_names.h"
 #include "core/dos_buggy.h"
+#include "core/runtime_ext.h"
 #include <strings.h>
 
 /*
@@ -2451,6 +2452,11 @@ static void game_apply_options_result(ColonizeGameState* game) {
       if (game->options_dlg.result_count > 8) {
         ColonizeSettings prefs = *settings_get();
         prefs.tiny_colony_names = game->options_dlg.result_values[8] != 0;
+        if (game->options_dlg.result_count > 9) {
+          const bool borders = game->options_dlg.result_values[9] != 0;
+          prefs.colony_borders = borders;      /* default for future new games */
+          runtime_ext_colony_borders_set(borders); /* and live in this campaign */
+        }
         settings_set(&prefs);
       }
       game_persist_settings(game);

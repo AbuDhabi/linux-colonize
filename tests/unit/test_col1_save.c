@@ -1175,6 +1175,31 @@ static bool test_legacy_ppln_keeps_pioneer_plan(char* err, size_t err_size) {
   return ok;
 }
 
+/* colony_borders is a per-save flag (RTST record 21): a save with the record
+ * loads it on, a save without it — DOS original or a port save from before the
+ * feature — loads it off regardless of settings.json. */
+static bool test_colony_borders_save_record(char* err, size_t err_size) {
+  runtime_ext_colony_borders_set(true);
+  size_t n = 0;
+  uint8_t* rt = runtime_ext_serialize(NULL, NULL, &n);
+  runtime_ext_colony_borders_set(false);
+  if (!rt) {
+    snprintf(err, err_size, "colony_borders: cannot serialize runtime state");
+    return false;
+  }
+  runtime_ext_deserialize(NULL, NULL, NULL, rt, n);
+  const bool restored = runtime_ext_colony_borders();
+  free(rt);
+  runtime_ext_deserialize(NULL, NULL, NULL, NULL, 0);
+  const bool legacy = runtime_ext_colony_borders();
+  const bool ok = restored && !legacy;
+  if (!ok) {
+    snprintf(err, err_size, "colony_borders: record %d, no record %d (want 1/0)",
+             restored, legacy);
+  }
+  return ok;
+}
+
 /* Hull-at-head chain (hull -> 2 -> 1, the 10be shape): passengers board in
  * chain order from the hull, so cargo_ids = [2, 1] (fresh 1575). */
 /* port_bugs.md #1557: a DOS colonist with occupation 0x13 and no plot is idle
@@ -2568,6 +2593,10 @@ int main(void) {
   }
   if (!test_legacy_ppln_keeps_pioneer_plan(err, sizeof(err))) {
     fprintf(stderr, "legacy PPLN mods: %s\n", err);
+    return 1;
+  }
+  if (!test_colony_borders_save_record(err, sizeof(err))) {
+    fprintf(stderr, "colony_borders save record: %s\n", err);
     return 1;
   }
   if (!test_bridge_stage_seams(err, sizeof(err))) {

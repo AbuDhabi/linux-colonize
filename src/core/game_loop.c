@@ -2763,8 +2763,61 @@ COLONIZE_INTERNAL void game_render_map_composite(
   }
 }
 
-/* Post-decimation map overlays: the blinking tile cursor and the two CHEAT
- * debug layers (Show Strategy, Show Colony Sites). */
+/*
+ * Per-campaign colony_borders (RTST record 21): a colony's nine work tiles are
+ * the 3x3 square centred on its map tile. Touching same-nation colonies are one
+ * area — mark every covered tile with its nation, then draw a dotted edge only
+ * where the neighbouring tile is not covered by that same nation. The union's
+ * outline is traced, not one box per colony, so adjacent colonies share no
+ * internal line. Drawn post-decimation at on-screen tile size so the dots stay
+ * one on-screen pixel at every zoom tier — the settlement chrome and names are
+ * composited pre-decimation, where a 1px dot would alias away.
+ */
+#define COLONY_BORDER_MAP_MAX 256u /* world map width/height are uint8_t */
+static uint8_t s_colony_border_tiles[COLONY_BORDER_MAP_MAX * COLONY_BORDER_MAP_MAX];
+
+static void game_colony_border_put(ColonizeFramebuffer8* fb, int x, int y, uint8_t color) {
+  if (x < 0 || x >= MAP_VIEW_W || y < MAP_MENU_BAR_H || y >= MAP_MENU_BAR_H + MAP_VIEW_H) {
+    return;
+  }
+  fb_put(fb, x, y, color);
+}
+
+/* One side of a covered tile, dotted every other on-screen pixel. */
+static void game_colony_border_edge(
+  ColonizeFramebuffer8* fb, bool horizontal, int a0, int a1, int fixed, uint8_t color
+) {
+  for (int p = a0; p <= a1; p += 2) {
+    if (horizontal) {
+      game_colony_border_put(fb, p, fixed, color);
+    } else {
+      game_colony_border_put(fb, fixed, p, color);
+    }
+  }
+}
+
+static uint8_t game_colony_border_color(int nation, const ColonizePalette* palette) {
+  /* France's DOS fill blue (85,85,255, VICEROY.PAL #9) has too little contrast
+   * against most land tiles for a 1px dotted outline. Borders alone lift it to
+   * the bright light blue at #49; the other nations keep their DOS fill colour
+   * everywhere. Nearest-matched like the rest of the map chrome so the ink
+   * stays right under any palette (49 is the match under VICEROY.PAL). */
+  static const uint8_t k_france_border_rgb[3] = {194, 219, 243};
+  if (nation == 1) {
+    return palette ? assets_palette_nearest_rgb(
+                       palette, k_france_border_rgb[0], k_france_border_rgb[1],
+                       k_france_border_rgb[2]
+                     )
+                   : 49;
+  }
+  int bright = -1;
+  int dark = -1;
+  unit_chrome_nation_shades_for_palette(nation, palette, &bright, &dark);
+  return bright >= 0 ? (uint8_t)bright : unit_chrome_nation_color(nation);
+}
+
+/* Post-decimation map overlays: the colony_borders outlines, the blinking tile
+ * cursor and the two CHEAT debug layers (Show Strategy, Show Colony Sites). */
 COLONIZE_INTERNAL void game_render_map_overlays(
   const ColonizeGameState* game, ColonizeFramebuffer8* framebuffer, int view_x, int view_y,
   int view_cols, int view_rows, int screen_tile_px
@@ -2777,6 +2830,76 @@ COLONIZE_INTERNAL void game_render_map_overlays(
       view_rows, &shift_x, &shift_y
     );
   }
+
+  /* Port-only Game Options row 9. The flag lives in the save (RTST record 21),
+   * not the process-wide preference: an old save has no record and so loads
+   * with borders off whatever settings.json says. Visibility matches
+   * colonies_render_on_map (fog + Hidden Terrain peel). */
+  if (runtime_ext_colony_borders() && game->terrain_peel_phase == 0 &&
+      (game->colonies_ok || game->colonies.colony_count > 0)) {
+    const ColonizeWorldMap* map = &game->world_map;
+    const int mw = game->world_map_ok ? map->width : 0;
+    const int mh = game->world_map_ok ? map->height : 0;
+    if (mw > 0 && mh > 0 && mw <= (int)COLONY_BORDER_MAP_MAX && mh <= (int)COLONY_BORDER_MAP_MAX) {
+      memset(s_colony_border_tiles, 0, (size_t)mw * mh);
+      const int fog_nation = game_fog_nation(game);
+      for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+        const ColonizeColony* c = &game->colonies.colonies[i];
+        if (!c->active || c->nation_id < 0 || c->nation_id >= 4) {
+          continue;
+        }
+        if (!map_tile_seen_by(map, c->x, c->y, fog_nation)) {
+          continue;
+        }
+        const uint8_t bit = (uint8_t)(1u << c->nation_id);
+        for (int dy = -1; dy <= 1; ++dy) {
+          const int ty = c->y + dy;
+          if (ty < 0 || ty >= mh) continue;
+          for (int dx = -1; dx <= 1; ++dx) {
+            const int tx = c->x + dx;
+            if (tx < 0 || tx >= mw) continue;
+            s_colony_border_tiles[(size_t)ty * mw + tx] |= bit;
+          }
+        }
+      }
+
+      const ColonizePalette* palette = game->map_palette_ok ? &game->map_palette : NULL;
+      uint8_t colors[4];
+      for (int n = 0; n < 4; ++n) {
+        colors[n] = game_colony_border_color(n, palette);
+      }
+
+      for (int ty = 0; ty < mh; ++ty) {
+        for (int tx = 0; tx < mw; ++tx) {
+          const size_t idx = (size_t)ty * mw + tx;
+          const uint8_t nations = s_colony_border_tiles[idx];
+          if (!nations) continue;
+          const int sx = tx - view_x;
+          const int sy = ty - view_y;
+          if (sx >= view_cols || sx < -1 || sy >= view_rows || sy < -1) continue;
+          const int x0 = sx * screen_tile_px - shift_x;
+          const int y0 = MAP_MENU_BAR_H + sy * screen_tile_px - shift_y;
+          const int x1 = x0 + screen_tile_px - 1;
+          const int y1 = y0 + screen_tile_px - 1;
+          for (int n = 0; n < 4; ++n) {
+            const uint8_t bit = (uint8_t)(1u << n);
+            if (!(nations & bit)) continue;
+            /* Internal edges between two covered tiles of this nation vanish;
+             * only the outside of the merged area is traced. */
+            const bool up = ty > 0 && (s_colony_border_tiles[idx - mw] & bit) != 0;
+            const bool down = ty + 1 < mh && (s_colony_border_tiles[idx + mw] & bit) != 0;
+            const bool left = tx > 0 && (s_colony_border_tiles[idx - 1] & bit) != 0;
+            const bool right = tx + 1 < mw && (s_colony_border_tiles[idx + 1] & bit) != 0;
+            if (!up) game_colony_border_edge(framebuffer, true, x0, x1, y0, colors[n]);
+            if (!down) game_colony_border_edge(framebuffer, true, x0, x1, y1, colors[n]);
+            if (!left) game_colony_border_edge(framebuffer, false, y0, y1, x0, colors[n]);
+            if (!right) game_colony_border_edge(framebuffer, false, y0, y1, x1, colors[n]);
+          }
+        }
+      }
+    }
+  }
+
   /*
    * Map tile cursor: blinking white outline only in tile-select mode (no unit selected).
    * CURSOR.SS is the OS mouse pointer, not a tile overlay. Drawn post-decimation at
