@@ -34,6 +34,7 @@
 #include "core/dos_buggy.h"
 #include "core/dos_rng.h"
 #include "core/europe.h"
+#include "core/mods.h"
 #include "core/founding_fathers.h"
 #include "core/map.h"
 #include "core/popup_msg.h"
@@ -2478,6 +2479,41 @@ COLONIZE_INTERNAL void ai_euro_5952_build_cascade(
   ai_euro_5952_build_cascade_for_owner(ctx, col, col ? col->nation_id : 0);
 }
 
+/* Upkeep the colony adds by owning building `idx` (a higher tier replaces the
+ * chain's charge, so it can be less than the row's own figure). */
+int ai_euro_upkeep_added(const ColonizeColonyPool* pool, const ColonizeColony* col, int idx) {
+  ColonizeColony with = *col;
+  with.has_building[idx] = true;
+  const int row = colonies_building_type_row(pool, idx);
+  if (row == COLONY_BUILDING_WAREHOUSE && with.warehouse_level < 1u) {
+    with.warehouse_level = 1u;
+  } else if (row == COLONY_BUILDING_WAREHOUSE_EXPANSION) {
+    with.warehouse_level = 2u;
+  }
+  return colonies_upkeep_colony(pool, &with) - colonies_upkeep_colony(pool, col);
+}
+
+/* MOD_BUILDING_UPKEEP + MOD_AI_IMPROVEMENTS #1918 (not DOS): an improved
+ * colony drops from its buildable list any building whose added upkeep would
+ * leave the treasury short of AI_EURO_UPKEEP_TURNS turns of the nation's
+ * upkeep. ponytail: treasury buffer as the income proxy; measure income if
+ * nations stall with gold coming in. */
+static void ai_euro_5952_drop_unaffordable(AiEuro5952Cascade* s) {
+  if (!mods_on(MOD_BUILDING_UPKEEP) || !ai_euro_improved(s->ctx, s->nation)) {
+    return;
+  }
+  const long gold = (long)(int32_t)europe_nation_gold(s->ctx->europe, s->col1, s->nation);
+  const long total = colonies_upkeep_total(s->pool, s->nation);
+  int kept = 0;
+  for (int i = 0; i < s->n_buildable; ++i) {
+    const int added = ai_euro_upkeep_added(s->pool, s->col, s->buildable[i]);
+    if (added <= 0 || gold >= (total + added) * AI_EURO_UPKEEP_TURNS) {
+      s->buildable[kept++] = s->buildable[i];
+    }
+  }
+  s->n_buildable = kept;
+}
+
 /*
  * Cascade stages (port_bugs.md #1107 big-function split). Stage order = asm order;
  * every DOS local that spans stages lives in AiEuro5952Cascade
@@ -2508,6 +2544,7 @@ COLONIZE_INTERNAL void ai_euro_5952_cascade_setup(AiEuro5952Cascade* s) {
     s->pool, col->id, s->buildable, COLONIZE_BUILDING_TYPES_MAX, &opts
   );
   col->building_in_production = project;
+  ai_euro_5952_drop_unaffordable(s);
 
   {
     const ColonizeWorld world = world_from_turn_ctx(ctx);

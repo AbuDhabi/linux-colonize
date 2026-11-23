@@ -906,8 +906,12 @@ bool game_try_found_colony_at_cursor(ColonizeGameState* game) {
       return false;
     }
   }
-  const int cx = game->map_cursor_x;
-  const int cy = game->map_cursor_y;
+  /* The site is the active unit's tile (DS:0x5392); the map cursor can sit
+   * elsewhere (e.g. after a load or a view-mode pan). */
+  const ColonizeUnit* sel = units_get_const(&game->units, game->units.selected_id);
+  const bool sel_on_map = sel && sel->active && units_is_on_map(sel);
+  const int cx = sel_on_map ? sel->x : game->map_cursor_x;
+  const int cy = sel_on_map ? sel->y : game->map_cursor_y;
   if (!map_tile_is_land(&game->world_map, cx, cy)) {
     char body[AI_POPUP_BODY_LEN];
     popup_msg_fill(
@@ -989,8 +993,7 @@ bool game_try_found_colony_at_cursor(ColonizeGameState* game) {
   /* The Build handler founds with the active unit (DS:0x5392), not with
    * whichever unit heads the tile stack. */
   int uid = units_id_at(&game->units, cx, cy);
-  const ColonizeUnit* sel = units_get_const(&game->units, game->units.selected_id);
-  if (sel && sel->active && units_is_on_map(sel) && sel->x == cx && sel->y == cy) {
+  if (sel_on_map) {
     uid = sel->id;
   }
   if (uid < 0) {

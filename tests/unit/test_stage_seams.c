@@ -818,6 +818,30 @@ static void trade_seam_free(ColonizeGameState* game) {
   fx_map_free(&game->world_map);
 }
 
+/* Build Colony tests the active unit's tile, not the map cursor: a cursor
+ * left on water (after a load / view pan) must not raise @SEACOLONY for a
+ * colonist standing on land. */
+static int test_build_colony_uses_unit_tile_not_cursor(void) {
+  ColonizeGameState game;
+  trade_seam_init(&game, 2, false);
+  game.world_map.terrain[1 * 8 + 1] = T_HIGH_SEAS;
+  game.map_cursor_x = 1;
+  game.map_cursor_y = 1;
+  int rc = 0;
+  ColonizeUnit* u = units_get(&game.units, units_spawn(&game.units, 0, 4, 4));
+  if (!u) {
+    rc = fail("build-colony unit spawn");
+  } else {
+    u->nation_id = 0;
+    game.units.selected_id = u->id;
+    if (!game_try_found_colony_at_cursor(&game)) {
+      rc = fail("Build Colony judged the cursor tile instead of the unit's");
+    }
+  }
+  trade_seam_free(&game);
+  return rc;
+}
+
 static ColonizeUnit* trade_seam_unit(ColonizeGameState* game, int x, int y, int stop) {
   ColonizeUnit* u = units_get(&game->units, units_spawn(&game->units, 0, x, y));
   if (u) {
@@ -7195,6 +7219,7 @@ static const TestCase k_cases[] = {
     {"test_colony_zoom_hold_survives_pedia_detour", test_colony_zoom_hold_survives_pedia_detour},
     {"test_trade_route_wagon_services_arrival_stop", test_trade_route_wagon_services_arrival_stop},
     {"test_map_orders_load_unload_cargo", test_map_orders_load_unload_cargo},
+    {"test_build_colony_uses_unit_tile_not_cursor", test_build_colony_uses_unit_tile_not_cursor},
     {"test_trade_route_stop_uses_dos_colony_index", test_trade_route_stop_uses_dos_colony_index},
     {"test_trade_route_off_tile_reaims_same_stop", test_trade_route_off_tile_reaims_same_stop},
     {"test_trade_route_routeloop_advances_stop", test_trade_route_routeloop_advances_stop},

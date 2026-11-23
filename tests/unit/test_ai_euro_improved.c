@@ -761,6 +761,21 @@ static int case_upkeep_reserve(void) {
     fprintf(stderr, "upkeep_reserve: DOS AI keeps nothing\n");
     rc = 1;
   }
+  /* #1918: a Fort over a Stockade adds only the difference; a second Docks
+   * adds nothing. */
+  const int stockade = colonies_building_row(&pool, COLONY_BUILDING_STOCKADE);
+  const int fort = colonies_building_row(&pool, COLONY_BUILDING_FORT);
+  const int docks = colonies_building_row(&pool, COLONY_BUILDING_DOCKS);
+  const int fort_alone = ai_euro_upkeep_added(&pool, col, fort);
+  col->has_building[stockade] = true;
+  const int stockade_cost = colonies_upkeep_colony(&pool, col) - total;
+  if (fort_alone <= 0 || ai_euro_upkeep_added(&pool, col, fort) != fort_alone - stockade_cost ||
+      ai_euro_upkeep_added(&pool, col, docks) != 0) {
+    fprintf(stderr, "upkeep_reserve: added fort %d (alone %d, stockade %d), docks %d\n",
+            ai_euro_upkeep_added(&pool, col, fort), fort_alone, stockade_cost,
+            ai_euro_upkeep_added(&pool, col, docks));
+    rc = 1;
+  }
   mods_campaign_set(0);
   assets_msg_free(&names);
   return rc;

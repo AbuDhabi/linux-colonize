@@ -796,6 +796,10 @@ int ai_euro_forest_reserve(const ColonizeColony* col);
 /* Treasury less ai_euro_upkeep_reserve (#1917); may be negative. Spend gates
  * read this; with the mod off it is the treasury. */
 long ai_euro_gold_free(const ColonizeTurnContext* ctx, int nation);
+/* #1918: an improved colony builds only what its treasury carries this many
+ * turns of the nation's upkeep for, and the upkeep a building adds. */
+enum { AI_EURO_UPKEEP_TURNS = 5 };
+int ai_euro_upkeep_added(const ColonizeColonyPool* pool, const ColonizeColony* col, int idx);
 bool ai_euro_forest_keep(const ColonizeTurnContext* ctx, const ColonizeColony* col, int tx, int ty);
 
 #endif /* COLONIZE_CORE_AI_EURO_INTERNAL_H */
