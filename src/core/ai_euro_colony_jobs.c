@@ -2257,7 +2257,7 @@ static long ai_euro_5952_tools_gap_gold(const ColonizeTurnContext* ctx, int nati
 
 static bool ai_euro_5952_tools_gap_buyable(const ColonizeTurnContext* ctx, int nation, int gap) {
   return ctx->col1 && gap <= AI_EURO_TOOLS_BUY_GAP &&
-         (long)europe_nation_gold(ctx->europe, ctx->col1, nation) >= ai_euro_5952_tools_gap_gold(ctx, nation, gap);
+         ai_euro_gold_free(ctx, nation) >= ai_euro_5952_tools_gap_gold(ctx, nation, gap);
 }
 
 /* MOD_AI_IMPROVEMENTS (#1864): no tools gift at completion, so an improved
@@ -3166,7 +3166,7 @@ void ai_euro_5952_build_cascade_for_owner(
       colonies_construction_cost(ctx->colonies, col, &hammers_need, &tools_need) &&
       col->hammers >= hammers_need && tools_need > col->stock[COLONIZE_CARGO_TOOLS] &&
       ai_euro_5952_tools_gap_buyable(ctx, s.nation, tools_need - col->stock[COLONIZE_CARGO_TOOLS])) {
-    const int gold = (int)europe_nation_gold(ctx->europe, ctx->col1, s.nation);
+    const int gold = (int)ai_euro_gold_free(ctx, s.nation); /* #1917 */
     int left = gold;
     if (colonies_buy_construction_ex(ctx->colonies, col->id, ctx->col1, &left)) {
       europe_nation_gold_add(ctx->europe, ctx->col1, s.nation, left - gold);
@@ -3493,7 +3493,7 @@ COLONIZE_INTERNAL void ai_euro_5952_specialist_arms(
   if (gate_price == INT_MIN) {
     return; /* no @JOB catalog: nothing to price the purchase against */
   }
-  if ((long)(int32_t)europe_nation_gold(ctx->europe, ctx->col1, nation) < (long)gate_price) {
+  if (ai_euro_gold_free(ctx, nation) < (long)gate_price) {
     return;
   }
   int last = -1;
@@ -3507,7 +3507,7 @@ COLONIZE_INTERNAL void ai_euro_5952_specialist_arms(
      * at its own @JOB price and waits on the dock for a ship; no tax bump
      * (R3). One waiting expert of a kind at a time. */
     const int price = ai_euro_5952_job_price(trained);
-    if (price != INT_MIN && (long)(int32_t)europe_nation_gold(ctx->europe, ctx->col1, nation) >= price &&
+    if (price != INT_MIN && ai_euro_gold_free(ctx, nation) >= price &&
         ai_euro_europe_train_expert(ctx, nation, trained)) {
       europe_nation_gold_add(ctx->europe, ctx->col1, nation, -(long)price);
     }
@@ -3597,7 +3597,7 @@ int ai_euro_improved_surplus_train(ColonizeTurnContext* ctx, int nation) {
       break;
     }
     const long price = ai_euro_5952_job_price(pick);
-    if ((long)(int32_t)europe_nation_gold(ctx->europe, ctx->col1, nation) - price < AI_EURO_SURPLUS_KEEP ||
+    if (ai_euro_gold_free(ctx, nation) - price < AI_EURO_SURPLUS_KEEP ||
         !ai_euro_europe_train_expert(ctx, nation, pick)) {
       break;
     }

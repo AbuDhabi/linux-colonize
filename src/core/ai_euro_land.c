@@ -332,7 +332,7 @@ void ai_euro_5952_improve_best_plot(
   const int wants_clear = (col->ai_flags & COLONIZE_COLONY_AI_WANTS_PIONEER_CLEAR) != 0;
   const int colony_cid = map_continent_id_at(ctx->map, col->x, col->y);
   const int presence = ai_euro_20e6_presence_95f2(ctx, nation, colony_cid);
-  const long purse = (long)(int32_t)europe_nation_gold(ctx->europe, ctx->col1, nation);
+  const long purse = ai_euro_gold_free(ctx, nation); /* #1917 */
   const int ring = colonies_work_plot_count(ctx->colonies, col);
   int best = -1;      /* local_16e, signed */
   int best_plot = -1; /* local_34 */
@@ -868,7 +868,7 @@ ColonizeColony* ai_euro_5952_tools_supply_and_connect(
                                : europe_sell_price(ctx->europe, COLONIZE_CARGO_TOOLS);
     const int have_market = (row != 0) || (ctx->europe != NULL);
     const long cost = (long)price * 0x14;
-    const long gold = (long)(int32_t)europe_nation_gold(ctx->europe, ctx->col1, nation);
+    const long gold = ai_euro_gold_free(ctx, nation); /* #1917 */
     if (have_market && gold >= 0 && gold >= cost) {
       europe_nation_gold_add(ctx->europe, ctx->col1, nation, -cost);
       /* FUN_291f_0c14 = 38fd_1d80: the 20-tool purchase also updates the

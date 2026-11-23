@@ -496,7 +496,7 @@ static int ai_euro_5d04_propose_ship_buy(
   }
   ColonizeCol1Nation* nat = &ctx->col1->nation[nation_id];
   const uint32_t price = (uint32_t)opt->gold;
-  if (nat->gold < price) {
+  if (ai_euro_gold_free(ctx, nation_id) < (long)price) {
     return 0;
   }
   /* The purchase slot's identity is its @UNIT kind; its name is display text. */
@@ -1366,7 +1366,7 @@ static void ai_euro_5d04_hire_tail_candidates(Ai5d04HireTail* t) {
                 if (nat->musket_bank_lots != 0) {
                   musket_stock_cost = 0;
                 }
-                if (nat->gold >= musket_stock_cost && !f->cargo_short) {
+                if (ai_euro_gold_free(ctx, nation_id) >= (long)musket_stock_cost && !f->cargo_short) {
                   if (nat->musket_bank_lots == 0) {
                     ai_euro_5d04_cb_set_pool_counter(0xf, 0x32);
                   } else {
@@ -1399,7 +1399,7 @@ static void ai_euro_5d04_hire_tail_candidates(Ai5d04HireTail* t) {
                   if (col1_nation_bank_4a(nat) > 0x31) {
                     horse_stock_cost = 0;
                   }
-                  if (nat->gold >= horse_stock_cost) {
+                  if (ai_euro_gold_free(ctx, nation_id) >= (long)horse_stock_cost) {
                     europe_nation_gold_add(ctx->europe, ctx->col1, nation_id, -(long)horse_stock_cost);
                     ai_euro_5d04_cb_set_unit_dispatch_byte(idx, 4);
                     if (col1_nation_bank_4a(nat) < 0x32) {
@@ -1437,7 +1437,7 @@ static void ai_euro_5d04_hire_tail_candidates(Ai5d04HireTail* t) {
                   handled = 1;
                 } else {
                   const uint32_t cost = (uint32_t)(ai_euro_5d04_cb_price(COLONIZE_CARGO_TOOLS) * 100);
-                  if (nat->gold >= cost) {
+                  if (ai_euro_gold_free(ctx, nation_id) >= (long)cost) {
                     europe_nation_gold_add(ctx->europe, ctx->col1, nation_id, -(long)cost);
                     ai_euro_5d04_cb_set_pool_counter(0xe, 100);
                     ai_euro_5d04_cb_set_unit_dispatch_byte(idx, 2);
@@ -1555,7 +1555,7 @@ static void ai_euro_5d04_hire_tail_colony_demand(Ai5d04HireTail* t) {
         nat->king_grace_counter--;
         adj = 0;
       }
-      if (nat->gold >= adj && ai_euro_5d04_cb_goal_trigger(0xb, nation_id, nation_id - 0x14, nation_id - 0x14) >= 0) {
+      if (ai_euro_gold_free(ctx, nation_id) >= (long)adj && ai_euro_5d04_cb_goal_trigger(0xb, nation_id, nation_id - 0x14, nation_id - 0x14) >= 0) {
         demand_remaining--;
         europe_nation_gold_add(ctx->europe, ctx->col1, nation_id, -(long)adj);
         if (nat->artillery_count < 0xffff) {
@@ -1580,7 +1580,7 @@ static void ai_euro_5d04_hire_tail_colony_demand(Ai5d04HireTail* t) {
       if (turn > 99) {
         recruit_price += (uint32_t)ai_euro_5d04_late_discount(difficulty, recruit_price);
       }
-      if ((long)nat->gold >= (long)recruit_price + t->fleet_reserve) {
+      if (ai_euro_gold_free(ctx, nation_id) >= (long)recruit_price + t->fleet_reserve) {
         const int slot = dos_rng_range(ctx->rng, 0, 2);
         const int cand = ai_euro_5d04_cb_dock_pop_candidate(nat->recruit[slot]);
         if (cand < 0) {
@@ -1646,7 +1646,7 @@ static void ai_euro_5d04_hire_tail_colony_demand(Ai5d04HireTail* t) {
          * the Dragoon upgrade and the horse bank run even when the nation
          * could not pay. Fixed under !dos_buggy_behavior() (both inside the
          * gate, as the training arm raw 92721-92735 has them). */
-        const bool paid_horses = nat->gold >= horse_stock_cost;
+        const bool paid_horses = ai_euro_gold_free(ctx, nation_id) >= (long)horse_stock_cost;
         if (paid_horses) {
           europe_nation_gold_add(ctx->europe, ctx->col1, nation_id, -(long)horse_stock_cost);
         }
@@ -1826,7 +1826,7 @@ static void ai_euro_5d04_hire_tail_departing_ships(Ai5d04HireTail* t) {
               /* #1893: only tools a colony's build waits on dip into the
                * gold kept back for a cargo hull. */
               const long keep = tools_short ? 0 : t->fleet_reserve;
-              if ((long)nat->gold >= (long)ai_euro_5d04_cb_price(p) * gate_qty + keep) {
+              if (ai_euro_gold_free(ctx, nation_id) >= (long)ai_euro_5d04_cb_price(p) * gate_qty + keep) {
                 ai_euro_5d04_cb_apply_bump(idx2, p, 100);
                 cargo_demand[p]--; /* raw 93050 */
                 held[p] += 100;
@@ -1877,7 +1877,7 @@ static void ai_euro_improved_scout_buy(ColonizeTurnContext* ctx, int nation_id) 
     }
   }
   const int cost = ai_euro_5d04_cb_price(COLONIZE_CARGO_HORSES) * UNITS_EQUIP_HORSES;
-  if (!pick || scout_ti < 0 || europe_nation_gold(ctx->europe, ctx->col1, nation_id) < (uint32_t)cost) {
+  if (!pick || scout_ti < 0 || ai_euro_gold_free(ctx, nation_id) < (long)cost) {
     return;
   }
   bool wanted = false;
@@ -2005,7 +2005,7 @@ static void ai_euro_5d04_hire_ladder_tail(
     /* asm 521d:6320-6332: local_38 and local_38 + reserve are 16-bit words,
      * CWD-extended and compared signed (JG/JL on the high word) to gold. */
     const int16_t recruit_swap_price = (int16_t)(scaled + base); /* DOS local_38 */
-    if ((int32_t)nat->gold >= (int32_t)(int16_t)(recruit_swap_price + reserve) + fleet_reserve) {
+    if (ai_euro_gold_free(ctx, nation_id) >= (int32_t)(int16_t)(recruit_swap_price + reserve) + fleet_reserve) {
       europe_nation_gold_add(ctx->europe, ctx->col1, nation_id, -recruit_swap_price);
       const int slot = dos_rng_range(ctx->rng, 0, 2); /* nat->recruit[3] */
       const int candidate = ai_euro_5d04_cb_dock_pop_candidate(nat->recruit[slot]);

@@ -489,7 +489,8 @@ static void colonies_assign_field_land_reaction(
   if (!human) {
     const int price = snap ? colonies_indian_land_purchase_gold_stale_claim(col1, map, x, y, nation)
                            : colonies_indian_land_purchase_gold(col1, map, x, y, nation);
-    const long gold = (long)europe_nation_gold(w->europe, col1, nation);
+    const long gold = (long)europe_nation_gold(w->europe, col1, nation) -
+                      ai_euro_upkeep_reserve(col1, w->colonies, -1, nation); /* #1917 */
     if (price >= 0 && gold - (long)price >= (long)(price >> 1)) {
       /* gold = NULL: the spend goes through europe_nation_gold_add, the one
        * sanctioned writer; land_pay still does lands_bought++ + the purchased

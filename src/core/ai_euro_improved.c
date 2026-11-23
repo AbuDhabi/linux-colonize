@@ -596,6 +596,13 @@ int ai_euro_colony_focus(const ColonizeTurnContext* ctx, const ColonizeColony* c
   return COLONY_GOVERNOR_INDUSTRY;
 }
 
+/* ===== Upkeep reserve ===== */
+
+long ai_euro_gold_free(const ColonizeTurnContext* ctx, int nation) {
+  return (long)(int32_t)europe_nation_gold(ctx->europe, ctx->col1, nation) -
+         ai_euro_upkeep_reserve(ctx->col1, ctx->colonies, ctx->human_nation, nation);
+}
+
 /* ===== Forest reserve ===== */
 
 static bool ai_euro_is_forest_class(int cls) {

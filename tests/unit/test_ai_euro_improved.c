@@ -720,6 +720,52 @@ static int case_craft_needs_inputs(void) {
   return rc;
 }
 
+/* #1917: with building upkeep on, an improved nation keeps next turn's upkeep
+ * out of its spending; the human, a DOS AI and either mod off keep nothing. */
+static int case_upkeep_reserve(void) {
+  ColonizeMsgCatalog names;
+  assets_msg_init(&names);
+  static ColonizeColonyPool pool;
+  colonies_init(&pool);
+  int rc = 0;
+  if (!assets_msg_load_file(&names, "COLONIZE/NAMES.TXT") || !colonies_load_buildings(&pool, &names)) {
+    fprintf(stderr, "upkeep_reserve: fixture load failed\n");
+    return 1;
+  }
+  ColonizeColony* col = &pool.colonies[0];
+  col->active = true;
+  col->nation_id = 1;
+  col->has_building[colonies_building_row(&pool, COLONY_BUILDING_DOCKS)] = true;
+  const int total = colonies_upkeep_total(&pool, 1);
+  static ColonizeCol1Save col1;
+  memset(&col1, 0, sizeof(col1));
+  col1.player[1].control = 1;
+  const unsigned both = (1u << MOD_BUILDING_UPKEEP) | (1u << MOD_AI_IMPROVEMENTS);
+  mods_campaign_set(both);
+  if (total <= 0 || ai_euro_upkeep_reserve(&col1, &pool, 0, 1) != total) {
+    fprintf(stderr, "upkeep_reserve: improved AI keeps %ld, want %d\n",
+            ai_euro_upkeep_reserve(&col1, &pool, 0, 1), total);
+    rc = 1;
+  }
+  if (ai_euro_upkeep_reserve(&col1, &pool, 1, 1) != 0) {
+    fprintf(stderr, "upkeep_reserve: the human keeps nothing\n");
+    rc = 1;
+  }
+  mods_campaign_set(1u << MOD_AI_IMPROVEMENTS);
+  if (ai_euro_upkeep_reserve(&col1, &pool, 0, 1) != 0) {
+    fprintf(stderr, "upkeep_reserve: upkeep off keeps nothing\n");
+    rc = 1;
+  }
+  mods_campaign_set(1u << MOD_BUILDING_UPKEEP);
+  if (ai_euro_upkeep_reserve(&col1, &pool, 0, 1) != 0) {
+    fprintf(stderr, "upkeep_reserve: DOS AI keeps nothing\n");
+    rc = 1;
+  }
+  mods_campaign_set(0);
+  assets_msg_free(&names);
+  return rc;
+}
+
 static const TestCase k_cases[] = {
   {"colony_focus_small_cash", case_colony_focus_small_cash},
   {"pjob_resume", case_pjob_resume},
@@ -736,5 +782,6 @@ static const TestCase k_cases[] = {
   {"poor_site", case_poor_site},
   {"war_momentum", case_war_momentum},
   {"craft_needs_inputs", case_craft_needs_inputs},
+  {"upkeep_reserve", case_upkeep_reserve},
 };
 TEST_MAIN_WRAPPED(k_cases, diag_init(0, NULL), diag_shutdown())

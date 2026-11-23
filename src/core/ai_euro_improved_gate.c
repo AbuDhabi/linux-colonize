@@ -22,3 +22,15 @@ bool ai_euro_improved_nation(const ColonizeCol1Save* col1, int human_nation, int
   }
   return true;
 }
+
+/* MOD_BUILDING_UPKEEP + MOD_AI_IMPROVEMENTS #1917 (not DOS): an improved
+ * nation keeps next turn's building upkeep out of every purchase, so it is
+ * never short at the production pass (#1916). 0 otherwise. */
+long ai_euro_upkeep_reserve(
+  const ColonizeCol1Save* col1, const ColonizeColonyPool* pool, int human_nation, int nation
+) {
+  if (!mods_on(MOD_BUILDING_UPKEEP) || !pool || !ai_euro_improved_nation(col1, human_nation, nation)) {
+    return 0;
+  }
+  return colonies_upkeep_total(pool, nation);
+}

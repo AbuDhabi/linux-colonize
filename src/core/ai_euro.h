@@ -195,6 +195,11 @@ void ai_euro_spy_reset(void);
  * the crown slot during the War of Independence. For code without a turn
  * context (production, Europe market); the AI turn uses ai_euro_improved. */
 bool ai_euro_improved_nation(const ColonizeCol1Save* col1, int human_nation, int nation);
+/* #1917: gold an improved nation keeps back for next turn's building upkeep
+ * (MOD_BUILDING_UPKEEP); 0 for anyone else or with that mod off. */
+long ai_euro_upkeep_reserve(
+  const ColonizeCol1Save* col1, const ColonizeColonyPool* pool, int human_nation, int nation
+);
 #define AI_EURO_SPY_EXPORT_MAX (4 * COLONIZE_COLONIES_MAX * 8)
 size_t ai_euro_spy_export(uint8_t out[AI_EURO_SPY_EXPORT_MAX]); /* bytes written, 0 = none */
 void ai_euro_spy_import(const uint8_t* in, size_t len, const ColonizeColonyPool* colonies);
