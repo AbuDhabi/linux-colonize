@@ -516,7 +516,7 @@ int ai_euro_improved_sale_net(ColonizeTurnContext* ctx, int nation, int gross) {
   if (gross <= 0 || !ctx || !ctx->col1 || !ai_euro_improved(ctx, nation)) {
     return gross;
   }
-  const int net = europe_net_after_tax(gross, (int)ctx->col1->nation[nation].tax_rate);
+  const int net = europe_net_after_tax(gross, europe_tax_byte(ctx->col1->nation[nation].tax_rate));
   europe_credit_sale_tax(ctx->col1, nation, gross, net);
   return net;
 }

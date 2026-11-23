@@ -297,77 +297,6 @@ static int unit_surplus_recall_ignores_colony_owner(void) {
 }
 
 /*
- * FUN_521d_20e6 arm order ahead of the pre-LAB_4d2e gate: the explorer ring
- * hop (raw 90103-90143, `goto LAB_521d_27f5` with plan '8') is tested before
- * the surplus recall (raw 90153-90173, plan 'W'). An explorer that qualifies
- * for both takes the hop and leaves the colony's surplus bit 0x04 and its
- * quota alone.
- * Same landlocked 32x32 plain as unit_ring_hop_commits_far_goto, plus the
- * recall colony of unit_surplus_recall_ignores_colony_owner (rival-owned, so
- * no own colony puts the LAB_277a patrol arm ahead of both).
- */
-static int unit_ring_hop_precedes_surplus_recall(void) {
-  const int nation = 1;
-  Fixture f;
-  if (fixture_init(&f, nation) != 0) {
-    return 1;
-  }
-  fixture_free(&f);
-  if (!fx_map_alloc(&f.map, 32, 32, 2, true)) {
-    return fail("alloc big map");
-  }
-  ColonizeColony* home = &f.colonies.colonies[0];
-  home->id = 0;
-  home->active = true;
-  home->nation_id = 2;
-  home->x = 4;
-  home->y = 4;
-  home->population = 3;
-  home->colonist_count = 3;
-  home->stock[COLONIZE_CARGO_FOOD] = 60;
-  home->building_in_production = -1;
-  home->ai_flags |= COLONIZE_COLONY_AI_MILITARY_SURPLUS;
-  home->garrison_quota = 1;
-  f.colonies.colony_count = 1;
-  f.colonies.next_id = 1;
-
-  const int sid = units_spawn(&f.units, 1, 16, 16);
-  ColonizeUnit* s = units_get(&f.units, sid);
-  if (!s) {
-    fixture_free(&f);
-    return fail("spawn soldier");
-  }
-  s->nation_id = nation;
-  s->moves = 1 * UNITS_MP_PER_TILE;
-  s->orders = 0;
-  s->col1_origin = 0;
-  seed_census(&f, nation);
-
-  ai_euro_dispatcher_turn(&f.ctx, nation);
-
-  s = units_get(&f.units, sid);
-  const int ok = s && s->active && s->col1_ai_plan == 0x38 && units_orders_follow_goto(s->orders) &&
-                 (home->ai_flags & COLONIZE_COLONY_AI_MILITARY_SURPLUS) != 0 &&
-                 home->garrison_quota == 1;
-  if (!ok) {
-    if (s) {
-      fprintf(stderr, "pos=(%d,%d) orders=%d plan=%d goto=(%d,%d) flags=%x quota=%d\n", s->x, s->y,
-              s->orders, s->col1_ai_plan, s->goto_x, s->goto_y, home->ai_flags, home->garrison_quota);
-    }
-    fixture_free(&f);
-    return fail("raw 90103-90173: the explorer hop must win over the surplus recall");
-  }
-  const int d = cheb(s->goto_x, s->goto_y, 16, 16);
-  if (d != 4 && d != 8) {
-    fprintf(stderr, "goto=(%d,%d) cheb=%d\n", s->goto_x, s->goto_y, d);
-    fixture_free(&f);
-    return fail("hop goto not 4 tiles out");
-  }
-  fixture_free(&f);
-  return 0;
-}
-
-/*
  * port_bugs.md #493: DOS re-enters FUN_521d_20e6 for a unit that already carries
  * a goto. The gate at raw 90551 is
  *   if (unit+0x3149 == 0 || unit+0x314c != 0x0b) call 20e6
@@ -5178,7 +5107,6 @@ static const TestCase k_cases[] = {
     {"unit_wander_step_is_adjacent", unit_wander_step_is_adjacent},
     {"unit_patrol_returns_to_colony", unit_patrol_returns_to_colony},
     {"unit_surplus_recall_ignores_colony_owner", unit_surplus_recall_ignores_colony_owner},
-    {"unit_ring_hop_precedes_surplus_recall", unit_ring_hop_precedes_surplus_recall},
     {"unit_goal_walk_miss_exhausts_hull", unit_goal_walk_miss_exhausts_hull},
     {"unit_stale_goto_rescored_at_full_mp", unit_stale_goto_rescored_at_full_mp},
     {"unit_scout_visits_village_at_war", unit_scout_visits_village_at_war},

@@ -1038,7 +1038,12 @@ void units_lane_arrivals_pickup(
       continue;
     }
     ColonizeUnit* host = units_get(pool, first_host[u->id]);
-    if (host && host->cargo_count < COLONIZE_UNIT_CARGO_MAX) {
+    for (int k = 0; (!host || host->cargo_count >= COLONIZE_UNIT_CARGO_MAX) && k < n; ++k) {
+      host = units_get(pool, ships[k]);
+    }
+    if (!host || host->cargo_count >= COLONIZE_UNIT_CARGO_MAX) {
+      diag_warn("lane arrival: unit %d stranded on the lane, every hull full", u->id);
+    } else {
       diag_warn("lane arrival: unit %d left on the lane, back aboard %d", u->id, host->id);
       u->aboard_ship_id = host->id;
       u->x = host->x;

@@ -685,7 +685,9 @@ current stop counts as reached (`game_trade_route_at_stop`), so `game_trade_rout
 services nothing and advances, stepping past further invalid stops; with no valid stop
 the aim fails as it did for a missing colony. A ship leaving Europe
 (`game_europe_service_trade_harbor`) steps past invalid stops the same way before it
-takes its landfall tile, so it does not cross to a captured colony's coast. Ungated:
+takes its landfall tile, so it does not cross to a captured colony's coast. A Europe
+stop met before any valid colony stop ends that scan, and the ship still sails to the
+captured colony's coast; the map arm then steps past it on arrival (left as is). Ungated:
 every golden still matches.
 Tests: unit_stage_seams `test_trade_route_skips_captured_stop`, unit_europe
 `case_europe_trade_route_skips_captured_stop` (the Europe arm).
