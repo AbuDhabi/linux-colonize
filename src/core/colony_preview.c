@@ -135,10 +135,7 @@ void colony_preview_compute_fixed_w(
     /* port_bugs.md #898: an AI-controlled colony's craft pass ignores the input
      * shortfall (FUN_364b_0688 raw 57241-57243) — same control gate as the
      * AI food subsidy above, or the preview lands short of the tick. */
-    const bool ai_controlled =
-      col1 != NULL && colony->nation_id >= 0 &&
-      (colony->nation_id >= (int)COLONIZE_COL1_NATION_COUNT ||
-       col1->player[colony->nation_id].control != 0);
+    const bool ai_controlled = colony_prod_craft_ignores_inputs(col1, -1, colony);
     colony_craft_preview(
       pool, &scratch, out->shortfall, &craft_delta, sol_b, out->craft_gross,
       out->craft_capacity, ai_controlled

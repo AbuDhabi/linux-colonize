@@ -296,6 +296,17 @@ int colony_prod_sol_percent(const ColonizeCol1Save* col1, const ColonizeColony* 
   return sol;
 }
 
+bool colony_prod_craft_ignores_inputs(
+  const ColonizeCol1Save* col1, int human_nation, const ColonizeColony* colony
+) {
+  /* `(3 < uVar7) || byte[uVar7*0x34+0x543f] != 0`, polarity 0 = human.
+   * MOD_AI_IMPROVEMENTS #1915 (not DOS): an improved AI needs its inputs. */
+  return col1 != NULL && colony->nation_id >= 0 &&
+         (colony->nation_id >= (int)COLONIZE_COL1_NATION_COUNT ||
+          col1->player[colony->nation_id].control != 0) &&
+         !ai_euro_improved_nation(col1, human_nation, colony->nation_id);
+}
+
 /* The Tory threshold FUN_15eb_18ec divides the Tory count by: 10 - difficulty
  * for a human, 6 + difficulty for an improved AI, 0 (Tories ignored) for any
  * other AI or withdrawn nation; 10 without a save. */

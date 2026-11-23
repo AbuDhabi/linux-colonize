@@ -73,6 +73,7 @@ wagon or Europe trip, inland colonies included.
 | F5 | Bolivar bell subsidy | AI nation owning Bolivar: colony bells `+= (pop+3)/5` | `colony_production.c` bells composer (FUN_15eb_1f72 raw 12634-12641, port_bugs.md #938b) |
 | F6 | Cheaper Founding Fathers | Base AI `(14−diff)·8` vs human `(diff+3)·16`. First FF on Viceroy: AI 40, human 56; Discoverer: AI 56, human 24 | `founding_fathers.c` `founding_fathers_bells_needed` (FUN_4345_0982) |
 | F7 | AI-only Custom House gate | AI colonies use a fixed deny list (Food, Lumber, Horses, Tools, Muskets; Ore when Armory or tool/musket production) instead of the player's per-cargo bits | `europe_market.c` (FUN_364b_0636) |
+| F8 | Craft output without inputs | AI factory/shop yields full capacity with an empty input stock; the human loses the unmet share (port_bugs.md #898) | `turn_production.c` Phase A craft pass, `colony_prod_craft_ignores_inputs` (FUN_364b_0688 raw 57241-57243) |
 
 ## 6. Europe and natives
 

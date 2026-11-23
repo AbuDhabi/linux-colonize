@@ -61,6 +61,7 @@ where the AI gets a handout or handicap the player does not.
 | F3 | Uncapped horse breeding (overflow then sold, G3) | Rule exemption |
 | F4 | Tory production penalty never applied (fix: mirrored threshold, 4.4) | Rule exemption |
 | F5 | Bolivar bell subsidy `(pop+3)/5` | Handout |
+| F8 | Craft output without inputs (#898) | Rule exemption (removed #1915) |
 | R2 | No starter Veteran Soldier for the AI at any level (human gets one on Discoverer/Explorer) | Handicap |
 | R3 | AI tax +1 on each in-colony expert purchase, no audience | Tax outside the King's path |
 

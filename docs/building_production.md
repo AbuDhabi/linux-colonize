@@ -437,7 +437,8 @@ back-conversion never fires and `out = min(stock, G)`.
 (`3 < nation || DS:0x543f[nation] != 0`, raw 57241-57243) Phase B composes
 `gross - demand` and drops the `- unmet[input]` term entirely — an AI factory
 always yields full capacity and its input stock merely clamps at 0. Same gate
-as the AI food subsidy.
+as the AI food subsidy. MOD_AI_IMPROVEMENTS (#1915, not DOS): an improved AI
+runs the human formula and needs its inputs (`colony_prod_craft_ignores_inputs`).
 
 The Phase K "Need sugar/ore/..." crumbs (raw 57696-57728, port_bugs.md #911)
 are seven independent tests `unmet[input] != 0 && FUN_281f_0b50(out) == 0`,

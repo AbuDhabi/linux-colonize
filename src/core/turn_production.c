@@ -738,11 +738,10 @@ COLONIZE_INTERNAL void turn_produce_compose(TurnProduceCtx* pc) {
    * control gate the AI food subsidy below reads, polarity 0 = human —
    * swaps in `gross - demand`, dropping the unmet term, so an AI craft
    * building never loses output to a short warehouse (port_bugs.md #898).
+   * MOD_AI_IMPROVEMENTS #1915 (not DOS): an improved AI needs its inputs.
    */
   const bool colony_ai_controlled =
-    col1 != NULL && colony->nation_id >= 0 &&
-    (colony->nation_id >= (int)COLONIZE_COL1_NATION_COUNT ||
-     col1->player[colony->nation_id].control != 0);
+    colony_prod_craft_ignores_inputs(col1, pc->human_nation, colony);
   pc->colony_ai_controlled = colony_ai_controlled;
   /*
    * Phase K (port_bugs.md #899/#911) probes two DOS scratch words per craft pair,
@@ -966,9 +965,7 @@ COLONIZE_INTERNAL void turn_produce_horses(TurnProduceCtx* pc) {
      * (DOSBox 1508: Spain's capped herd still +8, horse tonnage +8); the
      * human path (FUN_281f_0b50) applies the capped figure. */
     /* MOD_AI_IMPROVEMENTS 4.1 F3 (not DOS): the AI breeds the capped figure too. */
-    const bool uncapped = colony_ai_controlled &&
-      !ai_euro_improved_nation(pc->col1, pc->human_nation, colony->nation_id);
-    const int horses_gain = uncapped ? breed.bred + breed.shortfall : breed.bred;
+    const int horses_gain = colony_ai_controlled ? breed.bred + breed.shortfall : breed.bred;
     if (horses_gain > 0) {
       colony->stock[COLONIZE_CARGO_FOOD] =
         clamp_int(colony->stock[COLONIZE_CARGO_FOOD] - breed.bred, 0, 65535);
@@ -2418,7 +2415,7 @@ bool turn_prod_nation_in_scope(int nation_id) {
 
 /*
  * MOD_BUILDING_UPKEEP (not DOS; docs/settings.md "mods"): before a production
- * pass, each human nation in scope pays its colonies' building upkeep from the
+ * pass, each human or improved AI (#1916) nation in scope pays its colonies' building upkeep from the
  * treasury, or, short, pays nothing and gets @UPKEEP (GAME.TXT text DOS never
  * shows). Returns the nations whose building workers produce at half this
  * pass. Mod off: no-op, no RNG. The colony-screen Space cheat calls
@@ -2432,7 +2429,8 @@ static unsigned turn_charge_building_upkeep(
     return 0u;
   }
   for (int n = 0; n < 4; ++n) {
-    if (w->col1->player[n].control != 0 || !turn_prod_nation_in_scope(n)) {
+    const bool human = w->col1->player[n].control == 0;
+    if ((!human && !ai_euro_improved_nation(w->col1, -1, n)) || !turn_prod_nation_in_scope(n)) {
       continue;
     }
     const int total = colonies_upkeep_total(w->colonies, n);
@@ -2444,6 +2442,9 @@ static unsigned turn_charge_building_upkeep(
       continue;
     }
     halved |= 1u << n;
+    if (!human) {
+      continue;
+    }
     PopupMsgTokens tok;
     memset(&tok, 0, sizeof(tok));
     tok.number0 = total;

@@ -8416,6 +8416,19 @@ static int case_building_upkeep_eot(void) {
             ai.cloth);
     goto done_mod;
   }
+  /* #1916: an improved AI pays or halves like the human, with no popup. */
+  mods_campaign_set((1u << MOD_BUILDING_UPKEEP) | (1u << MOD_AI_IMPROVEMENTS));
+  const UpkeepRun ai_paid = upkeep_run(&pool, col, &base, &map, &col1, &game_txt, total + 7, 1);
+  const UpkeepRun ai_short = upkeep_run(&pool, col, &base, &map, &col1, &game_txt, total - 1, 1);
+  if (ai_paid.gold != 7u || ai_paid.popup || ai_paid.hammers <= 1 ||
+      ai_short.gold != (uint32_t)(total - 1) || ai_short.popup ||
+      ai_short.hammers != ai_paid.hammers >> 1 ||
+      ai_short.mask_left) {
+    fprintf(stderr, "upkeep eot improved AI: paid gold %u popup %d h%d; short gold %u popup %d h%d/%d\n",
+            ai_paid.gold, ai_paid.popup, ai_paid.hammers, ai_short.gold, ai_short.popup,
+            ai_short.hammers, ai_paid.hammers >> 1);
+    goto done_mod;
+  }
   rc = 0;
 done_mod:
   mods_campaign_set(0);

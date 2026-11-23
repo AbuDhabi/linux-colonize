@@ -8,6 +8,7 @@
 #include "core/col1_save.h"
 #include "core/colony.h"
 #include "core/colony_governor.h"
+#include "core/colony_production.h"
 #include "core/colony_yield.h"
 #include "core/founding_fathers.h"
 #include "core/map.h"
@@ -689,6 +690,36 @@ static int case_war_momentum(void) {
   return fail;
 }
 
+/* ai_improvements mod (#1915): an improved AI's craft buildings need their
+ * inputs; DOS's AI-only shortfall exemption (#898) stays mod-off. */
+static int case_craft_needs_inputs(void) {
+  static ColonizeCol1Save col1;
+  memset(&col1, 0, sizeof(col1));
+  col1.player[1].control = 1;
+  ColonizeColony colony;
+  memset(&colony, 0, sizeof(colony));
+  colony.active = true;
+  colony.nation_id = 1;
+  int rc = 0;
+  mods_campaign_set(0);
+  if (!colony_prod_craft_ignores_inputs(&col1, 0, &colony)) {
+    fprintf(stderr, "craft_needs_inputs: mod off, AI keeps DOS exemption\n");
+    rc = 1;
+  }
+  mods_campaign_set(1u << MOD_AI_IMPROVEMENTS);
+  if (colony_prod_craft_ignores_inputs(&col1, 0, &colony)) {
+    fprintf(stderr, "craft_needs_inputs: improved AI must need inputs\n");
+    rc = 1;
+  }
+  colony.nation_id = 0;
+  if (colony_prod_craft_ignores_inputs(&col1, 0, &colony)) {
+    fprintf(stderr, "craft_needs_inputs: human always needs inputs\n");
+    rc = 1;
+  }
+  mods_campaign_set(0);
+  return rc;
+}
+
 static const TestCase k_cases[] = {
   {"colony_focus_small_cash", case_colony_focus_small_cash},
   {"pjob_resume", case_pjob_resume},
@@ -704,5 +735,6 @@ static const TestCase k_cases[] = {
   {"wide_islet_sites", case_wide_islet_sites},
   {"poor_site", case_poor_site},
   {"war_momentum", case_war_momentum},
+  {"craft_needs_inputs", case_craft_needs_inputs},
 };
 TEST_MAIN_WRAPPED(k_cases, diag_init(0, NULL), diag_shutdown())

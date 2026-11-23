@@ -130,6 +130,11 @@ int colony_prod_sol_percent(const ColonizeCol1Save* col1, const ColonizeColony* 
 int colony_prod_sol_bonus(const ColonizeCol1Save* col1, const ColonizeColony* colony);
 /* Tory-count divisor of the term above; 0 = Tories ignored (AI, withdrawn). */
 int colony_prod_tory_thresh(const ColonizeCol1Save* col1, const ColonizeColony* colony);
+/* port_bugs.md #898: an AI colony's craft pass ignores the input shortfall
+ * (FUN_364b_0688 raw 57241-57243). Not an improved AI (#1915). */
+bool colony_prod_craft_ignores_inputs(
+  const ColonizeCol1Save* col1, int human_nation, const ColonizeColony* colony
+);
 
 /* FUN_15eb_18ec field-yield term: same as colony_prod_sol_bonus. */
 int colony_prod_sol_bonus_field(const ColonizeCol1Save* col1, const ColonizeColony* colony);
