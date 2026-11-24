@@ -2493,21 +2493,21 @@ int ai_euro_upkeep_added(const ColonizeColonyPool* pool, const ColonizeColony* c
   return colonies_upkeep_colony(pool, &with) - colonies_upkeep_colony(pool, col);
 }
 
-/* MOD_BUILDING_UPKEEP + MOD_AI_IMPROVEMENTS #1918 (not DOS): an improved
- * colony drops from its buildable list any building whose added upkeep would
- * leave the treasury short of AI_EURO_UPKEEP_TURNS turns of the nation's
- * upkeep. ponytail: treasury buffer as the income proxy; measure income if
- * nations stall with gold coming in. */
+/* MOD_BUILDING_UPKEEP + MOD_AI_IMPROVEMENTS #1918/#1919 (not DOS): an
+ * improved colony drops from its buildable list any building whose added
+ * upkeep, on top of the nation's, would pass two thirds of its average trade
+ * income. #1920: the margin is for falling prices and rising tax (seed 102:
+ * furs 6 to 2, horses 9 to 2, tax 23% to 54% over turns 150-300). */
 static void ai_euro_5952_drop_unaffordable(AiEuro5952Cascade* s) {
   if (!mods_on(MOD_BUILDING_UPKEEP) || !ai_euro_improved(s->ctx, s->nation)) {
     return;
   }
-  const long gold = (long)(int32_t)europe_nation_gold(s->ctx->europe, s->col1, s->nation);
+  const long income = ai_euro_income_avg(s->nation);
   const long total = colonies_upkeep_total(s->pool, s->nation);
   int kept = 0;
   for (int i = 0; i < s->n_buildable; ++i) {
     const int added = ai_euro_upkeep_added(s->pool, s->col, s->buildable[i]);
-    if (added <= 0 || gold >= (total + added) * AI_EURO_UPKEEP_TURNS) {
+    if (added <= 0 || income * 2 >= (total + added) * 3) {
       s->buildable[kept++] = s->buildable[i];
     }
   }

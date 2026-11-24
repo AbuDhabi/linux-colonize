@@ -459,6 +459,7 @@ int europe_custom_house_autosell_ex_w(
        * is gone with it.
        */
       europe_nation_gold_add(eu, col1, nation, gained);
+      ai_euro_income_note(nation, gained); /* #1920 */
       /* nation +0x22 (royal_money) += tax paid; +0x26 += net. */
       europe_credit_sale_tax(col1, nation, gross, gained);
     }

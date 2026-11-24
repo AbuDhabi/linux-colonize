@@ -2429,6 +2429,9 @@ static unsigned turn_charge_building_upkeep(
     return 0u;
   }
   for (int n = 0; n < 4; ++n) {
+    if (turn_prod_nation_in_scope(n)) {
+      ai_euro_income_roll(n); /* #1919: once a turn, before this turn's charge */
+    }
     const bool human = w->col1->player[n].control == 0;
     if ((!human && !ai_euro_improved_nation(w->col1, -1, n)) || !turn_prod_nation_in_scope(n)) {
       continue;

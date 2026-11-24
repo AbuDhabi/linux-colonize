@@ -195,11 +195,22 @@ void ai_euro_spy_reset(void);
  * the crown slot during the War of Independence. For code without a turn
  * context (production, Europe market); the AI turn uses ai_euro_improved. */
 bool ai_euro_improved_nation(const ColonizeCol1Save* col1, int human_nation, int nation);
-/* #1917: gold an improved nation keeps back for next turn's building upkeep
+/* #1917: gold an improved nation keeps back for building upkeep
  * (MOD_BUILDING_UPKEEP); 0 for anyone else or with that mod off. */
+enum { AI_EURO_UPKEEP_RESERVE_TURNS = 4 };
 long ai_euro_upkeep_reserve(
   const ColonizeCol1Save* col1, const ColonizeColonyPool* pool, int human_nation, int nation
 );
+/* #1919: per-nation trade income, smoothed over about sixteen turns, tracked
+ * while MOD_BUILDING_UPKEEP and MOD_AI_IMPROVEMENTS are both on. Note each
+ * sale, roll once a turn per nation; export is false when all zero. */
+#define AI_EURO_INCOME_SIZE (4 * 8)
+void ai_euro_income_note(int nation, int64_t delta);
+void ai_euro_income_roll(int nation);
+int ai_euro_income_avg(int nation);
+void ai_euro_income_reset(void);
+bool ai_euro_income_export(uint8_t out[AI_EURO_INCOME_SIZE]);
+void ai_euro_income_import(const uint8_t in[AI_EURO_INCOME_SIZE]);
 #define AI_EURO_SPY_EXPORT_MAX (4 * COLONIZE_COLONIES_MAX * 8)
 size_t ai_euro_spy_export(uint8_t out[AI_EURO_SPY_EXPORT_MAX]); /* bytes written, 0 = none */
 void ai_euro_spy_import(const uint8_t* in, size_t len, const ColonizeColonyPool* colonies);

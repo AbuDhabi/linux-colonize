@@ -12,6 +12,7 @@
  */
 
 #include "core/internal.h"
+#include "core/ai_euro.h"
 #include "core/ai_contact.h"
 #include "core/ai_contact_internal.h"
 #include "core/ai_internal.h"
@@ -1468,6 +1469,7 @@ static void ai_contact_2820_sell_settle(
    * gold source, and crediting the record alone meant the sale evaporated at
    * the next europe→col1 push. */
   europe_nation_gold_add(ctx->europe, ctx->col1, e, (long)s->price);
+  ai_euro_income_note(e, s->price); /* #1920 */
   ind->tons[cargo & 15] = (int16_t)(ind->tons[cargo & 15] + qty);
   if (t) {
     t->sticky_trade_good = 0xff;

@@ -742,7 +742,7 @@ static int case_upkeep_reserve(void) {
   col1.player[1].control = 1;
   const unsigned both = (1u << MOD_BUILDING_UPKEEP) | (1u << MOD_AI_IMPROVEMENTS);
   mods_campaign_set(both);
-  if (total <= 0 || ai_euro_upkeep_reserve(&col1, &pool, 0, 1) != total) {
+  if (total <= 0 || ai_euro_upkeep_reserve(&col1, &pool, 0, 1) != (long)total * AI_EURO_UPKEEP_RESERVE_TURNS) {
     fprintf(stderr, "upkeep_reserve: improved AI keeps %ld, want %d\n",
             ai_euro_upkeep_reserve(&col1, &pool, 0, 1), total);
     rc = 1;
@@ -781,6 +781,54 @@ static int case_upkeep_reserve(void) {
   return rc;
 }
 
+/* #1919: income average (seeded by the first turn, then 1/16 steps), export
+ * and import round trip; nothing tracked unless both mods are on. */
+static int case_income_average(void) {
+  int rc = 0;
+  ai_euro_income_reset();
+  mods_campaign_set(1u << MOD_AI_IMPROVEMENTS);
+  ai_euro_income_note(1, 100);
+  ai_euro_income_roll(1);
+  if (ai_euro_income_avg(1) != 0) {
+    fprintf(stderr, "income_average: tracked with upkeep off\n");
+    rc = 1;
+  }
+  mods_campaign_set((1u << MOD_BUILDING_UPKEEP) | (1u << MOD_AI_IMPROVEMENTS));
+  ai_euro_income_note(1, 80);
+  ai_euro_income_note(1, 20);
+  ai_euro_income_note(1, -500); /* spending is not income */
+  ai_euro_income_roll(1);
+  if (ai_euro_income_avg(1) != 100) {
+    fprintf(stderr, "income_average: first turn %d, want 100\n", ai_euro_income_avg(1));
+    rc = 1;
+  }
+  ai_euro_income_roll(1); /* a turn with nothing: 1600 - 100 + 0 = 1500 -> 93 */
+  if (ai_euro_income_avg(1) != 93) {
+    fprintf(stderr, "income_average: idle turn %d, want 93\n", ai_euro_income_avg(1));
+    rc = 1;
+  }
+  ai_euro_income_note(1, 40);
+  uint8_t buf[AI_EURO_INCOME_SIZE];
+  if (!ai_euro_income_export(buf)) {
+    fprintf(stderr, "income_average: export empty\n");
+    rc = 1;
+  }
+  ai_euro_income_reset();
+  ai_euro_income_import(buf);
+  ai_euro_income_roll(1); /* 1500 - 93 + 40 = 1447 -> 90 */
+  if (ai_euro_income_avg(1) != 90) {
+    fprintf(stderr, "income_average: after import %d, want 90\n", ai_euro_income_avg(1));
+    rc = 1;
+  }
+  ai_euro_income_reset();
+  if (ai_euro_income_export(buf)) {
+    fprintf(stderr, "income_average: reset left data\n");
+    rc = 1;
+  }
+  mods_campaign_set(0);
+  return rc;
+}
+
 static const TestCase k_cases[] = {
   {"colony_focus_small_cash", case_colony_focus_small_cash},
   {"pjob_resume", case_pjob_resume},
@@ -798,5 +846,6 @@ static const TestCase k_cases[] = {
   {"war_momentum", case_war_momentum},
   {"craft_needs_inputs", case_craft_needs_inputs},
   {"upkeep_reserve", case_upkeep_reserve},
+  {"income_average", case_income_average},
 };
 TEST_MAIN_WRAPPED(k_cases, diag_init(0, NULL), diag_shutdown())

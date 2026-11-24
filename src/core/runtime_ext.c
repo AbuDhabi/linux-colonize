@@ -41,6 +41,7 @@ enum {
   RT_GOVERNOR = 18,    /* v1: MOD_COLONY_GOVERNOR {u8 x, u8 y, u8 governor | 0x40 rethink | 0x80 autobuy} per governed colony; written only when non-empty */
   RT_AI_PIONEER_JOBS = 19, /* v1: MOD_AI_IMPROVEMENTS {u8 nation, x, y, kind} per Pioneer job; written only when non-empty */
   RT_WAR_LEDGER = 20,  /* v1: MOD_AI_IMPROVEMENTS ai_diplo_war_ledger_export (16 x {u16 start, i16 fights, i16 colonies, u16 checked}); written only while a pair is at war */
+  RT_AI_INCOME = 22,   /* v1: MOD_AI_IMPROVEMENTS + MOD_BUILDING_UPKEEP ai_euro_income_export (4 x {i32 this turn, i32 16x average}); written only when non-zero */
   RT_COLONY_BORDERS = 21, /* v1: u8 1 = colony_borders on; written only when on, so a save without it (or a DOS save) loads with borders off */
 };
 
@@ -295,6 +296,12 @@ uint8_t* runtime_ext_serialize(
       rt_record(&b, RT_WAR_LEDGER, 1, p, sizeof p);
     }
   }
+  {
+    uint8_t p[AI_EURO_INCOME_SIZE];
+    if (ai_euro_income_export(p)) { /* absent = no income tracked (mod-off saves unchanged) */
+      rt_record(&b, RT_AI_INCOME, 1, p, sizeof p);
+    }
+  }
   if (mods_campaign_mask()) {
     /* Absent = every toggle off, which keeps mod-free saves byte-identical. */
     uint8_t p[4];
@@ -338,6 +345,7 @@ void runtime_ext_deserialize(
   }
   ai_euro_pjob_reset();
   ai_diplo_war_ledger_reset();
+  ai_euro_income_reset();
   if (!data) return;
   uint64_t xo[4] = {0, 0, 0, 0};
   size_t off = 0;
@@ -454,6 +462,9 @@ void runtime_ext_deserialize(
         break;
       case RT_WAR_LEDGER:
         if (len == AI_DIPLO_WAR_LEDGER_SIZE) ai_diplo_war_ledger_import(p);
+        break;
+      case RT_AI_INCOME:
+        if (len == AI_EURO_INCOME_SIZE) ai_euro_income_import(p);
         break;
       case RT_XOSHIRO:
         if (len == 32) {

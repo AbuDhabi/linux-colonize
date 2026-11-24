@@ -1022,6 +1022,7 @@ static int ai_euro_5d04_cb_sell_hold0(int idx) {
   );
   if (gained > 0) {
     europe_nation_gold_add(ctx->europe, ctx->col1, ai_euro_s_5d04_nation, gained);
+    ai_euro_income_note(ai_euro_s_5d04_nation, gained); /* #1920 */
     ai_euro_5d04_cb_sync_gold();
   }
   /* FUN_281f_0aec leaves the removed amount in DS:0x8dc4. The departing
