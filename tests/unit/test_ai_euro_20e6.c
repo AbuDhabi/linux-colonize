@@ -4139,6 +4139,88 @@ static int unit_improved_artillery_goes_home(void) {
   return stayed ? 0 : fail("improved artillery on its own colony must stay");
 }
 
+/* #1925 fixture: nation 1 at peace, an improved AI, with a garrisoned colony
+ * at (5,8) and an empty pop-3 colony at (12,8); one unit of type index `type`
+ * for nation 1 at (x, 8). Returns its id. */
+static int army_home_setup(Fixture* f, int type, int x) {
+  treasure_add_colony(f, 0, 1, 5, 8);
+  treasure_add_colony(f, 1, 1, 12, 8);
+  f->col1.player[1].control = 1;
+  const int gid = units_spawn(&f->units, 1, 5, 8); /* the fixture's Soldier */
+  ColonizeUnit* g = units_get(&f->units, gid);
+  if (g) {
+    g->nation_id = 1;
+    g->moves = 0;
+    g->orders = UNITS_ORDER_FORTIFIED;
+    g->col1_ai_plan = 'A';
+  }
+  const int id = units_spawn_allow_stack(&f->units, type, x, 8);
+  ColonizeUnit* u = units_get(&f->units, id);
+  if (!u) {
+    return -1;
+  }
+  u->nation_id = 1;
+  u->moves = UNITS_MP_PER_TILE;
+  u->orders = 0;
+  u->profession = UNITS_JOB_SOLDIER; /* a veteran is never an explorer (no ring hop), so the LAB_4d2e tail runs */
+  seed_census(f, 1);
+  press_continent(f, 1, x, 8, 2);
+  return id;
+}
+
+/* #1925: an improved Soldier in the field at peace walks to the empty colony,
+ * not the nearer garrisoned one, and a second Soldier on the garrisoned colony
+ * leaves for it too; without the mod the field Soldier wanders. */
+static int unit_improved_soldier_goes_to_short_colony(void) {
+  for (int x = 7; x >= 5; x -= 2) {
+    Fixture f;
+    if (fixture_init(&f, 1) != 0) return 1;
+    const int id = army_home_setup(&f, 1, x);
+    ColonizeUnit* u = units_get(&f.units, id);
+    if (!u) { fixture_free(&f); return fail("army home spawn"); }
+    mods_campaign_set(1u << MOD_AI_IMPROVEMENTS);
+    ai_euro_move_scoring_gate(&f.ctx, u, 1);
+    mods_campaign_set(0);
+    press_continent(&f, 1, x, 8, 0);
+    const int sent = units_orders_follow_goto(u->orders) && u->goto_x == 12 && u->goto_y == 8;
+    fixture_free(&f);
+    if (!sent) return fail(x == 7 ? "field Soldier must walk to the empty colony" : "a second Soldier on a colony must leave for the empty colony");
+  }
+  return 0;
+}
+
+/* #1925: at peace an improved Dragoon beside a rival colony does not park
+ * there (DOS 0x46) but goes to its own empty colony. */
+static int unit_improved_dragoon_skips_peace_park(void) {
+  for (int improved = 0; improved < 2; ++improved) {
+    Fixture f;
+    if (fixture_init(&f, 1) != 0) return 1;
+    const int ti = f.units.type_count++;
+    snprintf(f.units.types[ti].name, sizeof(f.units.types[ti].name), "Dragoons");
+    f.units.types[ti].movement = 4;
+    f.units.types[ti].attack = 3;
+    f.units.types[ti].defense = 3;
+    f.units.types[ti].domain = COLONIZE_UNIT_DOMAIN_LAND;
+    const int id = army_home_setup(&f, ti, 8);
+    treasure_add_colony(&f, 2, 2, 9, 8);
+    f.map.layer3[8 * f.map.width + 9] = (uint8_t)(2 << 4);
+    ai_diplo_write(&f.col1, 1, 2, AI_DIPLO_PEACE | AI_DIPLO_MET);
+    f.ctx.ai_euro_wander_stack_word = 1; /* DOS's stale local_ea, as in the discard game's peace parks */
+    ColonizeUnit* u = units_get(&f.units, id);
+    if (!u) { fixture_free(&f); return fail("dragoon park spawn"); }
+    mods_campaign_set(improved ? 1u << MOD_AI_IMPROVEMENTS : 0);
+    ai_euro_move_scoring_gate(&f.ctx, u, 1);
+    mods_campaign_set(0);
+    press_continent(&f, 1, 8, 8, 0);
+    const int parked = u->col1_ai_plan == 0x46;
+    const int sent = units_orders_follow_goto(u->orders) && u->goto_x == 12 && u->goto_y == 8;
+    fixture_free(&f);
+    if (!improved && !parked) return fail("DOS Dragoon must park beside the rival colony");
+    if (improved && (parked || !sent)) return fail("improved Dragoon at peace must go to its empty colony");
+  }
+  return 0;
+}
+
 /* Wartime redeploy (not DOS): the lone Soldier of a quiet colony walks to an
  * empty own colony with a war enemy within 4 tiles and keeps that course
  * across the turn top; at peace it holds its colony. */
@@ -5309,6 +5391,8 @@ static const TestCase k_cases[] = {
     {"unit_ship_work_queue_uses_entry_stack", unit_ship_work_queue_uses_entry_stack},
     {"unit_border_hold_uses_treaty_gate", unit_border_hold_uses_treaty_gate},
     {"unit_improved_artillery_goes_home", unit_improved_artillery_goes_home},
+    {"unit_improved_soldier_goes_to_short_colony", unit_improved_soldier_goes_to_short_colony},
+    {"unit_improved_dragoon_skips_peace_park", unit_improved_dragoon_skips_peace_park},
     {"unit_improved_war_redeploy", unit_improved_war_redeploy},
     {"unit_improved_artillery_sally_scores", unit_improved_artillery_sally_scores},
     {"unit_improved_found_skips_war_enemy", unit_improved_found_skips_war_enemy},

@@ -4174,23 +4174,70 @@ int ai_euro_20e6_europe_dock_demand(
  * by the gate's land arms and the 457e-band Missionary strip, which falls
  * through to it inside the same 20e6 call. Always returns 0.
  */
+/* #1925: the nearest own colony on `u`'s continent, not under it, that is short
+ * of defenders (its 035e flag, or pop 3+ with no armed unit) and that no other
+ * own Soldier or Dragoon is already walking to. ponytail: nearest by tiles. */
+static const ColonizeColony* ai_euro_20e6_short_garrison(const ColonizeTurnContext* ctx, const ColonizeUnit* u, int nation) {
+  const int cid = map_continent_id_at(ctx->map, u->x, u->y);
+  const ColonizeColony* best = NULL;
+  int best_d = INT_MAX;
+  for (int i = 0; ctx->colonies && i < COLONIZE_COLONIES_MAX; ++i) {
+    const ColonizeColony* c = &ctx->colonies->colonies[i];
+    const int d = abs(c->x - u->x) > abs(c->y - u->y) ? abs(c->x - u->x) : abs(c->y - u->y);
+    if (!c->active || c->nation_id != nation || d == 0 || d >= best_d ||
+        map_continent_id_at(ctx->map, c->x, c->y) != cid) {
+      continue;
+    }
+    const int armed = ai_euro_20e6_tile_armed(ctx, nation, c->x, c->y);
+    if ((c->ai_flags & COLONIZE_COLONY_AI_SHORT_DEFENDERS) == 0 && (c->population < 3 || armed > 0)) {
+      continue;
+    }
+    bool bound = false;
+    for (int j = 0; j < units_slot_end(ctx->units) && !bound; ++j) {
+      const ColonizeUnit* o = &ctx->units->units[j];
+      const int ot = ai_euro_20e6_dos_type(ctx->units, o);
+      bound = o->active && o != u && o->nation_id == nation && (ot == UNITS_KIND_SOLDIER || ot == UNITS_KIND_DRAGOON) &&
+              o->col1_ai_plan == 0x39 && o->goto_x == c->x && o->goto_y == c->y && (o->x != c->x || o->y != c->y);
+    }
+    if (!bound) {
+      best = c;
+      best_d = d;
+    }
+  }
+  return best;
+}
+
 /* MOD_AI_IMPROVEMENTS #1911 (not DOS): an improved nation's Artillery never
  * wanders (an ambush or a field attack costs it dearly). It holds its own
  * colony, waits beside a rival's colony only with war declared or intended on
  * that rival (DOS's 0x46 border park), and otherwise walks to the nearest own
- * colony on its continent. 1 = handled. */
-static int ai_euro_20e6_artillery_home(
+ * colony on its continent. #1925: Soldiers and Dragoons too, away from a war
+ * enemy (none within 6 tiles; near one they keep DOS's wander and its attack
+ * scan). They walk first to a colony short of defenders, and one standing with
+ * another armed unit on a colony leaves for such a colony; in the discard game
+ * (1653-1658) half of France's and England's armies wandered or parked beside
+ * colonies of nations they were at peace with, while Martinique (pop 6) had no
+ * defender and Roanoke fell with England's field army 3-10 tiles off. 1 = handled. */
+static int ai_euro_20e6_army_home(
   ColonizeTurnContext* ctx, ColonizeUnit* u, const Ai20e6Unit* s, int saw_foe
 ) {
-  if (s->dos_type != UNITS_KIND_ARTILLERY || !ai_euro_improved(ctx, s->nation)) {
+  const int t = s->dos_type;
+  if ((t != UNITS_KIND_ARTILLERY && t != UNITS_KIND_SOLDIER && t != UNITS_KIND_DRAGOON) ||
+      !ai_euro_improved(ctx, s->nation) ||
+      (t != UNITS_KIND_ARTILLERY && ai_euro_improved_war_enemy_near(ctx, s->nation, u->x, u->y, 6, true))) {
     return 0;
   }
-  if (ai_euro_20e6_colony_owner_at(ctx, u->x, u->y) == s->nation) {
+  const bool on_own = ai_euro_20e6_colony_owner_at(ctx, u->x, u->y) == s->nation;
+  const ColonizeColony* sc = NULL;
+  if (t != UNITS_KIND_ARTILLERY && (!on_own || ai_euro_20e6_tile_armed(ctx, s->nation, u->x, u->y) > 1)) {
+    sc = ai_euro_20e6_short_garrison(ctx, u, s->nation);
+  }
+  if (on_own && !sc) {
     u->col1_ai_plan = 0x47;
     ai_euro_20e6_stay_tail_589e(u);
     return 1;
   }
-  for (int d = 0; d < 8 && ctx->col1_ok && ctx->col1; ++d) {
+  for (int d = 0; d < 8 && !on_own && ctx->col1_ok && ctx->col1; ++d) {
     const int owner = ai_euro_20e6_colony_owner_at(ctx, u->x + MAP_DIR8_DX[d], u->y + MAP_DIR8_DY[d]);
     if (owner >= 0 && owner != s->nation &&
         (ai_diplo_read(ctx->col1, s->nation, owner) & (AI_DIPLO_WAR | AI_DIPLO_WAR_INTENT)) != 0 &&
@@ -4201,8 +4248,8 @@ static int ai_euro_20e6_artillery_home(
     }
   }
   int dist = 0;
-  const int home = ai_euro_20e6_nearest_colony(ctx, u->x, u->y, s->nation, s->cid, &dist);
-  const ColonizeColony* hc = home >= 0 ? colonies_get(ctx->colonies, home) : NULL;
+  const int home = sc ? -1 : ai_euro_20e6_nearest_colony(ctx, u->x, u->y, s->nation, s->cid, &dist);
+  const ColonizeColony* hc = sc ? sc : home >= 0 ? colonies_get(ctx->colonies, home) : NULL;
   if (!hc) {
     return 0;
   }
@@ -4256,7 +4303,7 @@ static int ai_euro_20e6_4d2e_tail(
     ai_euro_20e6_stay_tail_589e(u); /* LAB_5899 local_76 = 8 -> LAB_589e */
     return 0;
   }
-  if (!wander_attack && !force_wander && ai_euro_20e6_artillery_home(ctx, u, s, wander_saw_foe)) {
+  if (!wander_attack && !force_wander && ai_euro_20e6_army_home(ctx, u, s, wander_saw_foe)) {
     return 0;
   }
   if (!wander_attack && !force_wander && ai_euro_20e6_park_arms_4d2e(ctx, u, s)) {
