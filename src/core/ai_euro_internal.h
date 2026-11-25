@@ -782,20 +782,9 @@ int ai_euro_improved_surplus_train(ColonizeTurnContext* ctx, int nation);
  * colony is seated with this tick. */
 int ai_euro_colony_focus(const ColonizeTurnContext* ctx, const ColonizeColony* col);
 
-/* MOD_AI_IMPROVEMENTS #1896: whether the colony needs a war footing (enemies
- * near, a war on, or the War of Independence), and the defenders it keeps on
- * its tile in peace for n people (colonists plus units on the tile): one from
- * 2, one more per ten. Muskets and horses stay banked in its warehouse. */
-bool ai_euro_improved_threatened(const ColonizeTurnContext* ctx, int nation, const ColonizeColony* c);
-int ai_euro_improved_peace_garrison(int n);
 bool ai_euro_improved_war_enemy_near(
   const ColonizeTurnContext* ctx, int nation, int x, int y, int r, bool colonies
 );
-/* MOD_AI_IMPROVEMENTS #1875: the improved nation fields one Artillery per
- * colony or more (Europe stops selling it them; #1896: at peace its colonies
- * stop building them). */
-bool ai_euro_5d04_artillery_capped(const ColonizeTurnContext* ctx, int nation_id);
-
 /* MOD_AI_IMPROVEMENTS 4.2 forest reserve: ring forests the colony can work
  * (not blocked, not native-claimed), the reserve it keeps, and whether
  * clearing the forest at (tx,ty) is refused (reserve reached, or a resource). */

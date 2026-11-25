@@ -521,51 +521,6 @@ int ai_euro_improved_sale_net(ColonizeTurnContext* ctx, int nation, int gross) {
   return net;
 }
 
-/* ===== Peacetime garrison ===== */
-
-/* #1896: a war with a European power that still holds a colony or with a
- * living tribe, the War of Independence, or another power's soldiers in the
- * field within two tiles. Not the 5952 threat scan's garrison_quota: that
- * counts any foreign unit within five tiles, colonists included, and kept
- * most border colonies of a peaceful nation armed (replay trace: 60-90% of
- * one nation's colony ticks from t150). ponytail: a tribe at war anywhere
- * counts, not only one near the colony; one pass over the unit pool per call. */
-bool ai_euro_improved_threatened(const ColonizeTurnContext* ctx, int nation, const ColonizeColony* c) {
-  const ColonizeCol1Save* col1 = ctx->col1_ok ? ctx->col1 : NULL;
-  if (!col1 || col1->head.game_options.woi != 0) {
-    return true;
-  }
-  for (int n = 0; n < 4; ++n) {
-    if (n != nation && ai_diplo_at_war(col1, nation, n) && ctx->colonies &&
-        colonies_count_for_nation(ctx->colonies, n) > 0) {
-      return true;
-    }
-  }
-  for (int t = 0; t < 8; ++t) {
-    if (!col1->indian[t].extinct && ai_diplo_indian_at_war(col1, nation, t)) {
-      return true;
-    }
-  }
-  for (int i = 0; ctx->units && i < units_slot_end(ctx->units); ++i) {
-    const ColonizeUnit* u = &ctx->units->units[i];
-    if (!u->active || u->nation_id == nation || u->nation_id >= 4 || !units_is_on_map(u) ||
-        abs(u->x - c->x) > 2 || abs(u->y - c->y) > 2 ||
-        ai_euro_20e6_type_combat(ai_euro_20e6_dos_type(ctx->units, u)) <= 1 ||
-        (ctx->colonies && colonies_id_at(ctx->colonies, u->x, u->y) >= 0)) {
-      continue;
-    }
-    const int dtype = ai_euro_20e6_dos_type(ctx->units, u);
-    if (dtype < 0x0d || dtype > 0x12) {
-      return true;
-    }
-  }
-  return false;
-}
-
-int ai_euro_improved_peace_garrison(int n) {
-  return (n + 8) / 10;
-}
-
 /* ===== Wartime front ===== */
 
 /* An armed land unit or, with `colonies`, a colony of a European power at war

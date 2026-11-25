@@ -1544,10 +1544,7 @@ static int ai_euro_20e6_surplus_recall_arm(
   if ((hc->ai_flags & COLONIZE_COLONY_AI_MILITARY_SURPLUS) == 0) {
     return 0;
   }
-  /* #1896: an improved colony at peace recalls its Dragoons too, to stand
-   * them down. */
-  if (hc->garrison_quota == 0 && ai_euro_20e6_dos_type(ctx->units, u) == 4 &&
-      (!ai_euro_improved(ctx, hc->nation_id) || ai_euro_improved_threatened(ctx, hc->nation_id, hc))) {
+  if (hc->garrison_quota == 0 && ai_euro_20e6_dos_type(ctx->units, u) == 4) {
     return 0; /* a Dragoon is only recalled while there is quota to spend */
   }
   if (map_continent_id_at(ctx->map, hc->x, hc->y) != s->cid) {
@@ -1720,23 +1717,12 @@ static bool ai_euro_scout_path_probe(ColonizeTurnContext* ctx, ColonizeUnit* u, 
  * (join / convert — abort the act, the unit may be gone).
  */
 static int ai_euro_20e6_labor_arm(ColonizeTurnContext* ctx, ColonizeUnit* u, Ai20e6Unit* s) {
-  /* MOD_AI_IMPROVEMENTS #1884 (not DOS): a Soldier or Dragoon out in the
-   * field with no task joins a colony that wants colonists rather than
-   * wander or found one of its own (discard t254: 23 French Dragoons idle
-   * or founding while 15 colonies held 1-4 colonists). Garrisons standing
-   * in a colony stay; plan '3' is a joiner already walking in. */
   /* MOD_AI_IMPROVEMENTS #1892 (not DOS): a Scout whose land holds no village
    * left to visit, no rumour and nothing unseen joins a colony too, or
    * founds one, instead of standing idle for the rest of the game (set by
    * the Scout arm in the 20e6 dispatch). */
   const bool spare_scout = s->scout_spare != 0;
-  const bool mil_joiner = spare_scout ||
-                          (!s->is_ship &&
-                           (s->dos_type == UNITS_KIND_SOLDIER || s->dos_type == UNITS_KIND_DRAGOON) &&
-                           (s->home_dist != 0 || u->col1_ai_plan == 0x33 ||
-                            ai_euro_20e6_origin_get(u) != s->home_colony) &&
-                           ai_euro_improved(ctx, u->nation_id));
-  if (!mil_joiner && (s->dos_type != UNITS_KIND_COLONIST || s->explorer)) {
+  if (!spare_scout && (s->dos_type != UNITS_KIND_COLONIST || s->explorer)) {
     return 0;
   }
   if (s->is_ship || !ctx->colonies) {
@@ -1825,8 +1811,8 @@ static int ai_euro_20e6_labor_arm(ColonizeTurnContext* ctx, ColonizeUnit* u, Ai2
     ai_euro_set_goto(u, AI_EURO_ACT_GOAL, c->x, c->y);
     return 1;
   }
-  if (mil_joiner) {
-    if (spare_scout && !s->woi) {
+  if (spare_scout) {
+    if (!s->woi) {
       s->explorer = 1; /* #1892: the ring scan may found with it */
     }
     return 0; /* no colony wants it: explore and found as DOS does */
@@ -4587,15 +4573,6 @@ int ai_euro_move_scoring_gate(ColonizeTurnContext* ctx, ColonizeUnit* u, int nat
      */
     if (!force_wander && ai_euro_spy_dispatch_arm(ctx, u, &s)) {
       return 0; /* mods.scout_spying: Scout course set at a human colony */
-    }
-    /* #1884: a Soldier/Dragoon that walked in to join (plan '3'), or that
-     * stands in an own colony it is not bound to garrison, joins before the
-     * patrol arm can post it there. */
-    if (!force_wander && s.home_dist == 0 &&
-        (u->col1_ai_plan == 0x33 || ai_euro_20e6_origin_get(u) != s.home_colony) &&
-        (s.dos_type == UNITS_KIND_SOLDIER || s.dos_type == UNITS_KIND_DRAGOON) &&
-        ai_euro_20e6_labor_arm(ctx, u, &s) == 2) {
-      return 1;
     }
     if (!force_wander && ai_euro_20e6_patrol_arm(ctx, u, &s)) {
       return 0;

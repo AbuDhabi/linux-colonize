@@ -1281,12 +1281,6 @@ static int ai_euro_20e6_ship_berth_arrival(
     const int turn = (ctx->turn_number && *ctx->turn_number) ? (int)*ctx->turn_number : 0;
     const ColonizeWorld pw = world_from_turn_ctx(ctx);
     const int ship_prio = ai_goals_composite_unit_priority_w(&pw, nation_id, ship->x, ship->y, arrival_dos_type, ship->profession, turn, colonies_count_for_nation(ctx->colonies, nation_id));
-    /* MOD_AI_IMPROVEMENTS #1886 (not DOS): board soldiers only when some
-     * colony wants them for war; otherwise the hull roams with them. */
-    int war_x = 0;
-    int war_y = 0;
-    const bool war_dest = !ai_euro_improved(ctx, nation_id) ||
-                          ai_euro_20e6_colony_sail_pick(ctx, ship, nation_id, 1, 0, ai_euro_0a60_work_registered(nation_id), &war_x, &war_y);
     /* asm 521d:31f1-32f2: the colony tile's chain, FUN_281f_02ee head
      * (+0x315c) then FUN_281f_02e4 next (+0x315e), newest arrival first —
      * not slot order. */
@@ -1314,7 +1308,7 @@ static int ai_euro_20e6_ship_berth_arrival(
       }
       int mark = 0;
       const int oc = lu->col1_ai_plan; /* +0x314b */
-      if (ai_euro_20e6_type_combat(lt) > 1 && oc != 'G' && oc != 'A' && stance == 0 && war_dest) {
+      if (ai_euro_20e6_type_combat(lt) > 1 && oc != 'G' && oc != 'A' && stance == 0) {
         mark = 1;
       }
       if (lt == 0x02) {

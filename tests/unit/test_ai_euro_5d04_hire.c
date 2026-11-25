@@ -356,6 +356,42 @@ static int departing_improved_ship_skips_new_world_cargo(void) {
   return departing_ship_cargo_case(true);
 }
 
+/* #1923: an improved hull buys muskets for a colony that wants defenders
+ * and holds too few to arm one. */
+static int departing_improved_ship_buys_defender_muskets(void) {
+  const int nation = 1;
+  Fixture f;
+  if (fixture_init(&f, nation, 5, 1000) != 0) {
+    return 1;
+  }
+  f.col1.player[nation].control = 1;
+  mods_campaign_set(1u << MOD_AI_IMPROVEMENTS);
+  ColonizeColony* c = fixture_ore_colony(&f, nation, 3);
+  fixture_water_ring(&f, c);
+  c->stock[COLONIZE_CARGO_MUSKETS] = 10;
+  c->ai_flags |= COLONIZE_COLONY_AI_SHORT_DEFENDERS;
+  f.col1.nation[nation].trade.euro_price[COLONIZE_CARGO_MUSKETS] = 3;
+  /* a census of 40 makes the one hull short of cargo room (cargo_short),
+   * which otherwise keeps an improved hull to tools */
+  f.col1.stuff.census_pop_proxy[nation] = 40;
+  const int sid = spawn_europe_ship(&f, nation);
+  if (sid < 0) {
+    mods_campaign_set(0);
+    fixture_free(&f);
+    return fail("spawn europe ship");
+  }
+  ai_euro_dispatcher_turn(&f.ctx, nation);
+  mods_campaign_set(0);
+  const ColonizeUnit* ship = units_get(&f.units, sid);
+  const int muskets = ship ? ship_cargo_of(ship, COLONIZE_CARGO_MUSKETS) : -1;
+  fixture_free(&f);
+  if (muskets != 100) {
+    fprintf(stderr, "muskets aboard %d\n", muskets);
+    return fail("improved hull did not buy muskets for a short colony");
+  }
+  return 0;
+}
+
 /*
  * Case 3b — the demand table's afloat half (raw 93163: per own ship, per
  * occupied hold, `demand[cargo]--`). Identical to 3a except the ship arrives
@@ -1401,6 +1437,7 @@ static const TestCase k_cases[] = {
     {"wanting_count_restarts_each_ai_turn", wanting_count_restarts_each_ai_turn},
     {"departing_ship_buys_wanted_cargo", departing_ship_buys_wanted_cargo},
     {"departing_improved_ship_skips_new_world_cargo", departing_improved_ship_skips_new_world_cargo},
+    {"departing_improved_ship_buys_defender_muskets", departing_improved_ship_buys_defender_muskets},
     {"afloat_cargo_cancels_colony_demand", afloat_cargo_cancels_colony_demand},
     {"sold_amount_seeds_departure_gold_gate", sold_amount_seeds_departure_gold_gate},
     {"stale_scratch_carries_across_hulls", stale_scratch_carries_across_hulls},

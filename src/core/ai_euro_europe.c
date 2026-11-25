@@ -420,22 +420,6 @@ static void ai_euro_5d04_apply_naval_gold_floors(
  * nation's Europe tile), then raw 92291-92300: goal target (+0x314d/e) =
  * nation+0x32/+0x33 (return_from_europe x/y) and the orders byte (+0x314c) = 1
  * for land types (< 0xd || > 0x12), 0 for hulls; gold -= price, return 1. */
-/* MOD_AI_IMPROVEMENTS #1875 (not DOS): an improved nation stops buying
- * Artillery in Europe once it fields one per colony (pt7h: France bought
- * 77 at an escalating 500 + 100 each while its rivals starved of colonists). */
-bool ai_euro_5d04_artillery_capped(const ColonizeTurnContext* ctx, int nation_id) {
-  if (!ai_euro_improved(ctx, nation_id) || !ctx->units) {
-    return false;
-  }
-  const int ti = units_kind_type_index(ctx->units, UNITS_KIND_ARTILLERY);
-  int arty = 0;
-  for (int i = 0; i < units_slot_end(ctx->units); ++i) {
-    const ColonizeUnit* u = &ctx->units->units[i];
-    arty += u->active && u->nation_id == nation_id && u->type_index == ti;
-  }
-  return arty >= colonies_count_for_nation(ctx->colonies, nation_id);
-}
-
 /* MOD_AI_IMPROVEMENTS #1893 (not DOS): an improved nation is short of
  * cargo hulls while it holds fewer than AI_EURO_FLEET_HOLDS_PER_COLONY holds
  * (Caravel, Merchantman, Galleon) per colony and some colony without a
@@ -1286,16 +1270,28 @@ typedef struct Ai5d04HireTail {
   long fleet_reserve; /* #1893: gold kept back from recruits and cargo for a hull */
 } Ai5d04HireTail;
 
-/* MOD_AI_IMPROVEMENTS #1885 (not DOS): an improved nation with a Soldier or
- * Dragoon per colony already stops arming Europe recruits; DOS arms every
- * one the colonies' military demand asks for (discard t254: France held 23
- * Dragoons idle beside 15 colonies of 1-4 colonists). */
-static bool ai_euro_military_saturated(ColonizeTurnContext* ctx, int nation_id, const ColonizeCol1Stuff* stuff) {
-  if (!ai_euro_improved(ctx, nation_id) || !stuff || !ctx->colonies) {
-    return false;
+/* MOD_AI_IMPROVEMENTS #1923 (not DOS): own colonies whose 5952 tick wants
+ * defenders (the equip arm's NEEDS_GARRISON / SHORT_DEFENDERS) and that hold
+ * too few muskets to arm one, less one per 50 muskets aboard the nation's
+ * hulls. DOS's own demand cell counts only colonies with no muskets at all. */
+static int ai_euro_muskets_short_colonies(ColonizeTurnContext* ctx, int nation) {
+  int n = 0;
+  for (int i = 0; ctx->colonies && i < COLONIZE_COLONIES_MAX; ++i) {
+    const ColonizeColony* c = &ctx->colonies->colonies[i];
+    n += c->active && c->nation_id == nation && c->population >= 2 &&
+         (c->ai_flags & (COLONIZE_COLONY_AI_NEEDS_GARRISON | COLONIZE_COLONY_AI_SHORT_DEFENDERS)) != 0 &&
+         c->stock[COLONIZE_CARGO_MUSKETS] < UNITS_EQUIP_MUSKETS;
   }
-  const int armed = (int)stuff->unit_type_counts[nation_id][1] + (int)stuff->unit_type_counts[nation_id][4];
-  return armed >= colonies_count_for_nation(ctx->colonies, nation_id);
+  int aboard = 0;
+  for (int i = 0; ctx->units && i < units_slot_end(ctx->units); ++i) {
+    const ColonizeUnit* u = &ctx->units->units[i];
+    if (u->active && u->nation_id == nation) {
+      for (int h = 0; h < units_goods_hold_count(ctx->units, u->id); ++h) {
+        aboard += u->hold_goods_type[h] == COLONIZE_CARGO_MUSKETS ? units_hold_amount(ctx->units, u->id, h) : 0;
+      }
+    }
+  }
+  return n > aboard / UNITS_EQUIP_MUSKETS ? n - aboard / UNITS_EQUIP_MUSKETS : 0;
 }
 
 static void ai_euro_5d04_hire_tail_candidates(Ai5d04HireTail* t) {
@@ -1361,7 +1357,7 @@ static void ai_euro_5d04_hire_tail_candidates(Ai5d04HireTail* t) {
                   dos_rng_range(ctx->rng, 0, profession_gated + 2) == 0 && turn > 99) {
                 try_train = 1;
               }
-              if (try_train && !ai_euro_military_saturated(ctx, nation_id, stuff)) {
+              if (try_train) {
                 /* LAB_521d_6454: tools-side training. */
                 uint32_t musket_stock_cost = (uint32_t)(ai_euro_5d04_cb_price(COLONIZE_CARGO_MUSKETS) * 50); /* DOS local_1a */
                 if (nat->musket_bank_lots != 0) {
@@ -1529,8 +1525,7 @@ static void ai_euro_5d04_hire_tail_colony_demand(Ai5d04HireTail* t) {
     colony_demand_base += ai_euro_5d04_cb_colony_demand_query(dock_head_idx, 0xc);
   }
   if (colony_demand_base != 0 && !f->cargo_short &&
-      (!has_any_colony || (!unit_flag_bit5 && !every_third_turn && !woi)) &&
-      !ai_euro_military_saturated(ctx, nation_id, stuff)) {
+      (!has_any_colony || (!unit_flag_bit5 && !every_third_turn && !woi))) {
     colony_demand_total = ai_euro_5d04_cb_colony_demand_query(dock_head_idx, 0xe);
     int demand_remaining = colony_demand_total - colony_demand_base; /* DOS local_42 */
     if (turn > 0x50) {
@@ -1544,8 +1539,7 @@ static void ai_euro_5d04_hire_tail_colony_demand(Ai5d04HireTail* t) {
         col1_nation_bank_4a_set(nat, (uint16_t)(col1_nation_bank_4a(nat) + 50));
       }
     }
-    if (dock_artillery == 0 && colony_demand_total > 5 &&
-        !ai_euro_5d04_artillery_capped(ctx, nation_id)) {
+    if (dock_artillery == 0 && colony_demand_total > 5) {
       /* DOS raw 92834: local_38 = (10 - difficulty) * 100 from turn 40 on and
        * unset before (dos_bugs_ai.md DB-73). Port (user 2026-11-03): the AI
        * pays the Europe purchase price, 500 + 100 per Artillery the nation
@@ -1713,6 +1707,7 @@ static void ai_euro_5d04_hire_tail_departing_ships(Ai5d04HireTail* t) {
   /* #1889: colonies banking hammers short of tools (the DOS cell counts only
    * empty stocks, less one per Pioneer, and the held cap counts a hoarder). */
   int tools_short_n = improved ? ai_euro_tools_short_colonies(ctx, nation_id) : 0;
+  int muskets_short_n = improved ? ai_euro_muskets_short_colonies(ctx, nation_id) : 0;
   if (improved && ctx->colonies) {
     for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
       const ColonizeColony* c = &ctx->colonies->colonies[i];
@@ -1799,12 +1794,14 @@ static void ai_euro_5d04_hire_tail_departing_ships(Ai5d04HireTail* t) {
             /* MOD_AI_IMPROVEMENTS #1881 (not DOS): cargo_short (a small fleet)
              * sent every improved hull home empty; discard-campaign Spain
              * bought no tools in 60 turns and could equip no Pioneer. An
-             * improved hull still buys tools; muskets and horses stay off,
-             * or the colonies arm their colonists (Spain lost 15 to arms). */
+             * improved hull still buys tools, and muskets for colonies short
+             * of defenders (#1923). */
             if (cap == used || (f->cargo_short && !improved) || !has_any_colony) {
               break;
             }
-            if (f->cargo_short && p != COLONIZE_CARGO_TOOLS) {
+            const bool short_buy = (p == COLONIZE_CARGO_TOOLS && tools_short_n > 0) ||
+                                   (p == COLONIZE_CARGO_MUSKETS && muskets_short_n > 0); /* #1923 */
+            if (f->cargo_short && p != COLONIZE_CARGO_TOOLS && !short_buy) {
               continue;
             }
             /* MOD_AI_IMPROVEMENTS #1903 (not DOS): an improved hull buys only
@@ -1813,10 +1810,9 @@ static void ai_euro_5d04_hire_tail_departing_ships(Ai5d04HireTail* t) {
             if (improved && p != COLONIZE_CARGO_HORSES && p < COLONIZE_CARGO_TRADE_GOODS) {
               continue;
             }
-            const bool tools_short = p == COLONIZE_CARGO_TOOLS && tools_short_n > 0;
-            if ((cargo_demand_bar <= (int)cargo_demand[p] || buy_any || tools_short) &&
+            if ((cargo_demand_bar <= (int)cargo_demand[p] || buy_any || short_buy) &&
                 ((!tools_trained_this_pass && tools_hire_mask == 0) || (cap - used > 2 || buy_any)) &&
-                (tools_short || !(improved && held[p] >= 50 * held_colonies))) {
+                (short_buy || !(improved && held[p] >= 50 * held_colonies))) {
               /* raw 93041-93046 (bug #1029): gold gate is price * DS:0x8dc4,
                * the last hold removal anywhere (DOSBox 1591: a French unload
                * left 100, so the Dutch hull with a boycotted hold bought
@@ -1824,16 +1820,19 @@ static void ai_euro_5d04_hire_tail_departing_ships(Ai5d04HireTail* t) {
                * DOS bug, reproduced in DOS mode only (docs/tolerated_dos_bugs_ai.md TB-25);
                * fixed under !dos_buggy_behavior() as price * 100. */
               const int gate_qty = dos_buggy_behavior() ? units_last_hold_amount : 100;
-              /* #1893: only tools a colony's build waits on dip into the
-               * gold kept back for a cargo hull. */
-              const long keep = tools_short ? 0 : t->fleet_reserve;
+              /* #1893: only tools a colony's build waits on, and muskets
+               * for its defenders (#1923), dip into the gold kept back for
+               * a cargo hull. */
+              const long keep = short_buy ? 0 : t->fleet_reserve;
               if (ai_euro_gold_free(ctx, nation_id) >= (long)ai_euro_5d04_cb_price(p) * gate_qty + keep) {
                 ai_euro_5d04_cb_apply_bump(idx2, p, 100);
                 cargo_demand[p]--; /* raw 93050 */
                 held[p] += 100;
-                tools_short_n -= tools_short;
-                /* #1897: a lot for each short colony, not one a visit. */
-                p += tools_short && tools_short_n > 0;
+                /* #1897: a lot for each short colony, not one a visit; a
+                 * musket lot arms two (#1923). */
+                int* short_n = p == COLONIZE_CARGO_TOOLS ? &tools_short_n : &muskets_short_n;
+                *short_n -= short_buy ? (p == COLONIZE_CARGO_TOOLS ? 1 : 100 / UNITS_EQUIP_MUSKETS) : 0;
+                p += short_buy && *short_n > 0;
               }
             }
           }
@@ -1934,7 +1933,7 @@ static void ai_euro_5d04_hire_ladder_tail(
   int dock_artillery = ai_euro_5d04_cb_artillery_on_dock(dock_head_idx);
   if (dock_artillery == 0 && !woi && hs->a0cc[COLONIZE_CARGO_MUSKETS] > 0 &&
       dos_rng_range(ctx->rng, 0, 3) == 0 && !f->cargo_short &&
-      stuff->ship_cargo_totals[nation_id] > 4 && !ai_euro_5d04_artillery_capped(ctx, nation_id)) {
+      stuff->ship_cargo_totals[nation_id] > 4) {
     (void)ai_euro_5d04_propose_ship_buy(ctx, nation_id, 0);
     dock_head_idx = ai_euro_5d04_cb_list_iter_first(0x0c);
     dock_artillery = ai_euro_5d04_cb_artillery_on_dock(dock_head_idx);
