@@ -1633,7 +1633,57 @@ static int unit_4720_board_gate_and_landfall(void) {
   return rc;
 }
 
+/* A ship carrying passengers may Go To a seen coastal land tile (it sails
+ * next to it and makes landfall); an empty ship still refuses. */
+static int unit_ship_goto_land_with_passengers(void) {
+  ColonizeUnitPool pool;
+  memset(&pool, 0, sizeof(pool));
+  pool.type_count = 2;
+  snprintf(pool.types[0].name, sizeof(pool.types[0].name), "Caravel");
+  pool.types[0].movement = 4;
+  pool.types[0].domain = COLONIZE_UNIT_DOMAIN_SEA;
+  snprintf(pool.types[1].name, sizeof(pool.types[1].name), "Colonist");
+  pool.types[1].movement = 1;
+
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  char err[128];
+  if (!map_alloc(&map, 10, 8, err, sizeof(err))) {
+    fprintf(stderr, "ship_goto_land: map_alloc failed: %s\n", err);
+    return 1;
+  }
+  for (int y = 0; y < 8; ++y) {
+    for (int x = 0; x < 10; ++x) {
+      map.terrain[y * 10 + x] = x >= 7 ? 1 : 25; /* land east, ocean west */
+      map_reveal_tile(&map, x, y, 0);
+    }
+  }
+  const ColonizeWorld w = {.units = &pool, .map = &map};
+  const int ship = units_spawn_allow_stack(&pool, 0, 2, 3);
+  ColonizeUnit* s = units_get(&pool, ship);
+  s->nation_id = 0;
+  s->moves = 4 * UNITS_MP_PER_TILE;
+
+  int rc = 0;
+  if (units_set_goto_w(&w, ship, 7, 3)) {
+    fprintf(stderr, "ship_goto_land: empty ship Go To onto land must refuse\n");
+    rc = 1;
+  }
+  const int pax = units_spawn_allow_stack(&pool, 1, 2, 3);
+  units_get(&pool, pax)->nation_id = 0;
+  s = units_get(&pool, ship);
+  s->cargo_ids[s->cargo_count++] = pax;
+  units_get(&pool, pax)->aboard_ship_id = ship;
+  if (rc == 0 && !units_set_goto_w(&w, ship, 7, 3)) {
+    fprintf(stderr, "ship_goto_land: loaded ship Go To onto coast must be accepted\n");
+    rc = 1;
+  }
+  map_free(&map);
+  return rc;
+}
+
 static const TestCase k_cases[] = {
+  {"unit_ship_goto_land_with_passengers", unit_ship_goto_land_with_passengers},
   {"unit_europe_transfer_at_dos_cap", unit_europe_transfer_at_dos_cap},
   {"unit_king_galleon_offer", unit_king_galleon_offer},
   {"unit_refit_drydock", unit_refit_drydock},

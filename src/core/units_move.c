@@ -1849,7 +1849,12 @@ bool units_set_goto_w(
       units_enter_probe_w(w, u->type_index, dest_x, dest_y, unit_id);
     const bool attack_dest = why == COLONIZE_ENTER_COMBAT_LAND ||
       why == COLONIZE_ENTER_COMBAT_NAVAL || why == COLONIZE_ENTER_BOUNCE_PEACE;
-    if (!village_dest && !attack_dest) {
+    /* A ship carrying passengers may aim at a coastal land tile: it sails
+     * next to it and the final step is the arrow-key landfall (@LANDFALL),
+     * handed over by game_pacer_goto_step. An unreachable goal is a
+     * pathfinder miss en route, which clears the order. */
+    const bool landfall_dest = why == COLONIZE_ENTER_LANDFALL && u->cargo_count > 0;
+    if (!village_dest && !attack_dest && !landfall_dest) {
       return false;
     }
   }

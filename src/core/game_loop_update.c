@@ -981,6 +981,23 @@ static GameUpdateStep game_pacer_goto_step(
     game_center_on_selected_unit(game);
     return GAME_UPDATE_RETURN_TRUE;
   }
+  /* A ship's Go To onto a coastal land tile (units_set_goto_w landfall_dest)
+   * ends one tile short: the last step is the arrow-key landfall, so the
+   * order is spent and the step raises @LANDFALL like a keyboard move. */
+  if (active->orders == UNITS_ORDER_GOTO && active->goto_x < UNITS_GOTO_NONE &&
+      active->goto_y < UNITS_GOTO_NONE && units_is_sea(&game->units, active->id) &&
+      map_tiles_adjacent(active->x, active->y, active->goto_x, active->goto_y, false) &&
+      map_tile_is_land(&game->world_map, active->goto_x, active->goto_y) &&
+      colonies_id_at(&game->colonies, active->goto_x, active->goto_y) < 0 && active->moves > 0) {
+    const int aid = active->id;
+    const int gx = active->goto_x;
+    const int gy = active->goto_y;
+    units_clear_orders(&game->units, aid);
+    game->units.selected_id = aid;
+    (void)game_try_unit_move(game, gx, gy);
+    game_center_on_selected_unit(game);
+    return GAME_UPDATE_RETURN_TRUE;
+  }
   /*
    * Smell #105: DOS routes every goto step through FUN_465b_0000, so a
    * Go To ENDING on a Euro peer's tile — a defending unit or an even
