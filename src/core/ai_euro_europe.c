@@ -1270,30 +1270,6 @@ typedef struct Ai5d04HireTail {
   long fleet_reserve; /* #1893: gold kept back from recruits and cargo for a hull */
 } Ai5d04HireTail;
 
-/* MOD_AI_IMPROVEMENTS #1923 (not DOS): own colonies whose 5952 tick wants
- * defenders (the equip arm's NEEDS_GARRISON / SHORT_DEFENDERS) and that hold
- * too few muskets to arm one, less one per 50 muskets aboard the nation's
- * hulls. DOS's own demand cell counts only colonies with no muskets at all. */
-static int ai_euro_muskets_short_colonies(ColonizeTurnContext* ctx, int nation) {
-  int n = 0;
-  for (int i = 0; ctx->colonies && i < COLONIZE_COLONIES_MAX; ++i) {
-    const ColonizeColony* c = &ctx->colonies->colonies[i];
-    n += c->active && c->nation_id == nation && c->population >= 2 &&
-         (c->ai_flags & (COLONIZE_COLONY_AI_NEEDS_GARRISON | COLONIZE_COLONY_AI_SHORT_DEFENDERS)) != 0 &&
-         c->stock[COLONIZE_CARGO_MUSKETS] < UNITS_EQUIP_MUSKETS;
-  }
-  int aboard = 0;
-  for (int i = 0; ctx->units && i < units_slot_end(ctx->units); ++i) {
-    const ColonizeUnit* u = &ctx->units->units[i];
-    if (u->active && u->nation_id == nation) {
-      for (int h = 0; h < units_goods_hold_count(ctx->units, u->id); ++h) {
-        aboard += u->hold_goods_type[h] == COLONIZE_CARGO_MUSKETS ? units_hold_amount(ctx->units, u->id, h) : 0;
-      }
-    }
-  }
-  return n > aboard / UNITS_EQUIP_MUSKETS ? n - aboard / UNITS_EQUIP_MUSKETS : 0;
-}
-
 static void ai_euro_5d04_hire_tail_candidates(Ai5d04HireTail* t) {
   ColonizeTurnContext* ctx = t->ctx;
   const int nation_id = t->nation_id;

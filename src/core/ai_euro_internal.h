@@ -748,12 +748,21 @@ bool ai_euro_road_linked(const ColonizeWorldMap* map, int ax, int ay, int bx, in
 /* MOD_AI_IMPROVEMENTS: an own colony borders the sea around (x, y) (layer3
  * tags every sea region 1, so it cannot tell two seas apart). */
 bool ai_euro_sea_has_own_colony(const ColonizeTurnContext* ctx, int x, int y, int nation);
+/* #1924: own colony with a full lot of sale goods for a hull to collect
+ * before a dock-demand trip home (0 = none or mod off). */
+enum { AI_EURO_EXPORT_PICKUP_RANGE = 16 };
+bool ai_euro_export_pickup_dest(
+  ColonizeTurnContext* ctx, const ColonizeUnit* ship, int nation, int* out_x, int* out_y
+);
 /* #1893: cargo holds an improved nation wants per colony before a sale-good
  * backlog makes it buy a hull. */
 #define AI_EURO_FLEET_HOLDS_PER_COLONY 3
 bool ai_euro_improved_fleet_short(const ColonizeTurnContext* ctx, int nation_id);
 /* #1889: own coastal colonies short of tools for their build (0 = mod off). */
 int ai_euro_tools_short_colonies(ColonizeTurnContext* ctx, int nation);
+/* #1923/#1924: own coastal colonies short of muskets for one defender, less
+ * one per 50 muskets aboard the nation's hulls. */
+int ai_euro_muskets_short_colonies(ColonizeTurnContext* ctx, int nation);
 /* #1867/#1882: tools colony c's build waits on (0 = none or mod off). #1897:
  * Pioneers are not equipped from them. */
 int ai_euro_colony_build_tools(ColonizeTurnContext* ctx, int nation, const ColonizeColony* c);

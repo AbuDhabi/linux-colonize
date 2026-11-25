@@ -290,7 +290,39 @@ static int case_improved_tools_aboard_cover_short(void) {
   return rc;
 }
 
+/* #1924: a coastal colony short of defenders' muskets stops counting once
+ * a hull carries 50 for it. */
+static int case_improved_muskets_aboard_cover_short(void) {
+  Fx f;
+  if (fx_build(&f) != 0) {
+    return 1;
+  }
+  mods_campaign_set(1u << MOD_AI_IMPROVEMENTS);
+  f.col->colony_flags |= COLONIZE_COLONY_FLAG_COASTAL;
+  f.col->ai_flags = COLONIZE_COLONY_AI_SHORT_DEFENDERS;
+  f.col->stock[COLONIZE_CARGO_MUSKETS] = 10;
+  int rc = 0;
+  if (ai_euro_muskets_short_colonies(&f.ctx, NATION) != 1) {
+    rc = fail("colony short of defenders with 10 muskets not counted");
+  }
+  const int ship_t = units_kind_type_index(&f.units, UNITS_KIND_MERCHANTMAN);
+  ColonizeUnit* ship = units_get(&f.units, units_spawn_allow_stack(&f.units, ship_t, 9, 9));
+  if (!ship) {
+    rc = fail("spawn Merchantman");
+  } else {
+    ship->nation_id = NATION;
+    (void)units_load_goods(&f.units, ship->id, COLONIZE_CARGO_MUSKETS, 50);
+    if (ai_euro_muskets_short_colonies(&f.ctx, NATION) != 0) {
+      rc = fail("muskets aboard a hull not counted against the shortfall");
+    }
+  }
+  mods_campaign_set(0);
+  fx_done(&f);
+  return rc;
+}
+
 static const TestCase k_cases[] = {
+  {"case_improved_muskets_aboard_cover_short", case_improved_muskets_aboard_cover_short},
   {"case_improved_tools_aboard_cover_short", case_improved_tools_aboard_cover_short},
   {"case_improved_build_tools_kept", case_improved_build_tools_kept},
   {"case_improved_spare_tools_equip", case_improved_spare_tools_equip},

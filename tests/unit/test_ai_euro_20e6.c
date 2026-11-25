@@ -5141,7 +5141,143 @@ static int unit_13b0_treaty_cancel_popup_mod(void) {
   return 0;
 }
 
+/* #1924 fixture: ocean x 12..15, own colonies 0 at (11,4) and 1 at (11,10). */
+static void improved_two_colonies(Fixture* f, int nation) {
+  for (int y = 0; y < 16; ++y) {
+    for (int x = 12; x < 16; ++x) {
+      f->map.terrain[y * 16 + x] = 25; /* ocean */
+    }
+    f->map.terrain[y * 16 + 14] = 26; /* high seas */
+  }
+  for (int i = 0; i < 2; ++i) {
+    ColonizeColony* c = &f->colonies.colonies[i];
+    c->id = i;
+    c->active = true;
+    c->nation_id = nation;
+    c->x = 11;
+    c->y = i == 0 ? 4 : 10;
+    c->population = 3;
+    c->colonist_count = 3;
+    c->colony_flags |= COLONIZE_COLONY_FLAG_COASTAL;
+    c->building_in_production = -1;
+  }
+  f->colonies.colony_count = 2;
+  f->colonies.next_id = 2;
+  f->col1.player[nation].control = 1; /* AI: ai_euro_improved_nation */
+  f->col1.stuff.ship_counts[nation] = 1;
+  f->col1.stuff.ship_cargo_totals[nation] = 2;
+  f->col1.stuff.colony_counts[nation] = 2;
+  f->col1.stuff.census_pop_proxy[nation] = 6;
+}
+
+/* #1924: an improved hull with free holds collects a colony's full lot of
+ * sale goods before the dock-demand trip home; a part lot does not hold it. */
+static int improved_dock_demand_run(int coats, int* out_goto_x, int* out_goto_y, int* out_home) {
+  const int nation = 1;
+  Fixture f;
+  if (fixture_init(&f, nation) != 0) {
+    return 1;
+  }
+  mods_campaign_set(1u << MOD_AI_IMPROVEMENTS);
+  improved_two_colonies(&f, nation);
+  f.colonies.colonies[1].stock[COLONIZE_CARGO_COATS] = (int16_t)coats;
+  f.col1.nation[nation].trade.euro_price[COLONIZE_CARGO_COATS] = 7;
+  const int ship_id = units_spawn(&f.units, 2, 13, 4);
+  ColonizeUnit* ship = units_get(&f.units, ship_id);
+  int rc = 0;
+  if (!ship) {
+    rc = fail("spawn ship");
+  } else {
+    ship->nation_id = nation;
+    ship->moves = 4 * UNITS_MP_PER_TILE;
+    f.turn = (uint32_t)(32 - ((int)(ship - f.units.units) % 32) + 1); /* not the 457e cadence */
+    const int pid = units_spawn_allow_stack(&f.units, 0, 236 + nation, 236 + nation);
+    ColonizeUnit* p = units_get(&f.units, pid);
+    if (!p) {
+      rc = fail("spawn dock colonist");
+    } else {
+      p->nation_id = nation;
+      p->orders = UNITS_ORDER_SENTRY;
+      ai_euro_dispatcher_turn(&f.ctx, nation);
+      ship = units_get(&f.units, ship_id);
+      *out_goto_x = ship ? ship->goto_x : -1;
+      *out_goto_y = ship ? ship->goto_y : -1;
+      *out_home = ship && (units_coords_in_europe_park(ship->x, ship->y) ||
+                           ship->col1_ai_plan == AI_EURO_PLAN_EUROPE_BOUND);
+    }
+  }
+  mods_campaign_set(0);
+  fixture_free(&f);
+  return rc;
+}
+
+static int unit_improved_dock_demand_collects_exports(void) {
+  int gx = 0;
+  int gy = 0;
+  int home = 0;
+  if (improved_dock_demand_run(250, &gx, &gy, &home) != 0) {
+    return 1;
+  }
+  if (home || gx != 11 || gy != 10) {
+    fprintf(stderr, "goto (%d,%d) home %d\n", gx, gy, home);
+    return fail("hull did not head for the colony with 250 coats");
+  }
+  if (improved_dock_demand_run(60, &gx, &gy, &home) != 0) {
+    return 1;
+  }
+  if (!home) {
+    fprintf(stderr, "goto (%d,%d)\n", gx, gy);
+    return fail("a 60-ton lot must not hold the dock-demand trip");
+  }
+  return 0;
+}
+
+/* #1924: an improved hull keeps its muskets at a berth that is not short of
+ * them while another coastal colony is, and the delivery matrix takes them
+ * there (discard t332: 400 muskets overflowed San Juan's warehouse). */
+static int unit_improved_berth_routes_muskets_to_short_colony(void) {
+  const int nation = 1;
+  Fixture f;
+  if (fixture_init(&f, nation) != 0) {
+    return 1;
+  }
+  mods_campaign_set(1u << MOD_AI_IMPROVEMENTS);
+  improved_two_colonies(&f, nation);
+  ColonizeColony* berth = &f.colonies.colonies[0];
+  ColonizeColony* short_c = &f.colonies.colonies[1];
+  berth->stock[COLONIZE_CARGO_MUSKETS] = 60;
+  short_c->ai_flags = COLONIZE_COLONY_AI_SHORT_DEFENDERS;
+  const int ship_id = units_spawn(&f.units, 2, 11, 4);
+  ColonizeUnit* ship = units_get(&f.units, ship_id);
+  int rc = 0;
+  if (!ship || units_load_goods(&f.units, ship_id, COLONIZE_CARGO_MUSKETS, 100) <= 0) {
+    rc = fail("spawn and load ship");
+  } else {
+    ship->nation_id = nation;
+    ship->moves = 4 * UNITS_MP_PER_TILE;
+    ai_euro_dispatcher_turn(&f.ctx, nation);
+    ship = units_get(&f.units, ship_id);
+    int aboard = 0;
+    for (int h = 0; ship && h < units_goods_hold_count(&f.units, ship_id); ++h) {
+      aboard += ship->hold_goods_type[h] == COLONIZE_CARGO_MUSKETS ? units_hold_amount(&f.units, ship_id, h) : 0;
+    }
+    if (berth->stock[COLONIZE_CARGO_MUSKETS] != 60 || aboard + short_c->stock[COLONIZE_CARGO_MUSKETS] != 100) {
+      fprintf(stderr, "berth %d aboard %d short %d\n", berth->stock[COLONIZE_CARGO_MUSKETS], aboard,
+              short_c->stock[COLONIZE_CARGO_MUSKETS]);
+      rc = fail("muskets dumped at a colony that was not short");
+    } else if (aboard > 0 && (ship->goto_x != short_c->x || ship->goto_y != short_c->y)) {
+      fprintf(stderr, "goto (%d,%d)\n", ship->goto_x, ship->goto_y);
+      rc = fail("hull with kept muskets not routed to the short colony");
+    }
+  }
+  mods_campaign_set(0);
+  fixture_free(&f);
+  return rc;
+}
+
 static const TestCase k_cases[] = {
+    {"unit_improved_dock_demand_collects_exports", unit_improved_dock_demand_collects_exports},
+    {"unit_improved_berth_routes_muskets_to_short_colony", unit_improved_berth_routes_muskets_to_short_colony},
     {"unit_13b0_treaty_cancel_popup_mod", unit_13b0_treaty_cancel_popup_mod},
     {"unit_20e6_counts_read_census_snapshot", unit_20e6_counts_read_census_snapshot},
     {"unit_spent_step_burns_465b_roll", unit_spent_step_burns_465b_roll},

@@ -206,37 +206,65 @@ static int ai_euro_colony_tools_short(ColonizeTurnContext* ctx, int nation, cons
   return need > stock ? need - stock : 0;
 }
 
-/* #1883: another own coastal colony is short of tools. */
-static bool ai_euro_tools_wanted_elsewhere(ColonizeTurnContext* ctx, int nation, const ColonizeColony* here) {
+/* #1924: muskets colony c lacks to arm one defender its 5952 tick wants
+ * (NEEDS_GARRISON / SHORT_DEFENDERS, pop 2+). 0 = not short or mod off. */
+static int ai_euro_colony_muskets_short(ColonizeTurnContext* ctx, int nation, const ColonizeColony* c) {
+  const int stock = (int)c->stock[COLONIZE_CARGO_MUSKETS];
+  if (!ai_euro_improved(ctx, nation) || c->population < 2 || stock >= UNITS_EQUIP_MUSKETS ||
+      (c->ai_flags & (COLONIZE_COLONY_AI_NEEDS_GARRISON | COLONIZE_COLONY_AI_SHORT_DEFENDERS)) == 0) {
+    return 0;
+  }
+  return UNITS_EQUIP_MUSKETS - stock;
+}
+
+/* Shortfall of g (tools or muskets) at colony c; 0 for other cargo. */
+static int ai_euro_colony_supply_short(ColonizeTurnContext* ctx, int nation, const ColonizeColony* c, int g) {
+  return g == COLONIZE_CARGO_TOOLS     ? ai_euro_colony_tools_short(ctx, nation, c)
+         : g == COLONIZE_CARGO_MUSKETS ? ai_euro_colony_muskets_short(ctx, nation, c)
+                                       : 0;
+}
+
+/* #1883 / #1924: another own coastal colony is short of g. */
+static bool ai_euro_supply_wanted_elsewhere(ColonizeTurnContext* ctx, int nation, const ColonizeColony* here, int g) {
   for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
     const ColonizeColony* c = &ctx->colonies->colonies[i];
     if (c->active && c != here && c->nation_id == nation &&
-        (c->colony_flags & COLONIZE_COLONY_FLAG_COASTAL) && ai_euro_colony_tools_short(ctx, nation, c) > 0) {
+        (c->colony_flags & COLONIZE_COLONY_FLAG_COASTAL) && ai_euro_colony_supply_short(ctx, nation, c, g) > 0) {
       return true;
     }
   }
   return false;
 }
 
-/* #1889: own coastal colonies short of tools for their build, less one per
- * 100 tools already aboard the nation's hulls (#1897). */
-int ai_euro_tools_short_colonies(ColonizeTurnContext* ctx, int nation) {
+/* #1889 / #1924: own coastal colonies short of g, less one per `lot` of g
+ * already aboard the nation's hulls (#1897). */
+static int ai_euro_supply_short_colonies(ColonizeTurnContext* ctx, int nation, int g, int lot) {
   int n = 0;
   for (int i = 0; ctx->colonies && i < COLONIZE_COLONIES_MAX; ++i) {
     const ColonizeColony* c = &ctx->colonies->colonies[i];
     n += c->active && c->nation_id == nation && (c->colony_flags & COLONIZE_COLONY_FLAG_COASTAL) &&
-         ai_euro_colony_tools_short(ctx, nation, c) > 0;
+         ai_euro_colony_supply_short(ctx, nation, c, g) > 0;
   }
   int aboard = 0;
   for (int i = 0; ctx->units && i < units_slot_end(ctx->units); ++i) {
     const ColonizeUnit* u = &ctx->units->units[i];
     if (u->active && u->nation_id == nation) {
       for (int h = 0; h < units_goods_hold_count(ctx->units, u->id); ++h) {
-        aboard += u->hold_goods_type[h] == COLONIZE_CARGO_TOOLS ? units_hold_amount(ctx->units, u->id, h) : 0;
+        aboard += u->hold_goods_type[h] == g ? units_hold_amount(ctx->units, u->id, h) : 0;
       }
     }
   }
-  return n > aboard / 100 ? n - aboard / 100 : 0;
+  return n > aboard / lot ? n - aboard / lot : 0;
+}
+
+int ai_euro_tools_short_colonies(ColonizeTurnContext* ctx, int nation) {
+  return ai_euro_supply_short_colonies(ctx, nation, COLONIZE_CARGO_TOOLS, 100);
+}
+
+/* #1923: the musket buy's count, one per 50 aboard (#1924: coastal only, as
+ * a hull can deliver only there). */
+int ai_euro_muskets_short_colonies(ColonizeTurnContext* ctx, int nation) {
+  return ai_euro_supply_short_colonies(ctx, nation, COLONIZE_CARGO_MUSKETS, UNITS_EQUIP_MUSKETS);
 }
 
 static int ai_euro_20e6_delivery_colony_pick(
@@ -259,12 +287,17 @@ static int ai_euro_20e6_delivery_colony_pick(
   const int loaded_at = ai_euro_20e6_origin_get(ship);
   /* #1897: a hull with only tools aboard, kept for a short colony (#1883),
    * skips the colonies that would only make it keep them again; the distance
-   * divisor below otherwise parked it between near ones for good. */
-  bool tools_only = tally[COLONIZE_CARGO_TOOLS] > 0;
+   * divisor below otherwise parked it between near ones for good. #1924:
+   * muskets the same way. */
+  bool supply_only = tally[COLONIZE_CARGO_TOOLS] > 0 || tally[COLONIZE_CARGO_MUSKETS] > 0;
   for (int g = 0; g < COLONIZE_CARGO_COUNT; ++g) {
-    tools_only = tools_only && (g == COLONIZE_CARGO_TOOLS || tally[g] == 0);
+    supply_only = supply_only && (g == COLONIZE_CARGO_TOOLS || g == COLONIZE_CARGO_MUSKETS || tally[g] == 0);
   }
-  const bool tools_for_short = tools_only && ai_euro_tools_wanted_elsewhere(ctx, nation, NULL);
+  const bool for_short =
+    supply_only && ((tally[COLONIZE_CARGO_TOOLS] > 0 &&
+                     ai_euro_supply_wanted_elsewhere(ctx, nation, NULL, COLONIZE_CARGO_TOOLS)) ||
+                    (tally[COLONIZE_CARGO_MUSKETS] > 0 &&
+                     ai_euro_supply_wanted_elsewhere(ctx, nation, NULL, COLONIZE_CARGO_MUSKETS)));
   int best = -1; /* iStack_e2 seed */
   int pick = -1;
   for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
@@ -282,7 +315,9 @@ static int ai_euro_20e6_delivery_colony_pick(
     if (c->id == loaded_at) {
       continue; /* md:2055: unit +0x314a */
     }
-    if (tools_for_short && ai_euro_colony_tools_short(ctx, nation, c) == 0) {
+    if (for_short &&
+        !(tally[COLONIZE_CARGO_TOOLS] > 0 && ai_euro_colony_tools_short(ctx, nation, c) > 0) &&
+        !(tally[COLONIZE_CARGO_MUSKETS] > 0 && ai_euro_colony_muskets_short(ctx, nation, c) > 0)) {
       continue;
     }
     const int cap = colonies_warehouse_capacity(ctx->colonies, c, COLONIZE_CARGO_TOOLS);
@@ -313,8 +348,8 @@ static int ai_euro_20e6_delivery_colony_pick(
       score += (cap - stock) - 1; /* md:2083-2084 */
       /* MOD_AI_IMPROVEMENTS (#1867): tools go first to a colony short of its
        * project's tools. */
-      if (g == COLONIZE_CARGO_TOOLS) {
-        score += ai_euro_colony_tools_short(ctx, nation, c) * ai_euro_ship_price_84bc(ctx, nation, g) * 8;
+      if (g == COLONIZE_CARGO_TOOLS || g == COLONIZE_CARGO_MUSKETS) {
+        score += ai_euro_colony_supply_short(ctx, nation, c, g) * ai_euro_ship_price_84bc(ctx, nation, g) * 8;
       }
     }
     if (!ok) {
@@ -1187,11 +1222,16 @@ static int ai_euro_20e6_ship_berth_arrival(
   uint32_t dumped_types = 0;
   for (;;) {
     const bool keep_tools = ai_euro_colony_tools_short(ctx, nation_id, c) == 0 &&
-                            ai_euro_tools_wanted_elsewhere(ctx, nation_id, c);
+                            ai_euro_supply_wanted_elsewhere(ctx, nation_id, c, COLONIZE_CARGO_TOOLS);
+    /* #1924: muskets likewise (discard t332: 400 muskets dumped on San Juan
+     * overflowed its warehouse while twelve colonies had none). */
+    const bool keep_muskets = ai_euro_colony_muskets_short(ctx, nation_id, c) == 0 &&
+                              ai_euro_supply_wanted_elsewhere(ctx, nation_id, c, COLONIZE_CARGO_MUSKETS);
     int hold = -1;
     for (int h = 0; h < units_goods_hold_count(ctx->units, ship->id); ++h) {
       if (units_hold_amount(ctx->units, ship->id, h) > 0 &&
-          !(keep_tools && ship->hold_goods_type[h] == COLONIZE_CARGO_TOOLS)) {
+          !(keep_tools && ship->hold_goods_type[h] == COLONIZE_CARGO_TOOLS) &&
+          !(keep_muskets && ship->hold_goods_type[h] == COLONIZE_CARGO_MUSKETS)) {
         hold = h;
         break;
       }
@@ -1920,6 +1960,63 @@ bool ai_euro_pioneer_ferry_dest(
     const int d = map_dos_dist(c->x - ship->x, c->y - ship->y);
     if (need > best || (need == best && need > 0 && d < best_d)) {
       best = need;
+      best_d = d;
+      *out_x = c->x;
+      *out_y = c->y;
+    }
+  }
+  free(seen);
+  return best > 0;
+}
+
+/*
+ * MOD_AI_IMPROVEMENTS #1924 (not DOS): an own colony this hull (two or more
+ * holds, at most one in use) reaches by sea within AI_EURO_EXPORT_PICKUP_RANGE
+ * where the load matrix would fill a hold with a full lot of sale goods, and
+ * no other own hull is headed; the biggest lot wins, nearer on ties. The dock
+ * demand trip takes it first (discard t331: Spanish hulls sailed home with
+ * 5-60 tons each time a colonist waited on the dock, 1,600 tons of furs and
+ * coats piled up unsold, and the nation never had the gold to arm itself).
+ */
+bool ai_euro_export_pickup_dest(
+  ColonizeTurnContext* ctx, const ColonizeUnit* ship, int nation, int* out_x, int* out_y
+) {
+  if (!ai_euro_improved(ctx, nation) || !ctx->map || !ctx->colonies || !ctx->units ||
+      !map_in_bounds(ctx->map, ship->x, ship->y)) {
+    return false;
+  }
+  const int capacity = units_goods_hold_count(ctx->units, ship->id);
+  if (capacity < 2 || capacity - ai_euro_hauler_free_holds(ctx->units, ship) > 1) {
+    return false;
+  }
+  uint8_t* seen = (uint8_t*)calloc((size_t)ctx->map->width * ctx->map->height, 1);
+  if (!seen || !ai_euro_sea_reach(ctx->map, ship->x, ship->y, seen)) {
+    free(seen);
+    return false;
+  }
+  const int loaded_at = ai_euro_20e6_origin_get(ship);
+  int best = 0;
+  int best_d = 0;
+  for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+    const ColonizeColony* c = &ctx->colonies->colonies[i];
+    if (!c->active || c->nation_id != nation || c->id == loaded_at || (c->x == ship->x && c->y == ship->y) ||
+        !ai_euro_sea_touches(ctx->map, seen, c->x, c->y)) {
+      continue;
+    }
+    const int d = map_dos_dist(c->x - ship->x, c->y - ship->y);
+    const int g = ai_euro_20e6_load_pick(ctx, c, nation, 1);
+    const int lot = g >= 0 ? (int)c->stock[g] : 0;
+    if (d > AI_EURO_EXPORT_PICKUP_RANGE || lot < 100 || (lot == best && d >= best_d) || lot < best) {
+      continue;
+    }
+    bool taken = false;
+    for (int k = 0; k < units_slot_end(ctx->units) && !taken; ++k) {
+      const ColonizeUnit* o = &ctx->units->units[k];
+      taken = o->active && o->id != ship->id && o->nation_id == nation && o->goto_x == c->x &&
+              o->goto_y == c->y && units_goods_hold_count(ctx->units, o->id) > 0;
+    }
+    if (!taken) {
+      best = lot;
       best_d = d;
       *out_x = c->x;
       *out_y = c->y;

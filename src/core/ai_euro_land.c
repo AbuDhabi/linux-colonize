@@ -4152,6 +4152,14 @@ int ai_euro_20e6_europe_dock_demand(
   if (dock_count <= ai_euro_europe_lane_ships(ctx->units, nation_id)) {
     return 0;
   }
+  /* MOD_AI_IMPROVEMENTS #1924 (not DOS): fill the holds before the trip. */
+  int ex = 0;
+  int ey = 0;
+  if (ai_euro_export_pickup_dest(ctx, u, nation_id, &ex, &ey)) {
+    u->col1_ai_plan = 0x35;
+    ai_euro_set_goto(u, AI_EURO_ACT_GOAL, ex, ey);
+    return 1;
+  }
   if (getenv("AI_20E6_HS_TRACE")) {
     fprintf(stderr, "[3fa6] ship %d n%d (%d,%d) dock %d > lane %d -> sail home\n", u->id,
             nation_id, u->x, u->y, dock_count,
