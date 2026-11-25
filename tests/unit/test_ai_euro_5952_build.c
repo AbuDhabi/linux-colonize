@@ -9,6 +9,7 @@
  * row + 0x1f): Wagon Train 43, Galleon 46, Privateer 47, Frigate 48,
  * Artillery 42.
  */
+#include "core/ai_diplo.h"
 #include "core/ai_euro.h"
 #include "core/ai_euro_internal.h"
 #include "core/founding_fathers.h"
@@ -693,6 +694,50 @@ static int case_improved_buys_small_tools_gap(void) {
   }
   if (pick == 42 || tools != 10) {
     return fail("broke colony picked the Artillery or got tools");
+  }
+  return 0;
+}
+
+/*
+ * MOD_AI_IMPROVEMENTS (not DOS): with a war enemy's colony 3 tiles away, an
+ * improved colony short of defenders queues the Artillery it has no tools
+ * for, so its hammers bank on it and its tools are reserved; at peace, broke,
+ * it skips the Artillery as #1863 has it.
+ */
+static int case_improved_war_artillery_waits_for_tools(void) {
+  int picks[2] = {0, 0};
+  for (int war = 0; war < 2; ++war) {
+    Fx f;
+    if (naval_fx(&f) != 0) {
+      return 1;
+    }
+    f.col->colony_flags =
+      (uint8_t)(f.col->colony_flags & (uint8_t)~COLONIZE_COLONY_FLAG_COASTAL);
+    f.col->stock[COLONIZE_CARGO_ORE] = 0;
+    f.col->stock[COLONIZE_CARGO_TOOLS] = 10;
+    f.col->hammers = 192;
+    f.col->ai_flags = COLONIZE_COLONY_AI_SHORT_DEFENDERS;
+    f.col1.nation[NATION].gold = 0;
+    ColonizeColony* rival = &f.colonies.colonies[COLONIZE_COLONIES_MAX - 1];
+    rival->id = COLONIZE_COLONIES_MAX - 1;
+    rival->active = true;
+    rival->nation_id = 0;
+    rival->x = f.col->x + 3;
+    rival->y = f.col->y;
+    if (war) {
+      ai_diplo_declare_war(&f.col1, NATION, 0);
+    }
+    mods_campaign_set(1u << MOD_AI_IMPROVEMENTS);
+    ai_euro_5952_build_cascade(&f.ctx, f.col);
+    mods_campaign_set(0);
+    picks[war] = f.col->building_in_production;
+    fx_done(&f);
+  }
+  if (picks[0] == 42) {
+    return fail("broke colony at peace queued the Artillery it has no tools for");
+  }
+  if (picks[1] != 42) {
+    return fail("colony short of defenders at war did not queue the Artillery");
   }
   return 0;
 }
@@ -2186,6 +2231,7 @@ static int case_census_reads_unseat_profession_cache(void) {
 
 static const TestCase k_cases[] = {
   {"case_improved_buys_small_tools_gap", case_improved_buys_small_tools_gap},
+  {"case_improved_war_artillery_waits_for_tools", case_improved_war_artillery_waits_for_tools},
   {"case_census_skips_wagon_on_tile", case_census_skips_wagon_on_tile},
   {"case_census_reads_unseat_profession_cache", case_census_reads_unseat_profession_cache},
   {"case_seam_cascade_head_stage", case_seam_cascade_head_stage},

@@ -683,7 +683,11 @@ void ai_euro_found_with_unit(ColonizeTurnContext* ctx, ColonizeUnit* founder, in
   if (!ctx || !ctx->colonies || !ctx->map || !founder || !founder->active) {
     return;
   }
-  if (!colonies_can_found(ctx->colonies, ctx->map, founder->x, founder->y)) {
+  /* MOD_AI_IMPROVEMENTS (not DOS): the site scan's war-enemy skip, held here
+   * too for founders bound by a goal picked before the enemy came. */
+  if (!colonies_can_found(ctx->colonies, ctx->map, founder->x, founder->y) ||
+      (ai_euro_improved(ctx, nation_id) &&
+       ai_euro_improved_war_enemy_near(ctx, nation_id, founder->x, founder->y, 3, true))) {
     /* Port-only refusal (DOS 1ba8 checks only the 48-colony cap; colonies_found
      * re-runs this test). It returns before the 0x77b2 stamp: no DOS founding
      * is attempted here, so nothing is stamped. FUN_479b_076e's entry writes still happen, as on

@@ -375,6 +375,11 @@ int ai_euro_20e6_delivery_tallies(
  * infiltrate a human colony; no DOS reader of +0x314b compares against it.
  * Each hook returns the DOS value untouched with the mod off. */
 #define AI_EURO_SPY_PLAN 0x53
+/* MOD_AI_IMPROVEMENTS wartime redeploy ('d', ai_euro_land.c): a Soldier
+ * walking from a quiet colony to an empty front colony; no DOS reader of
+ * +0x314b compares against it. */
+#define AI_EURO_REDEPLOY_PLAN 0x64
+bool ai_euro_redeploy_keeps_course(const ColonizeTurnContext* ctx, const ColonizeUnit* u);
 int ai_euro_20e6_stack_combat_0b(ColonizeTurnContext* ctx, int x, int y);
 bool ai_euro_spy_keeps_course(const ColonizeTurnContext* ctx, const ColonizeUnit* u);
 void ai_euro_spy_drop(ColonizeUnit* u);
@@ -783,6 +788,9 @@ int ai_euro_colony_focus(const ColonizeTurnContext* ctx, const ColonizeColony* c
  * 2, one more per ten. Muskets and horses stay banked in its warehouse. */
 bool ai_euro_improved_threatened(const ColonizeTurnContext* ctx, int nation, const ColonizeColony* c);
 int ai_euro_improved_peace_garrison(int n);
+bool ai_euro_improved_war_enemy_near(
+  const ColonizeTurnContext* ctx, int nation, int x, int y, int r, bool colonies
+);
 /* MOD_AI_IMPROVEMENTS #1875: the improved nation fields one Artillery per
  * colony or more (Europe stops selling it them; #1896: at peace its colonies
  * stop building them). */

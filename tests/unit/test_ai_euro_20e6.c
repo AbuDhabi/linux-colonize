@@ -4139,6 +4139,107 @@ static int unit_improved_artillery_goes_home(void) {
   return stayed ? 0 : fail("improved artillery on its own colony must stay");
 }
 
+/* Wartime redeploy (not DOS): the lone Soldier of a quiet colony walks to an
+ * empty own colony with a war enemy within 4 tiles and keeps that course
+ * across the turn top; at peace it holds its colony. */
+static int unit_improved_war_redeploy(void) {
+  for (int war = 0; war < 2; ++war) {
+    Fixture f;
+    if (fixture_init(&f, 1) != 0) return 1;
+    treasure_add_colony(&f, 0, 1, 3, 8);
+    treasure_add_colony(&f, 1, 1, 11, 8);
+    f.col1.player[1].control = 1;
+    const int eid = units_spawn(&f.units, 1, 14, 8);
+    const int id = units_spawn(&f.units, 1, 3, 8);
+    ColonizeUnit* e = units_get(&f.units, eid);
+    ColonizeUnit* u = units_get(&f.units, id);
+    if (!e || !u) { fixture_free(&f); return fail("redeploy spawn"); }
+    e->nation_id = 0;
+    u->nation_id = 1;
+    u->moves = UNITS_MP_PER_TILE;
+    u->orders = UNITS_ORDER_FORTIFIED;
+    u->col1_ai_plan = 'A';
+    if (war) {
+      ai_diplo_declare_war(&f.col1, 1, 0);
+    }
+    mods_campaign_set(1u << MOD_AI_IMPROVEMENTS);
+    ai_euro_move_scoring_gate(&f.ctx, u, 1);
+    const bool sent = u->col1_ai_plan == AI_EURO_REDEPLOY_PLAN && u->orders == AI_EURO_ACT_GOAL &&
+                      u->goto_x == 11 && u->goto_y == 8;
+    u->x = 7; /* on the way */
+    const bool keeps = ai_euro_redeploy_keeps_course(&f.ctx, u);
+    mods_campaign_set(0);
+    fixture_free(&f);
+    if (war && (!sent || !keeps)) return fail("lone Soldier of a quiet colony must walk to the empty front colony");
+    if (!war && sent) return fail("at peace the lone Soldier must hold its colony");
+  }
+  return 0;
+}
+
+/* Artillery sally (not DOS): on its own colony with a second armed unit, an
+ * improved nation's Artillery scores an enemy in the open; DOS zeroes the
+ * odds (-999). */
+static int unit_improved_artillery_sally_scores(void) {
+  int scores[2] = {0, 0};
+  for (int mod = 0; mod < 2; ++mod) {
+    Fixture f;
+    if (fixture_init(&f, 1) != 0) return 1;
+    const int ai = park_add_artillery_type(&f);
+    treasure_add_colony(&f, 0, 1, 8, 8);
+    f.col1.player[1].control = 1;
+    ai_diplo_declare_war(&f.col1, 1, 0);
+    const int eid = units_spawn(&f.units, 0, 7, 8);
+    const int id = units_spawn(&f.units, ai, 8, 8);
+    const int sid = units_spawn_allow_stack(&f.units, ai, 8, 8);
+    ColonizeUnit* e = units_get(&f.units, eid);
+    ColonizeUnit* u = units_get(&f.units, id);
+    ColonizeUnit* second = units_get(&f.units, sid);
+    if (!e || !u || !second) { fixture_free(&f); return fail("sally spawn"); }
+    e->nation_id = 0;
+    u->nation_id = second->nation_id = 1;
+    u->moves = UNITS_MP_PER_TILE;
+    mods_campaign_set(mod ? 1u << MOD_AI_IMPROVEMENTS : 0u);
+    Ai20e6Unit st;
+    ai_euro_20e6_prologue(&f.ctx, u, 1, &st);
+    (void)ai_euro_20e6_attack_term(&f.ctx, u, &st, 7, 8, eid, &scores[mod]);
+    mods_campaign_set(0);
+    fixture_free(&f);
+  }
+  if (scores[0] != -999) return fail("DOS Artillery must score an open-field target -999");
+  if (scores[1] <= 0) return fail("improved colony Artillery must score its sally on a weak enemy");
+  return 0;
+}
+
+/* Founding-site skip (not DOS): an improved founder founds nothing within 3
+ * tiles of a war enemy's armed unit; at peace it founds. */
+static int unit_improved_found_skips_war_enemy(void) {
+  int founded[2] = {0, 0};
+  for (int war = 0; war < 2; ++war) {
+    Fixture f;
+    if (fixture_init(&f, 1) != 0) return 1;
+    f.col1.player[1].control = 1;
+    const int eid = units_spawn(&f.units, 1, 10, 8);
+    const int id = units_spawn(&f.units, 0, 8, 8);
+    ColonizeUnit* e = units_get(&f.units, eid);
+    ColonizeUnit* u = units_get(&f.units, id);
+    if (!e || !u) { fixture_free(&f); return fail("founder spawn"); }
+    e->nation_id = 0;
+    u->nation_id = 1;
+    u->moves = UNITS_MP_PER_TILE;
+    if (war) {
+      ai_diplo_declare_war(&f.col1, 1, 0);
+    }
+    mods_campaign_set(1u << MOD_AI_IMPROVEMENTS);
+    ai_euro_found_with_unit(&f.ctx, u, 1);
+    mods_campaign_set(0);
+    founded[war] = colonies_count_for_nation(&f.colonies, 1);
+    fixture_free(&f);
+  }
+  if (founded[0] != 1) return fail("founder at peace must found");
+  if (founded[1] != 0) return fail("founder within 3 tiles of a war enemy must not found");
+  return 0;
+}
+
 /* A partly unloaded hull keeps 3558's counts for colony-sail and 4393. */
 static int unit_ship_band_keeps_counts_after_unload(void) {
   Fixture f;
@@ -5072,6 +5173,9 @@ static const TestCase k_cases[] = {
     {"unit_ship_work_queue_uses_entry_stack", unit_ship_work_queue_uses_entry_stack},
     {"unit_border_hold_uses_treaty_gate", unit_border_hold_uses_treaty_gate},
     {"unit_improved_artillery_goes_home", unit_improved_artillery_goes_home},
+    {"unit_improved_war_redeploy", unit_improved_war_redeploy},
+    {"unit_improved_artillery_sally_scores", unit_improved_artillery_sally_scores},
+    {"unit_improved_found_skips_war_enemy", unit_improved_found_skips_war_enemy},
     {"unit_foreign_colony_military_goal_gates", unit_foreign_colony_military_goal_gates},
     {"unit_spy_mod_off", unit_spy_mod_off},
     {"unit_spy_fog", unit_spy_fog},

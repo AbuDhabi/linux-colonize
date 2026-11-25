@@ -520,9 +520,10 @@ static void ai_euro_0a60_unit_housekeeping(ColonizeTurnContext* ctx, int nation_
           u->goto_x = gx;
           u->goto_y = gy;
         }
-        /* mods.scout_spying: a spy Scout's course ('S') also survives the turn. */
+        /* mods.scout_spying: a spy Scout's course ('S') also survives the turn,
+         * as does an improved Soldier's wartime redeploy ('d'). */
         if ((u->orders >= AI_EURO_ACT_ADJACENT && u->col1_ai_plan != 0x31 &&
-             !ai_euro_spy_keeps_course(ctx, u)) ||
+             !ai_euro_spy_keeps_course(ctx, u) && !ai_euro_redeploy_keeps_course(ctx, u)) ||
             (u->orders >= 1 && u->orders <= 3)) {
           u->orders = UNITS_ORDER_NONE;
         }

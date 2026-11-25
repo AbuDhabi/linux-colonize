@@ -1046,6 +1046,21 @@ int ai_euro_20e6_colony_owner_at(const ColonizeTurnContext* ctx, int x, int y) {
   return (c && c->active) ? c->nation_id : -1;
 }
 
+/* MOD_AI_IMPROVEMENTS (not DOS): `nation`'s armed land units on (x, y),
+ * Dragoons included. */
+static int ai_euro_20e6_tile_armed(const ColonizeTurnContext* ctx, int nation, int x, int y) {
+  int n = 0;
+  for (int i = 0; ctx->units && i < units_slot_end(ctx->units); ++i) {
+    const ColonizeUnit* o = &ctx->units->units[i];
+    if (!o->active || o->nation_id != nation || o->x != x || o->y != y || o->aboard_ship_id >= 0) {
+      continue;
+    }
+    const int t = ai_euro_20e6_dos_type(ctx->units, o);
+    n += ai_euro_20e6_type_combat(t) > 1 && (t < 0xd || t > 0x12);
+  }
+  return n;
+}
+
 /*
  * FUN_1000_88c2 / FUN_137f_0428 tile_tribe_or_presence: settlement owner
  * (Euro or Indian) if one sits here, else the occupying unit's owner, else −1.
@@ -2043,6 +2058,13 @@ static int ai_euro_land_explore_scan_target(
       if (improved_any && ai_euro_land_poor_site(ctx->map, tx, ty)) {
         continue;
       }
+      /* MOD_AI_IMPROVEMENTS (not DOS): no site within 3 tiles of a war
+       * enemy's armed unit or colony; Spain founded (45,39), 3 tiles from
+       * French Martinique, three times, each lost the next turn (discard game
+       * t303-t335). */
+      if (improved_any && ai_euro_improved_war_enemy_near(ctx, nation_id, tx, ty, 3, true)) {
+        continue;
+      }
       /* raw 89134: `0d12(x,y) && 06b4(DS:0x8dba, DS:0x8dbc) == 1` — a water
        * neighbour whose lowest region id is the open sea; a tile touching only
        * a lake is not a site (DOSBox america 110->111: English Pioneer at
@@ -2527,7 +2549,16 @@ COLONIZE_INTERNAL int ai_euro_20e6_attack_term(
     odds <<= 1;
     settlement = 1;
   }
-  if (s->dos_type == UNITS_KIND_ARTILLERY && !settlement) {
+  /* MOD_AI_IMPROVEMENTS (not DOS): an improved nation's Artillery strikes
+   * from its own colony at a war enemy in the open when another armed unit
+   * stays behind on the tile; the odds gate below still applies. DOS zeroes
+   * every open-field Artillery attack, so Spain's colony Artillery never hit
+   * the French siege stacks beside its walls (discard game t343-t355). */
+  const bool sally = s->dos_type == UNITS_KIND_ARTILLERY && !settlement && s->home_dist == 0 &&
+                     ai_euro_improved(ctx, s->nation) && ctx->col1_ok && ctx->col1 && tile_unit >= 0 &&
+                     ai_diplo_at_war(ctx->col1, s->nation, units_get_const(ctx->units, tile_unit)->nation_id) &&
+                     ai_euro_20e6_tile_armed(ctx, s->nation, u->x, u->y) >= 2;
+  if (s->dos_type == UNITS_KIND_ARTILLERY && !settlement && !sally) {
     odds = 0;
   }
   /* FUN_521d_20e6 raw 88913-88915: the ACTING unit's own nation nibble
@@ -4310,6 +4341,60 @@ void ai_euro_20e6_stay_tail_589e(ColonizeUnit* u) {
   }
 }
 
+/* MOD_AI_IMPROVEMENTS (not DOS): at war, the lone Soldier of a colony with no
+ * enemy unit or colony within 6 tiles walks to the nearest own colony on its
+ * continent that has an enemy armed unit or colony within 4 tiles (a Dragoon's
+ * move) and no armed unit of its own, unless an own unit is already bound there. DOS keeps every lone
+ * garrison where it stands: Spain's five Soldiers held quiet western colonies
+ * while Veracruz, Trinidad, Havana and San Juan stood empty beside the French
+ * (discard game t300-t354). ponytail: nearest by tiles, not by path. 1 = course set. */
+static int ai_euro_20e6_war_redeploy(ColonizeTurnContext* ctx, ColonizeUnit* u, int dtype, const ColonizeColony* here) {
+  if (dtype != UNITS_KIND_SOLDIER || !ai_euro_improved(ctx, u->nation_id) || !ctx->colonies ||
+      ai_euro_20e6_tile_armed(ctx, u->nation_id, here->x, here->y) > 1 ||
+      ai_euro_improved_war_enemy_near(ctx, u->nation_id, here->x, here->y, 6, true)) {
+    return 0;
+  }
+  const int cid = map_continent_id_at(ctx->map, here->x, here->y);
+  const ColonizeColony* best = NULL;
+  int best_d = INT_MAX;
+  for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+    const ColonizeColony* c = &ctx->colonies->colonies[i];
+    const int d = abs(c->x - here->x) > abs(c->y - here->y) ? abs(c->x - here->x) : abs(c->y - here->y);
+    if (!c->active || c == here || c->nation_id != u->nation_id || d >= best_d ||
+        map_continent_id_at(ctx->map, c->x, c->y) != cid ||
+        ai_euro_20e6_tile_armed(ctx, u->nation_id, c->x, c->y) > 0 ||
+        !ai_euro_improved_war_enemy_near(ctx, u->nation_id, c->x, c->y, 4, true)) {
+      continue;
+    }
+    bool bound = false;
+    for (int j = 0; j < units_slot_end(ctx->units) && !bound; ++j) {
+      const ColonizeUnit* o = &ctx->units->units[j];
+      bound = o->active && o != u && o->nation_id == u->nation_id && o->col1_ai_plan == AI_EURO_REDEPLOY_PLAN &&
+              o->goto_x == c->x && o->goto_y == c->y;
+    }
+    if (!bound) {
+      best = c;
+      best_d = d;
+    }
+  }
+  if (!best) {
+    return 0;
+  }
+  u->col1_ai_plan = AI_EURO_REDEPLOY_PLAN;
+  ai_euro_set_goto(u, AI_EURO_ACT_GOAL, best->x, best->y);
+  return 1;
+}
+
+/* The redeploy course holds while its colony is still own and empty. */
+bool ai_euro_redeploy_keeps_course(const ColonizeTurnContext* ctx, const ColonizeUnit* u) {
+  if (u->col1_ai_plan != AI_EURO_REDEPLOY_PLAN || u->orders != AI_EURO_ACT_GOAL ||
+      !ai_euro_improved(ctx, u->nation_id) || (u->x == u->goto_x && u->y == u->goto_y)) {
+    return false;
+  }
+  return ai_euro_20e6_colony_owner_at(ctx, u->goto_x, u->goto_y) == u->nation_id &&
+         ai_euro_20e6_tile_armed(ctx, u->nation_id, u->goto_x, u->goto_y) == 0;
+}
+
 int ai_euro_move_scoring_gate(ColonizeTurnContext* ctx, ColonizeUnit* u, int nation_id) {
   /*
    * Ships: never retarget here — landfall/sail courses are owned by case 0x0b.
@@ -4335,6 +4420,14 @@ int ai_euro_move_scoring_gate(ColonizeTurnContext* ctx, ColonizeUnit* u, int nat
   if (!map_coords_inset(ctx->map, u->x, u->y)) {
     u->col1_ai_plan = 0x40;
     return 0;
+  }
+  /* MOD_AI_IMPROVEMENTS wartime redeploy: walk on (5b66 drives the course);
+   * on arrival hold the colony as an admitted garrison ('A'). */
+  if (u->col1_ai_plan == AI_EURO_REDEPLOY_PLAN) {
+    if (ai_euro_redeploy_keeps_course(ctx, u)) {
+      return 0;
+    }
+    u->col1_ai_plan = ai_euro_20e6_colony_owner_at(ctx, u->x, u->y) == nation_id ? 'A' : 0x3f;
   }
   /*
    * (port_bugs.md #521 lead b, 2026-09-18b) The at-war "defer course to act-level
@@ -4392,6 +4485,9 @@ int ai_euro_move_scoring_gate(ColonizeTurnContext* ctx, ColonizeUnit* u, int nat
     ColonizeColony* oc = cid >= 0 ? colonies_get_mut(ctx->colonies, cid) : NULL;
     const int on_own_colony = oc && oc->active && oc->nation_id == nation_id; /* local_2e == 0 */
     const int admitted = u->col1_ai_plan == 'A'; /* +0x314b == 'A' */
+    if (on_own_colony && ai_euro_20e6_war_redeploy(ctx, u, dtype, oc)) {
+      return 0;
+    }
     if (not_hauler && on_own_colony && ai_euro_20e6_type_combat(dtype) > 1 && dtype != 4 &&
         dtype != 8 && (oc->labor_shortage >= 1 || admitted)) {
       /* raw 88594-88600: the tile-chain armed count. */
@@ -4406,7 +4502,12 @@ int ai_euro_move_scoring_gate(ColonizeTurnContext* ctx, ColonizeUnit* u, int nat
           armed++;
         }
       }
-      if (admitted) {
+      /* MOD_AI_IMPROVEMENTS (not DOS): a surplus Artillery with a war enemy
+       * on a neighbour tile scores its sally (ai_euro_20e6_attack_term)
+       * instead of the admitted stay; no attack picked holds it as below. */
+      const bool sally = armed >= 2 && dtype == UNITS_KIND_ARTILLERY && ai_euro_improved(ctx, nation_id) &&
+                         ai_euro_improved_war_enemy_near(ctx, nation_id, u->x, u->y, 1, false);
+      if (admitted && !sally) {
         ai_euro_20e6_stay_tail_589e(u); /* LAB_5899 local_76 = 8 -> LAB_589e */
         return 0;
       }

@@ -2300,9 +2300,19 @@ static int ai_euro_5952_try_build(AiEuro5952Cascade* s, int dos_id) {
 /* DOS-LITERAL FUN_5952_02f4 (raw 93749-93755): clear +0x1c bit 0x80, code = row + 0x1f. */
 static void ai_euro_5952_set_unit_project(AiEuro5952Cascade* s, int unit_row) {
   /* MOD_AI_IMPROVEMENTS (#1863): no tools gift at completion, so an improved
-   * colony starts no unit it lacks the tools for and cannot make them. */
+   * colony starts no unit it lacks the tools for and cannot make them.
+   * Except Artillery for a colony short of defenders within 6 tiles of a
+   * European war enemy's armed unit or colony: the queued
+   * build reserves its tools (hulls buy them, Pioneers leave them) and banks
+   * the hammers, where no project left Veracruz at 509 hammers and no
+   * defender for 50 turns of war (discard game t300-t354). */
   int tools = 0;
-  if (colonies_unit_build_info(unit_row + 0x1f, NULL, NULL, &tools) &&
+  const bool war_artillery =
+    unit_row == 0x0b &&
+    (s->col->ai_flags & (COLONIZE_COLONY_AI_NEEDS_GARRISON | COLONIZE_COLONY_AI_SHORT_DEFENDERS)) != 0 &&
+    ai_euro_improved(s->ctx, s->nation) &&
+    ai_euro_improved_war_enemy_near(s->ctx, s->nation, s->col->x, s->col->y, 6, true);
+  if (colonies_unit_build_info(unit_row + 0x1f, NULL, NULL, &tools) && !war_artillery &&
       ai_euro_5952_tools_out_of_reach(s, tools)) {
     s->col->building_in_production = -1;
     return;

@@ -566,6 +566,48 @@ int ai_euro_improved_peace_garrison(int n) {
   return (n + 8) / 10;
 }
 
+/* ===== Wartime front ===== */
+
+/* An armed land unit or, with `colonies`, a colony of a European power at war
+ * with `nation` within r tiles of (x, y). Feeds the wartime redeploy, the
+ * Artillery sally and the founding-site skip (discard game t300-t355). */
+bool ai_euro_improved_war_enemy_near(
+  const ColonizeTurnContext* ctx, int nation, int x, int y, int r, bool colonies
+) {
+  const ColonizeCol1Save* col1 = ctx->col1_ok ? ctx->col1 : NULL;
+  if (!col1 || nation < 0 || nation > 3) {
+    return false;
+  }
+  bool war[4] = {false, false, false, false};
+  bool any = false;
+  for (int n = 0; n < 4; ++n) {
+    war[n] = n != nation && ai_diplo_at_war(col1, nation, n);
+    any = any || war[n];
+  }
+  if (!any) {
+    return false;
+  }
+  for (int i = 0; ctx->units && i < units_slot_end(ctx->units); ++i) {
+    const ColonizeUnit* u = &ctx->units->units[i];
+    if (!u->active || u->nation_id < 0 || u->nation_id >= 4 || !war[u->nation_id] || !units_is_on_map(u) ||
+        abs(u->x - x) > r || abs(u->y - y) > r) {
+      continue;
+    }
+    const int dtype = ai_euro_20e6_dos_type(ctx->units, u);
+    if (ai_euro_20e6_type_combat(dtype) > 1 && (dtype < 0x0d || dtype > 0x12)) {
+      return true;
+    }
+  }
+  for (int i = 0; colonies && ctx->colonies && i < COLONIZE_COLONIES_MAX; ++i) {
+    const ColonizeColony* c = &ctx->colonies->colonies[i];
+    if (c->active && c->nation_id >= 0 && c->nation_id < 4 && war[c->nation_id] && abs(c->x - x) <= r &&
+        abs(c->y - y) <= r) {
+      return true;
+    }
+  }
+  return false;
+}
+
 /* ===== Colony focus ===== */
 
 /* ponytail: flag-driven pick. A small colony works for export (Cash), not
