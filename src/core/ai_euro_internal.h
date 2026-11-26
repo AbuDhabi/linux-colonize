@@ -402,6 +402,9 @@ int ai_euro_20e6_europe_dock_demand(
   ColonizeTurnContext* ctx, ColonizeUnit* u, int nation_id, int stack_other
 );
 int ai_euro_move_scoring_gate(ColonizeTurnContext* ctx, ColonizeUnit* u, int nation_id);
+/* FUN_5952_035e carpenter arm (raw 94691-94733): seats one Carpenter while
+ * the colony makes no hammers; returns the seats. */
+int ai_euro_5952_carpenter_arm(ColonizeTurnContext* ctx, ColonizeColony* col, bool* placed, int n);
 /* FUN_5952_035e indoor-expert pass (OVL15 0x1cb2-0x1e65), ahead of the scored
  * indoor pass: seats unplaced indoor experts in their own job. */
 void ai_euro_5952_indoor_expert_pass(

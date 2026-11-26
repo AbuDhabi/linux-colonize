@@ -1862,9 +1862,7 @@ COLONIZE_INTERNAL int ai_euro_5952_carpenter_pick(
  * `iStack_ca` (raw 94733) is a counter nothing in the function ever reads.
  */
 /* Returns the number of colonists it seated (none of them in local_e4). */
-static int ai_euro_5952_carpenter_arm(
-  ColonizeTurnContext* ctx, ColonizeColony* col, bool* placed, int n
-) {
+int ai_euro_5952_carpenter_arm(ColonizeTurnContext* ctx, ColonizeColony* col, bool* placed, int n) {
   ColonizeColonyPool* pool = ctx->colonies;
   const ColonizeCol1Save* col1 = (ctx->col1_ok && ctx->col1) ? ctx->col1 : NULL;
   const ColonizeWorld world = world_from_turn_ctx(ctx);
@@ -1898,8 +1896,16 @@ static int ai_euro_5952_carpenter_arm(
         break;
       }
       from = s + 1;
+      /* MOD_AI_IMPROVEMENTS #1927 (not DOS): an improved nation keeps its
+       * Servant or Criminal as he is (the pick's raw 94716-94718 rewrite to
+       * Free Colonist is undone) and gets no free Master Carpenter below;
+       * the rules give no player either. */
+      const bool improved = ai_euro_improved(ctx, col->nation_id);
+      if (improved) {
+        col->colonists[s].profession = (uint8_t)prof;
+      }
       /* raw 94719-94726 — the free Master Carpenter specialty. */
-      if (!ai_euro_5952_job_is_expert(prof) && master_carpenters == 0 &&
+      if (!improved && !ai_euro_5952_job_is_expert(prof) && master_carpenters == 0 &&
           (int)col->population > 5 && ctx->rng &&
           dos_rng_range(ctx->rng, 0, 0x10 - difficulty) == 0) {
         /* No census bump: DOS never writes local_4e (BP-0x4c) after the

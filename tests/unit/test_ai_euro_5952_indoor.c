@@ -318,6 +318,63 @@ static int case_expert_pass_seats_master_carpenter(void) {
   return 0;
 }
 
+/* #1927: the carpenter arm turns the Indentured Servant it picks into a Free
+ * Colonist (raw 94716-94718) and may make him a Master Carpenter (raw
+ * 94719-94726, a 1-in-13 roll at Viceroy) for a DOS AI; an improved one keeps
+ * the Servant and never gets the free expert. */
+static int case_carpenter_arm_free_upgrades_dos_only(void) {
+  int promoted[2] = {0, 0};
+  int freed[2] = {0, 0};
+  for (int improved = 0; improved < 2; ++improved) {
+    mods_campaign_set(improved ? 1u << MOD_AI_IMPROVEMENTS : 0u);
+    for (uint32_t seed = 1; seed <= 200; ++seed) {
+      ColonizeColonyPool pool;
+      colonies_init(&pool);
+      snprintf(pool.building_types[0].name, sizeof(pool.building_types[0].name), "Carpenter's Shop");
+      pool.building_types[0].row_plus1 = COLONY_BUILDING_CARPENTERS_SHOP + 1;
+      pool.building_type_count = 1;
+      ColonizeColony* c = &pool.colonies[0];
+      c->id = 0;
+      c->active = true;
+      c->nation_id = 1;
+      c->population = 6;
+      c->colonist_count = 6;
+      c->building_in_production = -1;
+      pool.colony_count = 1;
+      pool.next_id = 1;
+      c->has_building[colonies_building_row(&pool, COLONY_BUILDING_CARPENTERS_SHOP)] = true;
+      c->stock[COLONIZE_CARGO_LUMBER] = 20;
+      for (int i = 0; i < 6; ++i) {
+        c->colonists[i].active = true;
+        c->colonists[i].profession = COLONIZE_PROF_INDENTURED;
+        c->colonists[i].building_type = -1;
+        c->colonists[i].field_job = -1;
+      }
+      ColonizeDosRng rng;
+      dos_rng_seed(&rng, seed * 2654435761u); /* spread: neighbouring small seeds draw alike */
+      ColonizeTurnContext ctx;
+      memset(&ctx, 0, sizeof ctx);
+      ctx.colonies = &pool;
+      ctx.rng = &rng;
+      ctx.human_nation = -1;
+      bool placed[6] = {false};
+      (void)ai_euro_5952_carpenter_arm(&ctx, c, placed, 6);
+      for (int i = 0; i < 6; ++i) {
+        promoted[improved] += c->colonists[i].profession == COLONIZE_PROF_CARPENTER;
+        freed[improved] += c->colonists[i].profession == COLONIZE_PROF_FREE_COLONIST;
+      }
+    }
+  }
+  mods_campaign_set(0);
+  if (promoted[0] == 0 || freed[0] == 0) {
+    return fail("a DOS AI must free the Servant and roll the free Master Carpenter within 200 seeds");
+  }
+  if (freed[1] != 0) {
+    return fail("an improved AI must keep its Servant");
+  }
+  return promoted[1] == 0 ? 0 : fail("an improved AI must never get the free Master Carpenter");
+}
+
 /* port_bugs.md #1624: the 5952 seats go through FUN_1000_8e26 =
  * FUN_15eb_1068, which has no @MORETHANTHREE validator (thunk_FUN_1000_9808
  * is the colony screen's), and the carpenter arm's seat is not in local_e4.
@@ -622,6 +679,7 @@ static int case_paine_bonus_tax_byte(void) {
 }
 
 static const TestCase k_cases[] = {
+  {"carpenter_arm_free_upgrades_dos_only", case_carpenter_arm_free_upgrades_dos_only},
   {"expert_pass_seats_master_carpenter", case_expert_pass_seats_master_carpenter},
   {"fallback_job", case_fallback_job},
   {"expert_pass_fourth_carpenter_uncapped", case_expert_pass_fourth_carpenter_uncapped},

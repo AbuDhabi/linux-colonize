@@ -961,7 +961,7 @@ graphs:
         fn: ai_euro_colony_jobs.c:ai_euro_5952_carpenter_pick
         dos: FUN_5952_035e raw 94690-94740, asm 5952:1ac7-5952:1be2
         status: dos
-        note: "Gated on +0x1d bit 0x80 clear and stock[lumber] + prod[lumber] > 1; loops while prod[hammers] == 0, so the ledger refresh (FUN_281f_0c04) after the first assignment ends it. Passes: profession 0x0d, 0x1c, 0x19, anyone. A chosen Servant/Criminal is rewritten to Free Colonist (FUN_281f_0cae(slot, 0x1c)); a non-expert in a colony with no Master Carpenter and pop > 5 may be handed the Master Carpenter specialty on a FUN_281f_04d4(0, 0x10 - difficulty) == 0 roll. The same block's two preceding arms (forced-lumberjack, emergency lumber buy) run first — see node `lumber`."
+        note: "Gated on +0x1d bit 0x80 clear and stock[lumber] + prod[lumber] > 1; loops while prod[hammers] == 0, so the ledger refresh (FUN_281f_0c04) after the first assignment ends it. Passes: profession 0x0d, 0x1c, 0x19, anyone. A chosen Servant/Criminal is rewritten to Free Colonist (FUN_281f_0cae(slot, 0x1c)); a non-expert in a colony with no Master Carpenter and pop > 5 may be handed the Master Carpenter specialty on a FUN_281f_04d4(0, 0x10 - difficulty) == 0 roll. The same block's two preceding arms (forced-lumberjack, emergency lumber buy) run first — see node `lumber`. MOD_AI_IMPROVEMENTS #1927 (not DOS): an improved nation keeps a picked Servant/Criminal as he is and never gets the free Master Carpenter (ai_euro_5952_carpenter_arm); test carpenter_arm_free_upgrades_dos_only."
       - id: expert
         kind: step
         label: Expert workplace fix-ups; origin refresh
