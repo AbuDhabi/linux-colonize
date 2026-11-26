@@ -614,14 +614,17 @@ static void gov_weights(const ColonizeWorld* w, const ColonizeColony* col, int g
    * of them on Viceroy) put nobody on cash crops or in a craft house, as
    * farmers and carpenters always won, and at full value they starved growth
    * and building for exports. Hammers still count in full only up to the
-   * project and queue (hammers_need). */
+   * project and queue (hammers_need). #1930: rum, cigars, cloth and coats
+   * count in full, so a craftsman's margin over his raw input (sold at half)
+   * beats shipping the input raw; at half his three coats lost to a
+   * carpenter's three hammers. */
   const bool custom_house = gov_nation_has_custom_house(w->colonies, col->nation_id) ||
                             colonies_has_building_row(w->colonies, col, COLONY_BUILDING_CUSTOM_HOUSE);
-  const double scale = gov == COLONY_GOVERNOR_CASH                                                  ? 1.0
-                       : ai_euro_improved_nation(w->col1_ok ? w->col1 : NULL, -1, col->nation_id) ? 0.5
-                                                                                                    : 0.25;
+  const bool improved = ai_euro_improved_nation(w->col1_ok ? w->col1 : NULL, -1, col->nation_id);
+  const double scale = gov == COLONY_GOVERNOR_CASH ? 1.0 : improved ? 0.5 : 0.25;
   for (int k = 1; k < COLONIZE_CARGO_COUNT; ++k) {
-    wt->goods[k] = gov_sale_value(w, col->nation_id, k, custom_house) * scale;
+    const bool crafted = improved && k >= COLONIZE_CARGO_RUM && k <= COLONIZE_CARGO_COATS;
+    wt->goods[k] = gov_sale_value(w, col->nation_id, k, custom_house) * (crafted ? 1.0 : scale);
     wt->goods_past[k] = wt->goods[k];
     wt->full_upto[k] = INT_MAX;
   }

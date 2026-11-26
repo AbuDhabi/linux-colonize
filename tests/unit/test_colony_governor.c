@@ -456,38 +456,61 @@ static int case_industry_tools_and_muskets(void) {
   return 0;
 }
 
+/* Rum an Industry colony with 100 sugar in store makes, rum and sugar at the
+ * given Europe prices (everything else 3), improved AI or not; `ai` seats it
+ * as the AI does (colony_governor_seat_w: hammers doubled). */
+static int gov_rum_seated(int rum_price, int sugar_price, bool improved, bool ai) {
+  GovFx f;
+  if (!gov_fx_open(&f)) {
+    return -1;
+  }
+  static ColonizeCol1Save col1;
+  memset(&col1, 0, sizeof(col1));
+  col1.player[1].control = 1;
+  for (int k = 0; k < (int)COLONIZE_COL1_CARGO_TYPES; ++k) {
+    col1.nation[1].trade.euro_price[k] = 3;
+  }
+  col1.nation[1].trade.euro_price[COLONIZE_CARGO_RUM] = (uint8_t)rum_price;
+  col1.nation[1].trade.euro_price[COLONIZE_CARGO_SUGAR] = (uint8_t)sugar_price;
+  f.w.col1 = &col1;
+  f.w.col1_ok = true;
+  ColonizeColony* c = f.col;
+  c->nation_id = 1;
+  c->stock[COLONIZE_CARGO_FOOD] = 100;
+  c->stock[COLONIZE_CARGO_SUGAR] = 100;
+  c->governor = COLONY_GOVERNOR_INDUSTRY;
+  mods_campaign_set(improved ? 1u << MOD_AI_IMPROVEMENTS : 0u);
+  if (ai) {
+    colony_governor_seat_w(&f.w, c->id, COLONY_GOVERNOR_INDUSTRY);
+  } else {
+    colony_governor_run_w(&f.w, c->id);
+  }
+  const int rum = gov_preview(&f).goods[COLONIZE_CARGO_RUM];
+  mods_campaign_set(0);
+  gov_fx_close(&f);
+  return rum;
+}
+
 /* #1929: an Industry colony of an improved AI counts goods at half value, so
  * with sugar in store and rum dear it seats a distiller; at the quarter value
  * the governor keeps for everyone else, the rum loses to food and hammers. */
 static int case_improved_ai_goods_half_value(void) {
-  int rum[2] = {0, 0};
-  for (int improved = 0; improved < 2; ++improved) {
-    GovFx f;
-    if (!gov_fx_open(&f)) {
-      return 1;
-    }
-    static ColonizeCol1Save col1;
-    memset(&col1, 0, sizeof(col1));
-    col1.player[1].control = 1;
-    for (int k = 0; k < (int)COLONIZE_COL1_CARGO_TYPES; ++k) {
-      col1.nation[1].trade.euro_price[k] = 3;
-    }
-    col1.nation[1].trade.euro_price[COLONIZE_CARGO_RUM] = 14; /* sells at 13; the quarter value seats a distiller only near 20 */
-    f.w.col1 = &col1;
-    f.w.col1_ok = true;
-    ColonizeColony* c = f.col;
-    c->nation_id = 1;
-    c->stock[COLONIZE_CARGO_FOOD] = 100;
-    c->stock[COLONIZE_CARGO_SUGAR] = 100;
-    c->governor = COLONY_GOVERNOR_INDUSTRY;
-    mods_campaign_set(improved ? 1u << MOD_AI_IMPROVEMENTS : 0u);
-    colony_governor_run_w(&f.w, c->id);
-    rum[improved] = gov_preview(&f).goods[COLONIZE_CARGO_RUM];
-    mods_campaign_set(0);
-    gov_fx_close(&f);
+  const int quarter = gov_rum_seated(14, 3, false, false); /* sells at 13; the quarter value seats a distiller only near 20 */
+  const int improved = gov_rum_seated(14, 3, true, false);
+  if (quarter != 0 || improved <= 0) {
+    fprintf(stderr, "rum: quarter value %d, improved %d\n", quarter, improved);
+    return 1;
   }
-  if (rum[0] != 0 || rum[1] <= 0) {
-    fprintf(stderr, "rum: quarter value %d, improved %d\n", rum[0], rum[1]);
+  return 0;
+}
+
+/* #1930: with rum at 9 and sugar at 4 the improved AI's Industry colony
+ * turns its sugar into rum, as a player would: rum counts in full against
+ * sugar at half (at half both, it needed rum 11). */
+static int case_improved_ai_crafts_margin(void) {
+  const int rum = gov_rum_seated(9, 4, true, true);
+  if (rum <= 0) {
+    fprintf(stderr, "rum %d: no distiller at rum 9, sugar 4\n", rum);
     return 1;
   }
   return 0;
@@ -1215,6 +1238,7 @@ static const TestCase k_cases[] = {
   {"converts_outdoors", case_converts_outdoors},
   {"industry_tools_and_muskets", case_industry_tools_and_muskets},
   {"improved_ai_goods_half_value", case_improved_ai_goods_half_value},
+  {"improved_ai_crafts_margin", case_improved_ai_crafts_margin},
   {"capture_clears", case_capture_clears},
   {"hammers_only_toward_project", case_hammers_only_toward_project},
   {"ai_seat_bank_full", case_ai_seat_bank_full},
