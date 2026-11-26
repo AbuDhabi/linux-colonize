@@ -822,6 +822,7 @@ graphs:
         fn: ai_euro_land.c:ai_euro_20e6_labor_arm
         dos: 20e6 colonist labor loop (fort-capacity wanted size)
         status: dos
+        note: "MOD_AI_IMPROVEMENTS #1926 (not DOS): the join pick scores distance + 2 x population (smallest colony in reach), and a colonist whose best colony already has AI_EURO_JOIN_FOUND_POP (4) people explores and founds when the ring scan has a site for it. Tests unit_improved_colonist_joins_small_colony, unit_improved_colonist_founds_before_filling."
       - id: recall
         kind: decision
         label: "After a failed / countdown-skipped scan: Scout or Pioneer, stance 0, home on this continent → walk home 'N'; else explorer ring-hop 4 tiles on a latched direction; else surplus recall (colony flag 0x04 → clear, garrison_quota--, walk home)"

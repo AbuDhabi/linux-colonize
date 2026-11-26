@@ -1716,6 +1716,11 @@ static bool ai_euro_scout_path_probe(ColonizeTurnContext* ctx, ColonizeUnit* u, 
  * Returns 0 = not handled, 1 = goto set (act continues), 2 = unit consumed
  * (join / convert — abort the act, the unit may be gone).
  */
+static int ai_euro_land_explore_scan_target(
+  ColonizeTurnContext* ctx, ColonizeUnit* u, int nation_id, const Ai20e6Unit* unit_state,
+  int force_explorer, int* out_x, int* out_y
+);
+#define AI_EURO_JOIN_FOUND_POP 4
 static int ai_euro_20e6_labor_arm(ColonizeTurnContext* ctx, ColonizeUnit* u, Ai20e6Unit* s) {
   /* MOD_AI_IMPROVEMENTS #1892 (not DOS): a Scout whose land holds no village
    * left to visit, no rumour and nothing unseen joins a colony too, or
@@ -1762,6 +1767,11 @@ static int ai_euro_20e6_labor_arm(ColonizeTurnContext* ctx, ColonizeUnit* u, Ai2
     if ((int)c->population >= wanted) {
       score <<= 1;
     }
+    if (improved) {
+      /* #1926: a colonist does most in the smallest colony; DOS's need-weighted
+       * min-pick prefers the fullest one and scores 0 for the tile it is on. */
+      score = dist + 2 * (int)c->population;
+    }
     /* 8aac case 2 = TOTAL units standing on the colony tile (PUSH 0x2 at
      * viceroy_overlays.asm 135593; real 0d38 case-2 body counts every stack
      * member, not just military — corrected 2026-09-06). */
@@ -1780,6 +1790,24 @@ static int ai_euro_20e6_labor_arm(ColonizeTurnContext* ctx, ColonizeUnit* u, Ai2
     if (stack + (int)c->population < wanted + 2 && score < best_score) {
       best_score = score;
       best_id = c->id;
+    }
+  }
+  /* MOD_AI_IMPROVEMENTS #1926 (not DOS): a colonist whose best colony already
+   * has AI_EURO_JOIN_FOUND_POP people founds a new one when the explorer ring
+   * scan has a site for it, rather than topping the colony up to its wanted
+   * size first (second discard game: England sat at two colonies 1521-1612). */
+  if (best_id >= 0 && improved && !s->woi && u->profession != UNITS_JOB_CONVERT && best_score >= 0) {
+    const ColonizeColony* c = colonies_get(ctx->colonies, best_id);
+    if (c && (int)c->population >= AI_EURO_JOIN_FOUND_POP) {
+      const uint8_t fatigue = ai_euro_20e6_hold_scratch(u)[0];
+      int fx = 0;
+      int fy = 0;
+      const int site = ai_euro_land_explore_scan_target(ctx, u, u->nation_id, s, 1, &fx, &fy);
+      ai_euro_20e6_hold_scratch(u)[0] = fatigue;
+      if (site != 0) {
+        s->explorer = 1;
+        return 0;
+      }
     }
   }
   if (best_id >= 0) {

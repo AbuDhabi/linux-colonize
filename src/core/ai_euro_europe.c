@@ -1270,6 +1270,25 @@ typedef struct Ai5d04HireTail {
   long fleet_reserve; /* #1893: gold kept back from recruits and cargo for a hull */
 } Ai5d04HireTail;
 
+/* TB-59 fix (not DOS): the surplus crosses kept past the threshold would push
+ * DOS's base*crosses/(-1-needed) discount past the whole base (a free or
+ * gold-paying recruit). Price at the threshold, the cheapest DOS reaches, and
+ * spend the threshold on the buy (ai_euro_recruit_spend_crosses); DOS AI
+ * recruits never touch the meter. */
+static bool ai_euro_recruit_crosses_overflow(const ColonizeCol1Nation* nat) {
+  return !dos_buggy_behavior() && nat->current_crosses > nat->needed_crosses;
+}
+
+static long ai_euro_recruit_price_crosses(const ColonizeCol1Nation* nat) {
+  return ai_euro_recruit_crosses_overflow(nat) ? (long)nat->needed_crosses : (long)nat->current_crosses;
+}
+
+static void ai_euro_recruit_spend_crosses(ColonizeCol1Nation* nat) {
+  if (ai_euro_recruit_crosses_overflow(nat)) {
+    nat->current_crosses = (uint16_t)(nat->current_crosses - nat->needed_crosses);
+  }
+}
+
 static void ai_euro_5d04_hire_tail_candidates(Ai5d04HireTail* t) {
   ColonizeTurnContext* ctx = t->ctx;
   const int nation_id = t->nation_id;
@@ -1543,7 +1562,7 @@ static void ai_euro_5d04_hire_tail_colony_demand(Ai5d04HireTail* t) {
       bought_this_iteration = 0;
       const int base2 = (((int)nat->recruit_count + 7) * 2 - (difficulty & 0xfe)) * 10;
       const long extra =
-        ((long)base2 * (long)nat->current_crosses) / (-1L - (long)nat->needed_crosses);
+        ((long)base2 * ai_euro_recruit_price_crosses(nat)) / (-1L - (long)nat->needed_crosses);
       uint32_t recruit_price = (uint32_t)(base2 + extra); /* DOS local_38b */
       if (nat->musket_bank_lots == 0) {
         recruit_price += (uint32_t)(ai_euro_5d04_cb_price(COLONIZE_CARGO_MUSKETS) * 50);
@@ -1592,6 +1611,7 @@ static void ai_euro_5d04_hire_tail_colony_demand(Ai5d04HireTail* t) {
         /* int32 view: a tools/musket rebate can take the uint32 price below
          * 0, and DOS's 32-bit subtract then credits (wraps) instead. */
         europe_nation_gold_add(ctx->europe, ctx->col1, nation_id, -(long)(int32_t)recruit_price);
+        ai_euro_recruit_spend_crosses(nat);
         if (nat->musket_bank_lots == 0) {
           ai_euro_5d04_cb_set_pool_counter(0xf, 0x32);
         } else {
@@ -1970,7 +1990,7 @@ static void ai_euro_5d04_hire_ladder_tail(
         (stuff->colony_counts[nation_id] >> 1)) {
     const int base = ((int)nat->recruit_count - difficulty + 7) * 20;
     const long scaled =
-      ((long)base * (long)nat->current_crosses) / (-1L - (long)nat->needed_crosses);
+      ((long)base * ai_euro_recruit_price_crosses(nat)) / (-1L - (long)nat->needed_crosses);
     /* raw 92601 reads `-0x6bf0` = census_pop_proxy, not free_colonist_counts
      * (fixed 2026-09-07e — the same −0x6bf0/−0x6bf8 mix-up the ladder gate
      * had before 2026-09-07d). */
@@ -1983,6 +2003,7 @@ static void ai_euro_5d04_hire_ladder_tail(
     const int16_t recruit_swap_price = (int16_t)(scaled + base); /* DOS local_38 */
     if (ai_euro_gold_free(ctx, nation_id) >= (int32_t)(int16_t)(recruit_swap_price + reserve) + fleet_reserve) {
       europe_nation_gold_add(ctx->europe, ctx->col1, nation_id, -recruit_swap_price);
+      ai_euro_recruit_spend_crosses(nat);
       const int slot = dos_rng_range(ctx->rng, 0, 2); /* nat->recruit[3] */
       const int candidate = ai_euro_5d04_cb_dock_pop_candidate(nat->recruit[slot]);
       if (candidate >= 0) {

@@ -4139,6 +4139,85 @@ static int unit_improved_artillery_goes_home(void) {
   return stayed ? 0 : fail("improved artillery on its own colony must stay");
 }
 
+/* #1926 fixture: own colonies at (5,8) with `pop` people and, when `small`,
+ * a pop-1 one at (8,8), both wanting colonists; a Colonist on (5,8). */
+static int join_setup(Fixture* f, int pop, int small) {
+  treasure_add_colony(f, 0, 1, 5, 8);
+  f->colonies.colonies[0].population = (uint8_t)pop;
+  f->colonies.colonies[0].colonist_count = (uint8_t)pop;
+  f->colonies.colonies[0].ai_flags |= COLONIZE_COLONY_AI_NEEDS_COLONISTS;
+  if (small) {
+    treasure_add_colony(f, 1, 1, 8, 8);
+    f->colonies.colonies[1].population = 1;
+    f->colonies.colonies[1].colonist_count = 1;
+    f->colonies.colonies[1].ai_flags |= COLONIZE_COLONY_AI_NEEDS_COLONISTS;
+  }
+  f->col1.player[1].control = 1;
+  const int id = units_spawn(&f->units, 0, 5, 8);
+  ColonizeUnit* u = units_get(&f->units, id);
+  if (!u) {
+    return -1;
+  }
+  u->nation_id = 1;
+  u->moves = UNITS_MP_PER_TILE;
+  u->orders = 0;
+  seed_census(f, 1);
+  return id;
+}
+
+/* #1926: an improved Colonist standing on a pop-3 colony walks to the pop-1
+ * one three tiles away; DOS joins the colony it stands on (score 0). */
+static int unit_improved_colonist_joins_small_colony(void) {
+  for (int improved = 0; improved < 2; ++improved) {
+    Fixture f;
+    if (fixture_init(&f, 1) != 0) return 1;
+    const int id = join_setup(&f, 3, 1);
+    ColonizeUnit* u = units_get(&f.units, id);
+    if (!u) { fixture_free(&f); return fail("join spawn"); }
+    mods_campaign_set(improved ? 1u << MOD_AI_IMPROVEMENTS : 0u);
+    ai_euro_move_scoring_gate(&f.ctx, u, 1);
+    mods_campaign_set(0);
+    const int joined = f.colonies.colonies[0].population == 4;
+    const int walks = u->active && u->col1_ai_plan == 0x33 && u->goto_x == 8 && u->goto_y == 8;
+    fixture_free(&f);
+    if (improved ? !walks : !joined) {
+      return fail(improved ? "improved Colonist must walk to the pop-1 colony" : "DOS Colonist joins the colony it stands on");
+    }
+  }
+  return 0;
+}
+
+/* #1926: an improved Colonist on a pop-4 colony with a site in its ring does
+ * not join it; DOS joins. */
+static int unit_improved_colonist_founds_before_filling(void) {
+  for (int improved = 0; improved < 2; ++improved) {
+    Fixture f;
+    if (fixture_init(&f, 1) != 0) return 1;
+    for (int y = 0; y < 16; ++y) {
+      for (int x = 9; x < 16; ++x) {
+        f.map.terrain[y * 16 + x] = 25; /* MAP_OCEAN_INDEX: coast at x 8 */
+      }
+    }
+    f.map.terrain[8 * 16 + 7] = 11; /* forest class: the site's lumber (#1910) */
+    const int id = join_setup(&f, 4, 0);
+    ColonizeUnit* u = units_get(&f.units, id);
+    if (!u) { fixture_free(&f); return fail("found spawn"); }
+    mods_campaign_set(improved ? 1u << MOD_AI_IMPROVEMENTS : 0u);
+    ai_euro_move_scoring_gate(&f.ctx, u, 1);
+    mods_campaign_set(0);
+    const int joined = f.colonies.colonies[0].population == 5;
+    if (!joined && getenv("JOIN_DBG")) {
+      fprintf(stderr, "found: active %d plan 0x%02x orders %d goto %d,%d\n", u->active, u->col1_ai_plan, u->orders,
+              u->goto_x, u->goto_y);
+    }
+    fixture_free(&f);
+    if (improved ? joined : !joined) {
+      return fail(improved ? "improved Colonist must leave to found" : "DOS Colonist joins the colony it stands on");
+    }
+  }
+  return 0;
+}
+
 /* #1925 fixture: nation 1 at peace, an improved AI, with a garrisoned colony
  * at (5,8) and an empty pop-3 colony at (12,8); one unit of type index `type`
  * for nation 1 at (x, 8). Returns its id. */
@@ -5393,6 +5472,8 @@ static const TestCase k_cases[] = {
     {"unit_improved_artillery_goes_home", unit_improved_artillery_goes_home},
     {"unit_improved_soldier_goes_to_short_colony", unit_improved_soldier_goes_to_short_colony},
     {"unit_improved_dragoon_skips_peace_park", unit_improved_dragoon_skips_peace_park},
+    {"unit_improved_colonist_joins_small_colony", unit_improved_colonist_joins_small_colony},
+    {"unit_improved_colonist_founds_before_filling", unit_improved_colonist_founds_before_filling},
     {"unit_improved_war_redeploy", unit_improved_war_redeploy},
     {"unit_improved_artillery_sally_scores", unit_improved_artillery_sally_scores},
     {"unit_improved_found_skips_war_enemy", unit_improved_found_skips_war_enemy},

@@ -642,8 +642,14 @@ preachers and churches around each arrival.
 and `europe_brewster_pick_from_pool_ex` (`src/core/europe_dock.c`). The fix
 subtracts the threshold (`needed_crosses`) instead, so the surplus counts toward
 the next immigrant. A paid passage (`europe_recruit_from_pool_ex`) still zeroes
-the meter, which is what walks the recruit price up; Fountain of Youth picks
-(`europe_recruit_free_from_pool_ex`) never touch it.
+a meter at or under the threshold, which is what walks the recruit price up; a
+meter past the threshold (crosses outrunning the one-immigrant-a-turn limit)
+prices the passage at the floor (`europe_compute_recruit_passage`, as if no
+crosses were needed) and spends only the threshold (user, 2026-11-26). The AI
+hires in `src/core/ai_euro_europe.c` (5d04 hire tail and recruit-slot swap) price
+an overflowed meter as if it held exactly the threshold and then spend the
+threshold; at or under it they leave the meter alone, as DOS does. Fountain
+of Youth picks (`europe_recruit_free_from_pool_ex`) never touch it.
 
 **Blocks removal:** not tried ungated; goldens and idle campaigns bank the DOS
 zero on every arrival.

@@ -8746,8 +8746,9 @@ static int case_fountain_of_youth(void) {
                 paid_crosses, brewster_ok, feu.current_crosses);
         return 1;
       }
-      /* TB-59 fix: the Brewster pick keeps the surplus over the threshold; a paid
-       * passage still clears the meter. */
+      /* TB-59 fix: the Brewster pick and a paid passage keep the surplus over the
+       * threshold; past the threshold the passage prices at the floor, and a meter
+       * at or under the threshold still clears. */
       dos_buggy_behavior_set(false);
       feu.needed_crosses = 30;
       feu.current_crosses = 50;
@@ -8755,10 +8756,15 @@ static int case_fountain_of_youth(void) {
       const int brewster_left = feu.current_crosses;
       feu.current_crosses = 50;
       (void)europe_recruit_from_pool_ex(&feu, 1, NULL);
+      const int paid_left = feu.current_crosses;
+      const int floor_price = europe_compute_recruit_passage(0, 0, 50, 30);
+      feu.current_crosses = 30;
+      (void)europe_recruit_from_pool_ex(&feu, 1, NULL);
+      const int paid_at_need = feu.current_crosses;
       dos_buggy_behavior_set(true);
-      if (brewster_left != 20 || feu.current_crosses != 0) {
-        fprintf(stderr, "TB-59 crosses: brewster left %d, paid left %d\n", brewster_left,
-                feu.current_crosses);
+      if (brewster_left != 20 || paid_left != 20 || paid_at_need != 0 || floor_price != 100) {
+        fprintf(stderr, "TB-59 crosses: brewster left %d, paid left %d / %d, floor %d\n",
+                brewster_left, paid_left, paid_at_need, floor_price);
         return 1;
       }
       /* Train (FUN_38fd_41ce raw 64432-64440 charges only after the spawn) and a dock

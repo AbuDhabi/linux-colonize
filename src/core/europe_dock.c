@@ -63,6 +63,11 @@ int europe_compute_recruit_passage(
   if (floor_val < 100) {
     floor_val = 100;
   }
+  /* TB-59 fix: the surplus kept over the threshold would push the DOS discount
+   * past the floor; a banked immigrant's worth of crosses prices at the floor. */
+  if (!dos_buggy_behavior() && current_crosses > needed_crosses) {
+    return (int)floor_val;
+  }
   /* -(needed_crosses+1): DOS's own divide-by-zero guard (~X == -X-1). */
   const long denom = -((long)needed_crosses + 1);
   const long discount = ((base - floor_val) * (long)current_crosses) / denom;
@@ -80,6 +85,18 @@ void europe_refresh_recruit_passage(EuropeScreen* eu) {
   eu->recruit_passage = europe_compute_recruit_passage(
     eu->recruit_count, eu->difficulty, eu->current_crosses, eu->needed_crosses
   );
+}
+
+/* FUN_38fd_4884 raw 64765-64766 (param_1==0) zeroes the crosses meter; the
+ * TB-59 fix spends only the threshold when the meter holds more. */
+static void europe_spend_crosses(EuropeScreen* eu) {
+  if (dos_buggy_behavior() || eu->current_crosses <= eu->needed_crosses) {
+    eu->current_crosses = 0;
+  } else {
+    eu->current_crosses = (uint16_t)(eu->current_crosses - eu->needed_crosses);
+  }
+  eu->immigration_pressure =
+    (int16_t)(eu->current_crosses > 32767 ? 32767 : (int)eu->current_crosses);
 }
 
 static void europe_bump_recruit_count(EuropeScreen* eu) {
@@ -135,9 +152,9 @@ bool europe_recruit_from_pool_ex(EuropeScreen* eu, int pool_index, ColonizeDosRn
    * (nation+0x2e = 0) before the spawn, so a refused spawn clears it too. Without the
    * clear the discount term kept the next price pinned near the 100 floor, so buying
    * colonists never walked the price ladder up (port_bugs.md: "recruit price isn't
-   * increased by recruiting with gold"). */
-  eu->current_crosses = 0;
-  eu->immigration_pressure = 0;
+   * increased by recruiting with gold"). TB-59 fix: a meter past the
+   * threshold spends only the threshold (the passage was priced at the floor). */
+  europe_spend_crosses(eu);
   EuropeDockImmigrant* slot = europe_dock_insert_front(eu);
   if (!slot) {
     return false;
@@ -204,13 +221,7 @@ bool europe_brewster_pick_from_pool_ex(
   /* 4884 with param_1==0: +0x2e crosses zeroed BEFORE the spawn (raw 64765-64766), so a
    * refused spawn (full dock) clears them too; no +6 recruit-count bump (param_2!=0
    * skips it). TB-59: the fix keeps the surplus over the threshold instead. */
-  if (dos_buggy_behavior() || eu->current_crosses <= eu->needed_crosses) {
-    eu->current_crosses = 0;
-  } else {
-    eu->current_crosses = (uint16_t)(eu->current_crosses - eu->needed_crosses);
-  }
-  eu->immigration_pressure =
-    (int16_t)(eu->current_crosses > 32767 ? 32767 : (int)eu->current_crosses);
+  europe_spend_crosses(eu);
   if (!europe_recruit_free_from_pool_ex(eu, pool_index, rng)) {
     return false;
   }
