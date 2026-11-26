@@ -3,6 +3,7 @@
 #include <limits.h>
 #include <string.h>
 
+#include "core/ai_euro.h"
 #include "core/col1_save.h"
 #include "core/colony.h"
 #include "core/colony_preview.h"
@@ -607,12 +608,20 @@ static bool gov_bells_pool_open(const ColonizeCol1Save* col1, int nation) {
 
 static void gov_weights(const ColonizeWorld* w, const ColonizeColony* col, int gov, GovWeights* wt) {
   memset(wt, 0, sizeof(*wt));
-  /* Sale value, scaled down for the governors that are not after money. */
+  /* Sale value, scaled down for the governors that are not after money.
+   * MOD_AI_IMPROVEMENTS #1929 (not DOS): an improved AI colony counts goods at
+   * half value under the other governors; at a quarter its colonies of 4+ (75%
+   * of them on Viceroy) put nobody on cash crops or in a craft house, as
+   * farmers and carpenters always won, and at full value they starved growth
+   * and building for exports. Hammers still count in full only up to the
+   * project and queue (hammers_need). */
   const bool custom_house = gov_nation_has_custom_house(w->colonies, col->nation_id) ||
                             colonies_has_building_row(w->colonies, col, COLONY_BUILDING_CUSTOM_HOUSE);
+  const double scale = gov == COLONY_GOVERNOR_CASH                                                  ? 1.0
+                       : ai_euro_improved_nation(w->col1_ok ? w->col1 : NULL, -1, col->nation_id) ? 0.5
+                                                                                                    : 0.25;
   for (int k = 1; k < COLONIZE_CARGO_COUNT; ++k) {
-    wt->goods[k] = gov_sale_value(w, col->nation_id, k, custom_house) *
-                   (gov == COLONY_GOVERNOR_CASH ? 1.0 : 0.25);
+    wt->goods[k] = gov_sale_value(w, col->nation_id, k, custom_house) * scale;
     wt->goods_past[k] = wt->goods[k];
     wt->full_upto[k] = INT_MAX;
   }

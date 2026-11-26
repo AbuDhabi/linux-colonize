@@ -456,6 +456,43 @@ static int case_industry_tools_and_muskets(void) {
   return 0;
 }
 
+/* #1929: an Industry colony of an improved AI counts goods at half value, so
+ * with sugar in store and rum dear it seats a distiller; at the quarter value
+ * the governor keeps for everyone else, the rum loses to food and hammers. */
+static int case_improved_ai_goods_half_value(void) {
+  int rum[2] = {0, 0};
+  for (int improved = 0; improved < 2; ++improved) {
+    GovFx f;
+    if (!gov_fx_open(&f)) {
+      return 1;
+    }
+    static ColonizeCol1Save col1;
+    memset(&col1, 0, sizeof(col1));
+    col1.player[1].control = 1;
+    for (int k = 0; k < (int)COLONIZE_COL1_CARGO_TYPES; ++k) {
+      col1.nation[1].trade.euro_price[k] = 3;
+    }
+    col1.nation[1].trade.euro_price[COLONIZE_CARGO_RUM] = 14; /* sells at 13; the quarter value seats a distiller only near 20 */
+    f.w.col1 = &col1;
+    f.w.col1_ok = true;
+    ColonizeColony* c = f.col;
+    c->nation_id = 1;
+    c->stock[COLONIZE_CARGO_FOOD] = 100;
+    c->stock[COLONIZE_CARGO_SUGAR] = 100;
+    c->governor = COLONY_GOVERNOR_INDUSTRY;
+    mods_campaign_set(improved ? 1u << MOD_AI_IMPROVEMENTS : 0u);
+    colony_governor_run_w(&f.w, c->id);
+    rum[improved] = gov_preview(&f).goods[COLONIZE_CARGO_RUM];
+    mods_campaign_set(0);
+    gov_fx_close(&f);
+  }
+  if (rum[0] != 0 || rum[1] <= 0) {
+    fprintf(stderr, "rum: quarter value %d, improved %d\n", rum[0], rum[1]);
+    return 1;
+  }
+  return 0;
+}
+
 /* A small stock: no deficit that would raise @FOODLOW on any planned turn. */
 static int case_no_food_low_popup(void) {
   GovFx f;
@@ -1177,6 +1214,7 @@ static const TestCase k_cases[] = {
   {"no_food_low_popup", case_no_food_low_popup},
   {"converts_outdoors", case_converts_outdoors},
   {"industry_tools_and_muskets", case_industry_tools_and_muskets},
+  {"improved_ai_goods_half_value", case_improved_ai_goods_half_value},
   {"capture_clears", case_capture_clears},
   {"hammers_only_toward_project", case_hammers_only_toward_project},
   {"ai_seat_bank_full", case_ai_seat_bank_full},
