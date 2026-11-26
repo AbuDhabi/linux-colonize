@@ -4129,6 +4129,48 @@ static int case_europe_improved_ai_no_rise_cap(void) {
   return rc;
 }
 
+/* #1928: an improved AI's Rum track (@CARGO low 1, opening 11-13) falls no
+ * lower than 1 + 10 * d / 4: 1 on Discoverer, 6 on Conquistador, 11 on
+ * Viceroy, where a track already below is lifted. The DOS AI keeps low 1. */
+static int case_europe_improved_ai_export_floor(void) {
+  EuropeScreen* eu = (EuropeScreen*)calloc(1, sizeof(*eu));
+  ColonizeCol1Save* col1 = (ColonizeCol1Save*)calloc(1, sizeof(*col1));
+  if (!eu || !col1) {
+    free(eu);
+    free(col1);
+    return 1;
+  }
+  int rc = 0;
+  const int c = COLONIZE_CARGO_RUM;
+  eu->cargo_count = COLONIZE_CARGO_COUNT;
+  eu->cargo[c].start_lo = 11;
+  eu->cargo[c].start_hi = 13;
+  eu->cargo[c].low = 1;
+  eu->cargo[c].high = 20;
+  eu->cargo[c].rise = 4;
+  eu->cargo[c].fall = 4;
+  col1->player[1].control = 1;
+  const ColonizeWorld w = {.col1 = col1, .col1_ok = true, .europe = eu};
+  /* {mod, difficulty, start bid, want bid}: pressure past one fall step. */
+  static const int rows[][4] = {{0, 4, 5, 4}, {1, 0, 5, 4}, {1, 2, 6, 6}, {1, 2, 7, 6}, {1, 4, 11, 11}, {1, 4, 5, 11}};
+  for (size_t i = 0; i < sizeof rows / sizeof rows[0]; ++i) {
+    mods_campaign_set(rows[i][0] ? 1u << MOD_AI_IMPROVEMENTS : 0u);
+    col1->head.difficulty = (uint8_t)rows[i][1];
+    col1->nation[1].trade.euro_price[c] = (uint8_t)rows[i][2];
+    col1->nation[1].trade.nr[c] = 500;
+    europe_nation_tick_market_prices_w(&w, 1, 100);
+    if (col1->nation[1].trade.euro_price[c] != rows[i][3]) {
+      fprintf(stderr, "export floor row %zu: bid %d want %d\n", i,
+              (int)col1->nation[1].trade.euro_price[c], rows[i][3]);
+      rc = 1;
+    }
+  }
+  mods_campaign_set(0);
+  free(col1);
+  free(eu);
+  return rc;
+}
+
 /* port_bugs.md #1588 / #1589: DOS holds are a dense list. A sale pulls the
  * hold with FUN_15eb_317c (later holds shift down) and a partial sale re-adds
  * the rest via FUN_15eb_30b8, which appends at holds_occupied; 30b8's top-up
@@ -4743,6 +4785,7 @@ static const TestCase k_cases[] = {
     {"case_europe_tb4_tb48_fixed", case_europe_tb4_tb48_fixed},
     {"case_europe_improved_ai_volume_mirror", case_europe_improved_ai_volume_mirror},
     {"case_europe_improved_ai_no_rise_cap", case_europe_improved_ai_no_rise_cap},
+    {"case_europe_improved_ai_export_floor", case_europe_improved_ai_export_floor},
     {"case_europe_pressure_wrap_db115", case_europe_pressure_wrap_db115},
     {"case_europe_transit_drag_db56", case_europe_transit_drag_db56},
     {"case_europe_workflow", case_europe_workflow},

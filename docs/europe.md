@@ -684,7 +684,11 @@ ledger[4]/2 + ledger[1..3] — the loop's own cargos, port_bugs.md #1022); phase
 adds attrition and steps the bid ±1 at the rise/fall thresholds, then applies
 the two AI-only caps (cargo 14/15 rise cap `high + (diff-4)*2 + (turn-600)/100`,
 cargo 8/14/15 ceiling `((4-diff)*3)/2 + 3`). An improved AI skips the rise cap
-(MOD_AI_IMPROVEMENTS, #1902, DB-114); the ceiling still holds.
+(MOD_AI_IMPROVEMENTS, #1902, DB-114); the ceiling still holds. An improved AI's
+export goods (sugar, tobacco, cotton, furs, ore, silver, rum, cigars, cloth,
+coats) also fall no lower than `low + (start_lo - low) * diff / 4` on its own
+track, and a track below that is lifted (#1928): the @CARGO floor on
+Discoverer, the lowest opening price on Viceroy.
 
 **DOS keeps four independent price tracks** — bid at record +0x4c, pressure at
 +0x5c — and runs this per NATION as the first act of each nation's own 5e52.

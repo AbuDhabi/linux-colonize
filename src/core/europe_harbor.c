@@ -1204,6 +1204,21 @@ static void europe_market_phase3(const EuropeMarketTick* t, const long ledger[16
  * Returns the last cargo that rose / fell through `out_rise` / `out_fall` for
  * the status line.
  */
+/* MOD_AI_IMPROVEMENTS #1928 (not DOS): an improved AI's own price for an
+ * export good (sugar, tobacco, cotton, furs, ore, silver, rum, cigars, cloth,
+ * coats) falls no lower than low + (start_lo - low) * difficulty / 4, the
+ * @CARGO columns: the data floor on Discoverer up to the lowest opening price
+ * on Viceroy. Otherwise the data floor. */
+static int europe_market_floor(const EuropeMarketTick* t, int c) {
+  const EuropeCargoQuote* q = &t->eu->cargo[c];
+  const bool export_good = (c >= COLONIZE_CARGO_SUGAR && c <= COLONIZE_CARGO_FURS) || c == COLONIZE_CARGO_ORE ||
+                           c == COLONIZE_CARGO_SILVER || (c >= COLONIZE_CARGO_RUM && c <= COLONIZE_CARGO_COATS);
+  if (!export_good || !t->ai_bound || !ai_euro_improved_nation(t->col1, -1, t->nation) || q->start_lo <= q->low) {
+    return q->low;
+  }
+  return q->low + ((q->start_lo - q->low) * t->difficulty) / 4;
+}
+
 static void europe_market_phase4(const EuropeMarketTick* t, int* out_rise, int* out_fall) {
   EuropeScreen* eu = t->eu;
   for (int c = 0; c < eu->cargo_count && c < EUROPE_CARGO_MAX; ++c) {
@@ -1253,9 +1268,10 @@ static void europe_market_phase4(const EuropeMarketTick* t, int* out_rise, int* 
         }
       }
     }
+    const int floor = europe_market_floor(t, c);
     if (nr >= fall * 100) {
       nr -= fall * 100;
-      if (t->bid[c] > q->low) {
+      if (t->bid[c] > floor) {
         t->bid[c] -= 1;
         if (out_fall) {
           *out_fall = c;
@@ -1273,6 +1289,9 @@ static void europe_market_phase4(const EuropeMarketTick* t, int* out_rise, int* 
       nr = europe_nr_add((int16_t)nr, -attrition);
     }
     t->nr[c] = (int16_t)nr;
+    if (floor > q->low && t->bid[c] < floor) {
+      t->bid[c] = floor; /* #1928: a track below the floor (opening roll, older save) is lifted */
+    }
     /*
      * raw 58994-58999: an AI/Crown nation's bid for cargos 8/14/15 is capped
      * at ((4 − difficulty)·3)/2 + 3 — 9 on Discoverer down to 3 on Viceroy.
