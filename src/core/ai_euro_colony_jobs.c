@@ -2797,6 +2797,11 @@ COLONIZE_INTERNAL AiEuro5952CascadeStatus ai_euro_5952_cascade_head(AiEuro5952Ca
 
 static AiEuro5952CascadeStatus ai_euro_5952_naval_band(AiEuro5952Cascade* s);
 
+/* #1931: a colony worth walling, 8+ people or 6+ with half of them rebels. */
+COLONIZE_INTERNAL bool ai_euro_5952_walls_wanted(const AiEuro5952Cascade* s) {
+  return s->pop >= 8 || (s->pop >= 6 && colony_prod_sol_percent(s->col1, s->col) >= 50);
+}
+
 /* asm 2316-2577: the town band, Warehouse Expansion through Fortress (Wagon
  * Train unit project at 2385); pop < 8 ends at 2747. */
 COLONIZE_INTERNAL AiEuro5952CascadeStatus ai_euro_5952_cascade_town(AiEuro5952Cascade* s) {
@@ -2860,6 +2865,19 @@ COLONIZE_INTERNAL AiEuro5952CascadeStatus ai_euro_5952_cascade_town(AiEuro5952Ca
     }
   }
 
+  /* MOD_AI_IMPROVEMENTS #1931 (not DOS): walls go first where they pay for
+   * their 120-320 hammers, in a colony worth holding; elsewhere an improved
+   * colony stops at the Stockade. */
+  const bool improved = ai_euro_improved(ctx, s->nation);
+  const bool walls_wanted = improved && ai_euro_5952_walls_wanted(s);
+  if (walls_wanted) {
+    if (ai_euro_5952_try_build(s, 0x01) == 0) { /* Fort */
+      return AI_EURO_5952_CASCADE_RETURN;
+    }
+    if (pop >= 8 && colony_prod_sol_percent(s->col1, col) >= 50 && ai_euro_5952_try_build(s, 0x02) == 0) {
+      return AI_EURO_5952_CASCADE_RETURN; /* Fortress */
+    }
+  }
   if (tier_max >= 1 && (pop + experts) >= 4) {
     if (ai_euro_5952_try_build(s, 0x0c) == 0) { /* 23d0: Schoolhouse */
       return AI_EURO_5952_CASCADE_RETURN;
@@ -2905,7 +2923,7 @@ COLONIZE_INTERNAL AiEuro5952CascadeStatus ai_euro_5952_cascade_town(AiEuro5952Ca
   if (ai_euro_5952_try_build(s, 0x24) == 0) { /* 2467: Lumber Mill */
     return AI_EURO_5952_CASCADE_RETURN;
   }
-  if (ai_euro_5952_try_build(s, 0x01) == 0) { /* 2475: Fort */
+  if (!improved && ai_euro_5952_try_build(s, 0x01) == 0) { /* 2475: Fort */
     return AI_EURO_5952_CASCADE_RETURN;
   }
   if (musket_price >= 4 && pop >= 4 &&
@@ -2952,7 +2970,7 @@ COLONIZE_INTERNAL AiEuro5952CascadeStatus ai_euro_5952_cascade_town(AiEuro5952Ca
   if (ai_euro_5952_try_build(s, 0x25) == 0) { /* 2552: Church again */
     return AI_EURO_5952_CASCADE_RETURN;
   }
-  if (pop >= 0x0a) {
+  if (pop >= 0x0a && !improved) {
     if (ai_euro_5952_try_build(s, 0x02) == 0) { /* 2560: Fortress */
       return AI_EURO_5952_CASCADE_RETURN;
     }

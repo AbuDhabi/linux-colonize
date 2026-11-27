@@ -1494,6 +1494,22 @@ COLONIZE_INTERNAL int ai_euro_5d04_late_discount(int difficulty, uint32_t price)
   return (int16_t)(difficulty * (int16_t)price * 10) / -100;
 }
 
+/* raw 92863-92871: the armed recruit's price, muskets included unless the
+ * nation banks a lot. */
+static uint32_t ai_euro_5d04_soldier_price(const ColonizeCol1Nation* nat, int difficulty, int turn) {
+  const int base2 = (((int)nat->recruit_count + 7) * 2 - (difficulty & 0xfe)) * 10;
+  const long extra =
+    ((long)base2 * ai_euro_recruit_price_crosses(nat)) / (-1L - (long)nat->needed_crosses);
+  uint32_t price = (uint32_t)(base2 + extra);
+  if (nat->musket_bank_lots == 0) {
+    price += (uint32_t)(ai_euro_5d04_cb_price(COLONIZE_CARGO_MUSKETS) * 50);
+  }
+  if (turn > 99) {
+    price += (uint32_t)ai_euro_5d04_late_discount(difficulty, price);
+  }
+  return price;
+}
+
 static void ai_euro_5d04_hire_tail_colony_demand(Ai5d04HireTail* t) {
   ColonizeTurnContext* ctx = t->ctx;
   const int nation_id = t->nation_id;
@@ -1560,16 +1576,7 @@ static void ai_euro_5d04_hire_tail_colony_demand(Ai5d04HireTail* t) {
         break;
       }
       bought_this_iteration = 0;
-      const int base2 = (((int)nat->recruit_count + 7) * 2 - (difficulty & 0xfe)) * 10;
-      const long extra =
-        ((long)base2 * ai_euro_recruit_price_crosses(nat)) / (-1L - (long)nat->needed_crosses);
-      uint32_t recruit_price = (uint32_t)(base2 + extra); /* DOS local_38b */
-      if (nat->musket_bank_lots == 0) {
-        recruit_price += (uint32_t)(ai_euro_5d04_cb_price(COLONIZE_CARGO_MUSKETS) * 50);
-      }
-      if (turn > 99) {
-        recruit_price += (uint32_t)ai_euro_5d04_late_discount(difficulty, recruit_price);
-      }
+      uint32_t recruit_price = ai_euro_5d04_soldier_price(nat, difficulty, turn); /* DOS local_38b */
       if (ai_euro_gold_free(ctx, nation_id) >= (long)recruit_price + t->fleet_reserve) {
         const int slot = dos_rng_range(ctx->rng, 0, 2);
         const int cand = ai_euro_5d04_cb_dock_pop_candidate(nat->recruit[slot]);
@@ -1894,6 +1901,49 @@ static void ai_euro_improved_scout_buy(ColonizeTurnContext* ctx, int nation_id) 
   pick->horses = UNITS_EQUIP_HORSES;
 }
 
+/* MOD_AI_IMPROVEMENTS #1931 (not DOS): DOS's AI pays its armed recruits from
+ * the treasury bump and the musket bank, which an improved nation does
+ * without, so all-AI Viceroy t300 it fielded 28 armed units to DOS's 47. A
+ * nation below its standing army (ai_euro_improved_army_target) buys one
+ * Dragoon a turn from its recruit pool at the AI recruit price plus the
+ * dock price of 50 muskets and 50 horses, when the purse holds that past
+ * the hull reserve. Experts in the pool are left for the colonies. */
+static void ai_euro_improved_army_buy(Ai5d04HireTail* t) {
+  ColonizeTurnContext* ctx = t->ctx;
+  const int nation_id = t->nation_id;
+  ColonizeCol1Nation* nat = t->nat;
+  if (t->woi || !ai_euro_improved_army_short(ctx, nation_id)) {
+    return;
+  }
+  int slot = -1;
+  for (int j = 0; j < 3; ++j) {
+    const int prof = nat->recruit[j];
+    if (prof == UNITS_JOB_SOLDIER || (slot < 0 && ai_euro_5d04_cb_profession_gate(prof) == 0)) {
+      slot = j;
+    }
+  }
+  const int horse_cost = ai_euro_5d04_cb_price(COLONIZE_CARGO_HORSES) * UNITS_EQUIP_HORSES;
+  const long price = (long)ai_euro_5d04_soldier_price(nat, t->difficulty, t->turn) + horse_cost;
+  if (slot < 0 || ai_euro_gold_free(ctx, nation_id) < price + t->fleet_reserve) {
+    return;
+  }
+  const int cand = ai_euro_5d04_cb_dock_pop_candidate(nat->recruit[slot]);
+  if (cand < 0) {
+    return;
+  }
+  ai_euro_5d04_cb_set_unit_dispatch_byte(cand, 4);
+  europe_nation_gold_add(ctx->europe, ctx->col1, nation_id, -price);
+  ai_euro_recruit_spend_crosses(nat);
+  if (nat->musket_bank_lots == 0) {
+    ai_euro_5d04_cb_set_pool_counter(COLONIZE_CARGO_MUSKETS, UNITS_EQUIP_MUSKETS);
+  } else {
+    nat->musket_bank_lots--;
+  }
+  ai_euro_5d04_cb_set_pool_counter(COLONIZE_CARGO_HORSES, UNITS_EQUIP_HORSES);
+  (void)ai_euro_5d04_refill_pool_slot(slot);
+  ai_euro_5d04_cb_sync_gold();
+}
+
 /*
  * Raw 86065-86561 — Europe hire ladder + profession/reward tail. DOS is one
  * function body whose locals thread across all three phases in one scope;
@@ -2043,6 +2093,7 @@ static void ai_euro_5d04_hire_ladder_tail(
   ai_euro_5d04_hire_tail_candidates(&tail);
   ai_euro_5d04_hire_tail_colony_demand(&tail);
   ai_euro_improved_scout_buy(ctx, nation_id);
+  ai_euro_improved_army_buy(&tail);
   (void)ai_euro_improved_surplus_train(ctx, nation_id); /* #1908 */
   ai_euro_5d04_hire_tail_departing_ships(&tail);
 }

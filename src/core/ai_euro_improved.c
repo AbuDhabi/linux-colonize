@@ -563,6 +563,43 @@ bool ai_euro_improved_war_enemy_near(
   return false;
 }
 
+/* ===== Standing army ===== */
+
+/* #1931: armed land units (combat > 1: Soldiers, Dragoons, Artillery,
+ * Continentals) the nation owns, in the field, in Europe or aboard. */
+int ai_euro_improved_army_count(const ColonizeTurnContext* ctx, int nation) {
+  int n = 0;
+  for (int i = 0; ctx && ctx->units && i < units_slot_end(ctx->units); ++i) {
+    const ColonizeUnit* u = &ctx->units->units[i];
+    if (!u->active || u->nation_id != nation) {
+      continue;
+    }
+    const int dtype = ai_euro_20e6_dos_type(ctx->units, u);
+    n += ai_euro_20e6_type_combat(dtype) > 1 && (dtype < 0x0d || dtype > 0x12);
+  }
+  return n;
+}
+
+/* #1931: the army an improved nation keeps, (4 + difficulty) per ten
+ * colonists in its colonies: 0.4 a colonist on Discoverer to 0.8 on Viceroy.
+ * DOS's AI fields 0.6 to 0.9 a colonist on its treasury bump and free musket
+ * bank (all-AI t300). ponytail: a flat ratio, no threat term. */
+int ai_euro_improved_army_target(const ColonizeTurnContext* ctx, int nation) {
+  if (!ctx || !ctx->colonies || !ctx->col1_ok || !ctx->col1) {
+    return 0;
+  }
+  int pop = 0;
+  for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+    const ColonizeColony* c = &ctx->colonies->colonies[i];
+    pop += c->active && c->nation_id == nation ? (int)c->population : 0;
+  }
+  return pop * (4 + (int)ctx->col1->head.difficulty) / 10;
+}
+
+bool ai_euro_improved_army_short(const ColonizeTurnContext* ctx, int nation) {
+  return ai_euro_improved(ctx, nation) && ai_euro_improved_army_count(ctx, nation) < ai_euro_improved_army_target(ctx, nation);
+}
+
 /* ===== Colony focus ===== */
 
 /* ponytail: flag-driven pick. A small colony works for export (Cash), not

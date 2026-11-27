@@ -528,6 +528,8 @@ typedef struct AiEuro5952Cascade {
 #define AI_EURO_SHIPYARD_HAMMERS 6
 #define AI_EURO_SHIPYARD_TOOLS 3
 COLONIZE_INTERNAL bool ai_euro_5952_naval_capable(const AiEuro5952Cascade* s);
+/* #1931: an improved colony worth a Fort (8+ people, or 6+ at 50% SoL). */
+COLONIZE_INTERNAL bool ai_euro_5952_walls_wanted(const AiEuro5952Cascade* s);
 
 /* NEXT = fall into the next stage; WANTS = DOS's jump to 2747 (set the
  * wants-construction latch); RETURN = a project was picked. */
@@ -797,6 +799,11 @@ int ai_euro_colony_focus(const ColonizeTurnContext* ctx, const ColonizeColony* c
 bool ai_euro_improved_war_enemy_near(
   const ColonizeTurnContext* ctx, int nation, int x, int y, int r, bool colonies
 );
+/* #1931: armed land units owned, the standing army kept ((4 + difficulty)
+ * per ten colonists), and whether an improved nation is below it. */
+int ai_euro_improved_army_count(const ColonizeTurnContext* ctx, int nation);
+int ai_euro_improved_army_target(const ColonizeTurnContext* ctx, int nation);
+bool ai_euro_improved_army_short(const ColonizeTurnContext* ctx, int nation);
 /* MOD_AI_IMPROVEMENTS 4.2 forest reserve: ring forests the colony can work
  * (not blocked, not native-claimed), the reserve it keeps, and whether
  * clearing the forest at (tx,ty) is refused (reserve reached, or a resource). */

@@ -316,6 +316,10 @@ static int departing_ship_cargo_case(bool improved) {
   if (improved) {
     f.col1.player[nation].control = 1;
     mods_campaign_set(1u << MOD_AI_IMPROVEMENTS);
+    /* an all-expert recruit pool: no #1931 Dragoon buy for the empty army */
+    for (int j = 0; j < 3; ++j) {
+      f.col1.nation[nation].recruit[j] = 0;
+    }
   }
   fixture_water_ring(&f, fixture_ore_colony(&f, nation, 3));
   f.col1.nation[nation].trade.euro_price[COLONIZE_CARGO_ORE] = 2; /* price 2 (burden 0 headless) */

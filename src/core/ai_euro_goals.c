@@ -1706,8 +1706,11 @@ COLONIZE_INTERNAL void ai_euro_5952_absorb_equip(
           const int specialist_arm =
             ai_euro_5952_job_is_expert(prof) && prof != UNITS_JOB_SOLDIER &&
             (census13 != 0 || census15 != 0);
+          /* MOD_AI_IMPROVEMENTS #1931 (not DOS): a nation below its standing
+           * army keeps its surplus soldiers armed. */
           const int surplus_arm =
-            (c->ai_flags & COLONIZE_COLONY_AI_MILITARY_SURPLUS) != 0;
+            (c->ai_flags & COLONIZE_COLONY_AI_MILITARY_SURPLUS) != 0 &&
+            !ai_euro_improved_army_short(ctx, nation_id);
           take = dead_shortage_arm || specialist_arm || surplus_arm;
         } else if (dtype == 0x14) { /* Pioneer, raw 94257-94263 */
           is_pioneer = 1;
