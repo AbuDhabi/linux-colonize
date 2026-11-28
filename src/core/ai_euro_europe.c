@@ -538,7 +538,10 @@ static int ai_euro_5d04_ship_buy_ladder(
   const ColonizeCol1Head* head = &ctx->col1->head;
   const ColonizeCol1Stuff* stuff = &ctx->col1->stuff;
   const int woi = head->game_options.woi != 0;
-  const int proxy_half = stuff->census_pop_proxy[nation_id] >> 1;
+  /* MOD_AI_IMPROVEMENTS #1932 (not DOS): for an improved nation the ladder
+   * stops at one cargo hold per colony, without DOS's half census on top;
+   * at all-AI t300 its Europe-bound hulls sailed about half full. */
+  const int proxy_half = ai_euro_improved(ctx, nation_id) ? 0 : stuff->census_pop_proxy[nation_id] >> 1;
   if (woi || stuff->ship_cargo_totals[nation_id] >
              (uint32_t)(proxy_half + stuff->colony_counts[nation_id])) {
     return 0;
@@ -1901,6 +1904,29 @@ static void ai_euro_improved_scout_buy(ColonizeTurnContext* ctx, int nation_id) 
   pick->horses = UNITS_EQUIP_HORSES;
 }
 
+/* MOD_AI_IMPROVEMENTS #1932 (not DOS): an improved nation short of guns
+ * (ai_euro_improved_artillery_wanted) buys one Artillery a turn in Europe
+ * at the escalating purchase price, when the purse holds it past the hull
+ * reserve. Colony builds alone left it 3 guns a nation at t300. */
+static void ai_euro_improved_artillery_buy(Ai5d04HireTail* t) {
+  ColonizeTurnContext* ctx = t->ctx;
+  const int nation_id = t->nation_id;
+  ColonizeCol1Nation* nat = t->nat;
+  if (t->woi || !ai_euro_improved_artillery_wanted(ctx, nation_id)) {
+    return;
+  }
+  const uint32_t price = ai_euro_5d04_artillery_price(nat);
+  if (ai_euro_gold_free(ctx, nation_id) < (long)price + t->fleet_reserve ||
+      ai_euro_5d04_cb_goal_trigger(0xb, nation_id, nation_id - 0x14, nation_id - 0x14) < 0) {
+    return;
+  }
+  europe_nation_gold_add(ctx->europe, ctx->col1, nation_id, -(long)price);
+  if (nat->artillery_count < 0xffff) {
+    nat->artillery_count++;
+  }
+  ai_euro_5d04_cb_sync_gold();
+}
+
 /* MOD_AI_IMPROVEMENTS #1931 (not DOS): DOS's AI pays its armed recruits from
  * the treasury bump and the musket bank, which an improved nation does
  * without, so all-AI Viceroy t300 it fielded 28 armed units to DOS's 47. A
@@ -2093,6 +2119,7 @@ static void ai_euro_5d04_hire_ladder_tail(
   ai_euro_5d04_hire_tail_candidates(&tail);
   ai_euro_5d04_hire_tail_colony_demand(&tail);
   ai_euro_improved_scout_buy(ctx, nation_id);
+  ai_euro_improved_artillery_buy(&tail);
   ai_euro_improved_army_buy(&tail);
   (void)ai_euro_improved_surplus_train(ctx, nation_id); /* #1908 */
   ai_euro_5d04_hire_tail_departing_ships(&tail);

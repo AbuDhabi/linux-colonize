@@ -600,6 +600,24 @@ bool ai_euro_improved_army_short(const ColonizeTurnContext* ctx, int nation) {
   return ai_euro_improved(ctx, nation) && ai_euro_improved_army_count(ctx, nation) < ai_euro_improved_army_target(ctx, nation);
 }
 
+/* #1932: Artillery (and damaged Artillery) owned below a third of the army
+ * target, while the Europe price (500 + 100 per gun bought) is under the cap. */
+bool ai_euro_improved_artillery_wanted(const ColonizeTurnContext* ctx, int nation) {
+  if (!ai_euro_improved(ctx, nation) || !ctx->units || !ctx->col1_ok || !ctx->col1 || nation < 0 || nation >= 4 ||
+      ai_euro_5d04_artillery_price(&ctx->col1->nation[nation]) >= AI_EURO_ARTILLERY_PRICE_CAP) {
+    return false;
+  }
+  int guns = 0;
+  for (int i = 0; i < units_slot_end(ctx->units); ++i) {
+    const ColonizeUnit* u = &ctx->units->units[i];
+    if (u->active && u->nation_id == nation) {
+      const int dtype = ai_euro_20e6_dos_type(ctx->units, u);
+      guns += dtype == 0x0b || dtype == 0x0c;
+    }
+  }
+  return guns < ai_euro_improved_army_target(ctx, nation) / 3;
+}
+
 /* ===== Colony focus ===== */
 
 /* ponytail: flag-driven pick. A small colony works for export (Cash), not

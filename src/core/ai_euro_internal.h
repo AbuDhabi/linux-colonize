@@ -760,8 +760,8 @@ bool ai_euro_export_pickup_dest(
   ColonizeTurnContext* ctx, const ColonizeUnit* ship, int nation, int* out_x, int* out_y
 );
 /* #1893: cargo holds an improved nation wants per colony before a sale-good
- * backlog makes it buy a hull. */
-#define AI_EURO_FLEET_HOLDS_PER_COLONY 3
+ * backlog makes it buy a hull (3 until #1932). */
+#define AI_EURO_FLEET_HOLDS_PER_COLONY 2
 bool ai_euro_improved_fleet_short(const ColonizeTurnContext* ctx, int nation_id);
 /* #1889: own coastal colonies short of tools for their build (0 = mod off). */
 int ai_euro_tools_short_colonies(ColonizeTurnContext* ctx, int nation);
@@ -804,6 +804,10 @@ bool ai_euro_improved_war_enemy_near(
 int ai_euro_improved_army_count(const ColonizeTurnContext* ctx, int nation);
 int ai_euro_improved_army_target(const ColonizeTurnContext* ctx, int nation);
 bool ai_euro_improved_army_short(const ColonizeTurnContext* ctx, int nation);
+/* #1932: an improved nation buys Artillery in Europe while it owns fewer
+ * than a third of its standing army in guns and the price is below this. */
+#define AI_EURO_ARTILLERY_PRICE_CAP 1500
+bool ai_euro_improved_artillery_wanted(const ColonizeTurnContext* ctx, int nation);
 /* MOD_AI_IMPROVEMENTS 4.2 forest reserve: ring forests the colony can work
  * (not blocked, not native-claimed), the reserve it keeps, and whether
  * clearing the forest at (tx,ty) is refused (reserve reached, or a resource). */

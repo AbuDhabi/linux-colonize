@@ -527,6 +527,63 @@ static int case_fleet_short(void) {
   return rc;
 }
 
+/* #1932: an improved nation wants Artillery below a third of its army
+ * target while the Europe price is under AI_EURO_ARTILLERY_PRICE_CAP. */
+static int case_artillery_wanted(void) {
+  ColonizeMsgCatalog names;
+  assets_msg_init(&names);
+  ColonizeUnitPool pool;
+  memset(&pool, 0, sizeof(pool));
+  if (!assets_msg_load_file(&names, "COLONIZE/NAMES.TXT") || !units_load_types(&pool, &names)) {
+    fprintf(stderr, "artillery_wanted: setup failed\n");
+    assets_msg_free(&names);
+    return 1;
+  }
+  static ColonizeCol1Save col1;
+  memset(&col1, 0, sizeof(col1));
+  col1.player[1].control = 1;
+  col1.head.difficulty = 4;
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+  colonies.colonies[0].active = true;
+  colonies.colonies[0].nation_id = 1;
+  colonies.colonies[0].population = 15; /* army target 15 * 8 / 10 = 12, guns 4 */
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.units = &pool;
+  ctx.colonies = &colonies;
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+  ctx.human_nation = 0;
+  for (int i = 0; i < 3; ++i) {
+    units_get(&pool, units_spawn(&pool, units_find_type(&pool, "Artillery"), 5 + i, 5))->nation_id = 1;
+  }
+  int rc = 0;
+  if (ai_euro_improved_artillery_wanted(&ctx, 1)) {
+    fprintf(stderr, "artillery_wanted: DOS mode never\n");
+    rc = 1;
+  }
+  mods_campaign_set(1u << MOD_AI_IMPROVEMENTS);
+  if (rc == 0 && !ai_euro_improved_artillery_wanted(&ctx, 1)) {
+    fprintf(stderr, "artillery_wanted: 3 guns of 4 wanted\n");
+    rc = 1;
+  }
+  col1.nation[1].artillery_count = 10; /* price 500 + 1000 = the cap */
+  if (rc == 0 && ai_euro_improved_artillery_wanted(&ctx, 1)) {
+    fprintf(stderr, "artillery_wanted: 1500 is too dear\n");
+    rc = 1;
+  }
+  col1.nation[1].artillery_count = 0;
+  units_get(&pool, units_spawn(&pool, units_find_type(&pool, "Artillery"), 8, 5))->nation_id = 1;
+  if (rc == 0 && ai_euro_improved_artillery_wanted(&ctx, 1)) {
+    fprintf(stderr, "artillery_wanted: 4 guns is enough\n");
+    rc = 1;
+  }
+  mods_campaign_set(0);
+  assets_msg_free(&names);
+  return rc;
+}
+
 /* #1900: an improved AI's hold sale pays its tax rate into royal_money;
  * mod off, DOS pays the AI the untaxed gross. */
 static int case_sale_tax(void) {
@@ -838,6 +895,7 @@ static const TestCase k_cases[] = {
   {"colonist_ferry_wanted", case_colonist_ferry_wanted},
   {"scout_target", case_scout_target},
   {"fleet_short", case_fleet_short},
+  {"artillery_wanted", case_artillery_wanted},
   {"father_pick", case_father_pick},
   {"sale_tax", case_sale_tax},
   {"commons_mirror", case_commons_mirror},
